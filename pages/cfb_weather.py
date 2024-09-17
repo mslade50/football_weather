@@ -75,8 +75,8 @@ fig = px.scatter_mapbox(
         'yellow': 'yellow',
         'green': 'green'
     },
-    zoom=5,  # Adjusted for better zoom in the US
-    height=800,  # Make the map occupy a larger portion of the page
+    zoom=6,  # Adjusted for better zoom in the US
+    height=1000,  # Make the map occupy a larger portion of the page
 )
 
 # Update the layout to focus on the US and adjust map display
@@ -124,4 +124,10 @@ st.plotly_chart(fig, use_container_width=True)
 
 # When a dot is clicked, show additional details
 if st.sidebar.checkbox("Show game details", False):
-    game = st.sidebar.selectbox
+    # Select a game
+    game = st.sidebar.selectbox("Select a game", df['Game'].unique())
+    selected_game = df[df['Game'] == game]
+    
+    if not selected_game.empty:
+        st.write(f"Details for {game}")
+        st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol', 'My_total', 'Edge', 'Open', 'Current']])
