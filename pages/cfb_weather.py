@@ -1,35 +1,74 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
-# Load the weather data CSV file
-@st.cache_data
-def load_weather_data():
-    df = pd.read_csv('cfb_locations_updated.csv')
-    return df
+# Load your Excel file from your GitHub repository
+url = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/REPO_NAME/main/cfb_weather.xlsx"  # Modify with your repo details
+df = pd.read_excel(url)
 
-# Load data
-df = load_weather_data()
+# Split game_loc into lat and lon
+df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
+df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
-# Streamlit page configuration
-st.title("College Football Weather Dashboard")
-st.write("This dashboard visualizes weather data for College Football games.")
+# Create dot size based on 'gs_fg'
+df['dot_size'] = df['gs_fg'].abs()
 
-# Show a subset of the data for review
-st.write(df.head())
+# Assign dot color based on conditions
+def assign_dot_color(row):
+    if row['temp_fg'] > 80 and row['wind_fg'] < 12:
+        return 'red'
+    elif row['temp_fg'] < 30 and row['wind_fg'] < 12:
+        return 'lightblue'
+    elif row['wind_fg'] > 12:
+        return 'purple'
+    elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
+        return 'yellow'
+    else:
+        return 'green'
 
-# Filter the data (example: games in specific temperature ranges)
-st.sidebar.title("Filter Options")
-temp_filter = st.sidebar.slider("Select temperature range (°F)", min_value=int(df['temp_fg'].min()), max_value=int(df['temp_fg'].max()), value=(30, 80))
-wind_filter = st.sidebar.slider("Select wind range (mph)", min_value=int(df['wind_fg'].min()), max_value=int(df['wind_fg'].max()), value=(0, 20))
+df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
-# Apply the filters
-filtered_df = df[(df['temp_fg'] >= temp_filter[0]) & (df['temp_fg'] <= temp_filter[1]) & 
-                 (df['wind_fg'] >= wind_filter[0]) & (df['wind_fg'] <= wind_filter[1])]
+# Create the map using Plotly
+fig = px.scatter_mapbox(
+    df,
+    lat="lat",
+    lon="lon",
+    hover_name="Game",
+    hover_data={
+        "wind_fg": True,
+        "temp_fg": True,
+        "rain_fg": True,
+        "Fd_open": True,
+        "FD_now": True,
+        "game_loc": True,
+        "wind_diff": True,
+        "wind_vol": True,
+    },
+    size="dot_size",
+    color="dot_color",
+    color_discrete_map={
+        'red': 'red',
+        'lightblue': 'lightblue',
+        'purple': 'purple',
+        'yellow': 'yellow',
+        'green': 'green'
+    },
+    zoom=3,
+    height=700,
+)
 
-st.write("Filtered Data:")
-st.write(filtered_df)
+fig.update_layout(mapbox_style="open-street-map")
 
-# Basic map of game locations
-st.map(filtered_df[['latitude', 'longitude']])
+# Display in Streamlit
+st.title("College Football Weather Map")
+st.plotly_chart(fig)
 
-# Add custom visualizations and interactivity here (plots, graphs, etc.)
+# Optional: Display game details in sidebar
+if st.sidebar.checkbox("Show game details", False):
+    game = st.sidebar.selectbox("Select a game", df['Game'].unique())
+    selected_game = df[df['Game'] == game]
+    
+    if not selected_game.empty:
+        st.write(f"Details for {game}")
+        st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol']])
