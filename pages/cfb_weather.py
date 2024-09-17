@@ -2,15 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
-import time
 
-# Debounce function to wait for clicks
-def debounce_click_event(click_data, delay=0.3):
-    time.sleep(delay)
-    if len(click_data) > 0:
-        return click_data
-    return None
-# Enable wide mode for the page
 st.set_page_config(layout="wide")
 
 # Load your Excel file
@@ -23,6 +15,7 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 df['dot_size'] = df['gs_fg'].abs()  # Create dot size based on 'gs_fg'
 df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
 df['My_total'] = (df['My_total'] * 4).round() / 4
+
 # Assign dot color based on conditions
 def assign_dot_color(row):
     if row['temp_fg'] > 80 and row['wind_fg'] < 12:
@@ -129,17 +122,12 @@ fig.update_traces(
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
 # st.plotly_chart(fig, use_container_width=True)
-
-click_data = plotly_events(fig, click_event=True)
-
-# Debounce the clicks
-click_data = debounce_click_event(click_data)
-
-# If a dot is clicked, use the click data to show details for that game
-if click_data:
-    clicked_game = click_data[0]['hovertext']  # 'hovertext' contains the 'Game' column
-    st.write(f"Details for {clicked_game}")
-    selected_game = df[df['Game'] == clicked_game]
-
+st.plotly_chart(fig)
+if st.sidebar.checkbox("Show game details", False):
+    # Select a game
+    game = st.sidebar.selectbox("Select a game", df['Game'].unique())
+    selected_game = df[df['Game'] == game]
+    
     if not selected_game.empty:
+        st.write(f"Details for {game}")
         st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol', 'My_total', 'Edge', 'Open', 'Current']])
