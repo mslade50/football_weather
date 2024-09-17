@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 # Load your Excel file from your GitHub repository
-url = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/REPO_NAME/main/cfb_weather.xlsx"  # Modify with your repo details
+url = "hhttps://github.com/mslade50/football_weather/blob/main/cfb_weather.xlsx"  # Modify with your repo details
 df = pd.read_excel(url)
 
 # Split game_loc into lat and lon
