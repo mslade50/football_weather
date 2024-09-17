@@ -127,7 +127,25 @@ if st.sidebar.checkbox("Show game details", False):
     # Select a game
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
-    
+
     if not selected_game.empty:
         st.write(f"Details for {game}")
-        st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol', 'My_total', 'Edge', 'Open', 'Current']])
+        
+        # Reorder the columns
+        reordered_columns = [
+            'wind_fg', 
+            'temp_fg', 
+            'rain_fg', 
+            'Fd_open', 
+            'FD_now', 
+            'My_total', 
+            'Edge', 
+            'Open', 
+            'Current',
+            'wind_vol',  # 3rd to last
+            'wind_diff',  # 2nd to last
+            'game_loc'  # Last column
+        ]
+        
+        # Display the reordered DataFrame
+        st.table(selected_game[reordered_columns])
