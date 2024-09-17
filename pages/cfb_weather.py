@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
+import time
+
+# Debounce function to wait for clicks
+def debounce_click_event(click_data, delay=0.3):
+    time.sleep(delay)
+    if len(click_data) > 0:
+        return click_data
+    return None
 # Enable wide mode for the page
 st.set_page_config(layout="wide")
 
@@ -122,13 +130,14 @@ fig.update_traces(
 st.title("College Football Weather Map")
 # st.plotly_chart(fig, use_container_width=True)
 
-# When a dot is clicked, show additional details
 click_data = plotly_events(fig, click_event=True)
+
+# Debounce the clicks
+click_data = debounce_click_event(click_data)
 
 # If a dot is clicked, use the click data to show details for that game
 if click_data:
     clicked_game = click_data[0]['hovertext']  # 'hovertext' contains the 'Game' column
-
     st.write(f"Details for {clicked_game}")
     selected_game = df[df['Game'] == clicked_game]
 
