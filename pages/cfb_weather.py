@@ -29,18 +29,18 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
-# Assign border color based on wind_vol
-def assign_border_color(wind_vol):
+# Assign opacity based on wind volume
+def assign_dot_opacity(wind_vol):
     if wind_vol == 'High':
-        return 'yellow'
+        return 0.05  # Very low opacity for high wind
     elif wind_vol == 'Low':
-        return 'green'
+        return 1.0  # Full opacity for low wind
     elif wind_vol == 'Mid':
-        return 'black'
+        return 0.5  # Medium opacity for mid wind
     else:
-        return 'gray'  # Default border color for undefined values
+        return 1.0  # Default opacity for undefined wind_vol
 
-df['border_color'] = df['wind_vol'].apply(assign_border_color)
+df['dot_opacity'] = df['wind_vol'].apply(assign_dot_opacity)
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
@@ -59,7 +59,7 @@ fig = px.scatter_mapbox(
         "wind_vol": True,
     },
     size="dot_size",  # Use the 'gs_fg' field for dot size
-    color="dot_color",  # Keep valid color values for Plotly
+    color="dot_color",  # Color based on conditions
     color_discrete_map={
         'red': 'red',
         'lightblue': 'lightblue',
@@ -67,18 +67,9 @@ fig = px.scatter_mapbox(
         'yellow': 'yellow',
         'green': 'green'
     },
+    opacity=df['dot_opacity'],  # Apply the opacity based on wind_vol
     zoom=4,  # Adjusted for better zoom in the US
     height=800,  # Make the map occupy a larger portion of the page
-)
-
-# Add a border to dots with marker.line.width and marker.line.color
-fig.update_traces(
-    marker=dict(
-        line=dict(
-            width=2,  # Set border thickness
-            color=df['border_color']  # Set border color based on wind_vol
-        )
-    )
 )
 
 # Update the layout to focus on the US and adjust map display
