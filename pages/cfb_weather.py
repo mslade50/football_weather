@@ -4,7 +4,7 @@ import plotly.express as px
 
 # Load your Excel file from your GitHub repository
 url = "https://github.com/mslade50/football_weather/blob/main/cfb_weather.xlsx"  # Modify with your repo details
-df = pd.read_excel(url)
+df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
 
 # Split game_loc into lat and lon
 df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
