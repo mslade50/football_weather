@@ -120,7 +120,7 @@ fig.update_traces(
 )
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
-st.plotly_chart(fig, use_container_width=True)
+# st.plotly_chart(fig, use_container_width=True)
 
 # When a dot is clicked, show additional details
 click_data = st.plotly_chart(fig, use_container_width=True).click_event
