@@ -123,11 +123,14 @@ st.title("College Football Weather Map")
 st.plotly_chart(fig, use_container_width=True)
 
 # When a dot is clicked, show additional details
-if st.sidebar.checkbox("Show game details", False):
-    # Select a game
-    game = st.sidebar.selectbox("Select a game", df['Game'].unique())
-    selected_game = df[df['Game'] == game]
+click_data = st.plotly_chart(fig, use_container_width=True).click_event
+
+# If a dot is clicked, use the click data to show details for that game
+if click_data:
+    clicked_game = click_data['points'][0]['hovertext']  # 'hovertext' contains the 'Game' column
+
+    st.write(f"Details for {clicked_game}")
+    selected_game = df[df['Game'] == clicked_game]
     
     if not selected_game.empty:
-        st.write(f"Details for {game}")
         st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol', 'My_total', 'Edge', 'Open', 'Current']])
