@@ -29,11 +29,24 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
+# Assign border color based on wind_vol
+def assign_border_color(wind_vol):
+    if wind_vol == 'High':
+        return 'yellow'
+    elif wind_vol == 'Low':
+        return 'green'
+    elif wind_vol == 'Mid':
+        return 'black'
+    else:
+        return 'gray'  # Default border color for undefined values
+
+df['border_color'] = df['wind_vol'].apply(assign_border_color)
+
 # Create the map using Plotly
 fig = px.scatter_mapbox(
     df,
-    lat="lat",  # Use the newly created 'lat' column
-    lon="lon",  # Use the newly created 'lon' column
+    lat="lat",  # Use the 'lat' column
+    lon="lon",  # Use the 'lon' column
     hover_name="Game",  # Column to show on hover
     hover_data={
         "wind_fg": True,
@@ -56,6 +69,16 @@ fig = px.scatter_mapbox(
     },
     zoom=4,  # Adjusted for better zoom in the US
     height=800,  # Make the map occupy a larger portion of the page
+)
+
+# Add a border to dots with marker.line.width and marker.line.color
+fig.update_traces(
+    marker=dict(
+        line=dict(
+            width=2,  # Set border thickness
+            color=df['border_color']  # Set border color based on wind_vol
+        )
+    )
 )
 
 # Update the layout to focus on the US and adjust map display
@@ -89,3 +112,4 @@ if st.sidebar.checkbox("Show game details", False):
     if not selected_game.empty:
         st.write(f"Details for {game}")
         st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol']])
+
