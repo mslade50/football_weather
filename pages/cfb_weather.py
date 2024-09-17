@@ -13,7 +13,7 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
 # Process data for map
 df['dot_size'] = df['gs_fg'].abs()  # Create dot size based on 'gs_fg'
-
+df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
 # Assign dot color based on conditions
 def assign_dot_color(row):
     if row['temp_fg'] > 80 and row['wind_fg'] < 12:
@@ -102,7 +102,21 @@ fig.update_traces(
     selector=dict(marker_color='purple'),  # Only select purple (wind) dots
     marker_opacity=df['dot_opacity']  # Apply opacity based on wind_vol
 )
-
+fig.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>" + 
+    "Wind: %{customdata[0]}<br>" +
+    "Temp: %{customdata[1]}<br>" +
+    "Rain: %{customdata[2]}<br>" +
+    "FD Open: %{customdata[3]}<br>" +
+    "FD Now: %{customdata[4]}<br>" +
+    "Game Location: %{customdata[5]}<br>" +
+    "Wind Diff: %{customdata[6]}<br>" +
+    "Wind Volatility: %{customdata[7]}<br>" +
+    "My Total: %{customdata[8]}<br>" +
+    "Edge: %{customdata[9]}<br>" +
+    "Open Spread: %{customdata[10]}<br>" +
+    "Current Spread: %{customdata[11]}<extra></extra>"
+)
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
 st.plotly_chart(fig, use_container_width=True)
