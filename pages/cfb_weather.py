@@ -112,4 +112,3 @@ if st.sidebar.checkbox("Show game details", False):
     if not selected_game.empty:
         st.write(f"Details for {game}")
         st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol']])
-
