@@ -33,7 +33,7 @@ df['dot_color'] = df.apply(assign_dot_color, axis=1)
 def assign_dot_opacity(row):
     if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
         if row['wind_vol'] == 'High':
-            return 0.15  # Very low opacity for high wind
+            return 0.2  # Very low opacity for high wind
         elif row['wind_vol'] == 'Low':
             return 1.0  # Full opacity for low wind
         elif row['wind_vol'] == 'Mid':
@@ -52,14 +52,18 @@ fig = px.scatter_mapbox(
     lon="lon",  # Use the 'lon' column
     hover_name="Game",  # Column to show on hover
     hover_data={
-        "wind_fg": True,
-        "temp_fg": True,
-        "rain_fg": True,
-        "Fd_open": True,
-        "FD_now": True,
-        "game_loc": True,
-        "wind_diff": True,
-        "wind_vol": True,
+        "wind_fg": True,   # Show wind forecast
+        "temp_fg": True,   # Show temperature forecast
+        "rain_fg": True,   # Show rain forecast
+        "Fd_open": True,   # Show the opening FanDuel price
+        "FD_now": True,    # Show the current FanDuel price
+        "game_loc": True,  # Show game location
+        "wind_diff": True, # Show wind difference
+        "wind_vol": True,  # Show wind volatility
+        "My_total": True,  # Add My_total to hover data
+        "Edge": True,      # Add Edge to hover data
+        "Open": True,      # Add Open spread to hover data
+        "Current": True    # Add Current spread to hover data
     },
     size="dot_size",  # Use the 'gs_fg' field for dot size
     color="dot_color",  # Color based on conditions
@@ -70,7 +74,7 @@ fig = px.scatter_mapbox(
         'yellow': 'yellow',
         'green': 'green'
     },
-    zoom=4,  # Adjusted for better zoom in the US
+    zoom=5,  # Adjusted for better zoom in the US
     height=800,  # Make the map occupy a larger portion of the page
 )
 
