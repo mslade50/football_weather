@@ -14,6 +14,7 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 # Process data for map
 df['dot_size'] = df['gs_fg'].abs()  # Create dot size based on 'gs_fg'
 df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
+df['My_total'] = (df['My_total'] * 4).round() / 4
 # Assign dot color based on conditions
 def assign_dot_color(row):
     if row['temp_fg'] > 80 and row['wind_fg'] < 12:
