@@ -2,17 +2,17 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Load your Excel file from your GitHub repository
-url = "https://github.com/mslade50/football_weather/blob/main/cfb_weather.xlsx"  # Modify with your repo details
-df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
+# Enable wide mode for the page
+st.set_page_config(layout="wide")
 
-# Split game_loc into lat and lon
+# Load your Excel file
+df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
 df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
-# Create dot size based on 'gs_fg'
-df['dot_size'] = df['gs_fg'].abs()
+# Process data for map
+df['dot_size'] = df['gs_fg'].abs()  # Create dot size based on 'gs_fg'
 
 # Assign dot color based on conditions
 def assign_dot_color(row):
@@ -25,16 +25,16 @@ def assign_dot_color(row):
     elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
         return 'yellow'
     else:
-        return 'green'
+        return 'green'  # Default color
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
     df,
-    lat="lat",
-    lon="lon",
-    hover_name="Game",
+    lat="lat",  # Use the newly created 'lat' column
+    lon="lon",  # Use the newly created 'lon' column
+    hover_name="Game",  # Column to show on hover
     hover_data={
         "wind_fg": True,
         "temp_fg": True,
@@ -45,26 +45,31 @@ fig = px.scatter_mapbox(
         "wind_diff": True,
         "wind_vol": True,
     },
-    size="dot_size",
-    color="dot_color",
+    size="dot_size",  # Use the 'gs_fg' field for dot size
+    color="dot_color",  # Color based on conditions
     color_discrete_map={
-        'red': 'red',
-        'lightblue': 'lightblue',
-        'purple': 'purple',
-        'yellow': 'yellow',
-        'green': 'green'
+        'red': 'Heat',
+        'lightblue': 'Cold',
+        'purple': 'Wind',
+        'yellow': 'Rain',
+        'green': 'N/A'
     },
-    zoom=3,
-    height=700,
+    zoom=4,  # Adjusted for better zoom in the US
+    height=800,  # Make the map occupy a larger portion of the page
 )
 
-fig.update_layout(mapbox_style="open-street-map")
+# Update the layout to focus on the US and adjust map display
+fig.update_layout(
+    mapbox_style="open-street-map",
+    mapbox_center={"lat": 37.0902, "lon": -95.7129},  # Center the map in the U.S.
+    mapbox_zoom=3.5,  # Zoom to focus on U.S. only
+)
 
-# Display in Streamlit
+# Display in Streamlit with wide layout
 st.title("College Football Weather Map")
-st.plotly_chart(fig)
+st.plotly_chart(fig, use_container_width=True)
 
-# Optional: Display game details in sidebar
+# When a dot is clicked, show additional details
 if st.sidebar.checkbox("Show game details", False):
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
