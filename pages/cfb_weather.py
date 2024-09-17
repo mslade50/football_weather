@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-
+from streamlit_plotly_events import plotly_events
 # Enable wide mode for the page
 st.set_page_config(layout="wide")
 
@@ -123,14 +123,14 @@ st.title("College Football Weather Map")
 # st.plotly_chart(fig, use_container_width=True)
 
 # When a dot is clicked, show additional details
-click_data = st.plotly_chart(fig, use_container_width=True).click_event
+click_data = plotly_events(fig, click_event=True)
 
 # If a dot is clicked, use the click data to show details for that game
 if click_data:
-    clicked_game = click_data['points'][0]['hovertext']  # 'hovertext' contains the 'Game' column
+    clicked_game = click_data[0]['hovertext']  # 'hovertext' contains the 'Game' column
 
     st.write(f"Details for {clicked_game}")
     selected_game = df[df['Game'] == clicked_game]
-    
+
     if not selected_game.empty:
         st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol', 'My_total', 'Edge', 'Open', 'Current']])
