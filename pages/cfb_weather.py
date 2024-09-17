@@ -29,18 +29,21 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
-# Assign opacity based on wind volume
-def assign_dot_opacity(wind_vol):
-    if wind_vol == 'High':
-        return 0.05  # Very low opacity for high wind
-    elif wind_vol == 'Low':
-        return 1.0  # Full opacity for low wind
-    elif wind_vol == 'Mid':
-        return 0.5  # Medium opacity for mid wind
+# Assign opacity based on wind volume but only for 'purple' (wind) dots
+def assign_dot_opacity(row):
+    if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
+        if row['wind_vol'] == 'High':
+            return 0.1  # Very low opacity for high wind
+        elif row['wind_vol'] == 'Low':
+            return 1.0  # Full opacity for low wind
+        elif row['wind_vol'] == 'Mid':
+            return 0.5  # Medium opacity for mid wind
+        else:
+            return 1.0  # Default opacity for undefined wind_vol
     else:
-        return 1.0  # Default opacity for undefined wind_vol
+        return 1.0  # Full opacity for non-wind dots
 
-df['dot_opacity'] = df['wind_vol'].apply(assign_dot_opacity)
+df['dot_opacity'] = df.apply(assign_dot_opacity, axis=1)
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
@@ -67,7 +70,7 @@ fig = px.scatter_mapbox(
         'yellow': 'yellow',
         'green': 'green'
     },
-    opacity=df['dot_opacity'],  # Apply the opacity based on wind_vol
+    opacity=df['dot_opacity'],  # Apply the opacity based on wind_vol but only for wind dots
     zoom=4,  # Adjusted for better zoom in the US
     height=800,  # Make the map occupy a larger portion of the page
 )
