@@ -29,11 +29,11 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 
-# Assign opacity based on wind volume but only for 'purple' (wind) dots
+# Function to assign opacity, but only for purple dots (wind)
 def assign_dot_opacity(row):
     if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
         if row['wind_vol'] == 'High':
-            return 0.1  # Very low opacity for high wind
+            return 0.05  # Very low opacity for high wind
         elif row['wind_vol'] == 'Low':
             return 1.0  # Full opacity for low wind
         elif row['wind_vol'] == 'Mid':
@@ -70,7 +70,6 @@ fig = px.scatter_mapbox(
         'yellow': 'yellow',
         'green': 'green'
     },
-    opacity=df['dot_opacity'],  # Apply the opacity based on wind_vol but only for wind dots
     zoom=4,  # Adjusted for better zoom in the US
     height=800,  # Make the map occupy a larger portion of the page
 )
@@ -94,15 +93,16 @@ fig.for_each_trace(
     )
 )
 
+# Apply opacity only to purple dots (Wind)
+fig.update_traces(
+    selector=dict(marker_color='purple'),  # Only select purple (wind) dots
+    marker_opacity=df['dot_opacity']  # Apply opacity based on wind_vol
+)
+
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
 st.plotly_chart(fig, use_container_width=True)
 
 # When a dot is clicked, show additional details
 if st.sidebar.checkbox("Show game details", False):
-    game = st.sidebar.selectbox("Select a game", df['Game'].unique())
-    selected_game = df[df['Game'] == game]
-    
-    if not selected_game.empty:
-        st.write(f"Details for {game}")
-        st.table(selected_game[['wind_fg', 'temp_fg', 'rain_fg', 'Fd_open', 'FD_now', 'game_loc', 'wind_diff', 'wind_vol']])
+    game = st.sidebar.selectbox
