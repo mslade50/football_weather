@@ -4,3 +4,4 @@ plotly
 numpy
 openpyxl
 fsspec
+streamlit-plotly-events
