@@ -27,7 +27,7 @@ def assign_dot_color(row):
     elif row['wind_fg'] >= 12:
         return 'purple'  # Wind
     elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
-        return 'darkgray'  # Rain
+        return 'black'  # Rain
     else:
         return 'green'  # Default/N/A
 
@@ -73,9 +73,9 @@ fig = px.scatter_mapbox(
     color="dot_color",  # Color based on conditions
     color_discrete_map={
         'red': 'red',
-        'blue': 'bluee',
+        'blue': 'blue',
         'purple': 'purple',
-        'darkgray': 'darkgray',
+        'black': 'black',
         'green': 'green'
     },
     zoom=6,  # Adjusted for better zoom in the US
@@ -96,7 +96,7 @@ fig.for_each_trace(
         name=t.name.replace('red', 'Heat')
                    .replace('blue', 'Cold')
                    .replace('purple', 'Wind')
-                   .replace('darkgray', 'Rain')
+                   .replace('black', 'Rain')
                    .replace('green', 'N/A')
     )
 )
