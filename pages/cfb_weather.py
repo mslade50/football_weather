@@ -15,6 +15,8 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 df['dot_size'] = df['gs_fg'].abs()+0.5  # Create dot size based on 'gs_fg'
 df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
 df['My_total'] = (df['My_total'] * 4).round() / 4
+# Update 'wind_vol' to 'Low' if 'wind_fg' is less than 11.99
+df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 
 # Assign dot color based on conditions
 def assign_dot_color(row):
