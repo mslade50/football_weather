@@ -22,7 +22,7 @@ def assign_dot_color(row):
         return 'red'  # Heat
     elif row['temp_fg'] < 30 and row['wind_fg'] < 12:
         return 'lightblue'  # Cold
-    elif row['wind_fg'] > 12:
+    elif row['wind_fg'] >= 12:
         return 'purple'  # Wind
     elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
         return 'yellow'  # Rain
@@ -144,6 +144,8 @@ if st.sidebar.checkbox("Show game details", False):
             'Current',
             'wind_vol',  # 3rd to last
             'wind_diff',  # 2nd to last
+            'Date',
+            'Time',
             'game_loc'  # Last column
         ]
         
