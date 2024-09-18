@@ -148,6 +148,16 @@ if st.sidebar.checkbox("Show game details", False):
             'Time',
             'game_loc'  # Last column
         ]
-        
-        # Display the reordered DataFrame
+        numeric_columns = [
+            'wind_fg', 
+            'temp_fg', 
+            'rain_fg', 
+            'Fd_open', 
+            'FD_now', 
+            'My_total', 
+            'Open', 
+            'Current',
+        ]
+        selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
+
         st.table(selected_game[reordered_columns])
