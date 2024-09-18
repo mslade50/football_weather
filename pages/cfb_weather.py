@@ -12,7 +12,7 @@ df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
 # Process data for map
-df['dot_size'] = df['gs_fg'].abs()  # Create dot size based on 'gs_fg'
+df['dot_size'] = df['gs_fg'].abs()+0.0008  # Create dot size based on 'gs_fg'
 df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
 df['My_total'] = (df['My_total'] * 4).round() / 4
 
