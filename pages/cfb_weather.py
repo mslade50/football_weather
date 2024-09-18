@@ -71,9 +71,9 @@ fig = px.scatter_mapbox(
     color="dot_color",  # Color based on conditions
     color_discrete_map={
         'red': 'red',
-        'lightblue': 'lightblue',
+        'blue': 'bluee',
         'purple': 'purple',
-        'yellow': 'darkgray',
+        'darkgray': 'darkgray',
         'green': 'green'
     },
     zoom=6,  # Adjusted for better zoom in the US
