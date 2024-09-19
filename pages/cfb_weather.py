@@ -130,6 +130,11 @@ fig.update_traces(
 )
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
+if 'Timestamp' in df.columns:
+    timestamp = df['Timestamp'].iloc[0]  # Get the timestamp from the first row
+    st.subheader(f"Last updated: {timestamp}")
+else:
+    st.subheader("Timestamp not available")
 # st.plotly_chart(fig, use_container_width=True)
 st.plotly_chart(fig)
 if st.sidebar.checkbox("Show game details", False):
