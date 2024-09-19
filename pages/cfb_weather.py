@@ -131,8 +131,15 @@ fig.update_traces(
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
 if 'Timestamp' in df.columns:
-    timestamp = df['Timestamp'].iloc[0]  # Get the timestamp from the first row
-    st.subheader(f"Last updated: {timestamp}")
+    timestamp_str = df['Timestamp'].iloc[0]  # Get the timestamp string from the first row
+    # Parse the timestamp string to a datetime object
+    timestamp = datetime.fromisoformat(timestamp_str)
+    # Convert to EST
+    est = pytz.timezone('US/Eastern')
+    timestamp_est = timestamp.astimezone(est)
+    # Format the timestamp
+    formatted_timestamp = timestamp_est.strftime("%Y-%m-%d at %I:%M %p EST")
+    st.subheader(f"Last updated: {formatted_timestamp}")
 else:
     st.subheader("Timestamp not available")
 # st.plotly_chart(fig, use_container_width=True)
