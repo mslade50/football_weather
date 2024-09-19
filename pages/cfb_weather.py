@@ -33,12 +33,12 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 def assign_dot_opacity(row):
-    # Check if the game_loc matches the specific coordinates
-    if row['game_loc'] == '40.570015, -105.088435':
-        return 0.2  # Set opacity to 0.2 for the specific game location
+    # Check if the 'Game' column contains 'Colorado'
+    if 'colorado' in row['Game'].lower():  # Convert to lowercase to avoid case sensitivity issues
+        return 0.2  # Set opacity to 0.2 for games with 'Colorado'
     
     # Otherwise, apply the regular opacity rules based on 'dot_color' and 'wind_vol'
-    elif row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
+    if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
         if row['wind_vol'] == 'High':
             return 0.2  # Very low opacity for high wind
         elif row['wind_vol'] == 'Low':
@@ -50,7 +50,9 @@ def assign_dot_opacity(row):
     else:
         return 1.0  # Full opacity for non-wind dots
 
+# Apply the function to assign opacity
 df['dot_opacity'] = df.apply(assign_dot_opacity, axis=1)
+
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
