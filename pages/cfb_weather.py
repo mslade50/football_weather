@@ -136,6 +136,9 @@ if 'Timestamp' in df.columns:
     timestamp_str = df['Timestamp'].iloc[0]  # Get the timestamp string from the first row
     # Parse the timestamp string to a datetime object
     timestamp = datetime.fromisoformat(timestamp_str)
+    # Assume the timestamp is in UTC if it doesn't have timezone info
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=pytz.UTC)
     # Convert to EST
     est = pytz.timezone('US/Eastern')
     timestamp_est = timestamp.astimezone(est)
