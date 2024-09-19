@@ -5,3 +5,4 @@ numpy
 openpyxl
 fsspec
 streamlit-plotly-events
+pytz
