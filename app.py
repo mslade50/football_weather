@@ -19,14 +19,19 @@ The maps are intended to be as self explanatory as possible, but there are a few
 1. Wind is highly variable. If you are looking at totals early in the week, be careful using wind to inform your bets.
 For this reason. I have added a filter to the "wind dots" which reduces the opacity for areas of the country that are notorious 
 for higher wind volatility. If you "hover" over the dot, you will see a data point called "Wind_vol", this is what it is referring to.
+
 2.The size of the dot corresponds to the perceived impact from weather. Bigger dot = larger weather impact = bigger edge towards the under.
+
 3. The column "My_total" and "Edge" in CFB are speculative. I am working on creating fair values to apply the weather effects to, but 
 I would not put my name behing them yet, so do not use those to inform your bets. 
+
 4. Rain is important, but particularly variable in warm weather months, so I have overwrote the code to remove "rain" effects
 until the month of September is over. That is why you will occassionally see dots color coded for rain, but they will be tiny until 
 October arrives. 
+
 5. The listed "lines" are not updating in real time, the openers are intended to be accurate, but if they seem to not make sense, it is likely
 an error on my part, always double check. 
+
 6. Game times are listed as the kickoff time in the local time zone. 
 """)
 
