@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 from streamlit_plotly_events import plotly_events
 
 st.set_page_config(layout="wide")
@@ -122,6 +123,15 @@ fig.update_traces(
 
 # Display in Streamlit with wide layout
 st.title("NFL Weather Map")
+if 'Timestamp' in df.columns:
+    timestamp_str = df['Timestamp'].iloc[0]  # Get the timestamp string from the first row
+    # Parse the timestamp string to a datetime object
+    timestamp = datetime.fromisoformat(timestamp_str)
+    # Format the timestamp
+    formatted_timestamp = timestamp.strftime("%Y-%m-%d at %I:%M %p EST")
+    st.subheader(f"Last updated: {formatted_timestamp}")
+else:
+    st.subheader("Timestamp not available")
 st.plotly_chart(fig)
 
 if st.sidebar.checkbox("Show game details", False):
