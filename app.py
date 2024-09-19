@@ -20,7 +20,7 @@ The maps are intended to be as self explanatory as possible, but there are a few
 For this reason. I have added a filter to the "wind dots" which reduces the opacity for areas of the country that are notorious 
 for higher wind volatility. If you "hover" over the dot, you will see a data point called "Wind_vol", this is what it is referring to.
 
-2.The size of the dot corresponds to the perceived impact from weather. Bigger dot = larger weather impact = bigger edge towards the under.
+2. The size of the dot corresponds to the perceived impact from weather. Bigger dot = larger weather impact = bigger edge towards the under.
 
 3. The column "My_total" and "Edge" in CFB are speculative. I am working on creating fair values to apply the weather effects to, but 
 I would not put my name behing them yet, so do not use those to inform your bets. 
