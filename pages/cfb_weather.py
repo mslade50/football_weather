@@ -112,7 +112,7 @@ fig.update_traces(
     "Wind: %{customdata[0]}<br>" +
     "Temp: %{customdata[1]}<br>" +
     "Rain: %{customdata[2]}<br>" +
-    "Weather Impact: %{customdata[3]}<br>" +
+    "Weather Impact: %{customdata[3]}%<br>" +
     "FD Open: %{customdata[4]}<br>" +
     "FD Now: %{customdata[5]}<br>" +
     "Game Location: %{customdata[6]}<br>" +
@@ -135,12 +135,15 @@ if st.sidebar.checkbox("Show game details", False):
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
+        # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
+        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        
         # Reorder the columns
         reordered_columns = [
             'wind_fg', 
             'temp_fg', 
             'rain_fg',
-            'gs_fg',
+            'Weather Impact',  # Renamed column
             'Fd_open', 
             'FD_now', 
             'My_total', 
