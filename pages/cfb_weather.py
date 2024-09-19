@@ -32,7 +32,10 @@ def assign_dot_color(row):
         return 'green'  # Default/N/A
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
-
+def assign_dot_opacity(row):
+    # Check if the game_loc matches the specific coordinates
+    if row['game_loc'] == '40.570015, -105.088435':
+        return 0.2 
 # Function to assign opacity, but only for purple dots (wind)
 def assign_dot_opacity(row):
     if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
