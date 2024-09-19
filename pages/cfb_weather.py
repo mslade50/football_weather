@@ -58,7 +58,8 @@ fig = px.scatter_mapbox(
     hover_data={
         "wind_fg": True,   # Show wind forecast
         "temp_fg": True,   # Show temperature forecast
-        "rain_fg": True,   # Show rain forecast
+        "rain_fg": True,
+        "gs_fg": True,     # Show rain forecast
         "Fd_open": True,   # Show the opening FanDuel price
         "FD_now": True,    # Show the current FanDuel price
         "game_loc": True,  # Show game location
@@ -137,7 +138,8 @@ if st.sidebar.checkbox("Show game details", False):
         reordered_columns = [
             'wind_fg', 
             'temp_fg', 
-            'rain_fg', 
+            'rain_fg',
+            'gs_fg',
             'Fd_open', 
             'FD_now', 
             'My_total', 
