@@ -112,15 +112,16 @@ fig.update_traces(
     "Wind: %{customdata[0]}<br>" +
     "Temp: %{customdata[1]}<br>" +
     "Rain: %{customdata[2]}<br>" +
-    "FD Open: %{customdata[3]}<br>" +
-    "FD Now: %{customdata[4]}<br>" +
-    "Game Location: %{customdata[5]}<br>" +
-    "Wind Diff: %{customdata[6]}<br>" +
-    "Wind Volatility: %{customdata[7]}<br>" +
-    "My Total: %{customdata[8]}<br>" +
-    "Edge: %{customdata[9]}<br>" +
-    "Open Spread: %{customdata[10]}<br>" +
-    "Current Spread: %{customdata[11]}<extra></extra>"
+    "Weather Impact: %{customdata[3]}<br>" +
+    "FD Open: %{customdata[4]}<br>" +
+    "FD Now: %{customdata[5]}<br>" +
+    "Game Location: %{customdata[6]}<br>" +
+    "Wind Diff: %{customdata[7]}<br>" +
+    "Wind Volatility: %{customdata[8]}<br>" +
+    "My Total: %{customdata[9]}<br>" +
+    "Edge: %{customdata[10]}<br>" +
+    "Open Spread: %{customdata[11]}<br>" +
+    "Current Spread: %{customdata[12]}<extra></extra>"
 )
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
