@@ -12,7 +12,7 @@ df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 df['gs_fg']=df['gs_fg']*100
 # Process data for map
-df['dot_size'] = df['gs_fg'].abs()+0.8  # Create dot size based on 'gs_fg'
+df['dot_size'] = df['gs_fg'].abs()+0.5  # Create dot size based on 'gs_fg'
 # Update 'wind_vol' to 'Low' if 'wind_fg' is less than 11.99
 df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 
