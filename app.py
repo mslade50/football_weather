@@ -1,22 +1,28 @@
 import streamlit as st
+from pages import nfl_weather, cfb_weather  # Import your page scripts as modules
 
-# Main page setup
-st.set_page_config(layout="wide")
+# Set the app-wide configuration
+st.set_page_config(page_title="Football Weather Dashboard", layout="wide")
 
-# Title for the main page
-st.title("Football Weather Dashboard")
+# Define functions for each page
+def nfl_weather_page():
+    """Displays the NFL Weather Map page"""
+    st.sidebar.markdown("# NFL Weather Map")
+    nfl_weather.main()  # Assuming your 'nfl_weather.py' has a 'main' function
 
-# Introduction or description
-st.write("""
-Welcome to the Football Weather Dashboard!
+def cfb_weather_page():
+    """Displays the College Football Weather Map page"""
+    st.sidebar.markdown("# College Football Weather Map")
+    cfb_weather.main()  # Assuming your 'cfb_weather.py' has a 'main' function
 
-Use the sidebar to navigate between different pages, including:
-- NFL Weather Map
-- CFB Weather Map
+# Create a dictionary that maps page names to functions
+page_names_to_funcs = {
+    "NFL Weather Map": nfl_weather_page,
+    "College Football Weather Map": cfb_weather_page
+}
 
-""")
+# Display the page selection in the sidebar
+selected_page = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
 
-# You can add more widgets or content to the main page if needed.
-st.write("This main page will serve as the home for the football weather insights.")
-
-# Optionally, you could add any useful widgets for the main dashboard here.
+# Call the function corresponding to the selected page
+page_names_to_funcs[selected_page]()
