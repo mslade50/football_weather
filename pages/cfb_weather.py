@@ -38,7 +38,7 @@ def assign_dot_opacity(row):
         return 0.2  # Set opacity to 0.2 for the specific game location
     
     # Otherwise, apply the regular opacity rules based on 'dot_color' and 'wind_vol'
-    if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
+    elif row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
         if row['wind_vol'] == 'High':
             return 0.2  # Very low opacity for high wind
         elif row['wind_vol'] == 'Low':
