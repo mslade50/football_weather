@@ -36,6 +36,6 @@ an error on my part, always double check.
 """)
 
 # You can add more widgets or content to the main page if needed.
-st.write("This main page will serve as the home for the football weather insights.")
+st.write("For questions or concerns please reach out on X @mckinleyslade or via email: mckinleyslade@gmail.com")
 
 # Optionally, you could add any useful widgets for the main dashboard here.
