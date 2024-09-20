@@ -146,34 +146,26 @@ else:
 # st.plotly_chart(fig, use_container_width=True)
 st.plotly_chart(fig)
 if st.sidebar.checkbox("Show game details", False):
+    # Select a game
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
 
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
-        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
+        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
-        # Format columns with one decimal place
-        columns_to_format = ['away_fg', 'home_temp', 'away_temp', 'wind_fg', 'My_total', 'Open_s', 'Current_s','temp_fg']
-        for col in columns_to_format:
-            if col in ['home_temp', 'away_temp','temp_fg']:
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
-            elif col == 'away_fg':
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
-            else:
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
-        
-        # Rename other columns as before
+        # Rename columns
         selected_game = selected_game.rename(columns={
+            'home_temp': 'Home_t', 
+            'away_temp': 'Away_t',
+            'away_fg': 'Away tm',
             'game_loc': 'Game Location',
             'Fd_open': 'Open',
             'FD_now': 'Current',
             'Open': 'Open_s',
-            'home_temp': 'Home_t',
-            'away_temp': 'Away_t',
             'Current': 'Current_s',
-            'away_fg': 'Away tm',
             'wind_fg': 'Wind',
             'temp_fg': 'Temp',
             'rain_fg': 'Rain',
@@ -181,11 +173,12 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_diff': 'Relative Wind'
         })
         
+        # Reorder the columns
         reordered_columns = [
             'Wind', 
             'Temp', 
             'Rain',
-            'Impact',
+            'Weather Impact',
             'Volatility',
             'Open',
             'Current',
@@ -203,11 +196,17 @@ if st.sidebar.checkbox("Show game details", False):
         ]
         
         numeric_columns = [
+            'Wind', 
             'Temp', 
             'Rain', 
-            'Edge',
-            'Volatility',
-            'Relative Wind'
+            'Open',
+            'Current',
+            'My_total', 
+            'Open_s', 
+            'Current_s',
+            'Away tm',
+            'Home_t',
+            'Away_t',
         ]
         
         selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
