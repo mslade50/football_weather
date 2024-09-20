@@ -152,7 +152,7 @@ if st.sidebar.checkbox("Show game details", False):
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
-        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
         # Format 'Away tm' with one decimal and percentage sign
         selected_game['Away tm'] = selected_game['away_fg'].apply(lambda x: f"{x:.1f}%")
