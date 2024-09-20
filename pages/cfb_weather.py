@@ -134,7 +134,7 @@ fig.update_traces(
 
 for index, row in df[df['gs_fg'] < -1].iterrows():
     if row['Move_t'] != 0:
-        arrow_length = min(abs(row['Move_t']) * 0.05, 0.5)  # Scale arrow length, max 0.005
+        arrow_length = min(abs(row['Move_t']) * 2.5, 0.5)  # Scale arrow length, max 0.005
         arrow_direction = 1 if row['Move_t'] > 0 else -1
         fig.add_trace(go.Scattermapbox(
             lat=[row['lat'], row['lat'] + arrow_length * arrow_direction],
