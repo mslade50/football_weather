@@ -163,23 +163,30 @@ if st.sidebar.checkbox("Show game details", False):
             'away_fg': 'Away tm',
             'game_loc': 'Game Location',
             'Fd_open': 'Open',
-            'FD_now': 'Current'
+            'FD_now': 'Current',
+            'Open': 'Open_s',
+            'Current': 'Current_s',
+            'wind_fg': 'Wind',
+            'temp_fg': 'Temp',
+            'rain_fg': 'Rain',
+            'wind_vol': 'Wind Vol.',
+            'wind_diff': 'Relative Wind'
         })
         
         # Reorder the columns
         reordered_columns = [
-            'wind_fg', 
-            'temp_fg', 
-            'rain_fg',
+            'Wind', 
+            'Temp', 
+            'Rain',
             'Weather Impact',
-            'Open',      # Renamed from 'Fd_open'
-            'Current',   # Renamed from 'FD_now'
+            'Open',
+            'Current',
             'My_total', 
             'Edge', 
-            'Open', 
-            'Current',
-            'wind_vol',
-            'wind_diff',
+            'Open_s', 
+            'Current_s',
+            'Wind Vol.',
+            'Relative Wind',
             'Away tm',
             'Home_t',
             'Away_t',
@@ -189,14 +196,14 @@ if st.sidebar.checkbox("Show game details", False):
         ]
         
         numeric_columns = [
-            'wind_fg', 
-            'temp_fg', 
-            'rain_fg', 
-            'Open',      # Renamed from 'Fd_open'
-            'Current',   # Renamed from 'FD_now'
-            'My_total', 
-            'Open', 
+            'Wind', 
+            'Temp', 
+            'Rain', 
+            'Open',
             'Current',
+            'My_total', 
+            'Open_s', 
+            'Current_s',
             'Away tm',
             'Home_t',
             'Away_t',
