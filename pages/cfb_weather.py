@@ -155,13 +155,14 @@ if st.sidebar.checkbox("Show game details", False):
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
         # Format 'Away tm' with one decimal and percentage sign
-        selected_game['Away tm'] = selected_game['away_fg'].apply(lambda x: f"{x:.1f}%")
-        
-        # Format 'Home_t' and 'Away_t' with one decimal and degree symbol
-        selected_game['Home_t'] = selected_game['home_temp'].apply(lambda x: f"{x:.1f}°")
-        selected_game['Away_t'] = selected_game['away_temp'].apply(lambda x: f"{x:.1f}°")
-        selected_game['temp_fg'] = selected_game['temp_fg'].apply(lambda x: f"{x:.1f}°")
-        
+        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','temp_fg']
+        for col in columns_to_format:
+            if col in ['Home_t', 'Away_t','temp_fg']:
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
+            elif col == 'Away tm':
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
+            else:
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
         # Rename other columns as before
         selected_game = selected_game.rename(columns={
             'game_loc': 'Game Location',
