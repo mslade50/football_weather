@@ -15,7 +15,7 @@ df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
 # Process data for map
-df['dot_size'] = df['gs_fg'].abs()+0.8  # Create dot size based on 'gs_fg'
+df['dot_size'] = df['gs_fg'].abs()*10+10  # Create dot size based on 'gs_fg'
 df['Edge'] = (df['Edge'] * 100).round(2).astype(str) + '%'
 df['My_total'] = (df['My_total'] * 4).round() / 4
 # Update 'wind_vol' to 'Low' if 'wind_fg' is less than 11.99
@@ -109,7 +109,7 @@ fig.for_each_trace(
                    .replace('green', 'N/A')
     )
 )
-
+fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
 # Apply opacity only to purple dots (Wind)
 fig.update_traces(
     selector=dict(marker_color='purple'),  # Only select purple (wind) dots
