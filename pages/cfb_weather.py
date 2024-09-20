@@ -154,7 +154,7 @@ if st.sidebar.checkbox("Show game details", False):
         
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
-        # Format 'Away tm' with one decimal and percentage sign
+        # Format columns with one decimal place
         columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','temp_fg']
         for col in columns_to_format:
             if col in ['Home_t', 'Away_t','temp_fg']:
@@ -163,6 +163,7 @@ if st.sidebar.checkbox("Show game details", False):
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
             else:
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
+        
         # Rename other columns as before
         selected_game = selected_game.rename(columns={
             'game_loc': 'Game Location',
@@ -199,14 +200,11 @@ if st.sidebar.checkbox("Show game details", False):
         ]
         
         numeric_columns = [
-            'Wind', 
             'Temp', 
             'Rain', 
-            'Open',
-            'Current',
-            'My_total', 
-            'Open_s', 
-            'Current_s',
+            'Edge',
+            'Volatility',
+            'Relative Wind'
         ]
         
         selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
