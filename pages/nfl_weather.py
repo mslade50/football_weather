@@ -159,7 +159,7 @@ if st.sidebar.checkbox("Show game details", False):
         })
         
         # Format columns with one decimal place
-        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
+        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
         for col in columns_to_format:
             if col in ['Home_t', 'Away_t','Temp']:
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
@@ -172,7 +172,7 @@ if st.sidebar.checkbox("Show game details", False):
         
         # Define column groups for each table
         weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
-        odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
+        odds_columns = ['Open', 'Current','Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time', 'Game Location']
         
         # Create a column layout
