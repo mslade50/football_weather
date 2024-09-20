@@ -156,6 +156,9 @@ if st.sidebar.checkbox("Show game details", False):
         # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
         selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
+        # Rename 'home_temp' and 'away_temp' columns
+        selected_game = selected_game.rename(columns={'home_temp': 'Home_t', 'away_temp': 'Away_t'})
+        
         # Reorder the columns
         reordered_columns = [
             'wind_fg', 
@@ -172,8 +175,11 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_diff',  # 2nd to last
             'Date',
             'Time',
-            'game_loc'  # Last column
+            'Home_t',     # New column
+            'Away_t',     # New column
+            'game_loc'    # Last column
         ]
+        
         numeric_columns = [
             'wind_fg', 
             'temp_fg', 
@@ -183,7 +189,10 @@ if st.sidebar.checkbox("Show game details", False):
             'My_total', 
             'Open', 
             'Current',
+            'Home_t',     # Added to numeric columns
+            'Away_t',     # Added to numeric columns
         ]
+        
         selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
-
+        
         st.table(selected_game[reordered_columns])
