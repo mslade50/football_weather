@@ -185,12 +185,16 @@ if st.sidebar.checkbox("Show game details", False):
         odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time', 'Game Location']
         
-        # Display the three tables
-        st.subheader("Weather Information")
-        st.table(selected_game[weather_columns])
+        # Create a column layout
+        col1, col2 = st.columns(2)
         
-        st.subheader("Odds Information")
-        st.table(selected_game[odds_columns])
-        
-        st.subheader("Game Information")
-        st.table(selected_game[game_info_columns])
+        # Display the three tables in the first column
+        with col1:
+            st.subheader("Weather Information")
+            st.table(selected_game[weather_columns])
+            
+            st.subheader("Odds Information")
+            st.table(selected_game[odds_columns])
+            
+            st.subheader("Game Information")
+            st.table(selected_game[game_info_columns])
