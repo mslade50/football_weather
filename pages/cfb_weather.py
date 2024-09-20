@@ -154,7 +154,7 @@ if st.sidebar.checkbox("Show game details", False):
         st.write(f"Details for {game}")
         
         # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
-        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
         # Rename columns
         selected_game = selected_game.rename(columns={
@@ -169,7 +169,7 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_fg': 'Wind',
             'temp_fg': 'Temp',
             'rain_fg': 'Rain',
-            'wind_vol': 'Wind Vol.',
+            'wind_vol': 'Volatility',
             'wind_diff': 'Relative Wind'
         })
         
@@ -178,14 +178,14 @@ if st.sidebar.checkbox("Show game details", False):
             'Wind', 
             'Temp', 
             'Rain',
-            'Weather Impact',
+            'Impact',
+            'Volatility',
             'Open',
             'Current',
             'My_total', 
             'Edge', 
             'Open_s', 
             'Current_s',
-            'Wind Vol.',
             'Relative Wind',
             'Away tm',
             'Home_t',
