@@ -132,18 +132,6 @@ fig.update_traces(
     "Current Spread: %{customdata[12]}<extra></extra>"
 )
 
-for index, row in df[df['gs_fg'] < -1].iterrows():
-    if row['Move_t'] != 0:
-        arrow_length = min(abs(row['Move_t']) * 5, 0.95)  # Scale arrow length, max 0.005
-        arrow_direction = 1 if row['Move_t'] > 0 else -1
-        fig.add_trace(go.Scattermapbox(
-            lat=[row['lat'], row['lat'] + arrow_length * arrow_direction],
-            lon=[row['lon'] + 0.001, row['lon'] + 0.001],  # Slight offset to the right of the dot
-            mode='lines+markers',
-            marker={'size': 4, 'symbol': 'arrow-up' if arrow_direction > 0 else 'arrow-down'},
-            line={'width': 2},
-            showlegend=False
-        ))
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
 if 'Timestamp' in df.columns:
