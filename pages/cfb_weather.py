@@ -160,11 +160,9 @@ if st.sidebar.checkbox("Show game details", False):
         # Format 'Home_t' and 'Away_t' with one decimal and degree symbol
         selected_game['Home_t'] = selected_game['home_temp'].apply(lambda x: f"{x:.1f}°")
         selected_game['Away_t'] = selected_game['away_temp'].apply(lambda x: f"{x:.1f}°")
-        # Rename columns
+        
+        # Rename other columns as before
         selected_game = selected_game.rename(columns={
-            'home_temp': 'Home_t', 
-            'away_temp': 'Away_t',
-            'away_fg': 'Away tm',
             'game_loc': 'Game Location',
             'Fd_open': 'Open',
             'FD_now': 'Current',
@@ -177,7 +175,6 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_diff': 'Relative Wind'
         })
         
-        # Reorder the columns
         reordered_columns = [
             'Wind', 
             'Temp', 
@@ -208,9 +205,6 @@ if st.sidebar.checkbox("Show game details", False):
             'My_total', 
             'Open_s', 
             'Current_s',
-            'Away tm',
-            'Home_t',
-            'Away_t',
         ]
         
         selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
