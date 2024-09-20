@@ -91,9 +91,28 @@ fig = px.scatter_mapbox(
     zoom=6,
     height=1000,
 )
-
-# ... (rest of the layout and styling code remains the same)
-
+fig.update_layout(
+    mapbox_style="open-street-map",
+    mapbox_center={"lat": 37.0902, "lon": -95.7129},  # Center the map in the U.S.
+    mapbox_zoom=3.5,  # Zoom to focus on U.S. only
+    legend_title_text='Weather Conditions',  # Set custom legend title
+)
+# Manually update the legend labels for the colors
+fig.for_each_trace(
+    lambda t: t.update(
+        name=t.name.replace('red', 'Heat')
+                   .replace('blue', 'Cold')
+                   .replace('purple', 'Wind')
+                   .replace('black', 'Rain')
+                   .replace('green', 'N/A')
+    )
+)
+fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
+# Apply opacity only to purple dots (Wind)
+fig.update_traces(
+    selector=dict(marker_color='purple'),  # Only select purple (wind) dots
+    marker_opacity=df['dot_opacity']  # Apply opacity based on wind_vol
+)
 fig.update_traces(
     hovertemplate="<b>%{hovertext}</b><br>" + 
     "Wind: %{customdata[0]}<br>" +
