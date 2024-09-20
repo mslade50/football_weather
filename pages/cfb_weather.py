@@ -156,28 +156,34 @@ if st.sidebar.checkbox("Show game details", False):
         # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
         selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
-        # Rename 'home_temp' and 'away_temp' columns
-        selected_game = selected_game.rename(columns={'home_temp': 'Home_t', 'away_temp': 'Away_t'})
+        # Rename columns
+        selected_game = selected_game.rename(columns={
+            'home_temp': 'Home_t', 
+            'away_temp': 'Away_t',
+            'away_fg': 'Away tm',
+            'game_loc': 'Game Location'
+        })
         
         # Reorder the columns
         reordered_columns = [
             'wind_fg', 
             'temp_fg', 
             'rain_fg',
-            'Weather Impact',  # Renamed column
+            'Weather Impact',
             'Fd_open', 
             'FD_now', 
             'My_total', 
             'Edge', 
             'Open', 
             'Current',
-            'wind_vol',  # 3rd to last
-            'wind_diff',  # 2nd to last
+            'wind_vol',
+            'wind_diff',
+            'Away tm',    # New column
+            'Home_t',
+            'Away_t',
             'Date',
             'Time',
-            'Home_t',     # New column
-            'Away_t',     # New column
-            'game_loc'    # Last column
+            'Game Location'  # Renamed from 'game_loc'
         ]
         
         numeric_columns = [
@@ -189,8 +195,9 @@ if st.sidebar.checkbox("Show game details", False):
             'My_total', 
             'Open', 
             'Current',
-            'Home_t',     # Added to numeric columns
-            'Away_t',     # Added to numeric columns
+            'Away tm',    # Added to numeric columns
+            'Home_t',
+            'Away_t',
         ]
         
         selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
