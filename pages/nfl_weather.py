@@ -147,8 +147,10 @@ if st.sidebar.checkbox("Show game details", False):
             'away_temp': 'Away_t',
             'away_fg': 'Away tm',
             'game_loc': 'Game Location',
-            'Under_open': 'Open',
-            'Under_now': 'Current',
+            'Total_open': 'Open',
+            'Total_now': 'Current',
+            'Under_open':'Price',
+            'Under_now':'Price Now',
             'Spread_open': 'Open_s',
             'Spread_now': 'Current_s',
             'wind_fg': 'Wind',
@@ -172,7 +174,7 @@ if st.sidebar.checkbox("Show game details", False):
         
         # Define column groups for each table
         weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
-        odds_columns = ['Open', 'Current','Open_s', 'Current_s', 'Away tm']
+        odds_columns = ['Open','Price', 'Current','Price Now','Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time', 'Game Location']
         
         # Create a column layout
