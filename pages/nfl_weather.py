@@ -102,7 +102,7 @@ fig.for_each_trace(
                    .replace('green', 'N/A')
     )
 )
-
+fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
 # Apply opacity only to purple dots (Wind)
 fig.update_traces(
     selector=dict(marker_color='purple'),  # Only select purple (wind) dots
