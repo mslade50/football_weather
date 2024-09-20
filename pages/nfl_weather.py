@@ -12,6 +12,7 @@ df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 df['gs_fg']=df['gs_fg']*100
+df['away_fg']=df['away_fg']*100
 df['wind_diff']=df['wind_fg']-df['avg_wind']
 # Process data for map
 df['dot_size'] = df['gs_fg'].abs()+0.5  # Create dot size based on 'gs_fg'
