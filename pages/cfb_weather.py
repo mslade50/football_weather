@@ -155,7 +155,7 @@ if st.sidebar.checkbox("Show game details", False):
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
         # Format columns with one decimal place
-        columns_to_format = ['away_fg', 'home_temp', 'away_temp', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','temp_fg']
+        columns_to_format = ['away_fg', 'home_temp', 'away_temp', 'Open', 'Current', 'wind_fg', 'My_total', 'Open_s', 'Current_s','temp_fg']
         for col in columns_to_format:
             if col in ['home_temp', 'away_temp','temp_fg']:
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
