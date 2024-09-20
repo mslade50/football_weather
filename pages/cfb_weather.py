@@ -146,16 +146,20 @@ else:
 # st.plotly_chart(fig, use_container_width=True)
 st.plotly_chart(fig)
 if st.sidebar.checkbox("Show game details", False):
-    # Select a game
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
 
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
-        # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
-        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
         
+        # Format 'Away tm' with one decimal and percentage sign
+        selected_game['Away tm'] = selected_game['away_fg'].apply(lambda x: f"{x:.1f}%")
+        
+        # Format 'Home_t' and 'Away_t' with one decimal and degree symbol
+        selected_game['Home_t'] = selected_game['home_temp'].apply(lambda x: f"{x:.1f}°")
+        selected_game['Away_t'] = selected_game['away_temp'].apply(lambda x: f"{x:.1f}°")
         # Rename columns
         selected_game = selected_game.rename(columns={
             'home_temp': 'Home_t', 
