@@ -160,6 +160,7 @@ if st.sidebar.checkbox("Show game details", False):
         # Format 'Home_t' and 'Away_t' with one decimal and degree symbol
         selected_game['Home_t'] = selected_game['home_temp'].apply(lambda x: f"{x:.1f}°")
         selected_game['Away_t'] = selected_game['away_temp'].apply(lambda x: f"{x:.1f}°")
+        selected_game['temp_fg'] = selected_game['temp_fg'].apply(lambda x: f"{x:.1f}°")
         
         # Rename other columns as before
         selected_game = selected_game.rename(columns={
