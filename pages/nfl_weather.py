@@ -184,11 +184,11 @@ if st.sidebar.checkbox("Show game details", False):
         # Display the three tables in the first column
         with col1:
             st.subheader("Weather Information")
-            st.table(selected_game[weather_columns])
+            st.table(selected_game[weather_columns].reset_index(drop=True))
             
             st.subheader("Odds Information")
-            st.table(selected_game[odds_columns])
+            st.table(selected_game[odds_columns].reset_index(drop=True))
             
             st.subheader("Game Information")
-            st.table(selected_game[game_info_columns])
+            st.table(selected_game[game_info_columns].reset_index(drop=True))
 
