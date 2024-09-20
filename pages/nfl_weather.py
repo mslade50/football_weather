@@ -15,7 +15,7 @@ df['gs_fg']=df['gs_fg']*100
 df['away_fg']=df['away_fg']*100
 df['wind_diff']=df['wind_fg']-df['avg_wind']
 # Process data for map
-df['dot_size'] = df['gs_fg'].abs()*10+10  # Create dot size based on 'gs_fg'
+df['dot_size'] = df['gs_fg'].abs()*6+10  # Create dot size based on 'gs_fg'
 # Update 'wind_vol' to 'Low' if 'wind_fg' is less than 11.99
 df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 
