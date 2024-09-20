@@ -12,6 +12,7 @@ df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 df['gs_fg']=df['gs_fg']*100
+df['wind_diff']=df['wind_fg']-df['avg_wind']
 # Process data for map
 df['dot_size'] = df['gs_fg'].abs()+0.5  # Create dot size based on 'gs_fg'
 # Update 'wind_vol' to 'Low' if 'wind_fg' is less than 11.99
@@ -135,44 +136,56 @@ else:
 st.plotly_chart(fig)
 
 if st.sidebar.checkbox("Show game details", False):
-    # Select a game
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
-
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
-        # Add a percentage sign to 'gs_fg' and rename it to 'Weather Impact'
-        selected_game['Weather Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x}%")
+        # Rename columns first
+        selected_game = selected_game.rename(columns={
+            'home_temp': 'Home_t', 
+            'away_temp': 'Away_t',
+            'away_fg': 'Away tm',
+            'game_loc': 'Game Location',
+            'Under_open': 'Open',
+            'Under_now': 'Current',
+            'Spread_open': 'Open_s',
+            'Spread_now': 'Current_s',
+            'wind_fg': 'Wind',
+            'temp_fg': 'Temp',
+            'rain_fg': 'Rain',
+            'wind_vol': 'Volatility',
+            'wind_diff': 'Relative Wind'
+        })
         
-        # Reorder the columns to match your hover data order and table display
-        reordered_columns = [
-            'wind_fg', 
-            'temp_fg', 
-            'rain_fg',
-            'Weather Impact',  # Renamed column
-            'Total_open', 
-            'Total_now', 
-            'Spread_open', 
-            'Spread_now',
-            'wind_vol',  # Wind volatility
-            'Date',      # Date
-            'Time',      # Time
-            'game_loc'   # Game location
-        ]
-
-        # Round numeric columns to 1 decimal place where needed
-        numeric_columns = [
-            'wind_fg', 
-            'temp_fg', 
-            'rain_fg', 
-            'Total_open', 
-            'Total_now', 
-            'Spread_open', 
-            'Spread_now',
-        ]
-        selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
-
-        # Display the selected game's details
-        st.table(selected_game[reordered_columns])
+        # Format columns with one decimal place
+        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
+        for col in columns_to_format:
+            if col in ['Home_t', 'Away_t','Temp']:
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
+            elif col == 'Away tm':
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
+            else:
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
+        
+        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%")
+        
+        # Define column groups for each table
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
+        odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
+        game_info_columns = ['Date', 'Time', 'Game Location']
+        
+        # Create a column layout
+        col1, col2 = st.columns(2)
+        
+        # Display the three tables in the first column
+        with col1:
+            st.subheader("Weather Information")
+            st.table(selected_game[weather_columns])
+            
+            st.subheader("Odds Information")
+            st.table(selected_game[odds_columns])
+            
+            st.subheader("Game Information")
+            st.table(selected_game[game_info_columns])
 
