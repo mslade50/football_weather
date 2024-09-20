@@ -148,7 +148,6 @@ st.plotly_chart(fig)
 if st.sidebar.checkbox("Show game details", False):
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
-
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
@@ -181,35 +180,17 @@ if st.sidebar.checkbox("Show game details", False):
         
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%")
         
-        reordered_columns = [
-            'Wind', 
-            'Temp', 
-            'Rain',
-            'Impact',
-            'Volatility',
-            'Open',
-            'Current',
-            'My_total', 
-            'Edge', 
-            'Open_s', 
-            'Current_s',
-            'Relative Wind',
-            'Away tm',
-            'Home_t',
-            'Away_t',
-            'Date',
-            'Time',
-            'Game Location'
-        ]
+        # Define column groups for each table
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
+        odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
+        game_info_columns = ['Date', 'Time', 'Game Location']
         
-        numeric_columns = [
-            'Temp', 
-            'Rain', 
-            'Edge',
-            'Volatility',
-            'Relative Wind'
-        ]
+        # Display the three tables
+        st.subheader("Weather Information")
+        st.table(selected_game[weather_columns])
         
-        selected_game[numeric_columns] = selected_game[numeric_columns].apply(lambda x: x.round(1))
+        st.subheader("Odds Information")
+        st.table(selected_game[odds_columns])
         
-        st.table(selected_game[reordered_columns])
+        st.subheader("Game Information")
+        st.table(selected_game[game_info_columns])
