@@ -70,7 +70,8 @@ fig = px.scatter_mapbox(
         "Spread_open": True,  # Opening spread
         "Spread_now": True    # Current spread
     },
-    size="dot_size",  # Use the 'gs_fg' field for dot size
+    size="dot_size",
+    size_max=20,
     color="dot_color",  # Color based on conditions
     color_discrete_map={
         'red': 'red',
