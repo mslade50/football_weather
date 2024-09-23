@@ -164,7 +164,8 @@ if st.sidebar.checkbox("Show game details", False):
             'temp_fg': 'Temp',
             'rain_fg': 'Rain',
             'wind_vol': 'Volatility',
-            'wind_diff': 'Relative Wind'
+            'wind_diff': 'Relative Wind',
+            'year_built': 'Year'  # Add this line to rename year_built to Year
         })
         
         # Format columns with one decimal place
@@ -179,8 +180,11 @@ if st.sidebar.checkbox("Show game details", False):
         
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%")
         
+        # Format Year as string without decimals
+        selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
+        
         # Define column groups for each table
-        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']  # Add 'Year' to this list
         odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time', 'Game Location']
         
