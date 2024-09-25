@@ -178,7 +178,7 @@ if st.sidebar.checkbox("Show game details", False):
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
         
         # Define column groups for each table
-        weather_columns = ['Year', 'Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t']
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
         odds_columns = ['Open','Price', 'Current','Price Now','Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time', 'Game Location']
         
@@ -195,4 +195,3 @@ if st.sidebar.checkbox("Show game details", False):
             
             st.subheader("Game Information")
             st.table(selected_game[game_info_columns].reset_index(drop=True))
-
