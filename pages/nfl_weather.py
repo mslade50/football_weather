@@ -37,7 +37,7 @@ df['dot_color'] = df.apply(assign_dot_color, axis=1)
 # Function to assign opacity, but only for purple dots (wind)
 def assign_dot_opacity(row):
     if row['dot_color'] == 'purple':  # Only change opacity for 'Wind' dots
-        if row['wind_vol'] == 'Very High':
+        if row['wind_vol'] == 'very high':
             return 0.2  # Very low opacity for high wind
         elif row['wind_vol'] == 'Low':
             return 1.0  # Full opacity for low wind
