@@ -23,7 +23,7 @@ df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 
 # Assign dot color based on conditions
 def assign_dot_color(row):
-    if (row['temp_fg'] > 80 and row['wind_fg'] < 12) or (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
+    if (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
         return 'red'  # Heat
     elif row['temp_fg'] < 30 and row['wind_fg'] < 12:
         return 'blue'  # Cold
