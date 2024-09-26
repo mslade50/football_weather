@@ -25,7 +25,7 @@ df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 def assign_dot_color(row):
     if (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
         if row['home_temp'] < 53.97 or row['away_temp'] < 53.97:
-            return 'darkred'  # Dark red for lower temperatures
+            return '#8B0000'  # Dark red for lower temperatures
         else:
             return 'red'  # Regular red
     elif row['temp_fg'] < 30 and row['wind_fg'] < 12:
@@ -85,6 +85,7 @@ fig = px.scatter_mapbox(
     size="dot_size",
     color="dot_color",
     color_discrete_map={
+        '#8B0000': 'darkred',
         'red': 'red',
         'blue': 'blue',
         'purple': 'purple',
@@ -108,6 +109,7 @@ fig.for_each_trace(
                    .replace('purple', 'Wind')
                    .replace('black', 'Rain')
                    .replace('green', 'N/A')
+                   .replace('#8B0000', 'Heat+')  # Dark red for "Heat+"
     )
 )
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
