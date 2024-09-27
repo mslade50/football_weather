@@ -24,7 +24,7 @@ df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 # Assign dot color based on conditions
 def assign_dot_color(row):
     if row['travel_alt'] > 750:
-        return 'pink'  # High altitude travel
+        return 'saddlebrown'  # High altitude travel
     elif (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
         if row['home_temp'] < 53.97 or row['away_temp'] < 53.97:
             return '#8B0000'  # Dark red for lower temperatures
@@ -92,7 +92,8 @@ fig = px.scatter_mapbox(
         'blue': 'blue',
         'purple': 'purple',
         'black': 'black',
-        'green': 'green'
+        'green': 'green',
+        'saddlebrown': 'saddlebrown',
     },
     zoom=6,
     height=1000,
@@ -112,7 +113,7 @@ fig.for_each_trace(
                    .replace('black', 'Rain')
                    .replace('green', 'N/A')
                    .replace('#8B0000', 'Heat+')  # Dark red for "Heat+"
-                   .replace('gold', 'Altitude')  # New replacement for gold
+                   .replace('saddlebrown', 'Altitude')  # New replacement for gold
     )
 )
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
