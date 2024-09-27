@@ -26,7 +26,7 @@ def assign_dot_color(row):
     if row['travel_alt'] > 750:
         return 'saddlebrown'  # High altitude travel
     elif (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
-        if row['home_temp'] < 53.97 or row['away_temp'] < 53.97:
+        if row['home_temp'] < 53.97 and row['away_temp'] < 53.97:
             return '#8B0000'  # Dark red for lower temperatures
         else:
             return 'red'  # Regular red
