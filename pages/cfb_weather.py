@@ -23,7 +23,9 @@ df.loc[df['wind_fg'] < 11.99, 'wind_vol'] = 'Low'
 
 # Assign dot color based on conditions
 def assign_dot_color(row):
-    if (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
+    if row['travel_alt'] > 750:
+        return 'brown'  # High altitude travel
+    elif (row['temp_fg'] > 80 and row['wind_fg'] < 12) and (row['home_temp'] < 63.97 or row['away_temp'] < 63.97):
         if row['home_temp'] < 53.97 or row['away_temp'] < 53.97:
             return '#8B0000'  # Dark red for lower temperatures
         else:
@@ -35,7 +37,7 @@ def assign_dot_color(row):
     elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
         return 'black'  # Rain
     else:
-        return 'green'  # Default/N/A
+        return 'green' 
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 def assign_dot_opacity(row):
