@@ -160,10 +160,10 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_vol': 'Volatility',
             'wind_diff': 'Relative Wind',
             'year_built': 'Year',
-            'wind_dir_fg': 'Wind_dir',
-            'orient': 'Orient',
-            'wind_impact': 'Wind Impact',
-            'weakest_wind_effect': 'Weakest Wind'
+            'wind_dir_fg': 'dir',
+            'orient': 'O',
+            'wind_impact': 'W_i',
+            'weakest_wind_effect': 'Weak'
         })
 
         # Format columns with one decimal place
@@ -182,9 +182,9 @@ if st.sidebar.checkbox("Show game details", False):
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
 
         # Define column groups for each table
-        weather_columns = ['Wind', 'Wind_dir', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
+        weather_columns = ['Wind', 'dir', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
         odds_columns = ['Open','Price', 'Current','Price Now','Open_s', 'Current_s', 'Away tm']
-        game_info_columns = ['Orient', 'Wind Impact', 'Weakest Wind', 'Date', 'Time', 'Game Location']
+        game_info_columns = ['O', 'W_i', 'Weak', 'Date', 'Time', 'Game Location']
 
         # Create a column layout
         col1, col2 = st.columns(2)
