@@ -141,7 +141,7 @@ fig.update_traces(
 )
 
 # Display in Streamlit with wide layout
-st.title("College Football Weather Map")
+st.title("College Football Weather Maap")
 if 'Timestamp' in df.columns:
     timestamp_str = df['Timestamp'].iloc[0]  # Get the timestamp string from the first row
     # Parse the timestamp string to a datetime object
