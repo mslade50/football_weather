@@ -153,23 +153,20 @@ else:
     st.subheader("Timestamp not available")
 # st.plotly_chart(fig, use_container_width=True)
 st.plotly_chart(fig)
-
 if st.sidebar.checkbox("Show game details", False):
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
     selected_game = df[df['Game'] == game]
     if not selected_game.empty:
         st.write(f"Details for {game}")
-
+        
         # Rename columns first
         selected_game = selected_game.rename(columns={
             'home_temp': 'Home_t', 
             'away_temp': 'Away_t',
             'away_fg': 'Away tm',
             'game_loc': 'Game Location',
-            'Total_open': 'Open',
-            'Total_now': 'Current',
-            'Under_open':'Price',
-            'Under_now':'Price Now',
+            'Fd_open': 'Open',
+            'FD_now': 'Current',
             'Open': 'Open_s',
             'Current': 'Current_s',
             'wind_fg': 'Wind',
@@ -178,10 +175,10 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_vol': 'Volatility',
             'wind_diff': 'Relative Wind',
             'year_built': 'Year',
-            'wind_dir_fg': 'dir',
-            'orient': 'O',
-            'wind_impact': 'W_i',
-            'weakest_wind_effect': 'Weak'
+            'wind_dir_fg': 'Wind_dir',
+            'orient': 'Orient',
+            'wind_impact': 'Wind_imp',
+            'weakest_wind_effect': 'Weakest_dir'
         })
         
         # Format columns with one decimal place
@@ -198,10 +195,11 @@ if st.sidebar.checkbox("Show game details", False):
         
         # Format Year as string without decimals
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
+        
         # Define column groups for each table
         weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']  # Add 'Year' to this list
         odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
-        game_info_columns = ['Date', 'Time','O','W_i','Weak','dir', 'Game Location']
+        game_info_columns = ['Date', 'Time','Orient','Wind_dir','Wind_imp','Weakest_dir', 'Game Location']
         
         # Create a column layout
         col1, col2 = st.columns(2)
