@@ -198,7 +198,6 @@ if st.sidebar.checkbox("Show game details", False):
         
         # Format Year as string without decimals
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
-        selected_game['O'] = selected_game['O'].astype(str)
         # Define column groups for each table
         weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']  # Add 'Year' to this list
         odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
