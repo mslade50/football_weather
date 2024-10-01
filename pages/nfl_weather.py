@@ -138,17 +138,11 @@ st.plotly_chart(fig)
 
 if st.sidebar.checkbox("Show game details", False):
     game = st.sidebar.selectbox("Select a game", df['Game'].unique())
-    selected_game = df[df['Game'] == game].copy()  # Create a copy to avoid SettingWithCopyWarning
+    selected_game = df[df['Game'] == game]
     if not selected_game.empty:
         st.write(f"Details for {game}")
-        
-        # Add new columns if they don't exist
-        new_columns = ['wind_dir_fg', 'orient', 'wind_impact', 'weakest_wind_effect']
-        for col in new_columns:
-            if col not in selected_game.columns:
-                selected_game[col] = 'N/A'
-        
-        # Rename columns
+
+        # Rename columns first
         selected_game = selected_game.rename(columns={
             'home_temp': 'Home_t', 
             'away_temp': 'Away_t',
@@ -165,13 +159,9 @@ if st.sidebar.checkbox("Show game details", False):
             'rain_fg': 'Rain',
             'wind_vol': 'Volatility',
             'wind_diff': 'Relative Wind',
-            'year_built': 'Year',
-            'wind_dir_fg': 'Wind_dir',
-            'orient': 'Orient',
-            'wind_impact': 'Wind Impact',
-            'weakest_wind_effect': 'Weakest Wind'
+            'year_built': 'Year'  # Rename year_built to Year
         })
-        
+
         # Format columns with one decimal place
         columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
         for col in columns_to_format:
@@ -181,27 +171,27 @@ if st.sidebar.checkbox("Show game details", False):
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
             else:
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
-        
+
         selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%")
-        
+
         # Convert Year to string without decimals
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
-        
+
         # Define column groups for each table
-        weather_columns = ['Wind', 'Wind_dir', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
         odds_columns = ['Open','Price', 'Current','Price Now','Open_s', 'Current_s', 'Away tm']
-        game_info_columns = ['Orient', 'Wind Impact', 'Weakest Wind', 'Date', 'Time', 'Game Location']
-        
+        game_info_columns = ['Date', 'Time', 'Game Location']
+
         # Create a column layout
         col1, col2 = st.columns(2)
-        
+
         # Display the three tables in the first column
         with col1:
             st.subheader("Weather Information")
             st.table(selected_game[weather_columns].reset_index(drop=True))
-            
+
             st.subheader("Odds Information")
             st.table(selected_game[odds_columns].reset_index(drop=True))
-            
+
             st.subheader("Game Information")
             st.table(selected_game[game_info_columns].reset_index(drop=True))
