@@ -142,6 +142,18 @@ if st.sidebar.checkbox("Show game details", False):
     if not selected_game.empty:
         st.write(f"Details for {game}")
         
+        # Debugging: Print column names
+        st.write("Available columns:", df.columns.tolist())
+        
+        # Check if new columns exist
+        new_columns = ['wind_dir_fg', 'orient', 'wind_impact', 'weakest_wind_effect']
+        for col in new_columns:
+            if col in df.columns:
+                st.write(f"{col} exists in DataFrame")
+                st.write(f"{col} value:", selected_game[col].values[0])
+            else:
+                st.write(f"{col} does not exist in DataFrame")
+        
         # Rename columns
         selected_game = selected_game.rename(columns={
             'home_temp': 'Home_t', 
@@ -170,16 +182,16 @@ if st.sidebar.checkbox("Show game details", False):
         columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
         for col in columns_to_format:
             if col in ['Home_t', 'Away_t','Temp']:
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°" if pd.notnull(x) else '')
             elif col == 'Away tm':
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%")
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) else '')
             else:
-                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}")
+                selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}" if pd.notnull(x) else '')
         
-        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%")
+        selected_game['Impact'] = selected_game['gs_fg'].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) else '')
         
         # Convert Year to string without decimals
-        selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
+        selected_game['Year'] = selected_game['Year'].fillna('').astype(str).apply(lambda x: x.split('.')[0] if x else '')
         
         # Define column groups for each table
         weather_columns = ['Wind', 'Wind_dir', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
@@ -199,3 +211,9 @@ if st.sidebar.checkbox("Show game details", False):
             
             st.subheader("Game Information")
             st.table(selected_game[game_info_columns].reset_index(drop=True))
+
+        # Debugging: Print the contents of the tables
+        st.write("Weather Information Table:")
+        st.write(selected_game[weather_columns])
+        st.write("Game Information Table:")
+        st.write(selected_game[game_info_columns])
