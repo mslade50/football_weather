@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 
 st.set_page_config(layout="wide")
-st.write("Test change")
+
 # Load your Excel file
 df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
 df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
@@ -141,7 +141,7 @@ fig.update_traces(
 )
 
 # Display in Streamlit with wide layout
-st.title("College Football Weather Maap")
+st.title("College Football Weather Map")
 if 'Timestamp' in df.columns:
     timestamp_str = df['Timestamp'].iloc[0]  # Get the timestamp string from the first row
     # Parse the timestamp string to a datetime object
