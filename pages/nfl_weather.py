@@ -182,9 +182,9 @@ if st.sidebar.checkbox("Show game details", False):
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
 
         # Define column groups for each table
-        weather_columns = ['Wind', 'dir', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
         odds_columns = ['Open','Price', 'Current','Price Now','Open_s', 'Current_s', 'Away tm']
-        game_info_columns = ['O', 'W_i', 'Weak', 'Date', 'Time', 'Game Location']
+        game_info_columns = ['Orientation', 'Wind Impact','Wind_dir', 'Weakest Wind', 'Date', 'Time', 'Game Location']
 
         # Create a column layout
         col1, col2 = st.columns(2)
