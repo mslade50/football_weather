@@ -160,10 +160,10 @@ if st.sidebar.checkbox("Show game details", False):
             'wind_vol': 'Volatility',
             'wind_diff': 'Relative Wind',
             'year_built': 'Year',
-            'wind_dir_fg': 'dir',
-            'orient': 'O',
-            'wind_impact': 'W_i',
-            'weakest_wind_effect': 'Weak'
+            'wind_dir_fg': 'Wind_dir',
+            'orient': 'Orientation',
+            'wind_impact': 'Wind Impact',
+            'weakest_wind_effect': 'Weakest Wind'
         })
 
         # Format columns with one decimal place
