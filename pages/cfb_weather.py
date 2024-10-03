@@ -41,11 +41,11 @@ def assign_dot_color(row):
 
 df['dot_color'] = df.apply(assign_dot_color, axis=1)
 def assign_dot_opacity(row):
-    if row['wind_impact'] == 'high':
+    if row['wind_impact'] == 'High':
         return 1.0  # Full opacity for high wind impact
-    elif row['wind_impact'] == 'low':
-        return 0.2  # Very low opacity for low wind impact
-    elif row['wind_impact'] == 'med':
+    elif row['wind_impact'] == 'Low':
+        return 0.15  # Very low opacity for low wind impact
+    elif row['wind_impact'] == 'Med':
         return 0.5  # Medium opacity for medium wind impact
     else:
         return 1.0 
