@@ -65,8 +65,10 @@ def load_combined_signals():
         # Process dot size and opacity
         combined_signals['dot_size'] = combined_signals['gs_fg'].abs()*4+7
         
-        # Function to assign opacity based on wind impact
+        # Ensure that heat signals have full opacity (1.0)
         def assign_dot_opacity(row):
+            if 'Heat' in row['signal_type']:
+                return 1.0
             wind_impact = str(row['wind_impact']).lower()
             if wind_impact == 'high':
                 return 1.0
@@ -119,7 +121,9 @@ def create_combined_signals_map():
         color="signal_type",
         color_discrete_map={
             'CFB Wind': 'purple',
-            'NFL Wind': 'blue'
+            'NFL Wind': 'blue',
+            'CFB Heat': 'red',  # Heat dots will be red
+            'NFL Heat': 'red'   # Heat dots will be red
         },
         zoom=6,
         height=1000,
