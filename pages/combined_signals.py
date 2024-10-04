@@ -21,9 +21,9 @@ def load_combined_signals():
         
         # Filter for signals
         cfb_signals = cfb_df[
-            (cfb_df['Open'].abs() < 20.5) & 
+            (cfb_df['Open'].abs() < 10.5) & 
             (cfb_df['temp_fg'] < 70) & 
-            (cfb_df['wind_fg'] > 5)
+            (cfb_df['wind_fg'] > 12)
         ].copy()
         
         nfl_signals = nfl_df[
