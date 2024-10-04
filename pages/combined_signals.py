@@ -21,9 +21,9 @@ def load_combined_signals():
         
         # Filter for signals
         cfb_signals = cfb_df[
-            (cfb_df['Open'].abs() < 10.5) & 
+            (cfb_df['Open'].abs() < 20.5) & 
             (cfb_df['temp_fg'] < 70) & 
-            (cfb_df['wind_fg'] > 12)
+            (cfb_df['wind_fg'] > 5)
         ].copy()
         
         nfl_signals = nfl_df[
@@ -84,10 +84,16 @@ def create_combined_signals_map():
         hover_data={
             "signal_type": True,
             "league": True,
-            "wind_fg": True,
-            "temp_fg": True,
-            "game_loc": True,
-            "wind_impact": True
+            "Time": True,               # Corresponds to game_time
+            "Date": True,               # Corresponds to game_date
+            "wind_fg": True,           # Full game wind (you can use wind_fg or wind_avg)
+            "temp_fg": True,            # Full game temperature
+            "Open": True,            # Open spread
+            "Current": True,             # Current spread
+            "Fd_open": True,             # Open total
+            "FD_now": True,         # Current total
+            "wind_impact": True,
+            "game_loc": True
         },
         size="dot_size",
         color="signal_type",
