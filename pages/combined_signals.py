@@ -121,7 +121,7 @@ def create_combined_signals_map():
         "Game Time: %{customdata[2]}<br>" +
         "Game Date: %{customdata[3]}<br>" +
         "Full Game Wind: %{customdata[4]} mph<br>" +
-        "Full Game Temperature: %{customdata[5]}°F<br>" +
+        "Full Game Temperature: %{customdata[5]:.1f}°F<br>" +
         "Open Spread: %{customdata[6]}<br>" +
         "Current Spread: %{customdata[7]}<br>" +
         "Open Total: %{customdata[8]}<br>" +
