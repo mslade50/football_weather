@@ -19,7 +19,7 @@ def load_combined_signals():
             df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
             df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
         
-        # Filter for signals
+        # Filter for wind signals
         cfb_signals = cfb_df[
             (cfb_df['Open'].abs() < 10.5) & 
             (cfb_df['temp_fg'] < 70) & 
@@ -35,8 +35,28 @@ def load_combined_signals():
         cfb_signals['signal_type'] = 'CFB Wind'
         nfl_signals['signal_type'] = 'NFL Wind'
         
-        # Combine the filtered datasets
+        # Combine the filtered wind datasets
         combined_signals = pd.concat([cfb_signals, nfl_signals], ignore_index=True)
+
+        # Filter for "Heat" signal: home and away temps < 57 and forecast temp_fg > 80
+        heat_signals_cfb = cfb_df[
+            (cfb_df['home_temp'] < 57) & 
+            (cfb_df['away_temp'] < 57) & 
+            (cfb_df['temp_fg'] > 80)
+        ].copy()
+
+        heat_signals_nfl = nfl_df[
+            (nfl_df['home_temp'] < 57) & 
+            (nfl_df['away_temp'] < 57) & 
+            (nfl_df['temp_fg'] > 80)
+        ].copy()
+        
+        # Add signal type for heat signals
+        heat_signals_cfb['signal_type'] = 'CFB Heat'
+        heat_signals_nfl['signal_type'] = 'NFL Heat'
+        
+        # Combine heat signals with existing wind signals
+        combined_signals = pd.concat([combined_signals, heat_signals_cfb, heat_signals_nfl], ignore_index=True)
         
         if len(combined_signals) == 0:
             st.warning("No games currently match the signal criteria.")
