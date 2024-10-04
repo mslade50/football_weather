@@ -86,12 +86,12 @@ def create_combined_signals_map():
             "league": True,
             "Time": True,               # Corresponds to game_time
             "Date": True,               # Corresponds to game_date
-            "wind_avg": True,           # Full game wind (you can use wind_fg or wind_avg)
+            "wind_fg": True,           # Full game wind (you can use wind_fg or wind_avg)
             "temp_fg": True,            # Full game temperature
-            "Fd_open": True,            # Open spread
-            "Spread": True,             # Current spread
-            "Odds_o": True,             # Open total
-            "Total_Proj": True,         # Current total
+            "Open": True,            # Open spread
+            "Current": True,             # Current spread
+            "Fd_open": True,             # Open total
+            "FD_now": True,         # Current total
             "wind_impact": True,
             "game_loc": True
         },
