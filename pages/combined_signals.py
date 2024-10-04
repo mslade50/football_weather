@@ -86,12 +86,12 @@ def create_combined_signals_map():
             "league": True,
             "Time": True,               # Corresponds to game_time
             "Date": True,               # Corresponds to game_date
-            "wind_fg": True,           # Full game wind (you can use wind_fg or wind_avg)
+            "wind_avg": True,           # Full game wind (you can use wind_fg or wind_avg)
             "temp_fg": True,            # Full game temperature
-            "Open": True,            # Open spread
-            "Current": True,             # Current spread
-            "Fd_open": True,             # Open total
-            "FD_now": True,         # Current total
+            "Fd_open": True,            # Open spread
+            "Spread": True,             # Current spread
+            "Odds_o": True,             # Open total
+            "Total_Proj": True,         # Current total
             "wind_impact": True,
             "game_loc": True
         },
@@ -118,10 +118,16 @@ def create_combined_signals_map():
         hovertemplate="<b>%{hovertext}</b><br>" + 
         "Signal: %{customdata[0]}<br>" +
         "League: %{customdata[1]}<br>" +
-        "Wind: %{customdata[2]}<br>" +
-        "Temperature: %{customdata[3]}°<br>" +
-        "Location: %{customdata[4]}<br>" +
-        "Wind Impact: %{customdata[5]}<extra></extra>"
+        "Game Time: %{customdata[2]}<br>" +
+        "Game Date: %{customdata[3]}<br>" +
+        "Full Game Wind: %{customdata[4]} mph<br>" +
+        "Full Game Temperature: %{customdata[5]}°F<br>" +
+        "Open Spread: %{customdata[6]}<br>" +
+        "Current Spread: %{customdata[7]}<br>" +
+        "Open Total: %{customdata[8]}<br>" +
+        "Current Total: %{customdata[9]}<br>" +
+        "Wind Impact: %{customdata[10]}<br>" +
+        "Location: %{customdata[11]}<extra></extra>"
     )
     
     # Apply opacity based on wind impact
@@ -155,8 +161,8 @@ def create_combined_signals_map():
             
             with col1:
                 st.subheader("Game Information")
-                info_df = selected_game[['league', 'signal_type', 'wind_fg', 'temp_fg', 'wind_impact', 'game_loc']].copy()
-                info_df.columns = ['League', 'Signal Type', 'Wind', 'Temperature', 'Wind Impact', 'Location']
+                info_df = selected_game[['league', 'signal_type', 'wind_fg', 'temp_fg', 'wind_impact', 'game_loc', 'Time', 'Date', 'Fd_open', 'Spread', 'Odds_o', 'Total_Proj']].copy()
+                info_df.columns = ['League', 'Signal Type', 'Wind', 'Temperature', 'Wind Impact', 'Location', 'Game Time', 'Game Date', 'Open Spread', 'Current Spread', 'Open Total', 'Current Total']
                 st.table(info_df)
 
 if __name__ == "__main__":
