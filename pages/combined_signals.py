@@ -185,7 +185,7 @@ def create_combined_signals_map():
             
             with col1:
                 st.subheader("Game Information")
-                info_df = selected_game[['league', 'signal_type', 'wind_fg', 'temp_fg', 'wind_impact', 'game_loc', 'Time', 'Date', 'Fd_open', 'Spread', 'Odds_o', 'Total_Proj']].copy()
+                info_df = selected_game[['league', 'signal_type', 'wind_fg', 'temp_fg', 'wind_impact', 'game_loc', 'Time', 'Date', 'Open', 'Spread', 'Fd_open', 'FD_now']].copy()
                 info_df.columns = ['League', 'Signal Type', 'Wind', 'Temperature', 'Wind Impact', 'Location', 'Game Time', 'Game Date', 'Open Spread', 'Current Spread', 'Open Total', 'Current Total']
                 st.table(info_df)
 
