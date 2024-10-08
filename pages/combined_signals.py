@@ -8,7 +8,12 @@ def load_combined_signals():
         # Load both datasets
         nfl_df = pd.read_csv('nfl_weather.csv')
         cfb_df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
-        
+        nfl_df.rename(columns={
+            'Total_open': 'Fd_open', 
+            'Total_now': 'FD_now', 
+            'Spread_open': 'Open', 
+            'Spread_now': 'Spread'
+        }, inplace=True)
         # Add a league identifier column to each dataframe
         nfl_df['league'] = 'NFL'
         cfb_df['league'] = 'CFB'
@@ -54,10 +59,6 @@ def load_combined_signals():
         # Add signal type for heat signals
         heat_signals_cfb['signal_type'] = 'CFB Heat'
         heat_signals_nfl['signal_type'] = 'NFL Heat'
-        nfl_df['Fd_open']=nfl_df['Total_open']
-        nfl_df['FD_now']=nfl_df['Total_now']
-        nfl_df['Open']=nfl_df['Spread_open']
-        nfl_df['Spread']=nfl_df['Spread_now']
         # Combine heat signals with existing wind signals
         combined_signals = pd.concat([combined_signals, heat_signals_cfb, heat_signals_nfl], ignore_index=True)
 
