@@ -14,6 +14,7 @@ def load_combined_signals():
             'Spread_open': 'Open', 
             'Spread_now': 'Current'
         }, inplace=True)
+        
         # Add a league identifier column to each dataframe
         nfl_df['league'] = 'NFL'
         cfb_df['league'] = 'CFB'
@@ -59,15 +60,29 @@ def load_combined_signals():
         # Add signal type for heat signals
         heat_signals_cfb['signal_type'] = 'CFB Heat'
         heat_signals_nfl['signal_type'] = 'NFL Heat'
+        
         # Combine heat signals with existing wind signals
         combined_signals = pd.concat([combined_signals, heat_signals_cfb, heat_signals_nfl], ignore_index=True)
 
+        # Add Alt+Heat signal for CFB where travel_alt > 800, opening spread is between -10 and 10, and temp_fg > 75
+        alt_heat_cfb = cfb_df[
+            (cfb_df['travel_alt'] > 800) &
+            (cfb_df['Open'].between(-10, 10)) &
+            (cfb_df['temp_fg'] > 75)
+        ].copy()
+        
+        # Set signal type and color
+        alt_heat_cfb['signal_type'] = 'Alt+Heat'
+        
+        # Add Alt+Heat signals to the combined dataset
+        combined_signals = pd.concat([combined_signals, alt_heat_cfb], ignore_index=True)
+        
         if len(combined_signals) == 0:
             st.warning("No games currently match the signal criteria.")
             return None
             
         # Process dot size and opacity
-        combined_signals['dot_size'] = combined_signals['gs_fg'].abs()*4+7
+        combined_signals['dot_size'] = combined_signals['gs_fg'].abs()*4 + 7
         
         # Ensure that heat signals have full opacity (1.0)
         def assign_dot_opacity(row):
@@ -110,14 +125,14 @@ def create_combined_signals_map():
         hover_data={
             "signal_type": True,
             "league": True,
-            "Time": True,               # Corresponds to game_time
-            "Date": True,               # Corresponds to game_date
-            "wind_fg": True,           # Full game wind (you can use wind_fg or wind_avg)
-            "temp_fg": True,            # Full game temperature
-            "Open": True,            # Open spread
-            "Current": True,             # Current spread
-            "Fd_open": True,             # Open total
-            "FD_now": True,         # Current total
+            "Time": True,
+            "Date": True,
+            "wind_fg": True,
+            "temp_fg": True,
+            "Open": True,
+            "Current": True,
+            "Fd_open": True,
+            "FD_now": True,
             "wind_impact": True,
             "game_loc": True
         },
@@ -126,8 +141,9 @@ def create_combined_signals_map():
         color_discrete_map={
             'CFB Wind': 'purple',
             'NFL Wind': 'blue',
-            'CFB Heat': 'red',  # Heat dots will be red
-            'NFL Heat': 'red'   # Heat dots will be red
+            'CFB Heat': 'red',
+            'NFL Heat': 'red',
+            'Alt+Heat': 'saddlebrown'  # New color for Alt+Heat signal
         },
         zoom=6,
         height=1000,
