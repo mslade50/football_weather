@@ -54,13 +54,13 @@ def load_combined_signals():
         # Add signal type for heat signals
         heat_signals_cfb['signal_type'] = 'CFB Heat'
         heat_signals_nfl['signal_type'] = 'NFL Heat'
-        
-        # Combine heat signals with existing wind signals
-        combined_signals = pd.concat([combined_signals, heat_signals_cfb, heat_signals_nfl], ignore_index=True)
         nfl_df['Fd_open']=nfl_df['Total_open']
         nfl_df['FD_now']=nfl_df['Total_now']
         nfl_df['Open']=nfl_df['Spread_open']
         nfl_df['Spread']=nfl_df['Spread_now']
+        # Combine heat signals with existing wind signals
+        combined_signals = pd.concat([combined_signals, heat_signals_cfb, heat_signals_nfl], ignore_index=True)
+
         if len(combined_signals) == 0:
             st.warning("No games currently match the signal criteria.")
             return None
