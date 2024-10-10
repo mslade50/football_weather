@@ -22,14 +22,17 @@ def assign_signal(row):
     else:
         return 'No Impact'
 
-# Assign signal and color
+# Assign signal and color, with special handling for rain on Low Impact
 df['signal'] = df.apply(assign_signal, axis=1)
-df['dot_color'] = df['signal'].map({
-    'Low Impact': 'blue',
-    'Mid Impact': 'orange',
-    'High Impact': 'purple',
-    'No Impact': 'green'
-})
+df['dot_color'] = df.apply(
+    lambda row: 'black' if row['signal'] == 'Low Impact' and row['rain_fg'] > 2 else (
+        'blue' if row['signal'] == 'Low Impact' else (
+            'orange' if row['signal'] == 'Mid Impact' else (
+                'purple' if row['signal'] == 'High Impact' else 'green'
+            )
+        )
+    ), axis=1
+)
 
 # Assign dot sizes based on the signal
 df['dot_size'] = df['signal'].map({
@@ -38,6 +41,19 @@ df['dot_size'] = df['signal'].map({
     'High Impact': 40,
     'No Impact': 7
 })
+
+# Define opacity based on 'wind_impact'
+def assign_dot_opacity(row):
+    if row['wind_impact'] == 'High':
+        return 1.0
+    elif row['wind_impact'] == 'Low':
+        return 0.15
+    elif row['wind_impact'] == 'Med':
+        return 0.5
+    else:
+        return 1.0
+
+df['dot_opacity'] = df.apply(assign_dot_opacity, axis=1)
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
@@ -49,17 +65,13 @@ fig = px.scatter_mapbox(
         "wind_fg": True,
         "temp_fg": True,
         "rain_fg": True,
-        "gs_fg": True,
         "Fd_open": True,
         "FD_now": True,
         "game_loc": True,
         "wind_diff": True,
         "wind_vol": True,
-        "My_total": True,
-        "Edge": True,
         "Open": True,
         "Current": True,
-        "away_fg": True  # Added away_fg to hover data
     },
     size="dot_size",
     color="dot_color",
@@ -68,6 +80,7 @@ fig = px.scatter_mapbox(
         'orange': 'orange',
         'purple': 'purple',
         'green': 'green',
+        'black': 'black'
     },
     zoom=6,
     height=1000,
@@ -81,13 +94,34 @@ fig.update_layout(
 # Update the legend labels for the colors
 fig.for_each_trace(
     lambda t: t.update(
-        name=t.name.replace('blue', 'Low Impact')
+        name=t.name.replace('blue', 'Low Impact (Wind)')
                    .replace('orange', 'Mid Impact')
                    .replace('purple', 'High Impact')
                    .replace('green', 'No Impact')
+                   .replace('black', 'Low Impact (Rain)')
     )
 )
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
+
+# Apply opacity based on the wind impact level
+fig.update_traces(
+    marker=dict(opacity=df['dot_opacity'])
+)
+
+# Customize the hover template to exclude unwanted information
+fig.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>" +
+    "Wind: %{customdata[0]} MPH<br>" +
+    "Temp: %{customdata[1]}°F<br>" +
+    "Rain: %{customdata[2]} in.<br>" +
+    "Open: %{customdata[3]}<br>" +
+    "Current: %{customdata[4]}<br>" +
+    "Game Location: %{customdata[5]}<br>" +
+    "Wind Diff: %{customdata[6]}<br>" +
+    "Wind Volatility: %{customdata[7]}<br>" +
+    "Open Spread: %{customdata[8]}<br>" +
+    "Current Spread: %{customdata[9]}<extra></extra>"
+)
 
 # Display in Streamlit with wide layout
 st.title("College Football Weather Map")
@@ -126,7 +160,7 @@ if st.sidebar.checkbox("Show game details", False):
             'weakest_wind_effect': 'Weakest_dir'
         })
         
-        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'My_total', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
+        columns_to_format = ['Away tm', 'Home_t', 'Away_t', 'Open', 'Current', 'Wind', 'Open_s', 'Current_s','Temp','Rain','Relative Wind']
         for col in columns_to_format:
             if col in ['Home_t', 'Away_t','Temp']:
                 selected_game[col] = selected_game[col].apply(lambda x: f"{x:.1f}°")
@@ -139,8 +173,8 @@ if st.sidebar.checkbox("Show game details", False):
         
         selected_game['Year'] = selected_game['Year'].astype(int).astype(str)
         
-        weather_columns = ['Wind', 'Temp', 'Rain', 'Impact', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
-        odds_columns = ['Open', 'Current', 'My_total', 'Edge', 'Open_s', 'Current_s', 'Away tm']
+        weather_columns = ['Wind', 'Temp', 'Rain', 'Volatility', 'Relative Wind', 'Home_t', 'Away_t', 'Year']
+        odds_columns = ['Open', 'Current', 'Open_s', 'Current_s', 'Away tm']
         game_info_columns = ['Date', 'Time','Orient','Wind_dir','Wind_imp','Weakest_dir', 'Game Location']
         
         col1, col2 = st.columns(2)
