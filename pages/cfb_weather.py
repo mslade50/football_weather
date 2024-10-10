@@ -22,13 +22,15 @@ def assign_signal(row):
     else:
         return 'No Impact'
 
-# Assign signal and color, with special handling for rain on Low Impact
+# Assign signal and color, with special handling for rain and temperature on Low Impact
 df['signal'] = df.apply(assign_signal, axis=1)
 df['dot_color'] = df.apply(
     lambda row: 'black' if row['signal'] == 'Low Impact' and row['rain_fg'] > 2 else (
-        'blue' if row['signal'] == 'Low Impact' else (
-            'orange' if row['signal'] == 'Mid Impact' else (
-                'purple' if row['signal'] == 'High Impact' else 'green'
+        'red' if row['signal'] == 'Low Impact' and row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57 else (
+            'blue' if row['signal'] == 'Low Impact' else (
+                'orange' if row['signal'] == 'Mid Impact' else (
+                    'purple' if row['signal'] == 'High Impact' else 'green'
+                )
             )
         )
     ), axis=1
@@ -80,7 +82,8 @@ fig = px.scatter_mapbox(
         'orange': 'orange',
         'purple': 'purple',
         'green': 'green',
-        'black': 'black'
+        'black': 'black',
+        'red': 'red'
     },
     zoom=6,
     height=1000,
@@ -99,6 +102,7 @@ fig.for_each_trace(
                    .replace('purple', 'High Impact')
                    .replace('green', 'No Impact')
                    .replace('black', 'Low Impact (Rain)')
+                   .replace('red', 'Low Impact (Temp)')
     )
 )
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
