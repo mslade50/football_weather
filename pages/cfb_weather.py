@@ -13,7 +13,7 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
 # Define the signals for dot size and color
 def assign_signal(row):
-    if (row['wind_fg'] > 8 and row['temp_fg'] < 75) or (row['rain_fg'] > 2):
+    if (row['wind_fg'] > 10 and row['temp_fg'] < 75) or (row['rain_fg'] > 2):
         return 'Low Impact'
     elif (row['wind_fg'] > 15 and row['temp_fg'] < 75) or (row['travel_alt'] > 900 and row['temp_fg'] > 75):
         return 'Mid Impact'
