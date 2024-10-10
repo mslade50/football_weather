@@ -4,9 +4,12 @@ import plotly.express as px
 from datetime import datetime
 
 st.set_page_config(layout="wide")
+@st.cache_data
+def load_data(filepath):
+    return pd.read_excel(filepath, engine='openpyxl')
 
-# Load your Excel file
-df = pd.read_excel('cfb_weather.xlsx', engine='openpyxl')
+# Load the data
+df = load_data('cfb_weather.xlsx')
 df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
