@@ -30,9 +30,9 @@ def assign_dot_color(row):
             return '#8B0000'  # Dark red for lower temperatures
         else:
             return 'red'  # Regular red
-    elif row['temp_fg'] < 30 and row['wind_fg'] < 12:
+    elif row['temp_fg'] < 30 and row['wind_fg'] < 8:
         return 'blue'  # Cold
-    elif row['wind_fg'] >= 12:
+    elif row['wind_fg'] >= 8 and row['temp_fg'] < 65:
         return 'purple'  # Wind
     elif row['rain_fg'] > 0 and row['wind_fg'] < 12:
         return 'black'  # Rain
