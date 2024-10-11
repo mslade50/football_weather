@@ -14,11 +14,10 @@ df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
-# Define the signals for dot size and color
 def assign_signal(row):
-    # Determine the day of the week (0 = Monday, 6 = Sunday)
-    game_date = row['date']  # Assuming you have a column with the game date in `row['date']`
-    day_of_week = game_date.weekday()
+    # Get today's date and determine the day of the week (0 = Monday, 6 = Sunday)
+    today = datetime.today()
+    day_of_week = today.weekday()
     
     # Set the low impact threshold based on the day
     low_impact_wind_thresh = 8 if day_of_week == 4 or day_of_week == 5 else 10  # 4 = Friday, 5 = Saturday
