@@ -4,7 +4,7 @@ import plotly.express as px
 from datetime import datetime
 
 st.set_page_config(layout="wide")
-@st.cache_data
+
 def load_data(filepath):
     return pd.read_excel(filepath, engine='openpyxl')
 
