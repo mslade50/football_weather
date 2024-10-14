@@ -23,15 +23,17 @@ def assign_signal(row):
     low_impact_wind_thresh = 8 if day_of_week == 4 or day_of_week == 5 else 10  # 4 = Friday, 5 = Saturday
     
     # Define the impact signals with the dynamic wind threshold
-    if ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or (row['rain_fg'] > 2) or (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
-        return 'Low Impact'
+    if row['wind_fg'] > 15 and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
+        return 'High Impact'
     elif ((row['wind_fg'] > 15 and row['temp_fg'] < 75) or (row['travel_alt'] > 900 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
         return 'Mid Impact'
-    elif row['wind_fg'] > 15 and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
-        return 'High Impact'
+    elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or (row['rain_fg'] > 2) or (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
+        return 'Low Impact'
     else:
         return 'No Impact'
 
+
+    
 # Assign signal and color, with special handling for rain and temperature on Low Impact
 df['signal'] = df.apply(assign_signal, axis=1)
 df['dot_color'] = df.apply(
