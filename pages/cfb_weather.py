@@ -19,20 +19,40 @@ def assign_signal(row):
     today = datetime.today()
     day_of_week = today.weekday()
     
-    # Set the low impact threshold based on the day
-    low_impact_wind_thresh = 8 if day_of_week == 4 or day_of_week == 5 else 10  # 4 = Friday, 5 = Saturday
+    # Define the daily thresholds for Low Impact based on the day of the week
+    low_impact_wind_thresholds = {
+        0: 11.14,  # Monday
+        1: 11.14,  # Tuesday
+        2: 10.10,  # Wednesday
+        3: 10.10,  # Thursday
+        4: 9.31,   # Friday
+        5: 8.79,   # Saturday
+        6: 11.93   # Sunday
+    }
     
-    # Define the impact signals with the updated criteria
-    if row['wind_fg'] > 15 and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
+    # Set the base threshold for Low Impact
+    low_impact_wind_thresh = low_impact_wind_thresholds.get(day_of_week, 10)
+    
+    # Calculate thresholds for each impact level
+    mid_impact_wind_thresh = low_impact_wind_thresh + 7.5
+    high_impact_wind_thresh = low_impact_wind_thresh + 7.5
+    very_high_impact_wind_thresh = low_impact_wind_thresh + 7.5
+
+    # Define the impact signals based on updated criteria
+    if row['wind_fg'] > very_high_impact_wind_thresh and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
         return 'Very High Impact'
-    elif row['wind_fg'] > 15 and row['temp_fg'] < 70 and -10.5 <= row['Open'] <= 10.5:
+    elif row['wind_fg'] > high_impact_wind_thresh and row['temp_fg'] < 70 and -10.5 <= row['Open'] <= 10.5:
         return 'High Impact'
-    elif ((row['wind_fg'] > 15 and row['temp_fg'] < 75) or (row['travel_alt'] > 800 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
+    elif ((row['wind_fg'] > mid_impact_wind_thresh and row['temp_fg'] < 75) or 
+          (row['travel_alt'] > 800 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
         return 'Mid Impact'
-    elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or (row['rain_fg'] > 2) or (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
+    elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or 
+          (row['rain_fg'] > 2) or 
+          (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
         return 'Low Impact'
     else:
         return 'No Impact'
+
 
 
     
