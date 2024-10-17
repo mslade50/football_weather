@@ -86,6 +86,8 @@ fig = px.scatter_mapbox(
         "Fd_open": True,
         "FD_now": True,
         "game_loc": True,
+        "game_date": True,      # Add Game Date
+        "game_time": True,      # Add Game Time
         "wind_diff": True,
         "wind_vol": True,
         "Open": True,
@@ -105,6 +107,7 @@ fig = px.scatter_mapbox(
     zoom=6,
     height=1000,
 )
+
 
 fig.update_layout(
     mapbox_style="open-street-map",
@@ -141,10 +144,12 @@ fig.update_traces(
     "Open: %{customdata[3]}<br>" +
     "Current: %{customdata[4]}<br>" +
     "Game Location: %{customdata[5]}<br>" +
-    "Wind Diff: %{customdata[6]}<br>" +
-    "Wind Volatility: %{customdata[7]}<br>" +
-    "Open Spread: %{customdata[8]}<br>" +
-    "Current Spread: %{customdata[9]}<extra></extra>"
+    "Game Date: %{customdata[6]}<br>" +
+    "Game Time: %{customdata[7]}<br>" +
+    "Wind Diff: %{customdata[8]}<br>" +
+    "Wind Volatility: %{customdata[9]}<br>" +
+    "Open Spread: %{customdata[10]}<br>" +
+    "Current Spread: %{customdata[11]}<extra></extra>"
 )
 
 # Display in Streamlit with wide layout
