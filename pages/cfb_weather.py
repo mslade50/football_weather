@@ -86,8 +86,8 @@ fig = px.scatter_mapbox(
         "Fd_open": True,
         "FD_now": True,
         "game_loc": True,
-        "game_date": True,      # Add Game Date
-        "game_time": True,      # Add Game Time
+        "Date": True,      # Add Game Date
+        "Time": True,      # Add Game Time
         "wind_diff": True,
         "wind_vol": True,
         "Open": True,
