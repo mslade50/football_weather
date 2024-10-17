@@ -22,10 +22,12 @@ def assign_signal(row):
     # Set the low impact threshold based on the day
     low_impact_wind_thresh = 8 if day_of_week == 4 or day_of_week == 5 else 10  # 4 = Friday, 5 = Saturday
     
-    # Define the impact signals with the dynamic wind threshold
+    # Define the impact signals with the updated criteria
     if row['wind_fg'] > 15 and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
+        return 'Very High Impact'
+    elif row['wind_fg'] > 15 and row['temp_fg'] < 70 and -10.5 <= row['Open'] <= 10.5:
         return 'High Impact'
-    elif ((row['wind_fg'] > 15 and row['temp_fg'] < 75) or (row['travel_alt'] > 900 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
+    elif ((row['wind_fg'] > 15 and row['temp_fg'] < 75) or (row['travel_alt'] > 800 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
         return 'Mid Impact'
     elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or (row['rain_fg'] > 2) or (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
         return 'Low Impact'
@@ -41,7 +43,9 @@ df['dot_color'] = df.apply(
         'red' if row['signal'] == 'Low Impact' and row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57 else (
             'blue' if row['signal'] == 'Low Impact' else (
                 'orange' if row['signal'] == 'Mid Impact' else (
-                    'purple' if row['signal'] == 'High Impact' else 'green'
+                    'purple' if row['signal'] == 'High Impact' else (
+                        'darkred' if row['signal'] == 'Very High Impact' else 'green'
+                    )
                 )
             )
         )
@@ -90,16 +94,18 @@ fig = px.scatter_mapbox(
     size="dot_size",
     color="dot_color",
     color_discrete_map={
-        'blue': 'blue',
-        'orange': 'orange',
-        'purple': 'purple',
-        'green': 'green',
-        'black': 'black',
-        'red': 'red'
+        'blue': 'blue',          # Low Impact (Wind)
+        'orange': 'orange',      # Mid Impact
+        'purple': 'purple',      # High Impact
+        'darkred': 'darkred',    # Very High Impact
+        'green': 'green',        # No Impact
+        'black': 'black',        # Low Impact (Rain)
+        'red': 'red'             # Low Impact (Temp)
     },
     zoom=6,
     height=1000,
 )
+
 fig.update_layout(
     mapbox_style="open-street-map",
     mapbox_center={"lat": 37.0902, "lon": -95.7129},  # Center the map in the U.S.
@@ -112,11 +118,13 @@ fig.for_each_trace(
         name=t.name.replace('blue', 'Low Impact (Wind)')
                    .replace('orange', 'Mid Impact')
                    .replace('purple', 'High Impact')
+                   .replace('darkred', 'Very High Impact')
                    .replace('green', 'No Impact')
                    .replace('black', 'Low Impact (Rain)')
                    .replace('red', 'Low Impact (Temp)')
     )
 )
+
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
 
 # Apply opacity based on the wind impact level
