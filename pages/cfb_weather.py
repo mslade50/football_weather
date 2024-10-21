@@ -180,7 +180,7 @@ fig.update_traces(
     "Open Spread: %{customdata[10]}<br>" +
     "Current Spread: %{customdata[11]}<br>" +
     "Record: %{customdata[12]}<br>" +   # Add the Record column here
-    "Percentage: %{customdata[13]}<extra></extra>"  # Add the Percentage column here
+    "ROI: %{customdata[13]}<extra></extra>"  # Add the Percentage column here
 )
 
 # Display in Streamlit with wide layout
