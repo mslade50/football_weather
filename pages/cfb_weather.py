@@ -11,6 +11,8 @@ def load_data(filepath, **kwargs):
 # Load the data
 df_weather = load_data('cfb_weather.xlsx')  # First sheet (df_weather)
 df_stadiums = load_data('cfb_weather_backtest.xlsx', sheet_name='Stadiums')
+
+df_stadiums['Team'] = df_stadiums['Team'].replace('UConn', 'Connecticut')
 # Create a new column 'home_tm' by extracting the team name after '@'
 df_weather['home_tm'] = df_weather['Game'].apply(lambda x: x.split('@')[1].strip())
 df = df_weather.merge(df_stadiums, left_on='home_tm', right_on='Team', how='left')
