@@ -5,11 +5,19 @@ from datetime import datetime
 
 st.set_page_config(layout="wide")
 
-def load_data(filepath):
-    return pd.read_excel(filepath, engine='openpyxl')
+def load_data(filepath, **kwargs):
+    return pd.read_excel(filepath, engine='openpyxl', **kwargs)
 
 # Load the data
-df = load_data('cfb_weather.xlsx')
+df_weather = load_data('cfb_weather.xlsx')  # First sheet (df_weather)
+df_stadiums = load_data('cfb_weather_backtest.xlsx', sheet_name='Stadiums')
+
+df_stadiums['Team'] = df_stadiums['Team'].replace('UConn', 'Connecticut')
+df_stadiums['Team'] = df_stadiums['Team'].replace('FIU', 'Florida International')
+# Create a new column 'home_tm' by extracting the team name after '@'
+df_weather['home_tm'] = df_weather['Game'].apply(lambda x: x.split('@')[1].strip())
+df = df_weather.merge(df_stadiums, left_on='home_tm', right_on='Team', how='left')
+
 df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
@@ -112,6 +120,8 @@ fig = px.scatter_mapbox(
         "wind_vol": True,
         "Open": True,
         "Current": True,
+        "Record": True,    # Add Record
+        "Percentage": True # Add Percentage
     },
     size="dot_size",
     color="dot_color",
@@ -169,7 +179,9 @@ fig.update_traces(
     "Wind Diff: %{customdata[8]}<br>" +
     "Wind Volatility: %{customdata[9]}<br>" +
     "Open Spread: %{customdata[10]}<br>" +
-    "Current Spread: %{customdata[11]}<extra></extra>"
+    "Current Spread: %{customdata[11]}<br>" +
+    "Record: %{customdata[12]}<br>" +   # Add the Record column here
+    "ROI: %{customdata[13]}<extra></extra>"  # Add the Percentage column here
 )
 
 # Display in Streamlit with wide layout
