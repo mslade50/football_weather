@@ -295,7 +295,7 @@ if st.sidebar.checkbox("Show game details", False):
             st.subheader("Game Information")
             st.table(selected_game[game_info_columns])
 
-filtered_df = df[df['ROI'] != 0]
+filtered_df = df[df['ROI'].notna()]
 
 # Keep only the specified columns
 columns_to_keep = ['Game', 'Date', 'Time', 'temp_fg', 'wind_fg', 'Fd_open', 'FD_now', 'Open', 'Record', 'Percentage', 'Sample', 'Margin', 'ROI']
