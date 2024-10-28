@@ -33,7 +33,7 @@ def get_backtesting_data(row, df_bt):
     temp_fg = row['temp_fg']
     wind_fg = row['wind_fg']
     open_val = row['Fd_open']
-    current_val = row['Fd_now']
+    current_val = row['FD_now']
     
     # Calculate the absolute value of the spread (Open)
     spread = abs(row['Open'])
