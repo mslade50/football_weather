@@ -66,8 +66,6 @@ def get_backtesting_data(row, df_bt):
 # Apply the matching function to each row in df
 df['Sample'], df['Margin'], df['ROI'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
 
-# Output the dataframe with the new columns
-st.write(df)
 
 def assign_signal(row):
     # Get today's date and determine the day of the week (0 = Monday, 6 = Sunday)
@@ -296,3 +294,12 @@ if st.sidebar.checkbox("Show game details", False):
             
             st.subheader("Game Information")
             st.table(selected_game[game_info_columns])
+
+filtered_df = df[df['ROI'] > 0]
+
+# Keep only the specified columns
+columns_to_keep = ['Game Date Time', 'temp_fg', 'wind_fg', 'Fd_open', 'FD_now', 'Open', 'Record', 'Percentage', 'Sample', 'Margin', 'ROI']
+filtered_df = filtered_df[columns_to_keep]
+
+# Output the filtered DataFrame with the new columns
+st.write(filtered_df)
