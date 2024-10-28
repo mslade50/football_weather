@@ -32,8 +32,11 @@ def get_backtesting_data(row, df_bt):
     # Match temperature range
     temp_fg = row['temp_fg']
     wind_fg = row['wind_fg']
-    open_val = row['Open']
-    current_val = row['Current']
+    open_val = row['Fd_open']
+    current_val = row['Fd_now']
+    
+    # Calculate the absolute value of the spread (Open)
+    spread = abs(row['Open'])
     
     # Determine the CLV status
     clv_status = get_clv(open_val, current_val)
@@ -44,17 +47,12 @@ def get_backtesting_data(row, df_bt):
         (df_bt['Temp Below'] <= temp_fg) &
         (df_bt['Wind Above'] >= wind_fg) & 
         (df_bt['Wind Below'] <= wind_fg) &
-        ((df_bt['CLV from Open'] == clv_status))]
+        (df_bt['CLV from Open'] == clv_status)
+    ]
 
-    # Further filter based on spread, treating spread_l as 0 if NaN
-    spread_l = row.get('spread_l', 0)
-    spread_h = row.get('spread_h', 0)
-    
-    if pd.isna(spread_l):
-        spread_l = 0
-
+    # Further filter based on spread, ensuring that spread is between Spread_l and Spread_h
     match = match[
-        ((match['Spread_h'] >= spread_h) & (match['Spread_l'] <= spread_h))
+        ((match['Spread_h'] >= spread) & (match['Spread_l'] <= spread))
     ]
     
     # If match is found, return the Sample, Margin, and ROI
@@ -65,7 +63,10 @@ def get_backtesting_data(row, df_bt):
 
 # Apply the matching function to each row in df
 df['Sample'], df['Margin'], df['ROI'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
+
+# Output the dataframe with the new columns
 st.write(df)
+
 def assign_signal(row):
     # Get today's date and determine the day of the week (0 = Monday, 6 = Sunday)
     today = datetime.today()
