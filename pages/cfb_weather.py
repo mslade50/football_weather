@@ -11,6 +11,8 @@ def load_data(filepath, **kwargs):
 # Load the data
 df_weather = load_data('cfb_weather.xlsx')  # First sheet (df_weather)
 df_stadiums = load_data('cfb_weather_backtest.xlsx', sheet_name='Stadiums')
+df_bt = load_data('cfb_weather_backtest.xlsx', sheet_name='Backtesting')
+
 
 df_stadiums['Team'] = df_stadiums['Team'].replace('UConn', 'Connecticut')
 df_stadiums['Team'] = df_stadiums['Team'].replace('FIU', 'Florida International')
@@ -22,6 +24,48 @@ df[['lat', 'lon']] = df['game_loc'].str.split(',', expand=True)
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
+def get_clv(open_value, current_value):
+    return 'Positive' if open_value > current_value else 'Negative'
+
+# Function to match a row in df to df_bt criteria and extract Sample, Margin, and ROI
+def get_backtesting_data(row, df_bt):
+    # Match temperature range
+    temp_fg = row['temp_fg']
+    wind_fg = row['wind_fg']
+    open_val = row['Open']
+    current_val = row['Current']
+    
+    # Determine the CLV status
+    clv_status = get_clv(open_val, current_val)
+
+    # Filter df_bt based on the criteria for temp, wind, and CLV
+    match = df_bt[
+        (df_bt['Temp Above'] >= temp_fg) & 
+        (df_bt['Temp Below'] <= temp_fg) &
+        (df_bt['Wind Above'] >= wind_fg) & 
+        (df_bt['Wind Below'] <= wind_fg) &
+        ((df_bt['CLV from Open'] == clv_status))]
+
+    # Further filter based on spread, treating spread_l as 0 if NaN
+    spread_l = row.get('spread_l', 0)
+    spread_h = row.get('spread_h', 0)
+    
+    if pd.isna(spread_l):
+        spread_l = 0
+
+    match = match[
+        ((match['Spread_h'] >= spread_h) & (match['Spread_l'] <= spread_h))
+    ]
+    
+    # If match is found, return the Sample, Margin, and ROI
+    if not match.empty:
+        return match.iloc[0]['Sample'], match.iloc[0]['Margin'], match.iloc[0]['ROI']
+    else:
+        return None, None, None  # No match found
+
+# Apply the matching function to each row in df
+df['Sample'], df['Margin'], df['ROI'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
+st.write(df)
 def assign_signal(row):
     # Get today's date and determine the day of the week (0 = Monday, 6 = Sunday)
     today = datetime.today()
