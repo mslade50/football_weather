@@ -64,7 +64,7 @@ def get_backtesting_data(row, df_bt):
         return None, None, None  # No match found
 
 # Apply the matching function to each row in df
-df['Sample'], df['Margin'], df['ROI'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
+df['Sample'], df['Margin'], df['ROI'],df['Signal'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
 
 
 def assign_signal(row):
@@ -298,7 +298,7 @@ if st.sidebar.checkbox("Show game details", False):
 filtered_df = df[df['ROI'].notna()]
 
 # Keep only the specified columns
-columns_to_keep = ['Game', 'Date', 'Time', 'temp_fg', 'wind_fg', 'Fd_open', 'FD_now', 'Open', 'Record', 'Percentage', 'Sample', 'Margin', 'ROI']
+columns_to_keep = ['Game', 'Date', 'Time', 'temp_fg', 'wind_fg', 'Fd_open', 'FD_now', 'Open', 'Record', 'Percentage', 'Sample', 'Margin', 'ROI','Signal','game_loc']
 filtered_df = filtered_df[columns_to_keep]
 filtered_df['ROI']=filtered_df['ROI']*100
 filtered_df['Percentage']= filtered_df['Percentage']*100
