@@ -206,9 +206,9 @@ fig.for_each_trace(
 fig.update_traces(marker=dict(sizemode='diameter', sizemin=1, sizeref=1))
 
 # Apply opacity based on the wind impact level
-fig.update_traces(
-    marker=dict(opacity=df['dot_opacity'])
-)
+# fig.update_traces(
+#     marker=dict(opacity=df['dot_opacity'])
+# )
 
 # Customize the hover template to exclude unwanted information
 fig.update_traces(
