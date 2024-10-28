@@ -59,7 +59,7 @@ def get_backtesting_data(row, df_bt):
     
     # If match is found, return the Sample, Margin, and ROI
     if not match.empty:
-        return match.iloc[0]['Sample'], match.iloc[0]['Margin'], match.iloc[0]['ROI']
+        return match.iloc[0]['Sample'], match.iloc[0]['Margin'], match.iloc[0]['ROI'],match.iloc[0]['Signal']
     else:
         return None, None, None  # No match found
 
