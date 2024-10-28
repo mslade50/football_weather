@@ -61,7 +61,7 @@ def get_backtesting_data(row, df_bt):
     if not match.empty:
         return match.iloc[0]['Sample'], match.iloc[0]['Margin'], match.iloc[0]['ROI'],match.iloc[0]['Signal']
     else:
-        return None, None, None  # No match found
+        return None, None, None, None  # No match found
 
 # Apply the matching function to each row in df
 df['Sample'], df['Margin'], df['ROI'],df['Signal'] = zip(*df.apply(lambda row: get_backtesting_data(row, df_bt), axis=1))
