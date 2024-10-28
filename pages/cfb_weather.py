@@ -40,6 +40,7 @@ def get_backtesting_data(row, df_bt):
     
     # Determine the CLV status
     clv_status = get_clv(open_val, current_val)
+    df_bt['Wind Below'] = df_bt['Wind Below'].fillna(100)
 
     # Filter df_bt based on the criteria for temp, wind, and CLV
     match = df_bt[
