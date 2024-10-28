@@ -300,6 +300,8 @@ filtered_df = df[df['ROI'] > 0]
 # Keep only the specified columns
 columns_to_keep = ['Game', 'Date', 'Time', 'temp_fg', 'wind_fg', 'Fd_open', 'FD_now', 'Open', 'Record', 'Percentage', 'Sample', 'Margin', 'ROI']
 filtered_df = filtered_df[columns_to_keep]
+filtered_df['ROI']=filtered_df['ROI']*100
+filtered_df['Stadium ROI']= filtered_df['Percentage']*100
 
 # Output the filtered DataFrame with the new columns
 st.write(filtered_df)
