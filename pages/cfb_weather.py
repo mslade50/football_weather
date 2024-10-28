@@ -43,10 +43,10 @@ def get_backtesting_data(row, df_bt):
 
     # Filter df_bt based on the criteria for temp, wind, and CLV
     match = df_bt[
-        (df_bt['Temp Above'] >= temp_fg) & 
-        (df_bt['Temp Below'] <= temp_fg) &
-        (df_bt['Wind Above'] >= wind_fg) & 
-        (df_bt['Wind Below'] <= wind_fg) &
+        (df_bt['Temp Above'] <= temp_fg) & 
+        (df_bt['Temp Below'] >= temp_fg) &
+        (df_bt['Wind Above'] <= wind_fg) & 
+        (df_bt['Wind Below'] >= wind_fg) &
         (df_bt['CLV from Open'] == clv_status)
     ]
 
