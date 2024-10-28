@@ -133,18 +133,18 @@ df['dot_size'] = df['signal'].map({
     'No Impact': 7
 })
 
-# Define opacity based on 'wind_impact'
-def assign_dot_opacity(row):
-    if row['wind_impact'] == 'High':
-        return 1.0
-    elif row['wind_impact'] == 'Low':
-        return 0.15
-    elif row['wind_impact'] == 'Med':
-        return 0.5
-    else:
-        return 1.0
+# # Define opacity based on 'wind_impact'
+# def assign_dot_opacity(row):
+#     if row['wind_impact'] == 'High':
+#         return 1.0
+#     elif row['wind_impact'] == 'Low':
+#         return 0.15
+#     elif row['wind_impact'] == 'Med':
+#         return 0.5
+#     else:
+#         return 1.0
 
-df['dot_opacity'] = df.apply(assign_dot_opacity, axis=1)
+# df['dot_opacity'] = df.apply(assign_dot_opacity, axis=1)
 
 # Create the map using Plotly
 fig = px.scatter_mapbox(
