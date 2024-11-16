@@ -94,12 +94,12 @@ def assign_signal(row):
     # Define the impact signals based on updated criteria
     if row['wind_fg'] > very_high_impact_wind_thresh and row['temp_fg'] < 50 and -10.5 <= row['Open'] <= 10.5:
         return 'Very High Impact'
-    elif row['wind_fg'] > high_impact_wind_thresh and row['temp_fg'] < 70 and -10.5 <= row['Open'] <= 10.5:
+    elif row['wind_fg'] > high_impact_wind_thresh and row['temp_fg'] < 65 and -10.5 <= row['Open'] <= 10.5:
         return 'High Impact'
-    elif ((row['wind_fg'] > mid_impact_wind_thresh and row['temp_fg'] < 75) or 
+    elif ((row['wind_fg'] > mid_impact_wind_thresh and row['temp_fg'] < 65) or 
           (row['travel_alt'] > 800 and row['temp_fg'] > 75)) and -20.5 <= row['Open'] <= 20.5:
         return 'Mid Impact'
-    elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 75) or 
+    elif ((row['wind_fg'] > low_impact_wind_thresh and row['temp_fg'] < 65) or 
           (row['rain_fg'] > 2) or 
           (row['temp_fg'] > 80 and row['home_temp'] < 57 and row['away_temp'] < 57)) and -20.5 <= row['Open'] <= 20.5:
         return 'Low Impact'
