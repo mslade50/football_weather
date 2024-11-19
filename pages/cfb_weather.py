@@ -26,7 +26,7 @@ df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
 def get_clv(open_value, current_value):
     return 'Positive' if open_value > current_value else 'Negative'
-
+df = df.dropna(subset=['lat', 'lon'])
 # Function to match a row in df to df_bt criteria and extract Sample, Margin, and ROI
 def get_backtesting_data(row, df_bt):
     # Match temperature range
