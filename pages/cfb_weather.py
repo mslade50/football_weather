@@ -130,6 +130,7 @@ df['dot_size'] = df['signal'].map({
     'Low Impact': 15,
     'Mid Impact': 25,
     'High Impact': 40,
+    'Very High Impact':50,
     'No Impact': 7
 })
 
