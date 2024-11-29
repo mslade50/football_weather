@@ -42,7 +42,7 @@ def get_backtesting_data(row, df_bt):
     clv_status = get_clv(open_val, current_val)
     df_bt['Wind Below'] = df_bt['Wind Below'].fillna(100)
     df_bt['Spread_l'] = df_bt['Spread_l'].fillna(0)
-
+    df_bt['Temp Above'] = df_bt['Temp Above'].fillna(0)
     # Filter df_bt based on the criteria for temp, wind, and CLV
     match = df_bt[
         (df_bt['Temp Above'] <= temp_fg) & 
