@@ -1,2 +1,2 @@
 Game,Date,Time,stadium,avg_wind,wind_vol,orient,wind_impact,weakest_wind_effect,game_loc,travel_alt,home_temp,away_temp,year_built,wind_dir_1h,wind_dir_2h,temp_fg,wind_fg,wind_dir_fg,rain_fg,gs_fg,away_fg,Spread_now,Odds_now,Total_now,Under_now,Spread_open,Odds_open,Total_open,Under_open,Timestamp
-seattle vs new england,SUN 02/08,06:29 PM,Gillette Stadium,6.23,high,N-S,med,x S,"42.0909, -71.2643",69,51.74,52.12,2002,SE,E,2.180000000000001,3.4589652333333336,E,0.0,-0.03478,0.0,-3.0,-108,38.0,-110,-3.0,-108,38.0,-110,2026-02-04T16:20:59.734586
+seattle vs new england,SUN 02/08,06:29 PM,Gillette Stadium,6.23,high,N-S,med,x S,"42.0909, -71.2643",69,51.74,52.12,2002,SE,ESE,7.04,9.941936,ESE,0.0,-0.0287,0.0,-3.0,-108,38.0,-110,-3.0,-108,38.0,-110,2026-02-05T05:15:33.457873
