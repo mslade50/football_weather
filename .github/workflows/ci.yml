@@ -32,7 +32,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install httpx beautifulsoup4 pandas numpy openpyxl pyarrow python-dotenv boto3 timezonefinder pytest ruff
+          pip install -r requirements-dev.txt
 
       - name: Ruff
         run: ruff check .
