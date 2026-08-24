@@ -55,33 +55,80 @@ def heat_component(temp_fg: Optional[float]) -> float:
 
 
 def rain_component(rain_fg_mm: Optional[float], month: Optional[int]) -> float:
+    """Legacy rain tiers. ``month`` is the month of the RUN (the generator's clock),
+    not the game date: September runs zeroed rain even for October kickoffs.
+    Thresholds in ``RAIN_TIER_STRICT_MM`` are exclusive (>), the rest inclusive (>=)."""
     if month is not None and int(month) in C.RAIN_SUPPRESS_MONTHS:
         return 0.0
-    return tier(rain_fg_mm, C.RAIN_TIERS_MM)
-
-
-def heat_away_component(temp_fg: Optional[float], away_temp: Optional[float], sport: str) -> float:
-    t = _nan_to_none(temp_fg)
-    a = _nan_to_none(away_temp)
-    if t is None or a is None:
+    r = _nan_to_none(rain_fg_mm)
+    if r is None:
         return 0.0
-    if t > C.HEAT_BASE_F and a < C.HEAT_AWAY_CUTOFF_F[sport]:
-        return heat_component(t)
+    for threshold, component in C.RAIN_TIERS_MM:
+        if r > threshold or (r == threshold and threshold not in C.RAIN_TIER_STRICT_MM):
+            return component
     return 0.0
 
 
-def cold_away_component(temp_fg: Optional[float], away_temp: Optional[float]) -> float:
+def heat_away_component(
+    temp_fg: Optional[float],
+    away_temp: Optional[float],
+    sport: str,
+    home_temp: Optional[float] = None,
+    era_date: Optional[str] = None,
+) -> float:
+    """heat_away = heat when the away side comes from a meaningfully cooler city.
+
+    NFL (every era) and CFB runs before ``CFB_HEAT_AWAY_DELTA_UNTIL`` fire on
+    ``home_temp - away_temp >= HEAT_AWAY_DELTA_F``; CFB from 2024-09-27 on fires
+    on ``away_temp < HEAT_AWAY_CUTOFF_F['cfb']``. ``era_date`` (ISO, golden replay
+    only) selects the rule; None means the current era.
+    """
+    t = _nan_to_none(temp_fg)
+    a = _nan_to_none(away_temp)
+    if t is None or a is None or t <= C.HEAT_BASE_F:
+        return 0.0
+    if sport == "nfl" or (era_date is not None and era_date < C.CFB_HEAT_AWAY_DELTA_UNTIL):
+        h = _nan_to_none(home_temp)
+        if h is None:
+            return 0.0
+        fired = (h - a) >= C.HEAT_AWAY_DELTA_F
+    else:
+        fired = a < C.HEAT_AWAY_CUTOFF_F["cfb"]
+    return heat_component(t) if fired else 0.0
+
+
+def cold_away_component(
+    temp_fg: Optional[float],
+    away_temp: Optional[float],
+    sport: str = "nfl",
+    era_date: Optional[str] = None,
+) -> float:
+    """cold_away below the per-sport away-temp floor; NFL runs before
+    ``NFL_COLD_AWAY_ERA`` (golden replay via ``era_date``) use the legacy 65 floor."""
     t = _nan_to_none(temp_fg)
     a = _nan_to_none(away_temp)
     if t is None or a is None:
         return 0.0
-    if t < C.COLD_AWAY_BASE_F and a >= C.COLD_AWAY_AWAY_TEMP_MIN_F:
+    floor = C.COLD_AWAY_AWAY_TEMP_MIN_F[sport]
+    if sport == "nfl" and era_date is not None and era_date < C.NFL_COLD_AWAY_ERA:
+        floor = C.NFL_COLD_AWAY_LEGACY_MIN_F
+    if t < C.COLD_AWAY_BASE_F and a >= floor:
         return max(0.0, C.COLD_AWAY_BASE_F - t) * C.COLD_AWAY_PER_F
     return 0.0
 
 
-def alt_component(travel_alt_m: Optional[float], sport: str) -> float:
-    return tier(travel_alt_m, C.ALT_TIERS_M[sport])
+def alt_component(travel_alt_m: Optional[float], sport: str, home_elev_m: Optional[float] = None) -> float:
+    """Altitude tiers on travel_alt; CFB adds the 2.0 tier for a high-elevation home
+    site (>=1100 m) hosting a visitor from >=700 m below. Skipped when home
+    elevation is unknown."""
+    base = tier(travel_alt_m, C.ALT_TIERS_M[sport])
+    if base != 0.0 or sport != "cfb":
+        return base
+    ta = _nan_to_none(travel_alt_m)
+    he = _nan_to_none(home_elev_m)
+    if ta is not None and he is not None and ta >= C.CFB_ALT2_TRAVEL_MIN_M and he >= C.CFB_ALT2_HOME_ELEV_MIN_M:
+        return C.CFB_ALT2_C
+    return 0.0
 
 
 @dataclass(frozen=True)
@@ -133,14 +180,19 @@ def compute_impact_v1(
     away_temp: Optional[float],
     home_temp: Optional[float] = None,
     roof_state: Optional[str] = None,
+    home_elev_m: Optional[float] = None,
+    era_date: Optional[str] = None,
 ) -> ImpactV1:
     """Reproduce legacy gs_fg / away_fg in percent.
 
-    ``home_temp`` is accepted for signature symmetry with v2 but unused by v1.
-    A closed roof zeroes the game-site components; away components (alt) are
-    unaffected by the roof.
+    ``month`` is the month of the RUN (the legacy generator's clock), not the game
+    date — it only drives September rain suppression. ``home_temp`` feeds the
+    heat_away delta rule. ``home_elev_m`` (game-site elevation) enables the CFB
+    2.0 altitude tier. ``era_date`` (ISO date, golden replay only) selects
+    era-specific legacy rules; None means the current era. A closed roof zeroes
+    the game-site components; away components (alt) are unaffected by the roof.
     """
-    if sport not in C.HEAT_AWAY_CUTOFF_F:
+    if sport not in C.SPORTS:
         raise ValueError(f"unknown sport {sport!r}")
     closed = roof_state in C.CLOSED_ROOF_STATES
 
@@ -150,10 +202,11 @@ def compute_impact_v1(
     rain_c = 0.0 if closed else rain_component(rain_fg_mm, month)
     gs = -(wind_c + cold_c + heat_c + rain_c)
 
-    heat_away = 0.0 if closed else heat_away_component(temp_fg, away_temp, sport)
-    cold_away = 0.0 if closed else cold_away_component(temp_fg, away_temp)
-    alt_c = alt_component(travel_alt_m, sport)
-    away = -max(heat_away + cold_away, alt_c)
+    heat_away = 0.0 if closed else heat_away_component(temp_fg, away_temp, sport, home_temp, era_date)
+    cold_away = 0.0 if closed else cold_away_component(temp_fg, away_temp, sport, era_date)
+    alt_c = alt_component(travel_alt_m, sport, home_elev_m)
+    # CFB legacy sums the away components; NFL takes the larger of temp vs altitude.
+    away = -(alt_c + heat_away + cold_away) if sport == "cfb" else -max(heat_away + cold_away, alt_c)
 
     return ImpactV1(
         sport=sport,
@@ -174,8 +227,14 @@ def gs_fg_pct(sport: str, month: Optional[int], temp_fg: float, wind_fg: float, 
     return compute_impact_v1(sport, month, temp_fg, wind_fg, rain_fg_mm, None, None).gs_fg_pct
 
 
-def away_fg_pct(sport: str, temp_fg: float, travel_alt_m: Optional[float], away_temp: Optional[float]) -> float:
-    return compute_impact_v1(sport, None, temp_fg, None, None, travel_alt_m, away_temp).away_fg_pct
+def away_fg_pct(
+    sport: str,
+    temp_fg: float,
+    travel_alt_m: Optional[float],
+    away_temp: Optional[float],
+    home_temp: Optional[float] = None,
+) -> float:
+    return compute_impact_v1(sport, None, temp_fg, None, None, travel_alt_m, away_temp, home_temp=home_temp).away_fg_pct
 
 
 def ambiguous_buckets(
@@ -185,27 +244,38 @@ def ambiguous_buckets(
     away_temp: Optional[float],
     sport: str,
     wind_fg: Optional[float] = None,
+    home_temp: Optional[float] = None,
+    home_elev_m: Optional[float] = None,
 ) -> list[str]:
     """Names of documented ambiguity bands this row falls into (for test logging)."""
     out: list[str] = []
     r = _nan_to_none(rain_fg_mm)
     lo, hi = C.AMBIGUOUS_BANDS["rain_mm"]
     if r is not None and lo <= r <= hi:
-        out.append("rain_5.1-6.6mm")
+        out.append("rain_6mm_boundary")
     t = _nan_to_none(temp_fg)
     a = _nan_to_none(away_temp)
-    lo, hi = C.AMBIGUOUS_BANDS["heat_away_temp_f"]
-    if t is not None and a is not None and t > C.HEAT_BASE_F and lo <= a <= hi:
-        out.append("heat_away_cutoff_62-67F")
+    h = _nan_to_none(home_temp)
+    lo, hi = C.AMBIGUOUS_BANDS["heat_away_delta_f"]
+    if t is not None and t > C.HEAT_BASE_F and a is not None and h is not None and lo < (h - a) < hi:
+        out.append("heat_away_delta_8-11F")
     alt = _nan_to_none(travel_alt_m)
-    lo, hi = C.AMBIGUOUS_BANDS["alt_m"]
-    if alt is not None and lo <= alt <= hi:
-        out.append("alt_900-1000m")
-    if alt is not None and sport == "nfl" and 1250.0 <= alt <= 1350.0:
-        out.append("alt_nfl_1300m_edge")
-    if t is not None and t > C.HEAT_BASE_F and alt is not None and alt >= 900.0:
-        out.append("alt_vs_heat_override")
-    # CFB legacy stored wind_fg at 1dp / rain at 1dp, so tier thresholds can flip.
+    he = _nan_to_none(home_elev_m)
+    if alt is not None and sport == "nfl":
+        lo, hi = C.AMBIGUOUS_BANDS["alt_nfl_2_0_m"]
+        if lo < alt < hi:
+            out.append("alt_nfl_2_0_edge")
+        lo, hi = C.AMBIGUOUS_BANDS["alt_nfl_3_5_m"]
+        if lo < alt < hi:
+            out.append("alt_nfl_3_5_edge")
+    if alt is not None and sport == "cfb":
+        lo, hi = C.AMBIGUOUS_BANDS["cfb_alt2_travel_m"]
+        if lo < alt < hi and he is not None and he >= C.CFB_ALT2_HOME_ELEV_MIN_M:
+            out.append("cfb_alt2_travel_edge")
+        lo, hi = C.AMBIGUOUS_BANDS["cfb_alt2_home_elev_m"]
+        if he is not None and lo < he < hi and alt >= C.CFB_ALT2_TRAVEL_MIN_M:
+            out.append("cfb_alt2_home_elev_edge")
+    # CFB legacy stored wind_fg / rain_fg at 1dp, so exact-threshold values can flip tiers.
     w = _nan_to_none(wind_fg)
     if sport == "cfb" and w is not None and any(abs(w - th) <= 0.05 for th, _ in C.WIND_TIERS):
         out.append("cfb_wind_1dp_tier_edge")
@@ -451,7 +521,7 @@ def compute_impact_v2(
     cal: Optional[dict[str, float]] = None,
 ) -> ImpactV2:
     """Orientation-aware, gust-blended, probabilistic-rain, continuous-altitude impact (percent)."""
-    if sport not in C.HEAT_AWAY_CUTOFF_F:
+    if sport not in C.SPORTS:
         raise ValueError(f"unknown sport {sport!r}")
     cal = cal or load_v2_calibration()
     closed = roof_state in C.CLOSED_ROOF_STATES
@@ -468,7 +538,7 @@ def compute_impact_v2(
     gs = -(wind_c + cold_c + heat_c + rain_c)
 
     heat_away = 0.0 if closed else heat_away_component_v2(temp_fg, home_temp, away_temp, cal)
-    cold_away = 0.0 if closed else cold_away_component(temp_fg, away_temp)
+    cold_away = 0.0 if closed else cold_away_component(temp_fg, away_temp, sport)
     alt_c = alt_component_v2(travel_alt_m, cal)
     away = -max(heat_away + cold_away, alt_c)
 

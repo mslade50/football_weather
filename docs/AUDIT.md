@@ -62,9 +62,9 @@ All components in percent; NFL output /100.
 - wind(w=wind_fg): `<12→0; ≥12→2.0; ≥15→3.5; ≥17→6.5; ≥25→10.0` (17.46 yes/16.96 no; 25.2 yes/23.9 no)
 - cold: `max(0, 30−temp_fg)*0.125`
 - heat: `max(0, temp_fg−80)*0.125`
-- rain(mm): `0 if month==9; <1→0; ≥1→1.5; ≥6→3.0; ≥20→6.5` (boundary between 5.1 and 6.6 unknown; 6.5 tier from 1 sample at 22.2)
+- rain(mm): `0 if RUN month==9` (the generator's clock — September runs zeroed rain even for early-October kickoffs); `≤1→0; >1→1.5; ≥6→3.0; >12→6.5` (verified sharp in the full history: 1.00→0 / 1.05→1.5 and 12.0→3.0 / 12.1→6.5; only a stored 6.00 is ambiguous)
 - `gs_fg = −(wind+cold+heat+rain)`
-- away_fg: heat_away = heat if temp_fg>80 and away_temp < cutoff (NFL 62–67 ambiguous → 65; CFB ≈54); cold_away = `max(0,32−temp_fg)*0.125` if temp_fg<32 and away_temp ≥ 65; alt tier on travel_alt m: NFL ≥1300→3.5, ≥900→2.0; CFB ≥1000→3.5 (930 → 0). `away_fg = −max(heat_away+cold_away, alt)` (tennessee@denver row shows override not sum).
+- away_fg: heat_away = heat if temp_fg>80 and — NFL (every era) and CFB runs before 2024-09-27 — `home_temp − away_temp ≥ 10` (threshold interval (8.31, 11.37]; not an away_temp cutoff); CFB from 2024-09-27 on: `away_temp < 54`. cold_away = `max(0,32−temp_fg)*0.125` if temp_fg<32 and away_temp ≥ floor; floor 65 for CFB (every era) and NFL through Dec 2025, 60 for NFL runs from Jan 2026 (interval (57.04, 61.89]). alt tier on travel_alt m: NFL ≥1283→3.5 (interval (929, 1283]; 1283 = Denver from ~sea level), ≥900→2.0; CFB ≥1000→3.5, plus 2.0 when travel_alt ≥700 AND home-stadium elevation ≥1100 m (intervals (669.9, 701.3] and (976, 1184); 0/34319 golden violations). Composition: NFL `away_fg = −max(heat_away+cold_away, alt)` (tennessee@denver row); CFB `away_fg = −(alt + heat_away + cold_away)` (fresno-state@air-force −5.14 row shows sum, not max).
 - CFB derived (2024 only): `My_total = Total_proj*(1+gs_fg/100)`; `Edge=(FD_now−My_total)/My_total`; `My_spread = Spread*(1+away_fg/100)`; `Edge_s = Spread−My_spread`.
 - UI signal rules: see ARCHITECTURE §7.4 (ported verbatim).
 

@@ -170,6 +170,7 @@ Note: `SETUP.md` §2 lists migrations 0001–0003; `0004_v2.sql` (v2 columns on
 
 ## 6. Known gaps
 
+- ~~v1 golden reproduction stuck at 0.9706 with ~2.2% unexplained mismatches~~ — resolved 2026-08-24: the legacy rules were partially mis-reverse-engineered. Corrections (now in `pipeline/model/{config,impact}.py`, AUDIT §5): rain tiers `>1 / ≥6 / >12` keyed on the RUN month; heat_away = `home_temp − away_temp ≥ 10` (NFL every era; CFB until 2024-09-26, then `away_temp < 54`); CFB 2.0 altitude tier (`travel_alt ≥ 700` and home elevation ≥ 1100 m); CFB away components SUM (NFL keeps max); NFL 3.5-alt threshold 1283; NFL cold_away floor 60 from Jan 2026 (65 before); NFL test tolerance = the csv's 5-dp storage quantum. Era switches live only in the golden replay (`era_date`). Rate now ≈0.9964; the remaining ~150 rows are CFB `wind_fg` stored at 1 dp exactly on a tier threshold (12.0/15.0/17.0) — irreducible from the stored files.
 - Nothing deployed: no Cloudflare resources exist, `wrangler.toml` still has `REPLACE_WITH_D1_DATABASE_ID`, no workflow has run on GitHub, no commit made by the rebuild.
 - Backtest / calibration / CLV grids are structurally complete but empty until games settle (first kickoff 2026-08-29); the v2 promotion gate cannot fire before ≥4 distinct weeks. `calibrate.py` needs `backtest/games.parquet` rows carrying `total_open/total_close`.
 - `backtest.yml` D1 export does `SELECT *` on `odds_history`; add a season filter / LIMIT once the table grows. Snapshot mirror is skipped without `R2_ACCESS_KEY_ID`.

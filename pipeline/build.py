@@ -78,7 +78,7 @@ from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
-from utils.timeutil import et_weekday, naive_et_iso, to_tz, utc_iso
+from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -1044,7 +1044,7 @@ def build_record(
 
     impact = compute_impact_v1(
         sport=sport,
-        month=kickoff_local.month,
+        month=now_et().month,  # rain suppression keys on the RUN month (legacy generator clock)
         temp_fg=temp_fg,
         wind_fg=wind_fg,
         rain_fg_mm=rain_fg,
@@ -1052,6 +1052,7 @@ def build_record(
         away_temp=away_temp,
         home_temp=home_temp,
         roof_state=roof_state,
+        home_elev_m=stadium.elevation_m if stadium is not None else None,
     )
 
     avg_wind = 0.0 if is_dome else (stadium.avg_wind_static if stadium else None)

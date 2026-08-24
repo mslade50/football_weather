@@ -9,6 +9,7 @@ Usage: python scripts/extract_golden.py
 """
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 
@@ -22,7 +23,27 @@ FAIR_COMMITS = ["d6f4fe6", "047f4be", "fac1c2e", "2726b5b", "2af9168"]
 
 INPUTS = ["sport", "month", "temp_fg", "wind_fg", "rain_fg", "travel_alt", "home_temp", "away_temp"]
 OUTPUTS = ["gs_fg", "away_fg"]
-META = ["game", "date", "timestamp", "sheet", "sha"]
+META = ["home_elev", "run_month", "commit_date", "game", "date", "timestamp", "sheet", "sha"]
+# The legacy generator's CFB stadium DB (home elevations for the 2.0 altitude tier).
+LOCATIONS_SHA = "3aa1fa2"
+
+
+def _legacy_elevations() -> dict[str, float]:
+    if not (ref_exists(LOCATIONS_SHA) and path_exists_at(LOCATIONS_SHA, "cfb_locations_updated.csv")):
+        print("  WARN: cfb_locations_updated.csv not in history; home_elev will be NaN")
+        return {}
+    raw = git("show", f"{LOCATIONS_SHA}:cfb_locations_updated.csv", binary=True)
+    df = pd.read_csv(io.BytesIO(raw))
+    return {str(s): float(e) for s, e in zip(df["School"], df["Location Elevation"], strict=True) if pd.notna(e)}
+
+
+def _home_team(game: object) -> str | None:
+    g = str(game)
+    if "@" in g:
+        return g.split("@")[-1].strip()
+    if " vs " in g:
+        return g.split(" vs ")[-1].strip()
+    return None
 
 
 def _month(date_str: object, fallback: int) -> int:
@@ -34,15 +55,20 @@ def _month(date_str: object, fallback: int) -> int:
     return fallback
 
 
-def _rows(df: pd.DataFrame, sport: str, sheet: str, sha: str, fallback_month: int) -> list[dict]:
+def _rows(df: pd.DataFrame, sport: str, sheet: str, sha: str, fallback_month: int,
+          run_month: int, commit_date: str, elev: dict[str, float]) -> list[dict]:
     if "gs_fg" not in df.columns:
         return []
     out: list[dict] = []
     ts_col = "Timestamp" if "Timestamp" in df.columns else None
     for _, r in df.iterrows():
+        home = _home_team(r.get("Game")) if sport == "cfb" else None
         row: dict = {
             "sport": sport,
             "month": _month(r.get("Date"), fallback_month),
+            "run_month": run_month,
+            "commit_date": commit_date,
+            "home_elev": elev.get(home, float("nan")) if home is not None else float("nan"),
             "game": r.get("Game"),
             "date": r.get("Date"),
             "timestamp": str(r[ts_col]) if ts_col else None,
@@ -56,6 +82,7 @@ def _rows(df: pd.DataFrame, sport: str, sheet: str, sha: str, fallback_month: in
 
 
 def extract_golden() -> pd.DataFrame:
+    elev = _legacy_elevations()
     rows: list[dict] = []
     n = 0
     for snap, blob_file, first in iter_snapshots("nfl_weather.csv", ".csv"):
@@ -67,7 +94,8 @@ def extract_golden() -> pd.DataFrame:
         except Exception as exc:  # noqa: BLE001
             print(f"  skip {snap.sha[:7]}: {exc}")
             continue
-        rows.extend(_rows(df, "nfl", "csv", snap.sha[:7], snap.date.month))
+        rows.extend(_rows(df, "nfl", "csv", snap.sha[:7], snap.date.month,
+                          snap.date.month, snap.date.isoformat(), elev))
     print(f"  nfl: {n} blobs -> {len(rows)} rows")
     m = len(rows)
     n = 0
@@ -81,12 +109,14 @@ def extract_golden() -> pd.DataFrame:
             print(f"  skip {snap.sha[:7]}: {exc}")
             continue
         for name, df in sheets.items():
-            rows.extend(_rows(df, "cfb", name, snap.sha[:7], snap.date.month))
+            rows.extend(_rows(df, "cfb", name, snap.sha[:7], snap.date.month,
+                              snap.date.month, snap.date.isoformat(), elev))
     print(f"  cfb: {n} blobs -> {len(rows) - m} rows")
 
     df = pd.DataFrame(rows)
     df = df.dropna(subset=["gs_fg", "temp_fg", "wind_fg"])
     df["month"] = df["month"].astype("int16")
+    df["run_month"] = df["run_month"].astype("int16")
     # dedupe on the model's inputs + outputs; keep first occurrence (oldest) for provenance
     df = df.drop_duplicates(subset=INPUTS + OUTPUTS, keep="first").reset_index(drop=True)
     return df[INPUTS + OUTPUTS + META]

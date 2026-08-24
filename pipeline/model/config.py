@@ -40,30 +40,56 @@ V2_DEFAULTS: dict[str, float] = {
     "heat_away_delta_f": 12.0,
 }
 
-# ---- v1 impact (AUDIT §5) ----------------------------------------------------
+# ---- v1 impact (AUDIT §5; boundaries verified against the full golden history) ----
+SPORTS = ("nfl", "cfb")
 # (threshold, component) — first match walking descending thresholds.
 WIND_TIERS: list[tuple[float, float]] = [(25.0, 10.0), (17.0, 6.5), (15.0, 3.5), (12.0, 2.0)]
 COLD_BASE_F = 30.0
 COLD_PER_F = 0.125
 HEAT_BASE_F = 80.0
 HEAT_PER_F = 0.125
-RAIN_TIERS_MM: list[tuple[float, float]] = [(20.0, 6.5), (6.0, 3.0), (1.0, 1.5)]
+# Legacy rain tiers: >12 -> 6.5, >=6 -> 3.0, >1 -> 1.5 (golden: 12.0->3.0 / 12.1->6.5
+# and 1.00->0 / 1.05->1.5). v2's tier() treats every threshold as >=; v1 applies
+# RAIN_TIER_STRICT_MM to make 12.0 and 1.0 exclusive.
+RAIN_TIERS_MM: list[tuple[float, float]] = [(12.0, 6.5), (6.0, 3.0), (1.0, 1.5)]
+RAIN_TIER_STRICT_MM = {12.0, 1.0}
+# Suppression keys on the RUN month (the generator's clock), not the game month:
+# September runs zeroed rain even for early-October kickoffs.
 RAIN_SUPPRESS_MONTHS = {9}
-HEAT_AWAY_CUTOFF_F: dict[str, float] = {"nfl": 65.0, "cfb": 54.0}
+# heat_away: NFL fires on home_temp - away_temp >= 10 in every era (interval
+# (8.31, 11.37]). CFB used the same delta rule until the 2024-09-26 run, then
+# switched to away_temp < 54.
+HEAT_AWAY_DELTA_F = 10.0
+HEAT_AWAY_CUTOFF_F: dict[str, float] = {"cfb": 54.0}
+CFB_HEAT_AWAY_DELTA_UNTIL = "2024-09-27"  # first run date under the cutoff rule
 COLD_AWAY_BASE_F = 32.0
 COLD_AWAY_PER_F = 0.125
-COLD_AWAY_AWAY_TEMP_MIN_F = 65.0
+# cold_away away-temp floor: CFB 65 in every era; NFL 65 through Dec 2025, then 60
+# from Jan 2026 (interval (57.04, 61.89] — 61.89 fires, 57.04 does not).
+COLD_AWAY_AWAY_TEMP_MIN_F: dict[str, float] = {"nfl": 60.0, "cfb": 65.0}
+NFL_COLD_AWAY_LEGACY_MIN_F = 65.0
+NFL_COLD_AWAY_ERA = "2026-01-01"  # runs before this date use the 65 floor
+# NFL 3.5 tier fires at 1283 m (Denver from ~sea level); interval (929, 1283].
 ALT_TIERS_M: dict[str, list[tuple[float, float]]] = {
-    "nfl": [(1300.0, 3.5), (900.0, 2.0)],
+    "nfl": [(1283.0, 3.5), (900.0, 2.0)],
     "cfb": [(1000.0, 3.5)],
 }
+# CFB second tier: travel_alt >= 700 AND home-stadium elevation >= 1100 m -> 2.0
+# (travel interval (669.9, 701.3]; elevation interval (976, 1184); 0/34319 golden
+# violations). Skipped when home elevation is unknown.
+CFB_ALT2_C = 2.0
+CFB_ALT2_TRAVEL_MIN_M = 700.0
+CFB_ALT2_HOME_ELEV_MIN_M = 1100.0
 CLOSED_ROOF_STATES = {"dome", "closed"}
 
 # Documented ambiguous bands (mismatches inside these are logged, not failed).
 AMBIGUOUS_BANDS = {
-    "rain_mm": (5.1, 6.6),
-    "heat_away_temp_f": (62.0, 67.0),
-    "alt_m": (900.0, 1000.0),
+    "rain_mm": (5.95, 6.05),             # tier-2 boundary sits exactly at 6.0
+    "heat_away_delta_f": (8.31, 11.37),  # delta threshold interval (10.0 chosen)
+    "alt_nfl_2_0_m": (800.0, 929.0),     # 2.0-tier lower edge unobserved
+    "alt_nfl_3_5_m": (929.0, 1283.0),    # 3.5-tier interval (1283.0 chosen)
+    "cfb_alt2_travel_m": (669.9, 701.3),
+    "cfb_alt2_home_elev_m": (976.0, 1184.0),
 }
 
 # ---- signals (§7.4) ----------------------------------------------------------

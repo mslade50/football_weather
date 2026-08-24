@@ -52,7 +52,7 @@ def test_calibration_override(tmp_path: Path):
 
 def test_v1_constants_untouched_by_v2():
     assert C.WIND_TIERS == [(25.0, 10.0), (17.0, 6.5), (15.0, 3.5), (12.0, 2.0)]
-    assert C.ALT_TIERS_M == {"nfl": [(1300.0, 3.5), (900.0, 2.0)], "cfb": [(1000.0, 3.5)]}
+    assert C.ALT_TIERS_M == {"nfl": [(1283.0, 3.5), (900.0, 2.0)], "cfb": [(1000.0, 3.5)]}
     assert C.RAIN_SUPPRESS_MONTHS == {9}
     v1 = I.compute_impact_v1("nfl", 10, 60.0, 16.0, 0.0, None, None)
     assert v1.wind_c == 3.5 and v1.model_version == "v1"

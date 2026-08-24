@@ -22,9 +22,9 @@ SHIPPED = ROOT / "data" / "calibration.json"
 
 V1_SNAPSHOT = {
     "WIND_TIERS": [(25.0, 10.0), (17.0, 6.5), (15.0, 3.5), (12.0, 2.0)],
-    "RAIN_TIERS_MM": [(20.0, 6.5), (6.0, 3.0), (1.0, 1.5)],
-    "ALT_TIERS_M": {"nfl": [(1300.0, 3.5), (900.0, 2.0)], "cfb": [(1000.0, 3.5)]},
-    "HEAT_AWAY_CUTOFF_F": {"nfl": 65.0, "cfb": 54.0},
+    "RAIN_TIERS_MM": [(12.0, 6.5), (6.0, 3.0), (1.0, 1.5)],
+    "ALT_TIERS_M": {"nfl": [(1283.0, 3.5), (900.0, 2.0)], "cfb": [(1000.0, 3.5)]},
+    "HEAT_AWAY_CUTOFF_F": {"cfb": 54.0},
     "COLD_BASE_F": 30.0, "HEAT_BASE_F": 80.0, "COLD_PER_F": 0.125,
 }
 

@@ -304,22 +304,27 @@ Clients in `pipeline/weather/openmeteo.py` and `nws.py`; all raw responses captu
 WIND_TIERS = [(25.0, 10.0), (17.0, 6.5), (15.0, 3.5), (12.0, 2.0)]   # first match, descending
 COLD_BASE_F = 30.0; COLD_PER_F = 0.125
 HEAT_BASE_F = 80.0; HEAT_PER_F = 0.125
-RAIN_TIERS_MM = [(20.0, 6.5), (6.0, 3.0), (1.0, 1.5)]
-RAIN_SUPPRESS_MONTHS = {9}
-HEAT_AWAY_CUTOFF_F = {"nfl": 65.0, "cfb": 54.0}
-COLD_AWAY_BASE_F = 32.0; COLD_AWAY_AWAY_TEMP_MIN_F = 65.0
-ALT_TIERS_M = {"nfl": [(1300, 3.5), (900, 2.0)], "cfb": [(1000, 3.5)]}
+RAIN_TIERS_MM = [(12.0, 6.5), (6.0, 3.0), (1.0, 1.5)]; RAIN_TIER_STRICT_MM = {12.0, 1.0}
+RAIN_SUPPRESS_MONTHS = {9}          # keyed on the RUN month (generator clock), not the game month
+HEAT_AWAY_DELTA_F = 10.0; HEAT_AWAY_CUTOFF_F = {"cfb": 54.0}
+COLD_AWAY_BASE_F = 32.0; COLD_AWAY_AWAY_TEMP_MIN_F = {"nfl": 60.0, "cfb": 65.0}
+ALT_TIERS_M = {"nfl": [(1283, 3.5), (900, 2.0)], "cfb": [(1000, 3.5)]}
+CFB_ALT2_C = 2.0; CFB_ALT2_TRAVEL_MIN_M = 700.0; CFB_ALT2_HOME_ELEV_MIN_M = 1100.0
 ```
 ```
 wind_c  = tier(wind_fg)                       cold_c = max(0, 30 - temp_fg) * 0.125
-heat_c  = max(0, temp_fg - 80) * 0.125        rain_c = 0 if month in RAIN_SUPPRESS_MONTHS else tier(rain_fg_mm)
+heat_c  = max(0, temp_fg - 80) * 0.125        rain_c = 0 if RUN month in RAIN_SUPPRESS_MONTHS else rain tiers (>1 / >=6 / >12)
 gs_fg_pct = -(wind_c + cold_c + heat_c + rain_c)          # 0 when roof_state closed/dome
-heat_away = heat_c if temp_fg > 80 and away_temp < HEAT_AWAY_CUTOFF_F[sport] else 0
-cold_away = max(0, 32 - temp_fg) * 0.125 if temp_fg < 32 and away_temp >= 65 else 0
-alt_c     = tier(travel_alt_m, ALT_TIERS_M[sport])
-away_fg_pct = -max(heat_away + cold_away, alt_c)
+heat_away = heat_c if temp_fg > 80 and home_temp - away_temp >= 10   # NFL every era; CFB pre-2024-09-27
+            (CFB from 2024-09-27 on: away_temp < 54 instead of the delta)
+cold_away = max(0, 32 - temp_fg) * 0.125 if temp_fg < 32 and away_temp >= floor  # nfl 60 (65 pre-2026), cfb 65
+alt_c     = tier(travel_alt_m, ALT_TIERS_M[sport]); CFB adds 2.0 if travel_alt >= 700 and home_elev >= 1100
+away_fg_pct = -max(heat_away + cold_away, alt_c)   # NFL;  CFB sums: -(alt_c + heat_away + cold_away)
 ```
-Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden test: `tests/fixtures/golden_v1.parquet` (~3000 rows from git history via `scripts/extract_golden.py`) — mismatches logged with row + component diff; test asserts ≥97% exact match and prints boundary mismatches (rain 5.1–6.6, heat-away 62–67, alt 900–1000) rather than failing on them.
+Era switches (2024-09-27 CFB heat_away, 2026-01 NFL cold_away floor) live only in the
+golden replay via ``compute_impact_v1(..., era_date=...)``; live code always runs the
+current-era rules.
+Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden test: `tests/fixtures/golden_v1.parquet` (~43.7k rows from git history via `scripts/extract_golden.py`, carrying `run_month`/`commit_date`/`home_elev` for the era-aware replay) — mismatches logged with row + component diff; test asserts ≥99.5% exact match (within each file's storage rounding: NFL 5-dp fractions, CFB 2-dp) and prints boundary mismatches (rain ≈6.0, heat-away delta 8.31–11.37, alt intervals, CFB 1-dp wind/rain tier edges) rather than failing on them. The expected residue (~150 rows) is CFB `wind_fg` stored at 1 dp exactly on a tier threshold — irreducible from the stored files.
 
 ### 7.2 Legacy derived columns (CFB) — `model/fair.py`
 `ref_total`, `ref_spread` (home-relative) from consensus (§7.3). `My_total = ref_total*(1+gs_fg/100)`; `Edge = (FD_now−My_total)/My_total`; `My_spread = ref_spread*(1+away_fg/100)`; `Edge_s = ref_spread−My_spread`; `Spread`/`Total_proj` columns = ref values with `ref_book` stamped in meta. `Move_t=(FD_now−Fd_open)/Fd_open`; `Move_s=Open−Current`; `wind_diff=wind_fg−wind_avg`. Consensus "now" for legacy: CFB = FanDuel (as before), NFL = BetOnline; fallback = devigged median.
