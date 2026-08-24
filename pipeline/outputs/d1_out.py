@@ -96,6 +96,25 @@ def upsert_sql(table: str, cols: Sequence[str], pk: Sequence[str], rows: Sequenc
             for chunk in chunked(list(rows))]
 
 
+def dedupe_rows(rows: Sequence[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    """Last row per ``key`` wins, first-seen order kept."""
+    out: dict[Any, dict[str, Any]] = {}
+    for r in rows:
+        out[r[key]] = r
+    return list(out.values())
+
+
+def fk_safe_teams(teams: Sequence[dict[str, Any]], stadium_ids: set[str]) -> list[dict[str, Any]]:
+    """``teams.home_stadium_id`` REFERENCES ``stadiums`` — null it when the venue is not in the same batch."""
+    out = []
+    for r in teams:
+        sid = r.get("home_stadium_id")
+        if sid is not None and sid not in stadium_ids:
+            r = {**r, "home_stadium_id": None}
+        out.append(r)
+    return out
+
+
 # ---- row builders ------------------------------------------------------------------
 
 def game_rows(
@@ -331,6 +350,10 @@ def build_statements(
         stmts += insert_ignore_sql("closings", CLOSING_COLS, closings)
     if stadium_results:
         stmts += upsert_sql("stadium_results", STADIUM_RESULT_COLS, ["stadium_id", "sport", "season"], stadium_results)
+    # One row per key per statement (SQLite rejects a multi-row upsert that hits the same
+    # row twice) and never reference a stadium that is not in this batch (D1 FK).
+    stadiums = dedupe_rows(stadiums, "stadium_id")
+    teams = fk_safe_teams(dedupe_rows(teams, "team_id"), {r["stadium_id"] for r in stadiums})
     if stadiums:
         stmts += upsert_sql("stadiums", STADIUM_COLS, ["stadium_id"], stadiums)
     if teams:

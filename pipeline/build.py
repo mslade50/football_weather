@@ -1132,6 +1132,7 @@ class SportResult:
     impacts_v2: dict[str, ImpactV2] = dataclasses.field(default_factory=dict)   # game_id -> v2 impact (always computed)
     fairs_v2: dict[str, Any] = dataclasses.field(default_factory=dict)          # game_id -> v2 GameFair (side by side)
     wx_extras: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)  # game_id -> merge side-outputs
+    home_stadiums: dict[str, Stadium] = dataclasses.field(default_factory=dict)  # stadium_id -> home venue of every team row (D1 FK)
 
     @property
     def season_week(self) -> tuple[int | None, int | None]:
@@ -1287,6 +1288,7 @@ def run_sport(
     fairs: dict[str, Any] = {}
     fairs_v2: dict[str, Any] = {}
     teams: dict[str, Team] = {}
+    home_stadiums: dict[str, Stadium] = {}
     fair_mod = _import("pipeline.model.fair") if books else None
     alert_model = model_config.alert_model()
     with ctx.stage(f"{sport}.impact"):
@@ -1307,6 +1309,11 @@ def run_sport(
                 for t in (rg.home_team, rg.away_team):
                     if t is not None:
                         teams[t.team_id] = t
+                        # teams.home_stadium_id is a D1 foreign key: the away side's home venue
+                        # is not a game venue this week, so carry it into the stadiums batch.
+                        hs = book.stadiums.get(t.home_stadium_id) if (book is not None and t.home_stadium_id) else None
+                        if hs is not None:
+                            home_stadiums[hs.stadium_id] = hs
                 card_kwargs = {"travel_alt": rg.travel_alt, "home_temp": rg.home_temp, "away_temp": rg.away_temp,
                                "roof_state": rg.roof_state, "avg_wind_month": rec.avg_wind_month}
             records.append(rec)
@@ -1354,7 +1361,7 @@ def run_sport(
     ctx.count("legacy", sport, len(records))
     res = SportResult(sport, records, rows, cards, games, stadiums, teams, forecasts, impacts, odds, fairs,
                       impacts_v2={k: v for k, v in impacts_v2.items() if v is not None}, fairs_v2=fairs_v2,
-                      wx_extras=wx_extras)
+                      wx_extras=wx_extras, home_stadiums=home_stadiums)
     ctx.count("impact_v2", sport, len(res.impacts_v2))
     n_ens = sum(1 for e in wx_extras.values() if e.get("ensemble"))
     if forecasts and n_ens == 0:
@@ -1445,7 +1452,7 @@ def d1_statements(ctx: RunContext, results: Sequence[SportResult], finished_at: 
     seasons: list[tuple[int, int]] = []
     for res in results:
         games += d1_out.game_rows(res.games, now, impacts=res.impacts, impacts_v2=res.impacts_v2)
-        stadiums += d1_out.stadium_rows(res.stadiums.values(), now)
+        stadiums += d1_out.stadium_rows([*res.stadiums.values(), *res.home_stadiums.values()], now)
         teams += d1_out.team_rows(res.teams.values(), now)
         edges = [e for gf in res.fairs.values() for e in (getattr(gf, "edges", None) or [])]
         odds_rows += d1_out.odds_rows(res.odds.deltas, now, ctx.run_id, edges)
