@@ -48,4 +48,4 @@ jobs:
 
       # Worker unit tests (auth, /data sanitize, cron -> {sport, scope} map, Quartz DOW).
       - name: Worker tests
-        run: node --test "site/worker/test/*.test.mjs"
+        run: node --test site/worker/test/*.test.mjs

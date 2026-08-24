@@ -41,7 +41,7 @@ jobs:
           node-version: 20
 
       - name: Worker unit tests
-        run: node --test "site/worker/test/*.test.mjs"
+        run: node --test site/worker/test/*.test.mjs
 
       # Migrations BEFORE deploy: a new route must never outrun its table.
       # `--remote` is required — without it wrangler applies to a local SQLite.
