@@ -1,0 +1,4912 @@
+{
+ "attachments": {
+  "competitions": {
+   "12529073": {
+    "name": "NCAA Football Games",
+    "competitionId": 12529073,
+    "eventTypeId": 6423,
+    "eventId": 28042274
+   },
+   "12623176": {
+    "name": "NCAA FCS",
+    "competitionId": 12623176,
+    "eventTypeId": 6423,
+    "eventId": 32691794
+   }
+  },
+  "events": {
+   "35655471": {
+    "eventId": 35655471,
+    "name": "New Mexico State @ Florida State",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35660101": {
+    "eventId": 35660101,
+    "name": "UNLV @ Hawaii",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-06T02:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35632859": {
+    "eventId": 35632859,
+    "name": "Georgia @ Alabama",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-10-11T00:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35360155": {
+    "eventId": 35360155,
+    "name": "North Alabama @ Arkansas",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-05T20:15:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35877048": {
+    "eventId": 35877048,
+    "name": "William & Mary @ Villanova",
+    "eventTypeId": 6423,
+    "competitionId": 12623176,
+    "countryCode": "GB",
+    "openDate": "2026-08-28T22:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35170670": {
+    "eventId": 35170670,
+    "name": "North Carolina @ TCU",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T16:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655466": {
+    "eventId": 35655466,
+    "name": "San Jose State @ USC",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T19:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35682720": {
+    "eventId": 35682720,
+    "name": "NC State @ Virginia",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T19:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655467": {
+    "eventId": 35655467,
+    "name": "Jacksonville State @ North Dakota State",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T21:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655465": {
+    "eventId": 35655465,
+    "name": "Sacramento State @ Eastern Michigan",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T22:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655469": {
+    "eventId": 35655469,
+    "name": "Hawaii @ Stanford",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-29T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655468": {
+    "eventId": 35655468,
+    "name": "Memphis @ UNLV",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-08-30T02:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35701500": {
+    "eventId": 35701500,
+    "name": "Massachusetts @ Rutgers",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T22:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35828712": {
+    "eventId": 35828712,
+    "name": "Albany @ Buffalo",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35828698": {
+    "eventId": 35828698,
+    "name": "Merrimack @ Delaware",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35828696": {
+    "eventId": 35828696,
+    "name": "Bethune Cookman @ UCF",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35659997": {
+    "eventId": 35659997,
+    "name": "Akron @ Wake Forest",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35828719": {
+    "eventId": 35828719,
+    "name": "West Georgia @ Kennesaw State",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-03T23:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35828735": {
+    "eventId": 35828735,
+    "name": "Eastern Illinois @ Minnesota",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-04T00:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   },
+   "35655477": {
+    "eventId": 35655477,
+    "name": "Colorado @ Georgia Tech",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "countryCode": "GB",
+    "openDate": "2026-09-04T00:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": false
+   }
+  },
+  "markets": {
+   "704.170599191": {
+    "marketId": "704.170599191",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655471,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 52.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 52.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599190": {
+    "marketId": "704.170599190",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655471,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 602741,
+      "handicap": 0,
+      "runnerName": "New Mexico State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "New Mexico St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 2500,
+        "americanOddsInt": 2500
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 26
+        },
+        "fractionalOdds": {
+         "numerator": 25,
+         "denominator": 1
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 484734,
+      "handicap": 0,
+      "runnerName": "Florida State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Florida St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -10000,
+        "americanOddsInt": -10000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.01
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 1000
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599189": {
+    "marketId": "704.170599189",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655471,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 602741,
+      "handicap": 30.5,
+      "runnerName": "New Mexico State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "New Mexico St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 484734,
+      "handicap": -30.5,
+      "runnerName": "Florida State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Florida St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170784953": {
+    "marketId": "704.170784953",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35660101,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-06T02:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 951149,
+      "handicap": 0,
+      "runnerName": "UNLV",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UNLV",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -152,
+        "americanOddsInt": -152
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.657894736842105
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 152
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 661961,
+      "handicap": 0,
+      "runnerName": "Hawaii",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Hawai'i",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 126,
+        "americanOddsInt": 126
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.26
+        },
+        "fractionalOdds": {
+         "numerator": 126,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170784952": {
+    "marketId": "704.170784952",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35660101,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-06T02:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 58.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 58.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170784954": {
+    "marketId": "704.170784954",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35660101,
+    "marketName": "Spread",
+    "marketTime": "2026-09-06T02:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 951149,
+      "handicap": -2.5,
+      "runnerName": "UNLV",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UNLV",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -124,
+        "americanOddsInt": -124
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.806451612903226
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 124
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 661961,
+      "handicap": 2.5,
+      "runnerName": "Hawaii",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Hawai'i",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 102,
+        "americanOddsInt": 102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.02
+        },
+        "fractionalOdds": {
+         "numerator": 102,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169791592": {
+    "marketId": "704.169791592",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35632859,
+    "marketName": "Total Points",
+    "marketTime": "2026-10-11T00:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 49.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 49.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169791593": {
+    "marketId": "704.169791593",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35632859,
+    "marketName": "Spread",
+    "marketTime": "2026-10-11T00:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 484730,
+      "handicap": -2.5,
+      "runnerName": "Georgia",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Georgia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -122,
+        "americanOddsInt": -122
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.819672131147541
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 122
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 1010531,
+      "handicap": 2.5,
+      "runnerName": "Alabama",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Alabama",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 100,
+        "americanOddsInt": 100
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169791594": {
+    "marketId": "704.169791594",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35632859,
+    "marketName": "Moneyline",
+    "marketTime": "2026-10-11T00:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 484730,
+      "handicap": 0,
+      "runnerName": "Georgia",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Georgia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -146,
+        "americanOddsInt": -146
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.684931506849315
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 146
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 1010531,
+      "handicap": 0,
+      "runnerName": "Alabama",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Alabama",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 122,
+        "americanOddsInt": 122
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.22
+        },
+        "fractionalOdds": {
+         "numerator": 122,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.159304467": {
+    "marketId": "704.159304467",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35360155,
+    "marketName": "Spread",
+    "marketTime": "2026-09-05T20:15:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 20337086,
+      "handicap": 40.5,
+      "runnerName": "North Alabama",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "North Alabama",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 2583910,
+      "handicap": -40.5,
+      "runnerName": "Arkansas",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Arkansas",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.159304468": {
+    "marketId": "704.159304468",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35360155,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-05T20:15:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 0,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "SUSPENDED",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 20337086,
+      "handicap": 0,
+      "runnerName": "North Alabama",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "SUSPENDED",
+      "nameAbbr": "North Alabama",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 8000,
+        "americanOddsInt": 8000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 81
+        },
+        "fractionalOdds": {
+         "numerator": 80,
+         "denominator": 1
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 2583910,
+      "handicap": 0,
+      "runnerName": "Arkansas",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "SUSPENDED",
+      "nameAbbr": "Arkansas",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -100000,
+        "americanOddsInt": -100000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.001
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 10000
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.159304466": {
+    "marketId": "704.159304466",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35360155,
+    "marketName": "Total Match Points",
+    "marketTime": "2026-09-05T20:15:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 61.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 61.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.178543680": {
+    "marketId": "704.178543680",
+    "eventTypeId": 6423,
+    "competitionId": 12623176,
+    "eventId": 35877048,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-28T22:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 14263751,
+      "handicap": 0,
+      "runnerName": "William & Mary",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "William & Mary",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 340,
+        "americanOddsInt": 340
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 4.4
+        },
+        "fractionalOdds": {
+         "numerator": 34,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 3296873,
+      "handicap": 0,
+      "runnerName": "Villanova",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Villanova",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -500,
+        "americanOddsInt": -500
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.2
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 50
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.178543678": {
+    "marketId": "704.178543678",
+    "eventTypeId": 6423,
+    "competitionId": 12623176,
+    "eventId": 35877048,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-28T22:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 49.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -113,
+        "americanOddsInt": -113
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.884955752212389
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 113
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 49.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -113,
+        "americanOddsInt": -113
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.884955752212389
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 113
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.178543679": {
+    "marketId": "704.178543679",
+    "eventTypeId": 6423,
+    "competitionId": 12623176,
+    "eventId": 35877048,
+    "marketName": "Spread",
+    "marketTime": "2026-08-28T22:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 14263751,
+      "handicap": 11.5,
+      "runnerName": "William & Mary",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "William & Mary",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -113,
+        "americanOddsInt": -113
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.884955752212389
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 113
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 3296873,
+      "handicap": -11.5,
+      "runnerName": "Villanova",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Villanova",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -113,
+        "americanOddsInt": -113
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.884955752212389
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 113
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.153671991": {
+    "marketId": "704.153671991",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35170670,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T16:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 617088,
+      "handicap": 0,
+      "runnerName": "North Carolina",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "North Carolina",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 260,
+        "americanOddsInt": 260
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 3.6
+        },
+        "fractionalOdds": {
+         "numerator": 26,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 567126,
+      "handicap": 0,
+      "runnerName": "TCU",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TCU",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -330,
+        "americanOddsInt": -330
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.303030303030303
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 33
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.153671990": {
+    "marketId": "704.153671990",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35170670,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T16:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 47.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 47.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.153671992": {
+    "marketId": "704.153671992",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35170670,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T16:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 617088,
+      "handicap": 7.5,
+      "runnerName": "North Carolina",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "North Carolina",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 567126,
+      "handicap": -7.5,
+      "runnerName": "TCU",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TCU",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599030": {
+    "marketId": "704.170599030",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655466,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T19:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 60.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 60.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599028": {
+    "marketId": "704.170599028",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655466,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T19:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 2174274,
+      "handicap": 38.5,
+      "runnerName": "San Jose State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "San Jos\u00e9 St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 484731,
+      "handicap": -38.5,
+      "runnerName": "USC",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "USC",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.171535078": {
+    "marketId": "704.171535078",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35682720,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T19:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 484737,
+      "handicap": 5.5,
+      "runnerName": "NC State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NC State",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 611101,
+      "handicap": -5.5,
+      "runnerName": "Virginia",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Virginia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.171535077": {
+    "marketId": "704.171535077",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35682720,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T19:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 52.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 52.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.171535076": {
+    "marketId": "704.171535076",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35682720,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T19:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 484737,
+      "handicap": 0,
+      "runnerName": "NC State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NC State",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 180,
+        "americanOddsInt": 180
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.8
+        },
+        "fractionalOdds": {
+         "numerator": 180,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 611101,
+      "handicap": 0,
+      "runnerName": "Virginia",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Virginia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -220,
+        "americanOddsInt": -220
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.454545454545455
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 220
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599033": {
+    "marketId": "704.170599033",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655467,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T21:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 46.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 46.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599032": {
+    "marketId": "704.170599032",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655467,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T21:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 4943282,
+      "handicap": 6.5,
+      "runnerName": "Jacksonville State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JVST",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 6868752,
+      "handicap": -6.5,
+      "runnerName": "North Dakota State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "North Dakota St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599031": {
+    "marketId": "704.170599031",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655467,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T21:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 4943282,
+      "handicap": 0,
+      "runnerName": "Jacksonville State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JVST",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 202,
+        "americanOddsInt": 202
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 3.02
+        },
+        "fractionalOdds": {
+         "numerator": 202,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 6868752,
+      "handicap": 0,
+      "runnerName": "North Dakota State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "North Dakota St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -250,
+        "americanOddsInt": -250
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.4
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 25
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170598993": {
+    "marketId": "704.170598993",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655465,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T22:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 20446517,
+      "handicap": 0,
+      "runnerName": "Sacramento State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Sacramento St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 310,
+        "americanOddsInt": 310
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 4.1
+        },
+        "fractionalOdds": {
+         "numerator": 31,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 3346186,
+      "handicap": 0,
+      "runnerName": "Eastern Michigan",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Eastern Michigan",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -400,
+        "americanOddsInt": -400
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.25
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 40
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170598992": {
+    "marketId": "704.170598992",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655465,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T22:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 52.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 52.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170598991": {
+    "marketId": "704.170598991",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655465,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T22:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 20446517,
+      "handicap": 9.5,
+      "runnerName": "Sacramento State",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Sacramento St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 3346186,
+      "handicap": -9.5,
+      "runnerName": "Eastern Michigan",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Eastern Michigan",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599096": {
+    "marketId": "704.170599096",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655469,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 48.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 48.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599095": {
+    "marketId": "704.170599095",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655469,
+    "marketName": "Spread",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 661961,
+      "handicap": 5.5,
+      "runnerName": "Hawaii",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Hawai'i",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 975028,
+      "handicap": -5.5,
+      "runnerName": "Stanford",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Stanford",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599097": {
+    "marketId": "704.170599097",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655469,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-29T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 661961,
+      "handicap": 0,
+      "runnerName": "Hawaii",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Hawai'i",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 180,
+        "americanOddsInt": 180
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.8
+        },
+        "fractionalOdds": {
+         "numerator": 180,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 975028,
+      "handicap": 0,
+      "runnerName": "Stanford",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Stanford",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -220,
+        "americanOddsInt": -220
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.454545454545455
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 220
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599036": {
+    "marketId": "704.170599036",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655468,
+    "marketName": "Total Points",
+    "marketTime": "2026-08-30T02:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 57.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 57.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599035": {
+    "marketId": "704.170599035",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655468,
+    "marketName": "Spread",
+    "marketTime": "2026-08-30T02:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 975027,
+      "handicap": 5.5,
+      "runnerName": "Memphis",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Memphis",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 100,
+        "americanOddsInt": 100
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 951149,
+      "handicap": -5.5,
+      "runnerName": "UNLV",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UNLV",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -122,
+        "americanOddsInt": -122
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.819672131147541
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 122
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170599034": {
+    "marketId": "704.170599034",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655468,
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-30T02:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 975027,
+      "handicap": 0,
+      "runnerName": "Memphis",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Memphis",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 190,
+        "americanOddsInt": 190
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.9
+        },
+        "fractionalOdds": {
+         "numerator": 190,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 951149,
+      "handicap": 0,
+      "runnerName": "UNLV",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UNLV",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -235,
+        "americanOddsInt": -235
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.425531914893617
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 235
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.172144726": {
+    "marketId": "704.172144726",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35701500,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T22:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 53.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 53.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.172144727": {
+    "marketId": "704.172144727",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35701500,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T22:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 2560733,
+      "handicap": 0,
+      "runnerName": "Massachusetts",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UMass",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 2400,
+        "americanOddsInt": 2400
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 25
+        },
+        "fractionalOdds": {
+         "numerator": 24,
+         "denominator": 1
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 962212,
+      "handicap": 0,
+      "runnerName": "Rutgers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Rutgers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -10000,
+        "americanOddsInt": -10000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.01
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 1000
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.172144728": {
+    "marketId": "704.172144728",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35701500,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T22:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 2560733,
+      "handicap": 28.5,
+      "runnerName": "Massachusetts",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UMass",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 962212,
+      "handicap": -28.5,
+      "runnerName": "Rutgers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Rutgers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837674": {
+    "marketId": "704.176837674",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828712,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 48.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 48.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837675": {
+    "marketId": "704.176837675",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828712,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 14644660,
+      "handicap": 0,
+      "runnerName": "Albany",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Albany",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 2000,
+        "americanOddsInt": 2000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 21
+        },
+        "fractionalOdds": {
+         "numerator": 20,
+         "denominator": 1
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 36143265,
+      "handicap": 0,
+      "runnerName": "Buffalo",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Buffalo",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -7000,
+        "americanOddsInt": -7000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.014285714285714
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 700
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837673": {
+    "marketId": "704.176837673",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828712,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 14644660,
+      "handicap": 26.5,
+      "runnerName": "Albany",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Albany",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 36143265,
+      "handicap": -26.5,
+      "runnerName": "Buffalo",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Buffalo",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837427": {
+    "marketId": "704.176837427",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828698,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 72201217,
+      "handicap": 28.5,
+      "runnerName": "Merrimack",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Merrimack",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 661910,
+      "handicap": -28.5,
+      "runnerName": "Delaware",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Delaware",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837425": {
+    "marketId": "704.176837425",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828698,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 56.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 56.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837426": {
+    "marketId": "704.176837426",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828698,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 72201217,
+      "handicap": 0,
+      "runnerName": "Merrimack",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Merrimack",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 2400,
+        "americanOddsInt": 2400
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 25
+        },
+        "fractionalOdds": {
+         "numerator": 24,
+         "denominator": 1
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 661910,
+      "handicap": 0,
+      "runnerName": "Delaware",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Delaware",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -10000,
+        "americanOddsInt": -10000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.01
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 1000
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837304": {
+    "marketId": "704.176837304",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828696,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 57.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 57.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837302": {
+    "marketId": "704.176837302",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828696,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7660912,
+      "handicap": 39.5,
+      "runnerName": "Bethune Cookman",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Bethune-Cookman",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 1339617,
+      "handicap": -39.5,
+      "runnerName": "UCF",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "UCF",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837303": {
+    "marketId": "704.176837303",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828696,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 1,
+    "numberOfActiveRunners": 1,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7660912,
+      "handicap": 0,
+      "runnerName": "Bethune Cookman",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Bethune-Cookman",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 8000,
+        "americanOddsInt": 8000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 81
+        },
+        "fractionalOdds": {
+         "numerator": 80,
+         "denominator": 1
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170776449": {
+    "marketId": "704.170776449",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35659997,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 49.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -114,
+        "americanOddsInt": -114
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.87719298245614
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 114
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 49.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170776448": {
+    "marketId": "704.170776448",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35659997,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 975033,
+      "handicap": 23.5,
+      "runnerName": "Akron",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Akron",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 100,
+        "americanOddsInt": 100
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 2147633,
+      "handicap": -23.5,
+      "runnerName": "Wake Forest",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Wake Forest",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -122,
+        "americanOddsInt": -122
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.819672131147541
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 122
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170776450": {
+    "marketId": "704.170776450",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35659997,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 975033,
+      "handicap": 0,
+      "runnerName": "Akron",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Akron",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 1400,
+        "americanOddsInt": 1400
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 15
+        },
+        "fractionalOdds": {
+         "numerator": 140,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 2147633,
+      "handicap": 0,
+      "runnerName": "Wake Forest",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Wake Forest",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -4000,
+        "americanOddsInt": -4000
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.025
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 400
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837823": {
+    "marketId": "704.176837823",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828719,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 53.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 53.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837821": {
+    "marketId": "704.176837821",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828719,
+    "marketName": "Spread",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 73142391,
+      "handicap": 23.5,
+      "runnerName": "West Georgia",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "West Georgia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 20336927,
+      "handicap": -23.5,
+      "runnerName": "Kennesaw State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Kennesaw St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176837822": {
+    "marketId": "704.176837822",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828719,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-03T23:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 73142391,
+      "handicap": 0,
+      "runnerName": "West Georgia",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "West Georgia",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 1280,
+        "americanOddsInt": 1280
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 13.8
+        },
+        "fractionalOdds": {
+         "numerator": 128,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 20336927,
+      "handicap": 0,
+      "runnerName": "Kennesaw State",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Kennesaw St.",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -3500,
+        "americanOddsInt": -3500
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.028571428571429
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 350
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176838769": {
+    "marketId": "704.176838769",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828735,
+    "marketName": "Spread",
+    "marketTime": "2026-09-04T00:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 3313422,
+      "handicap": 43.5,
+      "runnerName": "Eastern Illinois",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Eastern Illinois",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 36023396,
+      "handicap": -43.5,
+      "runnerName": "Minnesota",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Minnesota",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.176838767": {
+    "marketId": "704.176838767",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35828735,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-04T00:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 51.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 51.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170600224": {
+    "marketId": "704.170600224",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655477,
+    "marketName": "Spread",
+    "marketTime": "2026-09-04T00:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 20,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 998003,
+      "handicap": 6.5,
+      "runnerName": "Colorado",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Colorado",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 588240,
+      "handicap": -6.5,
+      "runnerName": "Georgia Tech",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Georgia Tech",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170600225": {
+    "marketId": "704.170600225",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655477,
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-04T00:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 10,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 998003,
+      "handicap": 0,
+      "runnerName": "Colorado",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Colorado",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 198,
+        "americanOddsInt": 198
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.98
+        },
+        "fractionalOdds": {
+         "numerator": 198,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 588240,
+      "handicap": 0,
+      "runnerName": "Georgia Tech",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "Georgia Tech",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -245,
+        "americanOddsInt": -245
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.408163265306122
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 245
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.170600228": {
+    "marketId": "704.170600228",
+    "eventTypeId": 6423,
+    "competitionId": 12529073,
+    "eventId": 35655477,
+    "marketName": "Total Points",
+    "marketTime": "2026-09-04T00:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": 30,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 50.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 50.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   }
+  }
+ }
+}

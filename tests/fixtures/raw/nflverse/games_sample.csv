@@ -1,0 +1,11 @@
+game_id,season,game_type,week,gameday,weekday,gametime,away_team,away_score,home_team,home_score,location,roof,surface,stadium_id,stadium
+2025_01_DAL_PHI,2025,REG,1,2025-09-04,Thursday,20:20,DAL,20.0,PHI,24.0,Home,outdoors,grass,PHI00,Lincoln Financial Field
+2025_19_LA_CAR,2025,WC,19,2026-01-10,Saturday,16:30,LA,34.0,CAR,31.0,Home,outdoors,grass,CAR00,Bank of America Stadium
+2025_22_SEA_NE,2025,SB,22,2026-02-08,Sunday,18:30,SEA,29.0,NE,13.0,Neutral,outdoors,grass,SFO01,Levi's Stadium
+2026_01_NE_SEA,2026,REG,1,2026-09-09,Wednesday,20:20,NE,,SEA,,Home,outdoors,fieldturf,SEA00,Lumen Field
+2026_01_SF_LA,2026,REG,1,2026-09-10,Thursday,20:35,SF,,LA,,Neutral,dome,matrixturf,MEL00,Melbourne Cricket Ground
+2026_01_CHI_CAR,2026,REG,1,2026-09-13,Sunday,13:00,CHI,,CAR,,Home,outdoors,grass,CAR00,Bank of America Stadium
+2026_01_TB_CIN,2026,REG,1,2026-09-13,Sunday,13:00,TB,,CIN,,Home,outdoors,fieldturf,CIN00,Paycor Stadium
+2026_11_MIN_SF,2026,REG,11,2026-11-22,Sunday,20:20,MIN,,SF,,Neutral,outdoors,grass,MEX00,Estadio Banorte
+2026_01_NO_DET,2026,REG,1,2026-09-13,Sunday,13:00,NO,,DET,,Home,dome,fieldturf,DET00,Ford Field
+2026_02_WAS_DAL,2026,REG,2,2026-09-20,Sunday,,WAS,,DAL,,Home,,matrixturf,DAL00,AT&T Stadium

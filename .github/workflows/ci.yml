@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # Tests stub browser/anti-bot deps via sys.modules.setdefault (see
+      # golf_scraping/tests/test_betcris.py), so only the light stack is installed.
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx beautifulsoup4 pandas numpy openpyxl pyarrow python-dotenv boto3 timezonefinder pytest ruff
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m pytest tests -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Worker unit tests (auth, /data sanitize, cron -> {sport, scope} map, Quartz DOW).
+      - name: Worker tests
+        run: node --test "site/worker/test/*.test.mjs"

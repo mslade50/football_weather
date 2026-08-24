@@ -1,0 +1,150 @@
+name: calibrate
+
+# Phase 6: refit the v2 impact coefficients (data/calibration.json) against closing
+# lines and open a PR — never a commit to main, never a change to v1.
+#
+#   * Monthly (1st, 09:17 ET-ish) + manual dispatch. Runs AFTER the Tuesday backtest
+#     so backtest/games.parquet (per-game forecast + opening/closing lines) and
+#     board/backtest.json (CLV by model -> promotion verdict) are fresh in R2.
+#   * `python -m pipeline.calibrate` refuses to refit on < 4 weeks of data (exit 2 ->
+#     no PR); `force` bypasses for a dry look.
+#   * Gate before the PR: the v1 golden test and the v2 curve tests must still pass
+#     with the new file — pipeline/model/config.py is never edited here (the
+#     promotion to ALERT_MODEL=v2 is a manual edit once v2 CLV >= v1 over >= 4 weeks;
+#     the verdict is printed in the job summary and carried in the PR body).
+#
+# Requires: CLOUDFLARE_API_TOKEN (R2:Read), CF_ACCOUNT_ID, TELEGRAM_BOT_TOKEN,
+# TELEGRAM_CHAT_ID. GITHUB_TOKEN needs contents + pull-requests write for the PR.
+
+on:
+  schedule:
+    - cron: '17 13 1 * *'    # monthly, 1st, 09:17 EDT / 08:17 EST
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Refit even with fewer than 4 weeks of backtest data'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Print the fit; write nothing and open no PR'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: football-refresh
+  cancel-in-progress: false
+
+env:
+  R2_BUCKET: football-board
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+  FORCE: ${{ inputs.force == true && '1' || '' }}
+  DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx pandas numpy pyarrow pydantic timezonefinder pytest
+      - name: Fetch backtest inputs from R2 (read-only)
+        # games.parquet is the fit input; backtest.json feeds the promotion verdict.
+        # Absent objects (no backtest run yet) leave calibrate with nothing to fit
+        # -> exit 2 -> no PR. Any other wrangler error fails the job.
+        run: |
+          mkdir -p data/backtest data/board
+          get() {  # get <r2 key> <local file>
+            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/$1" --file="$2" --remote 2>&1)"; then
+              echo "$1 fetched"
+            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+              echo "::notice::$1 absent"
+              rm -f "$2"
+            else
+              echo "$OUT"
+              echo "::error::R2 fetch failed for $1 (not NoSuchKey)"
+              exit 1
+            fi
+          }
+          get "backtest/games.parquet" data/backtest/games.parquet
+          get "board/backtest.json" data/board/backtest.json
+      - name: Refit v2 coefficients
+        id: fit
+        run: |
+          set +e
+          python -m pipeline.calibrate --input data/backtest/games.parquet --out data/calibration.json \
+            --backtest data/board/backtest.json --min-weeks 4 ${FORCE:+--force} ${DRY_RUN:+--dry-run} | tee calibrate.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          case "$RC" in
+            0) echo "refit=true" >> "$GITHUB_OUTPUT" ;;
+            2) echo "::notice::not enough backtest data to refit (need >= 4 weeks); no PR"; echo "refit=false" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$RC" ;;
+          esac
+      - name: v1 golden + v2 curve tests against the new calibration
+        # v1 must be byte-for-byte untouched (the golden test pins it); the v2 curve
+        # tests pin the tier-midpoint sanity of whatever the fit produced.
+        if: steps.fit.outputs.refit == 'true'
+        run: |
+          git diff --exit-code -- pipeline/model/config.py
+          python -m pytest tests/test_impact_v1.py tests/test_impact_v2.py tests/test_calibrate.py -q
+      - name: Fit summary
+        if: always()
+        run: |
+          {
+            echo "## calibrate"
+            echo
+            echo '```'
+            cat calibrate.log 2>/dev/null || echo "(no log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Open PR
+        if: steps.fit.outputs.refit == 'true' && env.DRY_RUN == ''
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: |
+            data/calibration.json
+          branch: chore/calibrate-v2
+          delete-branch: true
+          commit-message: "model: refit v2 calibration.json (calibrate)"
+          title: "model: v2 calibration refit"
+          body: |
+            Automated `calibrate` run (${{ github.run_id }}). Only `data/calibration.json` changes;
+            v1 constants in `pipeline/model/config.py` are untouched (checked by the golden test).
+
+            Promotion rule: set `ALERT_MODEL = "v2"` in `pipeline/model/config.py` ONLY when v2 CLV >= v1
+            over >= 4 weeks — see the `promotion` block in the file and the job summary. Merging this PR
+            does not promote v2; alerts stay keyed to v1 until that manual edit.
+          labels: model
+      - name: Telegram on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          [ -n "$TELEGRAM_BOT_TOKEN" ] && curl -s --max-time 15 \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="FAILED calibrate.yml (${{ github.event_name }}): ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            >/dev/null || true

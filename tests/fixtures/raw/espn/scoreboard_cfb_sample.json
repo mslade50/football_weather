@@ -1,0 +1,46 @@
+{
+  "season": {"type": 2, "year": 2025},
+  "week": {"number": 1},
+  "events": [
+    {
+      "id": "401752651",
+      "date": "2025-08-30T19:30Z",
+      "season": {"year": 2025, "type": 2},
+      "week": {"number": 1},
+      "competitions": [
+        {
+          "id": "401752651",
+          "date": "2025-08-30T19:30Z",
+          "neutralSite": true,
+          "timeValid": true,
+          "venue": {"id": "5348", "fullName": "Mercedes-Benz Stadium", "address": {"city": "Atlanta", "state": "GA"}},
+          "competitors": [
+            {"homeAway": "home", "team": {"id": "2390", "location": "Miami", "displayName": "Miami Hurricanes", "abbreviation": "MIA"}},
+            {"homeAway": "away", "team": {"id": "245", "location": "Texas A&M", "displayName": "Texas A&M Aggies", "abbreviation": "TA&M"}}
+          ],
+          "status": {"type": {"state": "pre", "name": "STATUS_SCHEDULED"}}
+        }
+      ]
+    },
+    {
+      "id": "401752660",
+      "date": "2025-08-30T23:30Z",
+      "season": {"year": 2025, "type": 2},
+      "week": {"number": 1},
+      "competitions": [
+        {
+          "id": "401752660",
+          "date": "2025-08-30T23:30Z",
+          "neutralSite": false,
+          "timeValid": true,
+          "venue": {"id": "3713", "fullName": "Falcon Stadium", "address": {"city": "Colorado Springs", "state": "CO"}},
+          "competitors": [
+            {"homeAway": "home", "team": {"id": "2005", "location": "Air Force", "displayName": "Air Force Falcons", "abbreviation": "AFA"}},
+            {"homeAway": "away", "team": {"id": "2426", "location": "Navy", "displayName": "Navy Midshipmen", "abbreviation": "NAVY"}}
+          ],
+          "status": {"type": {"state": "pre", "name": "STATUS_SCHEDULED"}}
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,15 @@
-streamlit
+# Pipeline (pipeline/, main.py, scripts/)
+playwright
+playwright-stealth
+httpx
+beautifulsoup4
 pandas
-plotly
 numpy
 openpyxl
-fsspec
-streamlit-plotly-events
-pytz
+pyarrow
+python-dotenv
+curl_cffi
+boto3
+pydantic>=2
+rapidfuzz
+timezonefinder

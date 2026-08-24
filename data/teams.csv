@@ -1,0 +1,691 @@
+team_id,sport,name,short,home_stadium_id,avg_temp_f,conference,classification,aliases
+ari,nfl,Arizona Cardinals,ARI,state-farm-stadium,74.57,,nfl,ARI|Arizona Cardinals|arizona|Cardinals|Arizona|arizona cardinals|ARZ|Ari
+atl,nfl,Atlanta Falcons,ATL,mercedes-benz-stadium,61.52,,nfl,ATL|Atlanta Falcons|atlanta|Falcons|Atlanta|atlanta falcons
+bal,nfl,Baltimore Ravens,BAL,mt-bank-stadium,57.04,,nfl,BAL|Baltimore Ravens|baltimore|Ravens|Baltimore|baltimore ravens|BLT
+buf,nfl,Buffalo Bills,BUF,highmark-stadium,50.37,,nfl,BUF|Buffalo Bills|buffalo|Bills|Buffalo|buffalo bills
+car,nfl,Carolina Panthers,CAR,bank-of-america-stadium,61.66,,nfl,CAR|Carolina Panthers|carolina|Panthers|Carolina|carolina panthers
+chi,nfl,Chicago Bears,CHI,soldier-field,51.08,,nfl,CHI|Chicago Bears|chicago|Bears|Chicago|chicago bears
+cin,nfl,Cincinnati Bengals,CIN,paycor-stadium,56.3,,nfl,CIN|Cincinnati Bengals|cincinnati|Bengals|Cincinnati|cincinnati bengals
+cle,nfl,Cleveland Browns,CLE,huntington-bank-field,52.55,,nfl,CLE|Cleveland Browns|cleveland|Browns|Cleveland|cleveland browns|CLV
+dal,nfl,Dallas Cowboys,DAL,att-stadium,67.18,,nfl,DAL|Dallas Cowboys|dallas|Cowboys|Dallas|dallas cowboys
+den,nfl,Denver Broncos,DEN,empower-field-at-mile-high,50.26,,nfl,DEN|Denver Broncos|denver|Broncos|Denver|denver broncos
+det,nfl,Detroit Lions,DET,ford-field,51.16,,nfl,DET|Detroit Lions|detroit|Lions|Detroit|detroit lions
+gb,nfl,Green Bay Packers,GB,lambeau-field,47.43,,nfl,GB|Green Bay Packers|green bay|Packers|Green Bay|green bay packers|GNB
+hou,nfl,Houston Texans,HOU,nrg-stadium,69.99,,nfl,HOU|Houston Texans|houston|Texans|Houston|houston texans
+ind,nfl,Indianapolis Colts,IND,lucas-oil-stadium,54.31,,nfl,IND|Indianapolis Colts|indianapolis|Colts|Indianapolis|indianapolis colts
+jax,nfl,Jacksonville Jaguars,JAX,everbank-stadium,69.97,,nfl,JAX|Jacksonville Jaguars|jacksonville|Jaguars|Jacksonville|jacksonville jaguars|JAC
+kc,nfl,Kansas City Chiefs,KC,geha-field-at-arrowhead-stadium,56.33,,nfl,KC|Kansas City Chiefs|kansas city|Chiefs|Kansas City|kansas city chiefs|KAN
+la,nfl,Los Angeles Rams,LA,sofi-stadium,61.89,,nfl,LA|Los Angeles Rams|l.a. rams|Rams|Los Angeles|los angeles|l.a. rams rams|LAR|LA Rams|Los Angeles R
+lac,nfl,Los Angeles Chargers,LAC,sofi-stadium,61.89,,nfl,LAC|Los Angeles Chargers|l.a. chargers|Chargers|Los Angeles|los angeles|l.a. chargers chargers|LA Chargers|Los Angeles C|SD
+lv,nfl,Las Vegas Raiders,LV,allegiant-stadium,70.29,,nfl,LV|Las Vegas Raiders|las vegas|Raiders|Las Vegas|las vegas raiders|LVR|OAK|Oakland
+mia,nfl,Miami Dolphins,MIA,hard-rock-stadium,75.59,,nfl,MIA|Miami Dolphins|miami|Dolphins|Miami|miami dolphins
+min,nfl,Minnesota Vikings,MIN,us-bank-stadium,46.12,,nfl,MIN|Minnesota Vikings|minnesota|Vikings|Minnesota|minnesota vikings
+ne,nfl,New England Patriots,NE,gillette-stadium,51.74,,nfl,NE|New England Patriots|new england|Patriots|New England|new england patriots|NWE
+no,nfl,New Orleans Saints,NO,caesars-superdome,69.48,,nfl,NO|New Orleans Saints|new orleans|Saints|New Orleans|new orleans saints|NOR
+nyg,nfl,New York Giants,NYG,metlife-stadium,54.96,,nfl,NYG|New York Giants|n.y. giants|Giants|New York|new york|n.y. giants giants|NY Giants|New York G|ny giants
+nyj,nfl,New York Jets,NYJ,metlife-stadium,54.96,,nfl,NYJ|New York Jets|n.y. jets|Jets|New York|new york|n.y. jets jets|NY Jets|New York J|ny jets
+phi,nfl,Philadelphia Eagles,PHI,lincoln-financial-field,56.61,,nfl,PHI|Philadelphia Eagles|philadelphia|Eagles|Philadelphia|philadelphia eagles
+pit,nfl,Pittsburgh Steelers,PIT,acrisure-stadium,54.03,,nfl,PIT|Pittsburgh Steelers|pittsburgh|Steelers|Pittsburgh|pittsburgh steelers
+sea,nfl,Seattle Seahawks,SEA,lumen-field,52.12,,nfl,SEA|Seattle Seahawks|seattle|Seahawks|Seattle|seattle seahawks
+sf,nfl,San Francisco 49ers,SF,levis-stadium,59.94,,nfl,SF|San Francisco 49ers|san francisco|49ers|San Francisco|san francisco 49ers|SFO
+tb,nfl,Tampa Bay Buccaneers,TB,raymond-james-stadium,72.89,,nfl,TB|Tampa Bay Buccaneers|tampa bay|Buccaneers|Tampa Bay|tampa bay buccaneers|TAM|Bucs
+ten,nfl,Tennessee Titans,TEN,nissan-stadium,60.22,,nfl,TEN|Tennessee Titans|tennessee|Titans|Tennessee|tennessee titans
+was,nfl,Washington Commanders,WAS,northwest-stadium,57.08,,nfl,WAS|Washington Commanders|washington|Commanders|Washington|washington commanders|WSH|Redskins|Football Team
+air-force,cfb,Air Force,AFA,falcon-stadium,46.59,Mountain West,fbs,Air Force|AFA|Air Force Falcons
+akron,cfb,Akron,AKR,summa-field-at-infocision-stadium,52.03,Mid-American,fbs,Akron|AKR|Akron Zips
+alabama,cfb,Alabama,ALA,bryant-denny-stadium,64.71,SEC,fbs,Alabama|ALA|Alabama Crimson Tide
+appalachian-state,cfb,Appalachian State,APP,kidd-brewer-stadium,52.4,Sun Belt,fbs,Appalachian State|APP|Appalachian St|Appalachian State Mountaineers|App State
+arizona,cfb,Arizona,ARIZ,arizona-stadium,70.84,Big 12,fbs,Arizona|ARIZ|Arizona Wildcats
+arizona-state,cfb,Arizona State,ASU,sun-devil-stadium,74.52,Big 12,fbs,Arizona State|ASU|Arizona State Sun Devils
+arkansas,cfb,Arkansas,ARK,donald-w-reynolds-razorback-stadium-frank-broyles-field,59.28,SEC,fbs,Arkansas|ARK|Arkansas Razorbacks
+arkansas-state,cfb,Arkansas State,ARST,centennial-bank-stadium,61.67,Sun Belt,fbs,Arkansas State|ARST|Arkansas State Red Wolves
+army,cfb,Army,ARMY,blaik-field-at-michie-stadium,52.74,American Athletic,fbs,Army|ARMY|Army Black Knights|Army West Point
+auburn,cfb,Auburn,AUB,jordan-hare-stadium,64.57,SEC,fbs,Auburn|AUB|Auburn Tigers
+ball-state,cfb,Ball State,BALL,scheumann-stadium,53.09,Mid-American,fbs,Ball State|BALL|Ball State Cardinals
+baylor,cfb,Baylor,BAY,mclane-stadium,69.9,Big 12,fbs,Baylor|BAY|Baylor Bears
+boise-state,cfb,Boise State,BSU,albertsons-stadium,53.65,Mountain West,fbs,Boise State|BSU|Boise State Broncos
+boston-college,cfb,Boston College,BC,alumni-stadium,51.83,ACC,fbs,Boston College|BC|Boston College Eagles
+bowling-green,cfb,Bowling Green,BGSU,doyt-perry-stadium,52.81,Mid-American,fbs,Bowling Green|BGSU|Bowling Green State|Bowling Green Falcons
+brigham-young,cfb,Brigham Young,BYU,lavell-edwards-stadium,50.27,Big 12,fbs,Brigham Young|BYU|Brigham Young Cougars|BYU Cougars
+buffalo,cfb,Buffalo,BUFF,ub-stadium,50.07,Mid-American,fbs,Buffalo|BUFF|Buffalo Bulls
+california,cfb,California,CAL,california-memorial-stadium,55.4,ACC,fbs,California|CAL|Cal|California Golden Bears
+central-michigan,cfb,Central Michigan,CMU,kelly-shorts-stadium,49.01,Mid-American,fbs,Central Michigan|CMU|Cent Michigan|Central Michigan Chippewas
+charlotte,cfb,Charlotte,CHAR,jerry-richardson-stadium,62.01,American Athletic,fbs,Charlotte|CHAR|Charlotte 49ers
+cincinnati,cfb,Cincinnati,CIN,nippert-stadium,55.56,Big 12,fbs,Cincinnati|CIN|Cincinnati Bearcats
+clemson,cfb,Clemson,CLEM,memorial-stadium,62.07,ACC,fbs,Clemson|CLEM|Clemson Tigers
+coastal-carolina,cfb,Coastal Carolina,CCU,brooks-stadium,64.85,Sun Belt,fbs,Coastal Carolina|CCU|C. Carolina|Coastal Carolina Chanticleers
+colorado,cfb,Colorado,COLO,folsom-field,48.46,Big 12,fbs,Colorado|COLO|Colorado Buffaloes
+colorado-state,cfb,Colorado State,CSU,canvas-stadium,48.81,Mountain West,fbs,Colorado State|CSU|Colorado State Rams
+connecticut,cfb,Connecticut,CONN,rentschler-field,52.92,FBS Independents,fbs,Connecticut|CONN|UConn|Connecticut Huskies|Uconn
+duke,cfb,Duke,DUKE,wallace-wade-stadium,61.08,ACC,fbs,Duke|DUKE|Duke Blue Devils
+east-carolina,cfb,East Carolina,ECU,dowdy-ficklen-stadium,62.47,American Athletic,fbs,East Carolina|ECU|East Carolina Pirates
+eastern-michigan,cfb,Eastern Michigan,EMU,rynearson-stadium,50.72,Mid-American,fbs,Eastern Michigan|EMU|E Michigan|Eastern Michigan Eagles
+florida,cfb,Florida,FLA,ben-hill-griffin-stadium,69.87,SEC,fbs,Florida|FLA|Florida Gators
+florida-atlantic,cfb,Florida Atlantic,FAU,fau-stadium,75.77,American Athletic,fbs,Florida Atlantic|FAU|Florida Atlantic Owls
+florida-international,cfb,Florida International,FIU,fiu-stadium,75.61,Conference USA,fbs,Florida International|FIU|Florida Intl|Florida International Golden Panthers|Fla International
+florida-state,cfb,Florida State,FSU,bobby-bowden-field-at-doak-campbell-stadium,68.4,ACC,fbs,Florida State|FSU|Florida State Seminoles
+fresno-state,cfb,Fresno State,FRES,bulldog-stadium,65.69,Mountain West,fbs,Fresno State|FRES|Fresno State Bulldogs
+georgia,cfb,Georgia,UGA,sanford-stadium,62.9,SEC,fbs,Georgia|UGA|Georgia Bulldogs
+georgia-southern,cfb,Georgia Southern,GASO,paulson-stadium,66.7,Sun Belt,fbs,Georgia Southern|GASO|Ga Southern|Georgia Southern Eagles
+georgia-state,cfb,Georgia State,GAST,georgia-state-stadium,62.14,Sun Belt,fbs,Georgia State|GAST|Georgia State Panthers
+georgia-tech,cfb,Georgia Tech,GT,bobby-dodd-stadium-at-historic-grant-field,62.01,ACC,fbs,Georgia Tech|GT|Georgia Tech Yellow Jackets
+hawaii,cfb,Hawaii,HAW,clarence-tc-ching-athletics-complex,75.33,Mountain West,fbs,Hawaii|HAW|Hawai'i|Hawaii Rainbow Warriors
+houston,cfb,Houston,HOU,john-oquinn-field-at-tdecu-stadium,70.3,Big 12,fbs,Houston|HOU|Houston Cougars
+illinois,cfb,Illinois,ILL,memorial-stadium-champaign,53.84,Big Ten,fbs,Illinois|ILL|Illinois Fighting Illini
+indiana,cfb,Indiana,IND,memorial-stadium-bloomington,54.97,Big Ten,fbs,Indiana|IND|Indiana Hoosiers
+iowa,cfb,Iowa,IOWA,kinnick-stadium,51.51,Big Ten,fbs,Iowa|IOWA|Iowa Hawkeyes
+iowa-state,cfb,Iowa State,ISU,jack-trice-stadium,51.44,Big 12,fbs,Iowa State|ISU|Iowa State Cyclones
+jacksonville-state,cfb,Jacksonville State,JVST,jsu-stadium,63.15,Conference USA,fbs,Jacksonville State|JVST|Jacksonville St|Jacksonville State Gamecocks|Jax State
+james-madison,cfb,James Madison,JMU,bridgeforth-stadium,54.52,Sun Belt,fbs,James Madison|JMU|James Madison Dukes
+kansas,cfb,Kansas,KU,memorial-stadium-lawrence,57.03,Big 12,fbs,Kansas|KU|Kansas Jayhawks
+kansas-state,cfb,Kansas State,KSU,bill-snyder-family-football-stadium,57.76,Big 12,fbs,Kansas State|KSU|Kansas State Wildcats
+kennesaw-state,cfb,Kennesaw State,KENN,fifth-third-bank-stadium,61.32,Conference USA,fbs,Kennesaw State|KENN|Kennesaw|Kennesaw St|Kennesaw State Owls
+kent-state,cfb,Kent State,KENT,dix-stadium,51.98,Mid-American,fbs,Kent State|KENT|Kent State Golden Flashes
+kentucky,cfb,Kentucky,UK,commonwealth-stadium,56.25,SEC,fbs,Kentucky|UK|Kentucky Wildcats
+lsu,cfb,LSU,LSU,tiger-stadium,69.12,SEC,fbs,LSU|Louisiana State|LSU Tigers
+liberty,cfb,Liberty,LIB,williams-stadium,57.89,Conference USA,fbs,Liberty|LIB|Liberty Flames
+louisiana,cfb,Louisiana,ULL,cajun-field,69.21,Sun Belt,fbs,Louisiana|ULL|UL Lafayette|Louisiana Ragin' Cajuns|Louisiana Lafayette|Louisiana-Lafayette
+louisiana-monroe,cfb,Louisiana Monroe,ULM,malone-stadium,67.11,Sun Belt,fbs,Louisiana Monroe|ULM|La.-Monroe|UL Monroe|Louisiana Monroe Warhawks|Louisiana-Monroe
+louisiana-tech,cfb,Louisiana Tech,LT,joe-aillet-stadium,66.51,Conference USA,fbs,Louisiana Tech|LT|LA Tech|Louisiana Tech Bulldogs
+louisville,cfb,Louisville,LOU,papa-johns-cardinal-stadium,57.6,ACC,fbs,Louisville|LOU|Louisville Cardinals
+marshall,cfb,Marshall,MRSH,joan-c-edwards-stadium,57.18,Sun Belt,fbs,Marshall|MRSH|Marshall Thundering Herd
+maryland,cfb,Maryland,MD,maryland-stadium,57.58,Big Ten,fbs,Maryland|MD|Maryland Terrapins
+massachusetts,cfb,Massachusetts,UMASS,warren-mcguirk-alumni-stadium,51.34,FBS Independents,fbs,Massachusetts|UMASS|UMass|Massachusetts Minutemen
+memphis,cfb,Memphis,MEM,liberty-bowl-memorial-stadium,62.8,American Athletic,fbs,Memphis|MEM|Memphis Tigers
+miami-fl,cfb,Miami (FL),MIAMI,hard-rock-stadium,75.47,ACC,fbs,Miami (FL)|MIAMI|Miami|Miami (FL) Hurricanes|Miami Florida|Miami FL|Miami Hurricanes
+miami-oh,cfb,Miami (OH),M-OH,yager-stadium,54.38,Mid-American,fbs,Miami (OH)|M-OH|Miami (OH) RedHawks|Miami Ohio|Miami OH|Miami RedHawks
+michigan,cfb,Michigan,MICH,michigan-stadium,50.45,Big Ten,fbs,Michigan|MICH|Michigan Wolverines
+michigan-state,cfb,Michigan State,MSU,spartan-stadium,50.34,Big Ten,fbs,Michigan State|MSU|Michigan State Spartans
+middle-tennessee,cfb,Middle Tennessee,MTSU,johnny-red-floyd-stadium,60.53,Conference USA,fbs,Middle Tennessee|MTSU|Middle Tennessee State|Mid Tennessee|Middle Tennessee Blue Raiders
+minnesota,cfb,Minnesota,MINN,tcf-bank-stadium,46.69,Big Ten,fbs,Minnesota|MINN|Minnesota Golden Gophers
+mississippi-state,cfb,Mississippi State,MSST,davis-wade-stadium,64.12,SEC,fbs,Mississippi State|MSST|Miss St|Mississippi State Bulldogs
+missouri,cfb,Missouri,MIZ,faurot-field,56.44,SEC,fbs,Missouri|MIZ|Missouri Tigers
+nc-state,cfb,NC State,NCST,carter-finley-stadium,61.48,ACC,fbs,NC State|NCST|North Carolina St.|NC State Wolfpack
+navy,cfb,Navy,NAVY,navy-marine-corps-memorial-stadium,57.33,American Athletic,fbs,Navy|NAVY|Navy Midshipmen
+nebraska,cfb,Nebraska,NEB,memorial-stadium-lincoln,54.39,Big Ten,fbs,Nebraska|NEB|Nebraska Cornhuskers
+nevada,cfb,Nevada,NEV,mackay-stadium,53.63,Mountain West,fbs,Nevada|NEV|Nevada Wolf Pack
+new-mexico,cfb,New Mexico,UNM,university-stadium,59.25,Mountain West,fbs,New Mexico|UNM|New Mexico Lobos
+new-mexico-state,cfb,New Mexico State,NMSU,aggie-memorial-stadium,65.57,Conference USA,fbs,New Mexico State|NMSU|New Mexico St|New Mexico State Aggies
+north-carolina,cfb,North Carolina,UNC,kenan-memorial-stadium,61.26,ACC,fbs,North Carolina|UNC|North Carolina Tar Heels
+north-texas,cfb,North Texas,UNT,apogee-stadium,66.45,American Athletic,fbs,North Texas|UNT|North Texas Mean Green
+northern-illinois,cfb,Northern Illinois,NIU,brigham-field-at-huskie-stadium,50.71,Mid-American,fbs,Northern Illinois|NIU|N Illinois|Northern Illinois Huskies
+northwestern,cfb,Northwestern,NW,ryan-field,51.13,Big Ten,fbs,Northwestern|NW|Northwestern Wildcats
+notre-dame,cfb,Notre Dame,ND,notre-dame-stadium,51.41,FBS Independents,fbs,Notre Dame|ND|Notre Dame Fighting Irish
+ohio,cfb,Ohio,OHIO,peden-stadium,55.44,Mid-American,fbs,Ohio|OHIO|Ohio Bobcats
+ohio-state,cfb,Ohio State,OSU,ohio-stadium,54.32,Big Ten,fbs,Ohio State|OSU|Ohio State Buckeyes
+oklahoma,cfb,Oklahoma,OKLA,gaylord-family-oklahoma-memorial-stadium,62.58,SEC,fbs,Oklahoma|OKLA|Oklahoma Sooners
+oklahoma-state,cfb,Oklahoma State,OKST,boone-pickens-stadium,62.09,Big 12,fbs,Oklahoma State|OKST|Oklahoma State Cowboys
+old-dominion,cfb,Old Dominion,ODU,foreman-field,61.38,Sun Belt,fbs,Old Dominion|ODU|Old Dominion Monarchs
+ole-miss,cfb,Ole Miss,MISS,vaught-hemingway-stadium,62.8,SEC,fbs,Ole Miss|MISS|Ole Miss Rebels|Mississippi
+oregon,cfb,Oregon,ORE,autzen-stadium,52.98,Big Ten,fbs,Oregon|ORE|Oregon Ducks
+oregon-state,cfb,Oregon State,ORST,reser-stadium,53.44,Pac-12,fbs,Oregon State|ORST|Oregon State Beavers
+penn-state,cfb,Penn State,PSU,beaver-stadium,51.35,Big Ten,fbs,Penn State|PSU|Penn State Nittany Lions
+pittsburgh,cfb,Pittsburgh,PITT,heinz-field,54,ACC,fbs,Pittsburgh|PITT|Pitt|Pittsburgh Panthers
+purdue,cfb,Purdue,PUR,ross-ade-stadium,53.61,Big Ten,fbs,Purdue|PUR|Purdue Boilermakers
+rice,cfb,Rice,RICE,rice-stadium,70.37,American Athletic,fbs,Rice|RICE|Rice Owls
+rutgers,cfb,Rutgers,RUTG,shi-stadium,55.38,Big Ten,fbs,Rutgers|RUTG|Rutgers Scarlet Knights
+smu,cfb,SMU,SMU,gerald-j-ford-stadium,67.27,ACC,fbs,SMU|Southern Methodist|SMU Mustangs
+sam-houston-state,cfb,Sam Houston State,SHSU,bowers-stadium,68.63,Conference USA,fbs,Sam Houston State|SHSU|Sam Houston|Sam Houston State Bearkats|Sam Houston St
+san-diego-state,cfb,San Diego State,SDSU,snapdragon-stadium,62.36,Mountain West,fbs,San Diego State|SDSU|San Diego State Aztecs
+san-jose-state,cfb,San Jose State,SJSU,spartan-stadium-san-jose,59.64,Mountain West,fbs,San Jose State|SJSU|San Jose St.|San Jose State Spartans|San José State|San Jose St
+south-alabama,cfb,South Alabama,USA,hancock-whitney-stadium,68.63,Sun Belt,fbs,South Alabama|USA|South Alabama Jaguars
+south-carolina,cfb,South Carolina,SC,williams-brice-stadium,64.53,SEC,fbs,South Carolina|SC|South Carolina Gamecocks
+south-florida,cfb,South Florida,USF,raymond-james-stadium,73.1,American Athletic,fbs,South Florida|USF|South Florida Bulls
+southern-miss,cfb,Southern Miss,USM,m-m-roberts-stadium,67.03,Sun Belt,fbs,Southern Miss|USM|Southern Miss Golden Eagles|Southern Mississippi
+stanford,cfb,Stanford,STAN,stanford-stadium,58.95,ACC,fbs,Stanford|STAN|Stanford Cardinal
+syracuse,cfb,Syracuse,SYR,carrier-dome,49.96,ACC,fbs,Syracuse|SYR|Syracuse Orange
+tcu,cfb,TCU,TCU,amon-g-carter-stadium,68.25,Big 12,fbs,TCU|Texas Christian|TCU Horned Frogs
+temple,cfb,Temple,TEM,lincoln-financial-field,56.79,American Athletic,fbs,Temple|TEM|Temple Owls
+tennessee,cfb,Tennessee,TENN,neyland-stadium,59.89,SEC,fbs,Tennessee|TENN|Tennessee Volunteers
+texas,cfb,Texas,TEX,darrell-k-royal-texas-memorial-stadium,69.96,SEC,fbs,Texas|TEX|Texas Longhorns
+texas-am,cfb,Texas A&M,TA&M,kyle-field,69.7,SEC,fbs,Texas A&M|TA&M|Texas A&M Aggies|Texas AM|Texas A and M
+texas-state,cfb,Texas State,TXST,jim-wacker-field-at-bobcat-stadium,70.15,Sun Belt,fbs,Texas State|TXST|Texas State Bobcats
+texas-tech,cfb,Texas Tech,TTU,jones-att-stadium,62.91,Big 12,fbs,Texas Tech|TTU|Texas Tech Red Raiders
+toledo,cfb,Toledo,TOL,glass-bowl,52.34,Mid-American,fbs,Toledo|TOL|Toledo Rockets
+troy,cfb,Troy,TROY,veterans-memorial-stadium,65.96,Sun Belt,fbs,Troy|TROY|Troy Trojans
+tulane,cfb,Tulane,TULN,benson-field-at-yulman-stadium,70.11,American Athletic,fbs,Tulane|TULN|Tulane Green Wave
+tulsa,cfb,Tulsa,TLSA,skelly-field-at-h-a-chapman-stadium,61.37,American Athletic,fbs,Tulsa|TLSA|Tulsa Golden Hurricane
+uab,cfb,UAB,UAB,protective-stadium,63.72,American Athletic,fbs,UAB|Alabama-Birmingham|UAB Blazers|Alabama Birmingham
+ucf,cfb,UCF,UCF,bright-house-networks-stadium,72.19,Big 12,fbs,UCF|Central Florida|UCF Knights
+ucla,cfb,UCLA,UCLA,rose-bowl,62.98,Big Ten,fbs,UCLA|UCLA Bruins
+unlv,cfb,UNLV,UNLV,allegiant-stadium,70.04,Mountain West,fbs,UNLV|Nevada-Las Vegas|UNLV Rebels|Nevada Las Vegas
+usc,cfb,USC,USC,los-angeles-memorial-coliseum,62.56,Big Ten,fbs,USC|USC Trojans|Southern California|Southern Cal
+ut-san-antonio,cfb,UT San Antonio,UTSA,alamodome,71.15,American Athletic,fbs,UT San Antonio|UTSA|Texas-San Antonio|UT San Antonio Roadrunners|Texas San Antonio
+utep,cfb,UTEP,UTEP,sun-bowl-stadium,66.27,Conference USA,fbs,UTEP|Texas-El Paso|UTEP Miners|Texas El Paso
+utah,cfb,Utah,UTAH,rice-eccles-stadium,50.78,Big 12,fbs,Utah|UTAH|Utah Utes
+utah-state,cfb,Utah State,USU,romney-stadium,45.96,Mountain West,fbs,Utah State|USU|Utah State Aggies
+vanderbilt,cfb,Vanderbilt,VAN,vanderbilt-stadium,60.15,SEC,fbs,Vanderbilt|VAN|Vanderbilt Commodores
+virginia,cfb,Virginia,UVA,scott-stadium,58.23,ACC,fbs,Virginia|UVA|Virginia Cavaliers
+virginia-tech,cfb,Virginia Tech,VT,lane-stadium,54.07,ACC,fbs,Virginia Tech|VT|Virginia Tech Hokies
+wake-forest,cfb,Wake Forest,WAKE,bbt-field,59.26,ACC,fbs,Wake Forest|WAKE|Wake Forest Demon Deacons
+washington,cfb,Washington,WASH,husky-stadium,51.96,Big Ten,fbs,Washington|WASH|Washington Huskies
+washington-state,cfb,Washington State,WSU,martin-stadium,49.9,Pac-12,fbs,Washington State|WSU|Washington St|Washington State Cougars
+west-virginia,cfb,West Virginia,WVU,mountaineer-field-at-milan-puskar-stadium,53.65,Big 12,fbs,West Virginia|WVU|West Virginia Mountaineers
+western-kentucky,cfb,Western Kentucky,WKU,houchens-industries-l-t-smith-stadium,59.04,Conference USA,fbs,Western Kentucky|WKU|W Kentucky|Western Kentucky Hilltoppers
+western-michigan,cfb,Western Michigan,WMU,waldo-stadium,50.43,Mid-American,fbs,Western Michigan|WMU|W Michigan|Western Michigan Broncos
+wisconsin,cfb,Wisconsin,WIS,camp-randall-stadium,49.29,Big Ten,fbs,Wisconsin|WIS|Wisconsin Badgers
+wyoming,cfb,Wyoming,WYO,war-memorial-stadium,42.16,Mountain West,fbs,Wyoming|WYO|Wyoming Cowboys
+abilene-christian,cfb,Abilene Christian,ACU,wildcat-stadium-tx,67.58,UAC,fcs,Abilene Christian|ACU|Abil Christian|Abilene Christian Wildcats
+alabama-am,cfb,Alabama A&M,AAMU,louis-crews-stadium,61.65,SWAC,fcs,Alabama A&M|AAMU|Alabama A&M Bulldogs
+alabama-state,cfb,Alabama State,ALST,hornet-stadium,66.33,SWAC,fcs,Alabama State|ALST|Alabama State Hornets
+albany,cfb,Albany,ALBY,bob-ford-field,50.74,CAA,fcs,Albany|ALBY|SUNY Albany|Albany Great Danes
+alcorn-state,cfb,Alcorn State,ALCN,jack-spinks-stadium,67.08,SWAC,fcs,Alcorn State|ALCN|Alcorn State Braves
+arkansas-pine-bluff,cfb,Arkansas-Pine Bluff,UAPB,golden-lion-stadium,64.57,SWAC,fcs,Arkansas-Pine Bluff|UAPB|Arkansas Pine Bluff|AR-Pine Bluff|Arkansas-Pine Bluff Golden Lions
+austin-peay,cfb,Austin Peay,PEAY,governors-stadium,59.96,UAC,fcs,Austin Peay|PEAY|Austin Peay Governors
+bethune-cookman,cfb,Bethune-Cookman,BCU,municipal-stadium,71.74,SWAC,fcs,Bethune-Cookman|BCU|Bethune-Cookman Wildcats
+brown,cfb,Brown,BRWN,brown-stadium,52.9,Ivy,fcs,Brown|BRWN|Brown Bears
+bryant-university,cfb,Bryant University,BRY,bulldog-stadium-smithfield,51.85,CAA,fcs,Bryant University|BRY|Bryant|Bryant University Bulldogs
+bucknell,cfb,Bucknell,BUCK,christy-mathewson-memorial-stadium,53.28,Patriot,fcs,Bucknell|BUCK|Bucknell Bison
+butler,cfb,Butler,BUT,butler-bowl,54.51,Pioneer,fcs,Butler|BUT|Butler Bulldogs
+cal-poly,cfb,Cal Poly,CP,alex-g-spanos-stadium,58.7,Big Sky,fcs,Cal Poly|CP|Cal Poly Mustangs
+campbell,cfb,Campbell,CAMP,barker-lane-stadium,62.53,CAA,fcs,Campbell|CAMP|Campbell Camels
+central-arkansas,cfb,Central Arkansas,UCA,estes-stadium,62.82,UAC,fcs,Central Arkansas|UCA|Cent Arkansas|Central Arkansas Bears
+central-connecticut-state,cfb,Central Connecticut State,CCSU,arute-field,52.66,NEC,fcs,Central Connecticut State|CCSU|Cent Conn St|Central Connecticut State Blue Devils
+charleston-southern,cfb,Charleston Southern,CHSO,buccaneer-field,66.12,Big South-OVC,fcs,Charleston Southern|CHSO|Charleston So|Charleston Southern Buccaneers
+chattanooga,cfb,Chattanooga,CHAT,finley-stadium,61.38,Southern,fcs,Chattanooga|CHAT|Chattanooga Mocs
+citadel,cfb,Citadel,CIT,johnson-hagood-stadium,66.26,Southern,fcs,Citadel|CIT|The Citadel|Citadel Bulldogs
+colgate,cfb,Colgate,COLG,andy-kerr-stadium,47.85,Patriot,fcs,Colgate|COLG|Colgate Raiders
+columbia,cfb,Columbia,CLMB,lawrence-a-wien-stadium,54.7,Ivy,fcs,Columbia|CLMB|Columbia Lions
+cornell,cfb,Cornell,COR,schoellkopf-field,50.04,Ivy,fcs,Cornell|COR|Cornell Big Red
+dartmouth,cfb,Dartmouth,DART,memorial-field,47.57,Ivy,fcs,Dartmouth|DART|Dartmouth Big Green
+davidson,cfb,Davidson,DAV,richardson-stadium,61.16,Pioneer,fcs,Davidson|DAV|Davidson Wildcats
+dayton,cfb,Dayton,DAY,welcome-stadium,54.68,Pioneer,fcs,Dayton|DAY|Dayton Flyers
+delaware,cfb,Delaware,DEL,delaware-stadium,56.49,Conference USA,fbs,Delaware|DEL|Delaware Blue Hens
+delaware-state,cfb,Delaware State,DSU,alumni-stadium-dover,57.78,MEAC,fcs,Delaware State|DSU|Delaware State Hornets
+drake,cfb,Drake,DRKE,drake-stadium,51.98,Pioneer,fcs,Drake|DRKE|Drake Bulldogs
+duquesne,cfb,Duquesne,DUQ,arthur-j-rooney-athletic-field,53.5,NEC,fcs,Duquesne|DUQ|Duquesne Dukes
+east-tennessee-state,cfb,East Tennessee State,ETSU,william-b-greene-jr-stadium,57.61,Southern,fcs,East Tennessee State|ETSU|East Tennessee State Buccaneers
+eastern-illinois,cfb,Eastern Illinois,EIU,obrien-stadium,54.86,Big South-OVC,fcs,Eastern Illinois|EIU|E Illinois|Eastern Illinois Panthers
+eastern-kentucky,cfb,Eastern Kentucky,EKY,roy-kidd-stadium,56.77,UAC,fcs,Eastern Kentucky|EKY|E Kentucky|Eastern Kentucky Colonels
+eastern-washington,cfb,Eastern Washington,EWU,roos-field,48.81,Big Sky,fcs,Eastern Washington|EWU|E Washington|Eastern Washington Eagles
+elon,cfb,Elon,ELON,rhodes-stadium,60,CAA,fcs,Elon|ELON|Elon Phoenix
+florida-am,cfb,Florida A&M,FAMU,bragg-memorial-stadium,68.26,SWAC,fcs,Florida A&M|FAMU|Florida A&M Rattlers
+fordham,cfb,Fordham,FOR,jack-coffey-field,54.57,Patriot,fcs,Fordham|FOR|Fordham Rams
+furman,cfb,Furman,FUR,paladin-stadium,60.42,Southern,fcs,Furman|FUR|Furman Paladins
+gardner-webb,cfb,Gardner-Webb,WEBB,ernest-w-spangler-stadium,61.01,Big South-OVC,fcs,Gardner-Webb|WEBB|Gardner Webb|Gardner-Webb Bulldogs
+georgetown,cfb,Georgetown,GTWN,cooper-field,57.71,Patriot,fcs,Georgetown|GTWN|Georgetown Hoyas
+grambling,cfb,Grambling,GRAM,eddie-robinson-stadium,66.53,SWAC,fcs,Grambling|GRAM|Grambling State|Grambling Tigers
+hampton,cfb,Hampton,HAMP,armstrong-stadium,61.55,CAA,fcs,Hampton|HAMP|Hampton Pirates
+harvard,cfb,Harvard,HARV,harvard-stadium,52.27,Ivy,fcs,Harvard|HARV|Harvard Crimson
+holy-cross,cfb,Holy Cross,HC,fitton-field,51.31,Patriot,fcs,Holy Cross|HC|Holy Cross Crusaders
+houston-christian,cfb,Houston Christian,HCU,husky-stadium-houston,70.46,Southland,fcs,Houston Christian|HCU|Houston Baptist|Houston Christian Huskies
+howard,cfb,Howard,HOW,william-h-greene-stadium,57.45,MEAC,fcs,Howard|HOW|Howard Bison
+idaho,cfb,Idaho,IDHO,kibbie-dome,49.46,Big Sky,fcs,Idaho|IDHO|Idaho Vandals
+idaho-state,cfb,Idaho State,IDST,holt-arena,48.24,Big Sky,fcs,Idaho State|IDST|Idaho State Bengals
+illinois-state,cfb,Illinois State,ILST,hancock-stadium,53.1,MVFC,fcs,Illinois State|ILST|Illinois State Redbirds
+incarnate-word,cfb,Incarnate Word,IW,gayle-and-tom-benson-stadium,70.74,Southland,fcs,Incarnate Word|IW|Incarnate Word Cardinals
+indiana-state,cfb,Indiana State,INST,memorial-stadium-terre-haute,55.49,MVFC,fcs,Indiana State|INST|Indiana State Sycamores
+jackson-state,cfb,Jackson State,JKST,mississippi-veterans-memorial-stadium,65.26,SWAC,fcs,Jackson State|JKST|Jackson State Tigers
+lafayette,cfb,Lafayette,LAF,fisher-field,53.94,Patriot,fcs,Lafayette|LAF|Lafayette Leopards
+lamar,cfb,Lamar,LAM,provost-umphrey-stadium,69.7,Southland,fcs,Lamar|LAM|Lamar Cardinals
+lehigh,cfb,Lehigh,LEH,goodman-stadium,54.29,Patriot,fcs,Lehigh|LEH|Lehigh Mountain Hawks
+lindenwood,cfb,Lindenwood,LIN,hunter-stadium,56.85,Big South-OVC,fcs,Lindenwood|LIN|Lindenwood Lions
+maine,cfb,Maine,MAINE,alfond-stadium,47.2,CAA,fcs,Maine|MAINE|Maine Black Bears
+marist,cfb,Marist,MRST,leonidoff-field,52.79,Pioneer,fcs,Marist|MRST|Marist Red Foxes
+mcneese-state,cfb,McNeese State,MCNS,cowboy-stadium,69.38,Southland,fcs,McNeese State|MCNS|McNeese|McNeese State Cowboys
+mercer,cfb,Mercer,MER,five-star-stadium-at-the-moye-complex,64.83,Southern,fcs,Mercer|MER|Mercer Bears
+mercyhurst,cfb,Mercyhurst,MER,saxon-stadium,51.48,NEC,fcs,Mercyhurst|MER|Mercyhurst Lakers
+merrimack,cfb,Merrimack,MER,duane-stadium,50.85,FCS Independents,fcs,Merrimack|MER|Merrimack Warriors
+mississippi-valley-state,cfb,Mississippi Valley State,MVSU,rice-totten-field,65.25,SWAC,fcs,Mississippi Valley State|MVSU|Miss Valley St|Mississippi Valley State Delta Devils
+missouri-state,cfb,Missouri State,MOST,plaster-sports-complex,57.25,Conference USA,fbs,Missouri State|MOST|Missouri State Bears
+monmouth,cfb,Monmouth,MONM,kessler-stadium,55.89,CAA,fcs,Monmouth|MONM|Monmouth NJ|Monmouth Hawks
+montana,cfb,Montana,MONT,washington-grizzly-stadium,47.64,Big Sky,fcs,Montana|MONT|Montana Grizzlies
+montana-state,cfb,Montana State,MTST,bobcat-stadium,42.68,Big Sky,fcs,Montana State|MTST|Montana State Bobcats
+morehead-state,cfb,Morehead State,MORE,jayne-stadium,56.93,Pioneer,fcs,Morehead State|MORE|Morehead State Eagles
+morgan-state,cfb,Morgan State,MORG,hughes-stadium,56.23,MEAC,fcs,Morgan State|MORG|Morgan State Bears
+murray-state,cfb,Murray State,MURR,roy-stewart-stadium,59.89,MVFC,fcs,Murray State|MURR|Murray State Racers
+new-hampshire,cfb,New Hampshire,UNH,wildcat-stadium,50.46,CAA,fcs,New Hampshire|UNH|New Hampshire Wildcats
+nicholls,cfb,Nicholls,NICH,manning-field-at-john-l-guidry-stadium,69.48,Southland,fcs,Nicholls|NICH|Nicholls Colonels
+norfolk-state,cfb,Norfolk State,NSU,william-dick-price-stadium,61.33,MEAC,fcs,Norfolk State|NSU|Norfolk State Spartans
+north-alabama,cfb,North Alabama,NOR,braly-municipal-stadium,62.36,UAC,fcs,North Alabama|NOR|North Alabama Lions
+north-carolina-at,cfb,North Carolina A&T,NCAT,aggie-stadium,60.18,CAA,fcs,North Carolina A&T|NCAT|NC A&T|North Carolina A&T Aggies
+north-carolina-central,cfb,North Carolina Central,NCCU,okelly-riddick-stadium,61.42,MEAC,fcs,North Carolina Central|NCCU|NC Central|North Carolina Central Eagles
+north-dakota,cfb,North Dakota,UND,alerus-center,42.5,MVFC,fcs,North Dakota|UND|North Dakota Fighting Hawks
+north-dakota-state,cfb,North Dakota State,NDSU,fargodome,44.57,MVFC,fcs,North Dakota State|NDSU|North Dakota St|North Dakota State Bison
+northern-arizona,cfb,Northern Arizona,NAU,walkup-skydome,49.49,Big Sky,fcs,Northern Arizona|NAU|N Arizona|Northern Arizona Lumberjacks
+northern-colorado,cfb,Northern Colorado,UNCO,nottingham-field,50.44,Big Sky,fcs,Northern Colorado|UNCO|N Colorado|Northern Colorado Bears
+northern-iowa,cfb,Northern Iowa,UNI,uni-dome,50.08,MVFC,fcs,Northern Iowa|UNI|Northern Iowa Panthers
+northwestern-state,cfb,Northwestern State,NWST,harry-turpin-stadium,67.82,Southland,fcs,Northwestern State|NWST|Northwestern St|Northwestern State Demons
+pennsylvania,cfb,Pennsylvania,PENN,franklin-field,56.58,Ivy,fcs,Pennsylvania|PENN|Penn|Pennsylvania Quakers
+portland-state,cfb,Portland State,PRST,hillsboro-stadium,53.03,Big Sky,fcs,Portland State|PRST|Portland State Vikings
+prairie-view,cfb,Prairie View,PVAM,panther-stadium,69.62,SWAC,fcs,Prairie View|PVAM|PV A&M|Prairie View Panthers
+presbyterian,cfb,Presbyterian,PRE,bailey-memorial-stadium,62.6,Pioneer,fcs,Presbyterian|PRE|Presbyterian Blue Hose
+princeton,cfb,Princeton,PRIN,princeton-university-stadium,55.59,Ivy,fcs,Princeton|PRIN|Princeton Tigers
+rhode-island,cfb,Rhode Island,URI,meade-stadium,52.81,CAA,fcs,Rhode Island|URI|Rhode Island Rams
+richmond,cfb,Richmond,RICH,e-claiborne-robins-stadium,59.88,CAA,fcs,Richmond|RICH|Richmond Spiders
+robert-morris,cfb,Robert Morris,RMU,joe-walton-stadium,52.37,NEC,fcs,Robert Morris|RMU|Robert Morris Colonials
+sacramento-state,cfb,Sacramento State,SAC,hornet-stadium-sacramento,61.63,Big Sky,fcs,Sacramento State|SAC|Cal State Sacramento|Sacramento St|Sacramento State Hornets
+sacred-heart,cfb,Sacred Heart,SHU,campus-field,52.81,FCS Independents,fcs,Sacred Heart|SHU|Sacred Heart Pioneers
+samford,cfb,Samford,SAM,seibert-stadium,63.43,Southern,fcs,Samford|SAM|Samford Bulldogs
+san-diego,cfb,San Diego,USD,torero-stadium,61.88,Pioneer,fcs,San Diego|USD|San Diego Toreros
+south-carolina-state,cfb,South Carolina State,SCST,oliver-c-dawson-stadium,65.82,MEAC,fcs,South Carolina State|SCST|S Carolina St|South Carolina State Bulldogs
+south-dakota,cfb,South Dakota,SDAK,dakotadome,51.08,MVFC,fcs,South Dakota|SDAK|South Dakota Coyotes
+south-dakota-state,cfb,South Dakota State,SDSU,dana-j-dykhouse-stadium,46.7,MVFC,fcs,South Dakota State|SDSU|South Dakota St|South Dakota State Jackrabbits
+southeast-missouri-state,cfb,Southeast Missouri State,SEMO,houck-field,58.81,Big South-OVC,fcs,Southeast Missouri State|SEMO|Southeast Missouri|SE Missouri St|Southeast Missouri State Redhawks
+southeastern-louisiana,cfb,Southeastern Louisiana,SELA,strawberry-stadium,68.27,Southland,fcs,Southeastern Louisiana|SELA|Southeast Louisiana|SE Louisiana|Southeastern Louisiana Lions
+southern,cfb,Southern,SOU,ace-w-mumford-stadium,68.7,SWAC,fcs,Southern|SOU|Southern Jaguars
+southern-illinois,cfb,Southern Illinois,SIU,saluki-stadium,58.65,MVFC,fcs,Southern Illinois|SIU|S Illinois|Southern Illinois Salukis
+southern-utah,cfb,Southern Utah,SUU,eccles-coliseum,50.65,UAC,fcs,Southern Utah|SUU|Southern Utah Thunderbirds
+st-francis-pa,cfb,St Francis (PA),SFU,degol-field,49.41,NEC,fcs,St Francis (PA)|SFU|St. Francis PA|St Francis PA|St Francis (PA) Red Flash
+st-thomas-mn,cfb,St. Thomas (MN),STMN,oshaughnessy-stadium,47.28,Pioneer,fcs,St. Thomas (MN)|STMN|St Thomas MN|St. Thomas (MN) Tommies
+stephen-f-austin,cfb,Stephen F. Austin,SFA,homer-bryce-stadium,68.07,Southland,fcs,Stephen F. Austin|SFA|Stephen F Austin|SF Austin|Stephen F. Austin Lumberjacks
+stetson,cfb,Stetson,STET,spec-martin-municipal-stadium,71.79,Pioneer,fcs,Stetson|STET|Stetson Hatters
+stonehill,cfb,Stonehill,SBI,wb-mason-stadium,52.23,NEC,fcs,Stonehill|SBI|Stonehill Chieftains
+stony-brook,cfb,Stony Brook,STON,kenneth-p-lavalle-stadium,54.66,CAA,fcs,Stony Brook|STON|Stony Brook Seawolves
+tarleton-state,cfb,Tarleton State,TAR,memorial-stadium-stephenville-tx,66.93,UAC,fcs,Tarleton State|TAR|Tarleton St|Tarleton State Texans
+tennessee-state,cfb,Tennessee State,TNST,nissan-stadium,60.61,Big South-OVC,fcs,Tennessee State|TNST|Tennessee St|Tennessee State Tigers
+tennessee-tech,cfb,Tennessee Tech,TNTC,tucker-stadium,58.66,Big South-OVC,fcs,Tennessee Tech|TNTC|Tenn Tech|Tennessee Tech Golden Eagles
+texas-am-commerce,cfb,Texas A&M-Commerce,TXA,memorial-stadium-commerce-tx,65.86,Southland,fcs,Texas A&M-Commerce|TXA|TX A&M-Commerce|Texas A&M-Commerce Lions
+texas-southern,cfb,Texas Southern,TXSO,bbva-compass-stadium,70.18,SWAC,fcs,Texas Southern|TXSO|Texas Southern Tigers
+towson,cfb,Towson,TOWS,johnny-unitas-stadium,55.68,CAA,fcs,Towson|TOWS|Towson Tigers
+uc-davis,cfb,UC Davis,UCD,aggie-stadium-davis,62.21,Big Sky,fcs,UC Davis|UCD|California-Davis|UC Davis Aggies
+ut-martin,cfb,UT Martin,UTM,graham-stadium,60.73,Big South-OVC,fcs,UT Martin|UTM|Tennessee Martin|UT Martin Skyhawks
+utah-tech,cfb,Utah Tech,UT,greater-zion-stadium,64.26,UAC,fcs,Utah Tech|UT|Dixie State|Dixie St|Utah Tech Trailblazers
+vmi,cfb,VMI,VMI,alumni-memorial-field,56.39,Southern,fcs,VMI|Virginia Military Institute|VMI Keydets
+valparaiso,cfb,Valparaiso,VALP,brown-field,51.54,Pioneer,fcs,Valparaiso|VALP|Valparaiso Crusaders
+villanova,cfb,Villanova,NOVA,villanova-stadium,55.05,CAA,fcs,Villanova|NOVA|Villanova Wildcats
+wagner,cfb,Wagner,WAG,wagner-college-stadium,54.47,NEC,fcs,Wagner|WAG|Wagner Seahawks
+weber-state,cfb,Weber State,WEB,stewart-stadium,48.26,Big Sky,fcs,Weber State|WEB|Weber State Wildcats
+west-georgia,cfb,West Georgia,WES,university-stadium-ga,61.56,UAC,fcs,West Georgia|WES|West Georgia Wolves
+western-carolina,cfb,Western Carolina,WCU,e-j-whitmire-stadium,56.57,Southern,fcs,Western Carolina|WCU|W Carolina|Western Carolina Catamounts
+western-illinois,cfb,Western Illinois,WIU,hanson-field,53.84,Big South-OVC,fcs,Western Illinois|WIU|W Illinois|Western Illinois Leathernecks
+william-mary,cfb,William & Mary,W&M,zable-stadium,60.45,CAA,fcs,William & Mary|W&M|William & Mary Tribe
+wofford,cfb,Wofford,WOF,gibbs-stadium,61.69,Southern,fcs,Wofford|WOF|Wofford Terriers
+yale,cfb,Yale,YALE,yale-bowl,53.64,Ivy,fcs,Yale|YALE|Yale Bulldogs
+youngstown-state,cfb,Youngstown State,YSU,stambaugh-stadium,52.22,MVFC,fcs,Youngstown State|YSU|Youngstown St|Youngstown State Penguins
+adams-state,cfb,Adams State,ADST,rex-stadium,44.65,Rocky Mountain,ii,Adams State|ADST|Adams St|Adams State Grizzlies
+albany-state-ga,cfb,Albany State (GA),ALB,albany-state-university-coliseum,67.61,SIAC,ii,Albany State (GA)|ALB|Albany St (GA)|Albany State (GA) Golden Rams
+alderson-broaddus,cfb,Alderson-Broaddus,ABC,multi-sport-performance-stadium,54.2,Mountain East,ii,Alderson-Broaddus|ABC|Ald.-Broaddus|Alderson-Broaddus Battlers
+allen,cfb,Allen,ALN,wc-hawkins-stadium,64.25,SIAC,ii,Allen|ALN|Allen Yellow Jackets
+american-international,cfb,American International,AIC,ronald-j-abdow-field,52.18,Northeast 10,ii,American International|AIC|American Intl.|American International Yellow Jackets
+angelo-state,cfb,Angelo State,ANG,legrand-stadium-at-1st-community-credit-union-field,68.34,Lone Star,ii,Angelo State|ANG|Angelo St|Angelo State Rams
+arkansas-tech,cfb,Arkansas Tech,ARK,thone-stadium-at-buerkle-field,62.71,Great American,ii,Arkansas Tech|ARK|Arkansas Tech Wonder Boys
+arkansas-monticello,cfb,Arkansas-Monticello,ARK,convoy-leslie-cotton-boll-stadium,64.72,Great American,ii,Arkansas-Monticello|ARK|AR-Monticello|Arkansas-Monticello Weevils
+ashland,cfb,Ashland,ASH,jack-miller-stadium,52.22,Great Midwest Athletic,ii,Ashland|ASH|Ashland Eagles
+assumption,cfb,Assumption,ASP,multi-sport-stadium,51.12,Northeast 10,ii,Assumption|ASP|Assumption College|Assumption Greyhounds
+augustana-sd,cfb,Augustana (SD),AUG,kirkeby-over-stadium,48.73,Northern Sun,ii,Augustana (SD)|AUG|Augustana (SD) Vikings
+barton-college,cfb,Barton College,BAR,electric-supply-company-field,62.23,South Atlantic,ii,Barton College|BAR|Barton College Bulldogs
+bemidji-state,cfb,Bemidji State,BEM,chet-anderson-stadium,42.08,Northern Sun,ii,Bemidji State|BEM|Bemidji State Beavers
+benedict-college,cfb,Benedict College,BBG,charlie-w-johnson-stadium,64.25,SIAC,ii,Benedict College|BBG|Benedict|Benedict College Tigers
+bentley,cfb,Bentley,BENT,bentley-university-football-stadium,52.1,Northeast 10,ii,Bentley|BENT|Bentley Falcons
+black-hills-state,cfb,Black Hills State,BLA,lyle-hare-stadium,49.19,Rocky Mountain,ii,Black Hills State|BLA|Black Hills St|Black Hills State Yellow Jackets
+bloomsburg,cfb,Bloomsburg,BLO,robert-b-redman-stadium,52.85,Pennsylvania State Athletic,ii,Bloomsburg|BLO|Bloomsburg Huskies
+bluefield,cfb,Bluefield,,mitchell-stadium,52.47,CIAA,ii,Bluefield|Bluefield Bluefields
+bowie-state,cfb,Bowie State,BOW,bulldogs-stadium,57.11,CIAA,ii,Bowie State|BOW|Bowie St|Bowie State Bulldogs
+california-pa,cfb,California (PA),CAL,adamson-stadium,54.19,Pennsylvania State Athletic,ii,California (PA)|CAL|California (Pennsylvania)|California (PA) Vulcans
+carson-newman,cfb,Carson-Newman,CNEW,burke-tarr-stadium,59.11,South Atlantic,ii,Carson-Newman|CNEW|Carson Newman College|Carson-Newman Eagles
+catawba,cfb,Catawba,CAT,shuford-stadium,60.59,South Atlantic,ii,Catawba|CAT|Catawba College|Catawba Indians
+central-missouri-state,cfb,Central Missouri State,CEN,audrey-j-walton-stadium-at-vernon-kennedy-field,56.67,Mid America,ii,Central Missouri State|CEN|Cent Missouri St|Central Missouri State Mules
+central-oklahoma,cfb,Central Oklahoma,CEN,wantland-stadium,62.06,Mid America,ii,Central Oklahoma|CEN|Cent Oklahoma|Central Oklahoma Bronchos
+central-state-oh,cfb,Central State (OH),CCI,mcpherson-memorial-stadium,54.04,SIAC,ii,Central State (OH)|CCI|Central St|Central State (OH) Marauders
+central-washington,cfb,Central Washington,CEN,tomlinson-stadium,50.37,Lone Star,ii,Central Washington|CEN|Cent Washington|Central Washington Wildcats
+chadron-state,cfb,Chadron State,CHA,elliott-field-at-don-beebe-stadium,50.11,Rocky Mountain,ii,Chadron State|CHA|Chadron St|Chadron State Eagles
+charleston-wv,cfb,Charleston (WV),CHA,university-of-charleston-stadium,57.16,Mountain East,ii,Charleston (WV)|CHA|Charleston (WV) Golden Eagles
+chowan,cfb,Chowan,CHO,garrison-stadium,61.6,Gulf South,ii,Chowan|CHO|Chowan Braves
+clarion,cfb,Clarion,CLA,memorial-stadium-clarion-pa,49.6,Pennsylvania State Athletic,ii,Clarion|CLA|Clarion Golden Eagles
+clark-atlanta,cfb,Clark Atlanta,CLK,cau-panther-stadium,61.64,SIAC,ii,Clark Atlanta|CLK|Clark Atlanta Panthers
+colorado-mesa,cfb,Colorado Mesa,MESA,ralph-stocker-stadium,54.99,Rocky Mountain,ii,Colorado Mesa|MESA|Colorado Mesa Mavericks
+colorado-mines,cfb,Colorado Mines,COL,marv-kay-stadium-at-campbell-field,48.77,Rocky Mountain,ii,Colorado Mines|COL|Colorado School of Mines|Colorado Mines Orediggers
+colorado-state-pueblo,cfb,Colorado State-Pueblo,CSUP,neta-and-eddie-derose-thunderbowl,55.34,Rocky Mountain,ii,Colorado State-Pueblo|CSUP|Colorado St-Pueblo|Colorado State-Pueblo Thunderwolves
+concord,cfb,Concord,CON,callaghan-stadium,52.86,Mountain East,ii,Concord|CON|Concord Mountain Lions
+concordia-st-paul,cfb,Concordia-St. Paul,CON,sea-foam-stadium,47.28,Northern Sun,ii,Concordia-St. Paul|CON|Concordia-St. Paul Golden Bears
+davenport,cfb,Davenport,DU,farmers-insurance-athletic-complex,57.15,GLIAC,ii,Davenport|DU|Davenport Panthers
+delta-state,cfb,Delta State,DEL,parker-field-at-mccool-stadium,64.73,Gulf South,ii,Delta State|DEL|Delta St|Delta State Statesmen
+east-central,cfb,East Central,EAS,koi-ishto-stadium,63.23,Great American,ii,East Central|EAS|East Central University|East Central Tigers
+east-stroudsburg,cfb,East Stroudsburg,EAS,eiler-martin-stadium,52.92,Pennsylvania State Athletic,ii,East Stroudsburg|EAS|E Stroudsburg|East Stroudsburg Warriors
+eastern-new-mexico,cfb,Eastern New Mexico,EAS,al-whitehead-field-at-greyhound-stadium,61.43,Lone Star,ii,Eastern New Mexico|EAS|E New Mexico|Eastern New Mexico Greyhounds
+edinboro,cfb,Edinboro,EDI,sox-harrison-stadium,49.51,Pennsylvania State Athletic,ii,Edinboro|EDI|Edinboro Fighting Scots
+edward-waters,cfb,Edward Waters,EDW,earl-kitchings-stadium,69.83,SIAC,ii,Edward Waters|EDW|Edward Waters Tigers
+elizabeth-city-state,cfb,Elizabeth City State,ELI,roebuck-stadium,61.82,CIAA,ii,Elizabeth City State|ELI|Elizabeth City St|Elizabeth City State Vikings
+emory-henry,cfb,Emory & Henry,EMO,fred-selfe-stadium-at-nicewonder-field,57.17,South Atlantic,ii,Emory & Henry|EMO|Emory & Henry Wasps
+emporia-state,cfb,Emporia State,EMP,francis-g-welch-stadium,57.54,Mid America,ii,Emporia State|EMP|Emporia St|Emporia State Hornets
+erskine,cfb,Erskine,ERS,jw-babb-stadium,62.88,Gulf South,ii,Erskine|ERS|Erskine Flying Fleet
+fairmont-state,cfb,Fairmont State,FAI,duvall-rosier-field,54.03,Mountain East,ii,Fairmont State|FAI|Fairmont St|Fairmont State Falcons
+fayetteville-state,cfb,Fayetteville State,FAY,luther-nick-jeralds-stadium,63.39,CIAA,ii,Fayetteville State|FAY|Fayetteville St|Fayetteville State Broncos
+ferris-state,cfb,Ferris State,FER,top-taggart-field,48.33,GLIAC,ii,Ferris State|FER|Ferris St|Ferris State Bulldogs
+findlay,cfb,Findlay,FIN,donnell-stadium,52.86,Great Midwest Athletic,ii,Findlay|FIN|Findlay Oilers
+fort-hays-state,cfb,Fort Hays State,FHSU,lewis-field-stadium,56.54,Mid America,ii,Fort Hays State|FHSU|Fort Hays St|Fort Hays State Tigers
+fort-lewis,cfb,Fort Lewis,FOR,ray-dennison-memorial-field,45.7,Rocky Mountain,ii,Fort Lewis|FOR|Fort Lewis Skyhawks
+fort-valley-state,cfb,Fort Valley State,FOR,wildcat-stadium-ga,65.63,SIAC,ii,Fort Valley State|FOR|Fort Valley St|Fort Valley State Wildcats
+frostburg-state,cfb,Frostburg State,FRO,bobcat-stadium-md,50.54,Mountain East,ii,Frostburg State|FRO|Frostburg St|Frostburg State Bobcats
+gannon,cfb,Gannon,GAN,mcconnell-family-stadium,51.48,Pennsylvania State Athletic,ii,Gannon|GAN|Gannon Golden Knights
+glenville-state,cfb,Glenville State,GLE,il-sue-morris-stadium,55.83,Mountain East,ii,Glenville State|GLE|Glenville St|Glenville State Pioneers
+grand-valley-state,cfb,Grand Valley State,GVSU,lubbers-stadium,50.22,GLIAC,ii,Grand Valley State|GVSU|Grand Valley St|Grand Valley State Lakers
+harding,cfb,Harding,HAR,first-security-stadium,60.73,Great American,ii,Harding|HAR|Harding Bison
+henderson-state,cfb,Henderson State,HEN,ruggles-field-at-carpenter-haygood-stadium,64.25,Great American,ii,Henderson State|HEN|Henderson St|Henderson State Reddies
+hillsdale,cfb,Hillsdale,HIL,frank-muddy-waters-stadium,50.01,Great Midwest Athletic,ii,Hillsdale|HIL|Hillsdale Chargers
+indiana-pa,cfb,Indiana (PA),IND,george-p-miller-stadium,51.4,Pennsylvania State Athletic,ii,Indiana (PA)|IND|IUP|Indiana (PA) Crimson Hawks
+indianapolis,cfb,Indianapolis,IND,key-stadium,54.51,Great Lakes,ii,Indianapolis|IND|Indianapolis Greyhounds
+johnson-c-smith,cfb,Johnson C Smith,JOH,irwin-belk-complex,61.34,CIAA,ii,Johnson C Smith|JOH|Johnson Smith|Johnson C Smith Golden Bulls
+kentucky-state,cfb,Kentucky State,KYS,alumni-stadium-ky,57.4,SIAC,ii,Kentucky State|KYS|Kentucky St|Kentucky State Thorobreds
+kentucky-wesleyan,cfb,Kentucky Wesleyan,KYW,steele-stadium,58.42,Great Midwest Athletic,ii,Kentucky Wesleyan|KYW|Kentucky Wesleyan Panthers
+kutztown,cfb,Kutztown,KUT,andre-reed-stadium,53.77,Pennsylvania State Athletic,ii,Kutztown|KUT|Kutztown Golden Bears
+lake-erie-college,cfb,Lake Erie College,LKE,jack-britt-memorial-stadium,52.19,Great Midwest Athletic,ii,Lake Erie College|LKE|Lake Erie |Lake Erie College Storm
+lane,cfb,Lane,LAN,lane-field,61.92,SIAC,ii,Lane|LAN|Lane College|Lane Dragons
+lenoir-rhyne,cfb,Lenoir-Rhyne,LEN,helen-and-leonard-moretz-stadium,59.3,South Atlantic,ii,Lenoir-Rhyne|LEN|Lenoir-Rhyne Bears
+limestone,cfb,Limestone,LIM,the-reservation,61.25,South Atlantic,ii,Limestone|LIM|Limestone Saints
+lincoln-mo,cfb,Lincoln (MO),LIN,dwight-t-reed-stadium,57.19,Great Lakes,ii,Lincoln (MO)|LIN|Lincoln (MO) Blue Tigers
+lincoln-pa,cfb,Lincoln (PA),LIN,lincoln-university-stadium,55.09,CIAA,ii,Lincoln (PA)|LIN|Lincoln (PA) Lions
+livingstone,cfb,Livingstone,LVI,alumni-memorial-stadium-nc,60.59,CIAA,ii,Livingstone|LVI|Livingstone Blue Bears
+lock-haven,cfb,Lock Haven,LOC,hubert-jack-stadium,52.69,Pennsylvania State Athletic,ii,Lock Haven|LOC|Lock Haven Bald Eagles
+mars-hill,cfb,Mars Hill,MAR,meares-stadium,55.66,South Atlantic,ii,Mars Hill|MAR|Mars Hill Lions
+mckendree,cfb,McKendree,MAN,leemon-field,57.14,Great Lakes,ii,McKendree|MAN|McKendree Bearcats
+michigan-tech,cfb,Michigan Tech,MIC,sherman-field,42.26,GLIAC,ii,Michigan Tech|MIC|Michigan Tech Huskies
+midwestern-state,cfb,Midwestern State,MID,memorial-stadium-wichita-falls-tx,66.86,Lone Star,ii,Midwestern State|MID|Midwest|Midwestern State Mustangs
+miles,cfb,Miles,MIL,albert-j-h-sloan-alumni-stadium,63.66,SIAC,ii,Miles|MIL|Miles Golden Bears
+millersville,cfb,Millersville,MIL,chryst-field-at-biemesderfer-stadium,55.64,Pennsylvania State Athletic,ii,Millersville|MIL|Millersville Marauders
+minnesota-st-moorhead,cfb,Minnesota St-Moorhead,MOO,scheels-field-at-nemzek-stadium,44.61,Northern Sun,ii,Minnesota St-Moorhead|MOO|Minn St-Moorhead|Minnesota St-Moorhead Dragon
+minnesota-state,cfb,Minnesota State,MNST,blakeslee-stadium,48.27,Northern Sun,ii,Minnesota State|MNST|Minnesota State Mankato|Minnesota St|Minnesota State Mavericks
+minnesota-duluth,cfb,Minnesota-Duluth,MNDU,james-s-malosky-stadium,42.7,Northern Sun,ii,Minnesota-Duluth|MNDU|Minnesota-Duluth Bulldogs
+minot-state,cfb,Minot State,MIN,herb-parker-stadium,43.21,Northern Sun,ii,Minot State|MIN|Minot St|Minot State Beavers
+mississippi-college,cfb,Mississippi College,MIS,robinson-hale-stadium,65.7,Gulf South,ii,Mississippi College|MIS|Miss. College|Mississippi College Choctaws
+missouri-st,cfb,Missouri S&T,S&T,allgood-bailey-stadium,56.66,Great Lakes,ii,Missouri S&T|S&T|Missouri S&T Miners
+missouri-southern-state,cfb,Missouri Southern State,MOS,fred-g-hughes-stadium,59.36,Mid America,ii,Missouri Southern State|MOS|Missouri South St|Missouri Southern State Lions
+missouri-western,cfb,Missouri Western,MOW,craig-field-at-spratt-memorial-stadium,55.64,Mid America,ii,Missouri Western|MOW|Missouri West|Missouri Western Griffons
+morehouse,cfb,Morehouse,MOR,bt-harvey-stadium,61.64,SIAC,ii,Morehouse|MOR|Morehouse Tigers
+nebraska-kearney,cfb,Nebraska-Kearney,NEB,ron-carol-cope-stadium-at-foster-field,52.9,Mid America,ii,Nebraska-Kearney|NEB|Nebraska-Kearney Lopers
+new-haven,cfb,New Haven,NH,ralph-f-dellacamera-stadium,53.61,Northeast 10,ii,New Haven|NH|New Haven Chargers
+new-mexico-highlands,cfb,New Mexico Highlands,NMH,sanchez-family-stadium,51.34,Rocky Mountain,ii,New Mexico Highlands|NMH|New Mexico Highlands Cowboys
+newberry,cfb,Newberry,NBY,setzler-field,63.39,South Atlantic,ii,Newberry|NBY|Newberry Wolves
+north-greenville,cfb,North Greenville,NGR,younts-stadium,60.43,Gulf South,ii,North Greenville|NGR|N Greenville|North Greenville Crusaders
+northeastern-state,cfb,Northeastern State,NEO,gable-field-at-doc-wadley-stadium,61.24,Independent DII,ii,Northeastern State|NEO|NE St|Northeastern State RiverHawks
+northern-michigan,cfb,Northern Michigan,NOR,superior-dome,44.37,GLIAC,ii,Northern Michigan|NOR|N Michigan|Northern Michigan Wildcats
+northern-state,cfb,Northern State,NOR,swisher-field,46.29,Northern Sun,ii,Northern State|NOR|Northern St|Northern State Wolves
+northwest-missouri-state,cfb,Northwest Missouri State,NWMS,bearcat-stadium,53.84,Mid America,ii,Northwest Missouri State|NWMS|NW Missouri St|Northwest Missouri State Bearcats
+northwestern-oklahoma-state,cfb,Northwestern Oklahoma State,NWO,ranger-field,61.13,Great American,ii,Northwestern Oklahoma State|NWO|NW Oklahoma St|Northwestern Oklahoma State Rangers
+northwood-mi,cfb,Northwood (MI),NAR,hantz-stadium,49.4,Great Midwest Athletic,ii,Northwood (MI)|NAR|Northwood University|Northwood|Northwood (MI) Timberwolves
+notre-dame-college,cfb,Notre Dame College,NOT,mueller-field,51.5,Mountain East,ii,Notre Dame College|NOT|Notre Dame College Blue Falcons
+ohio-dominican,cfb,Ohio Dominican,,panther-stadium-oh,53.9,Great Midwest Athletic,ii,Ohio Dominican|Panthers|Ohio Dominican Panthers
+oklahoma-baptist,cfb,Oklahoma Baptist,OB,crain-family-stadium,62.27,Great American,ii,Oklahoma Baptist|OB|Oklahoma Bapt|Oklahoma Baptist Bison
+ouachita-baptist,cfb,Ouachita Baptist,OUA,cliff-harris-stadium,64.25,Great American,ii,Ouachita Baptist|OUA|Ouachita Baptist Tigers
+pace,cfb,Pace,PAC,pace-stadium,53.29,Northeast 10,ii,Pace|PAC|Pace Setters
+pittsburg-state,cfb,Pittsburg State,PIT,carnie-smith-stadium,59.13,Mid America,ii,Pittsburg State|PIT|Pittsburg St|Pittsburg State Gorillas
+quincy,cfb,Quincy,QUI,qu-stadium,55.03,Great Lakes,ii,Quincy|QUI|Quincy Hawks
+saginaw-valley,cfb,Saginaw Valley,SAG,harvey-randall-wickes-memorial-stadium,76.15,GLIAC,ii,Saginaw Valley|SAG|Saginaw Valley State|Saginaw Valley Cardinals
+savannah-state,cfb,Savannah State,SAV,ted-wright-stadium,67.43,SIAC,ii,Savannah State|SAV|Savannah State Tigers
+seton-hill-college,cfb,Seton Hill College,SET,offutt-field,52.77,Pennsylvania State Athletic,ii,Seton Hill College|SET|Seton Hill |Seton Hill College Griffins
+shaw,cfb,Shaw,SHA,george-williams-athletic-complex,61.46,CIAA,ii,Shaw|SHA|Shaw Bears
+shepherd,cfb,Shepherd,SHE,ram-stadium-wv,56.33,Pennsylvania State Athletic,ii,Shepherd|SHE|Shepherd Rams
+shippensburg,cfb,Shippensburg,SHI,seth-grove-stadium,54.76,Pennsylvania State Athletic,ii,Shippensburg|SHI|Shippensburg Raiders
+shorter,cfb,Shorter,SHO,barron-stadium,62.16,Gulf South,ii,Shorter|SHO|Shorter Hawks
+simon-fraser,cfb,Simon Fraser,SIM,terry-fox-field,61.35,Lone Star,ii,Simon Fraser|SIM|Simon Fraser Clansmen
+sioux-falls,cfb,Sioux Falls,SIO,bob-young-field,48.73,Northern Sun,ii,Sioux Falls|SIO|Sioux Falls Cougars
+slippery-rock,cfb,Slippery Rock,SRU,mihalik-thompson-stadium,50.65,Pennsylvania State Athletic,ii,Slippery Rock|SRU|Slippery Rock The Rock
+south-dakota-mines,cfb,South Dakota Mines,SDA,oharra-stadium,49.14,Rocky Mountain,ii,South Dakota Mines|SDA|SD Mines|South Dakota Mines Hardrockers
+southeastern-oklahoma,cfb,Southeastern Oklahoma,SEOS,paul-laird-field,64.83,Great American,ii,Southeastern Oklahoma|SEOS|Southeastern Oklahoma State|SEOkla St|Southeastern Oklahoma Savage Storm
+southern-arkansas,cfb,Southern Arkansas,SOU,wilkins-stadium,65.28,Great American,ii,Southern Arkansas|SOU|S Arkansas|Southern Arkansas Muleriders
+southern-connecticut-state,cfb,Southern Connecticut State,SOU,jess-dow-field,53.54,Northeast 10,ii,Southern Connecticut State|SOU|S Conn St|Southern Connecticut State Owls
+southern-nazarene,cfb,Southern Nazarene,STN,southern-nazarene-university-football-stadium,62.1,Great American,ii,Southern Nazarene|STN|S Nazarene|Southern Nazarene Crimson Storm
+southwest-baptist,cfb,Southwest Baptist,SWB,plaster-sports-complex,57.25,Great Lakes,ii,Southwest Baptist|SWB|SW Baptist|Southwest Baptist Bearcats
+southwest-minnesota-state,cfb,Southwest Minnesota State,SWM,schwan-regional-event-center,41.51,Northern Sun,ii,Southwest Minnesota State|SWM|SW Minnesota St|Southwest Minnesota State Mustangs
+southwestern-oklahoma,cfb,Southwestern Oklahoma,SWO,milam-stadium,61.57,Great American,ii,Southwestern Oklahoma|SWO|Southwestern Oklahoma State|SW Oklahoma|Southwestern Oklahoma Bulldogs
+st-anselm,cfb,St. Anselm,STA,grappone-stadium,50.27,Northeast 10,ii,St. Anselm|STA|St. Anselm Hawks
+st-augustines,cfb,St. Augustine's,STA,george-williams-athletic-complex,61.46,CIAA,ii,St. Augustine's|STA|St. Augustine's Falcons
+sul-ross-state,cfb,Sul Ross State,SUL,jackson-field,64.94,Lone Star,ii,Sul Ross State|SUL|Sul Ross St|Sul Ross State Lobos
+texas-am-kingsville,cfb,Texas A&M-Kingsville,TXA,javelina-stadium,73.34,Lone Star,ii,Texas A&M-Kingsville|TXA|Texas A&M-Kingsville Javelinas
+tiffin,cfb,Tiffin,TIF,frost-kalnow-stadium,52.79,Great Midwest Athletic,ii,Tiffin|TIF|Tiffin Dragons
+truman-state,cfb,Truman State,TRU,stokes-stadium,53.6,Great Lakes,ii,Truman State|TRU|Truman St|Truman State Bulldogs
+tusculum,cfb,Tusculum,TUS,pioneer-field-tn,57.4,South Atlantic,ii,Tusculum|TUS|Tusculum Pioneers
+tuskegee,cfb,Tuskegee,TUS,abbott-memorial-alumni-stadium,65.22,SIAC,ii,Tuskegee|TUS|Tuskegee Golden Tigers
+unc-pembroke,cfb,UNC Pembroke,NCP,grace-p-johnson-stadium,63.79,Mountain East,ii,UNC Pembroke|NCP|UNC Pembroke Braves
+uva-wise,cfb,UVA-Wise,VAW,carl-smith-stadium,53.45,South Atlantic,ii,UVA-Wise|VAW|UVA Wise|UVA-Wise Highland Cavaliers
+university-of-mary,cfb,University of Mary,MAR,mdu-resources-community-bowl,44.23,Northern Sun,ii,University of Mary|MAR|U of Mary|University of Mary Marauders
+university-of-texas-of-the-permian-basin,cfb,University of Texas of the Permian Basin,UTPB,ratliff-stadium,66.32,Lone Star,ii,University of Texas of the Permian Basin|UTPB|University of Texas of the Permian Basin Falcons
+upper-iowa,cfb,Upper Iowa,UI,harms-eischeid-stadium,48.63,Great Lakes,ii,Upper Iowa|UI|Upper Iowa Peacocks
+valdosta-state,cfb,Valdosta State,VAL,bazemore-hyder-stadium,67.97,Gulf South,ii,Valdosta State|VAL|Valdosta St|Valdosta State Blazers
+virginia-state,cfb,Virginia State,VIR,rogers-stadium-va,60.44,CIAA,ii,Virginia State|VIR|Virginia St|Virginia State Trojans
+virginia-union,cfb,Virginia Union,VIR,hovey-field,59.83,CIAA,ii,Virginia Union|VIR|Virginia Union Panthers
+wv-wesleyan,cfb,WV Wesleyan,WVW,cebe-ross-field,54.1,Mountain East,ii,WV Wesleyan|WVW|West Virginia Wesleyan|WV Wesleyan Bobcats
+walsh,cfb,Walsh,WALSH,tom-benson-hall-of-fame-stadium,52.29,Great Midwest Athletic,ii,Walsh|WALSH|Walsh Cavaliers
+washburn,cfb,Washburn,WAS,yager-stadium-at-moore-bowl,57.04,Mid America,ii,Washburn|WAS|Washburn Ichabods
+wayne-state-mi,cfb,Wayne State (MI),WAY,tom-adams-field,51.31,GLIAC,ii,Wayne State (MI)|WAY|Wayne St (MI)|Wayne State (MI) Warriors
+wayne-state-ne,cfb,Wayne State (NE),WAY,memorial-stadium-wayne-ne,50.81,Northern Sun,ii,Wayne State (NE)|WAY|Wayne St (NE)|Wayne State (NE) Wildcats
+west-alabama,cfb,West Alabama,WES,tiger-stadium-al,66.17,Gulf South,ii,West Alabama|WES|West Alabama Tigers
+west-chester,cfb,West Chester,WES,john-a-farrell-stadium,54.9,Pennsylvania State Athletic,ii,West Chester|WES|West Chester Golden Rams
+west-liberty,cfb,West Liberty,WES,west-family-stadium,54.42,Mountain East,ii,West Liberty|WES|West Liberty Hilltoppers
+west-texas-am,cfb,West Texas A&M,WES,buffalo-stadium,60.69,Lone Star,ii,West Texas A&M|WES|West Texas A&M Buffaloes
+west-virginia-state,cfb,West Virginia State,WES,dickerson-stadium,56.8,Mountain East,ii,West Virginia State|WES|WV St|West Virginia State Yellow Jackets
+western-new-mexico,cfb,Western New Mexico,WES,ben-altamirano-field,58.46,Lone Star,ii,Western New Mexico|WES|W New Mexico|Western New Mexico Mustangs
+western-oregon,cfb,Western Oregon,WES,mcarthur-field,53.14,Lone Star,ii,Western Oregon|WES|Western Oregon Wolves
+western-state,cfb,Western State,WES,mountaineer-bowl,34.74,Rocky Mountain,ii,Western State|WES|Western St.|Western State Mountaineers
+wheeling-jesuit,cfb,Wheeling Jesuit,WJ,bishop-schmitt-field,54.42,Mountain East,ii,Wheeling Jesuit|WJ|Wheeling Jesuit Cardinals
+william-jewell-college,cfb,William Jewell College,WJC,greene-stadium,55.85,Great Lakes,ii,William Jewell College|WJC|William Jewell|William Jewell |William Jewell College Cardinals
+wingate,cfb,Wingate,WIN,irwin-belk-stadium,62.3,South Atlantic,ii,Wingate|WIN|Wingate Bulldogs
+winona-state,cfb,Winona State,WIN,altra-federal-credit-union-stadium,47.04,Northern Sun,ii,Winona State|WIN|Winona St|Winona State Warriors
+winston-salem,cfb,Winston-Salem,WSSU,bowman-gray-stadium,59.98,CIAA,ii,Winston-Salem|WSSU|Winston-Salem Rams
+adrian,cfb,Adrian,ADR,docking-stadium,51.53,Michigan,iii,Adrian|ADR|Adrian Bulldogs
+albion,cfb,Albion,ALBI,sprankle-sprandel-stadium,50.31,Michigan,iii,Albion|ALBI|Albion Britons
+albright,cfb,Albright,ALB,gene-l-shirk-stadium,55.09,Mid Atlantic,iii,Albright|ALB|Albright Lions
+alfred,cfb,Alfred,ALF,merrill-field-at-yunevich-stadium,47.68,Empire 8,iii,Alfred|ALF|Alfred Saxons
+alfred-state-college,cfb,Alfred State College,ASC,pioneer-stadium,47.68,ECFC,iii,Alfred State College|ASC|Alfred St |Alfred State College Pioneers
+allegheny,cfb,Allegheny,ALL,frank-b-fuhrer-field,50.39,Presidents',iii,Allegheny|ALL|Allegheny Golden Gators
+alma-college,cfb,Alma College,ALM,bahlke-field,49.49,Michigan,iii,Alma College|ALM|Alma College Scots
+alvernia-university,cfb,Alvernia University,ALV,turf-field,55.09,Mid Atlantic,iii,Alvernia University|ALV|Alvernia University Golden Wolves
+amherst-college,cfb,Amherst College,AMH,pratt-field-at-lehrman-stadium,51.34,NESCAC,iii,Amherst College|AMH|Amherst|Amherst |Amherst College Mammoths
+anderson-in,cfb,Anderson (IN),AND,macholtz-stadium,53.48,Heartland,iii,Anderson (IN)|AND|Anderson (IN) Ravens
+anna-maria-college,cfb,Anna Maria College,ANN,caparso-field,48.86,ECFC,iii,Anna Maria College|ANN|Anna Maria |Anna Maria College Amcats
+apprentice-school,cfb,Apprentice School,APP,apprentice-field,61.55,Independent DIII,iii,Apprentice School|APP|Apprentice School Builders
+augsburg,cfb,Augsburg,AUG,edor-nelson-field,46.53,Minnesota,iii,Augsburg|AUG|Augsburg Auggies
+augustana-il,cfb,Augustana (IL),AUG,charles-d-lindberg-stadium,52.54,CCIW,iii,Augustana (IL)|AUG|Augustana (IL) Vikings
+aurora,cfb,Aurora,AUR,vago-field,51.64,NACC,iii,Aurora|AUR|Aurora Spartans
+austin-college,cfb,Austin College,AUS,jerry-e-apple-stadium,59.19,Southern Collegiate Athletic,iii,Austin College|AUS|Austin College Kangaroos
+averett,cfb,Averett,AVE,daly-field-at-frank-r-campbell-stadium,59.93,Old Dominion,iii,Averett|AVE|Averett Cougars
+baldwin-wallace,cfb,Baldwin-Wallace,BAL,george-finnie-stadium,52.62,Ohio,iii,Baldwin-Wallace|BAL|Baldwin-Wallace Yellow Jackets
+bates-college,cfb,Bates College,BAT,garcelon-field,48.14,NESCAC,iii,Bates College|BAT|Bates|Bates College Bobcats
+belhaven-college,cfb,Belhaven College,BEL,belhaven-bowl-stadium,65.51,USA South,iii,Belhaven College|BEL|Belhaven |Belhaven College Blazers
+beloit-college,cfb,Beloit College,BEL,strong-stadium,50.26,Midwest,iii,Beloit College|BEL|Beloit|Beloit College Buccaneers
+benedictine-il,cfb,Benedictine (IL),BEN,village-of-lisle-benedictine-university-sports-complex,51.42,NACC,iii,Benedictine (IL)|BEN|Benedictine (IL) Eagles
+berry-college,cfb,Berry College,BER,valhalla-stadium,62.19,Southern Athletic,iii,Berry College|BER|Berry|Berry College Vikings
+bethany-wv,cfb,Bethany (WV),BET,bison-stadium,53.85,Presidents',iii,Bethany (WV)|BET|Bethany (West Virginia)|Bethany (WV) Bison
+bethel-mn,cfb,Bethel (MN),BET,royal-stadium,46.45,Minnesota,iii,Bethel (MN)|BET|Bethel (MN) Royals
+birmingham-southern,cfb,Birmingham-Southern,BIR,general-charles-c-krulak-stadium,63.72,Southern Athletic,iii,Birmingham-Southern|BIR|Birmingham-Southern Panthers
+bluffton,cfb,Bluffton,BLU,alumni-field-oh,53.01,Heartland,iii,Bluffton|BLU|Bluffton Beavers
+bowdoin,cfb,Bowdoin,BOW,whittier-field,48.5,NESCAC,iii,Bowdoin|BOW|Bowdoin Polar Bears
+brevard-college,cfb,Brevard College,BRE,brevard-memorial-stadium,56.73,USA South,iii,Brevard College|BRE|Brevard |Brevard College Tornados
+bridgewater-va,cfb,Bridgewater (VA),BRD,jopson-athletic-complex,55.16,Old Dominion,iii,Bridgewater (VA)|BRD|Bridgewater (VA) Eagles
+bridgewater-state,cfb,Bridgewater State,BGW,edward-c-swenson-athletic-complex,52.44,MSCAC,iii,Bridgewater State|BGW|Bridgewater St|Bridgewater State Bears
+brockport-state-ny,cfb,Brockport State (NY),BRO,bob-boozer-field,50.06,Empire 8,iii,Brockport State (NY)|BRO|Brockport St (NY)|Brockport State (NY) Golden Eagles
+buena-vista,cfb,Buena Vista,BUE,j-leslie-rollins-stadium,49.74,American Rivers,iii,Buena Vista|BUE|Buena Vista Beavers
+buffalo-state,cfb,Buffalo State,BUF,coyer-field,50.13,Liberty League,iii,Buffalo State|BUF|Buffalo St|Buffalo State Bengals
+cal-lutheran,cfb,Cal Lutheran,CAL,william-rolland-stadium,64.32,So. Cal.,iii,Cal Lutheran|CAL|California Lutheran|Cal Lutheran Kingsmen
+capital,cfb,Capital,CAP,bernlohr-stadium,53.74,Ohio,iii,Capital|CAP|Capital Crusaders
+carleton,cfb,Carleton,CAR,laird-stadium,47.5,Minnesota,iii,Carleton|CAR|Carleton Knights
+carnegie-mellon,cfb,Carnegie Mellon,CAR,gesling-stadium,53.68,Presidents',iii,Carnegie Mellon|CAR|Carnegie Mellon Tartans
+carroll-wi,cfb,Carroll (WI),CAR,schneider-stadium,49.34,CCIW,iii,Carroll (WI)|CAR|Carroll (Wisconsin)|Carroll (WI) Pioneers
+carthage,cfb,Carthage,CAR,art-keller-field,50.21,CCIW,iii,Carthage|CAR|Carthage Redmen
+case-western-reserve,cfb,Case Western Reserve,CSR,case-field,52.48,Presidents',iii,Case Western Reserve|CSR|Case West Reserve|Case Western Reserve Spartans
+castleton-state-college,cfb,Castleton State College,CAS,dave-wolk-stadium,48.29,MSCAC,iii,Castleton State College|CAS|Castleton St |Castleton State College Spartans
+catholic-university,cfb,Catholic University,CATH,cardinal-stadium-dc,57.99,Landmark Conference,iii,Catholic University|CATH|Catholic Univ.|Catholic University Cardinals
+central,cfb,Central,CEN,ron-and-joyce-schipper-stadium,51.92,American Rivers,iii,Central|CEN|Central Dutch
+centre,cfb,Centre,CEN,farris-stadium,56.86,Southern Athletic,iii,Centre|CEN|Centre Colonels
+chapman,cfb,Chapman,CHA,ernie-chapman-stadium,63.46,So. Cal.,iii,Chapman|CHA|Chapman Panthers
+chicago,cfb,Chicago,CHI,amos-alonzo-stagg-field,51.11,Midwest,iii,Chicago|CHI|Chicago Maroons
+christopher-newport,cfb,Christopher Newport,CHR,townebank-stadium,61.55,New Jersey,iii,Christopher Newport|CHR|Christopher Newport Captains
+claremont,cfb,Claremont,CLA,fritz-b-burns-stadium,62.76,So. Cal.,iii,Claremont|CLA|Claremont Stags
+coast-guard,cfb,Coast Guard,COA,cadet-memorial-field,53.17,NEWMAC,iii,Coast Guard|COA|Coast Guard Bears
+coe,cfb,Coe,COE,clark-field,51.04,American Rivers,iii,Coe|COE|Coe College|Coe Kohawks
+colby,cfb,Colby,COL,seaverns-field-at-harold-alfond-stadium,47.98,NESCAC,iii,Colby|COL|Colby White Mules
+college-of-new-jersey,cfb,College of New Jersey,CNJ,lions-stadium,55.58,New Jersey,iii,College of New Jersey|CNJ|College of NJ|College of New Jersey Lions
+concordia-il,cfb,Concordia (IL),CON,concordia-stadium,51.35,NACC,iii,Concordia (IL)|CON|Concordia (IL) Cougars
+concordia-mn,cfb,Concordia (MN),CON,jake-christiansen-stadium,44.61,Minnesota,iii,Concordia (MN)|CON|Concordia (MN) Cobbers
+concordia-wi,cfb,Concordia (WI),CON,tomasini-stadium,49.07,NACC,iii,Concordia (WI)|CON|Concordia (WI) Falcons
+cornell-college-ia,cfb,Cornell College (IA),COR,van-metre-field-at-ash-park,50.46,Midwest,iii,Cornell College (IA)|COR|Cornell College|Cornell  (IA)|Cornell College (IA) Rams
+curry,cfb,Curry,CUR,walter-m-katz-field,52.2,Commonwealth Coast,iii,Curry|CUR|Curry Colonels
+depauw,cfb,DePauw,DEP,blackstock-stadium,54.02,North Coast,iii,DePauw|DEP|DePauw Tigers
+dean-college,cfb,Dean College,DEA,dale-lippert-field,61.89,ECFC,iii,Dean College|DEA|Dean College Bulldogs
+defiance,cfb,Defiance,DEF,justin-f-coressel-stadium,52.57,Heartland,iii,Defiance|DEF|Defiance Yellow Jackets
+delaware-valley,cfb,Delaware Valley,DV,robert-a-lipinski-field-at-james-work-memorial-stadium,54.88,Mid Atlantic,iii,Delaware Valley|DV|Delaware Valley Aggies
+denison,cfb,Denison,DEN,deeds-field-piper-stadium,53.58,North Coast,iii,Denison|DEN|Denison Big Red
+dickinson,cfb,Dickinson,DIC,biddle-field,54.85,Centennial,iii,Dickinson|DIC|Dickinson Red Devils
+dubuque,cfb,Dubuque,DUB,chalmers-field,50.8,American Rivers,iii,Dubuque|DUB|Dubuque Spartans
+east-texas-baptist,cfb,East Texas Baptist,EAS,ornelas-stadium,66.73,American Southwest,iii,East Texas Baptist|EAS|E Texas Baptist|East Texas Baptist Tigers
+elmhurst,cfb,Elmhurst,ELM,langhorst-field,51.06,CCIW,iii,Elmhurst|ELM|Elmhurst Blue Jays
+endicott-college,cfb,Endicott College,END,hempstead-stadium,51.63,Commonwealth Coast,iii,Endicott College|END|Endicott |Endicott College Gulls
+eureka-college,cfb,Eureka College,EUR,pete-fiorito-stadium-at-mckinzie-field,52.8,NACC,iii,Eureka College|EUR|Eureka College Red Devils
+fdu-florham,cfb,FDU-Florham,FDU,robert-t-shields-field,54.3,Mid Atlantic,iii,FDU-Florham|FDU|FDU-Florham Devils
+ferrum,cfb,Ferrum,FER,wb-adams-stadium,57.16,Old Dominion,iii,Ferrum|FER|Ferrum Panthers
+fitchburg-state,cfb,Fitchburg State,FIT,elliot-field-athletic-complex,49.93,MSCAC,iii,Fitchburg State|FIT|Fitchburg St|Fitchburg State Falcons
+framingham-state,cfb,Framingham State,FRA,bowditch-field,51.95,MSCAC,iii,Framingham State|FRA|Framingham St|Framingham State Rams
+franklin,cfb,Franklin,FRA,stewart-red-faught-stadium,62.76,Heartland,iii,Franklin|FRA|Franklin Grizzlies
+franklin-marshall,cfb,Franklin & Marshall,F&M,shadek-stadium,55.2,Centennial,iii,Franklin & Marshall|F&M|Franklin & Marshall Diplomats
+gallaudet,cfb,Gallaudet,GAL,hotchkiss-field,57.99,ECFC,iii,Gallaudet|GAL|Gallaudet Bison
+geneva-college,cfb,Geneva College,GEN,reeves-field-pa,53.01,Presidents',iii,Geneva College|GEN|Geneva College Golden Tornadoes
+george-fox-university,cfb,George Fox University,GFU,stoffer-family-stadium,53.82,Northwest,iii,George Fox University|GFU|George Fox|George Fox University Bruins
+gettysburg,cfb,Gettysburg,GET,shirk-field-at-musselman-stadium,55,Centennial,iii,Gettysburg|GET|Gettysburg Bullets
+greensboro,cfb,Greensboro,GRN,jamieson-stadium,59.85,USA South,iii,Greensboro|GRN|Greensboro Pride
+greenville,cfb,Greenville,GRE,francis-field-il,56.28,Upper Midwest,iii,Greenville|GRE|Greenville Panthers
+grinnell,cfb,Grinnell,GRI,rosenbloom-field,50.82,Midwest,iii,Grinnell|GRI|Grinnell Pioneers
+grove-city-college,cfb,Grove City College,GRO,robert-e-thorn-field,50.57,Presidents',iii,Grove City College|GRO|Grove City |Grove City College Wolverines
+guilford,cfb,Guilford,GUI,armfield-athletic-center,59.85,Old Dominion,iii,Guilford|GUI|Guilford Quakers
+gustavus-adolphus,cfb,Gustavus Adolphus,GUS,hollingsworth-field,48.24,Minnesota,iii,Gustavus Adolphus|GUS|Gustavus Adolphus Golden Gusties
+hamilton,cfb,Hamilton,HAM,steuben-field,44.48,NESCAC,iii,Hamilton|HAM|Hamilton Continentals
+hamline,cfb,Hamline,HAM,klas-field,47.28,Minnesota,iii,Hamline|HAM|Hamline Fighting Pipers
+hampden-sydney,cfb,Hampden-Sydney,HAM,lewis-c-everett-stadium,59.97,Old Dominion,iii,Hampden-Sydney|HAM|Hampden-Sydney Tigers
+hanover,cfb,Hanover,HAN,alumni-stadium-in,56.07,Heartland,iii,Hanover|HAN|Hanover Panthers
+hardin-simmons,cfb,Hardin-Simmons,HAR,shelton-stadium,67.46,American Southwest,iii,Hardin-Simmons|HAR|Hardin-Simmons Cowboys
+hartwick,cfb,Hartwick,HAR,wright-stadium,48.62,Empire 8,iii,Hartwick|HAR|Hartwick Hawks
+heidelberg,cfb,Heidelberg,HEI,hoernemann-stadium,52.79,Ohio,iii,Heidelberg|HEI|Heidelberg Student Princes
+hendrix-college,cfb,Hendrix College,HEND,young-wise-memorial-stadium,62.04,Southern Athletic,iii,Hendrix College|HEND|Hendrix|Hendrix College Warriors
+hiram,cfb,Hiram,HIR,charles-a-henry-field,50.44,North Coast,iii,Hiram|HIR|Hiram Terriers
+hobart,cfb,Hobart,HOB,boswell-field-at-david-j-urick-stadium,50.99,Liberty League,iii,Hobart|HOB|Hobart Statesmen
+hope,cfb,Hope,HOP,ray-and-sue-smith-stadium,50.19,Michigan,iii,Hope|HOP|Hope Flying Dutchmen
+howard-payne,cfb,Howard Payne,HOW,gordon-wood-stadium,68.12,American Southwest,iii,Howard Payne|HOW|Howard Payne Yellow Jackets
+huntingdon,cfb,Huntingdon,HUN,charles-lee-field-at-samford-stadium,66.39,USA South,iii,Huntingdon|HUN|Huntingdon Hawks
+husson,cfb,Husson,HUS,dr-john-w-winkin-sports-complex,47.23,Commonwealth Coast,iii,Husson|HUS|Husson Eagles
+illinois-college,cfb,Illinois College,ILLC,england-stadium,54.74,Midwest,iii,Illinois College|ILLC|Illinois College Blueboys
+illinois-wesleyan,cfb,Illinois Wesleyan,ILL,tucci-stadium,53.06,CCIW,iii,Illinois Wesleyan|ILL|Illinois Wesleyan Titans
+ithaca,cfb,Ithaca,ITH,butterfield-stadium,51.51,Liberty League,iii,Ithaca|ITH|Ithaca Bombers
+john-carroll,cfb,John Carroll,JOH,don-shula-stadium-at-wasmer-field,51.26,Ohio,iii,John Carroll|JOH|John Carroll Blue Streaks
+johns-hopkins,cfb,Johns Hopkins,JOH,homewood-field,57.15,Centennial,iii,Johns Hopkins|JOH|Johns Hopkins Blue Jays
+juniata,cfb,Juniata,JUN,knox-stadium,53.76,Landmark Conference,iii,Juniata|JUN|Juniata Eagles
+kalamazoo,cfb,Kalamazoo,KAL,angell-field,50.55,Michigan,iii,Kalamazoo|KAL|Kalamazoo Hornets
+kean,cfb,Kean,KEA,kean-alumni-stadium,54.88,New Jersey,iii,Kean|KEA|Kean Cougars
+kenyon,cfb,Kenyon,KEN,mcbride-field,52.39,North Coast,iii,Kenyon|KEN|Kenyon Lords
+keystone,cfb,Keystone,KEYS,athletic-field-complex,50.74,Landmark Conference,iii,Keystone|KEYS|Keystone Giants
+kings-college-pa,cfb,King's College (PA),KIN,mccarthy-stadium-wilkes-barre,51.83,Mid Atlantic,iii,King's College (PA)|KIN|King's  (PA)|King's College (PA) Monarchs
+knox-college,cfb,Knox College,KNO,harley-knosher-bowl,52.54,Midwest,iii,Knox College|KNO|Knox|Knox College Prairie Fire
+la-verne,cfb,La Verne,LAV,ortmayer-stadium,63.16,So. Cal.,iii,La Verne|LAV|La Verne Leopards
+lagrange-college,cfb,LaGrange College,LAG,callaway-stadium,63.59,USA South,iii,LaGrange College|LAG|LaGrange |LaGrange College Panthers
+lake-forest,cfb,Lake Forest,LAK,farwell-field,50.43,Midwest,iii,Lake Forest|LAK|Lake Forest Foresters
+lakeland-university,cfb,Lakeland University,LAKE,taylor-field,47.91,NACC,iii,Lakeland University|LAKE|Lakeland|Lakeland University Lakeland
+lawrence,cfb,Lawrence,LAW,ron-roberts-field-at-the-banta-bowl,47.71,Midwest,iii,Lawrence|LAW|Lawrence Vikings
+lebanon-valley,cfb,Lebanon Valley,LEB,arnold-field-pa,54.41,Mid Atlantic,iii,Lebanon Valley|LEB|Lebanon Valley Flying Dutchmen
+lewis-clark,cfb,Lewis & Clark,LEW,griswold-stadium,54.01,Northwest,iii,Lewis & Clark|LEW|Lewis & Clark Pioneers
+linfield,cfb,Linfield,LIN,maxwell-field,53.41,Northwest,iii,Linfield|LIN|Linfield Wildcats
+loras-college,cfb,Loras College,LOR,rock-bowl,50.8,American Rivers,iii,Loras College|LOR|Loras College Duhawks 
+luther,cfb,Luther,LUT,legacy-field-in-carlson-stadium,49.16,American Rivers,iii,Luther|LUT|Luther Norse
+lycoming,cfb,Lycoming,LYC,david-person-field,52.29,Landmark Conference,iii,Lycoming|LYC|Lycoming Warriors
+mit,cfb,MIT,MIT,henry-g-steinbrenner-27-stadium,52.24,NEWMAC,iii,MIT|MIT Engineers
+macalester,cfb,Macalester,MAC,macalester-stadium,47.28,Minnesota,iii,Macalester|MAC|Macalester Scots
+manchester,cfb,Manchester,MAN,carl-w-burt-memorial-stadium,52.43,Heartland,iii,Manchester|MAN|Manchester Spartans
+marietta,cfb,Marietta,MAR,don-drumm-stadium,55.39,Ohio,iii,Marietta|MAR|Marietta Pioneers
+martin-luther-college,cfb,Martin Luther College,MAR,mlc-bowl,47.9,Upper Midwest,iii,Martin Luther College|MAR|Martin Luther |Martin Luther College Knights
+mary-hardin-baylor,cfb,Mary Hardin-Baylor,MAR,crusader-stadium,69.87,American Southwest,iii,Mary Hardin-Baylor|MAR|Mary Hardin-Baylor Crusaders
+maryville-tn,cfb,Maryville TN,MAR,lloyd-l-thornton-stadium,60.07,USA South,iii,Maryville TN|MAR|Maryville (TN)|Maryville TN Fighting Scots
+mass-maritime,cfb,Mass Maritime,MAS,clean-harbors-stadium,52.96,MSCAC,iii,Mass Maritime|MAS|Mass Maritime Buccaneers
+mcdaniel-college,cfb,McDaniel College,MCD,kenneth-r-gill-stadium,54.87,Centennial,iii,McDaniel College|MCD|McDaniel |McDaniel College Terrors
+mcmurry,cfb,McMurry,MCM,wilford-moore-stadium,67.46,Southern Collegiate Athletic,iii,McMurry|MCM|McMurry War Hawks
+merchant-marine,cfb,Merchant Marine,MER,brooks-stadium-ny,54.91,NEWMAC,iii,Merchant Marine|MER|Merchant Marine Mariners
+methodist,cfb,Methodist,MTH,monarch-stadium,63.39,USA South,iii,Methodist|MTH|Methodist Monarchs
+middlebury,cfb,Middlebury,MID,alumni-stadium-vt,48.2,NESCAC,iii,Middlebury|MID|Middlebury Panthers
+millikin,cfb,Millikin,MIL,frank-m-lindsay-field,54.45,CCIW,iii,Millikin|MIL|Millikin Big Blue
+millsaps,cfb,Millsaps,MIL,harper-davis-field,65.51,Southern Athletic,iii,Millsaps|MIL|Millsaps Majors
+minnesota-morris,cfb,Minnesota-Morris,MIN,big-cat-stadium,45.46,Upper Midwest,iii,Minnesota-Morris|MIN|Minnesota-Morris Cougars
+misericordia,cfb,Misericordia,MISC,mangelsdorf-field,66.62,Mid Atlantic,iii,Misericordia|MISC|Misericordia Cougars
+monmouth-il,cfb,Monmouth (IL),MON,april-zorn-memorial-stadium,52.77,Midwest,iii,Monmouth (IL)|MON|Monmouth (IL) Fighting Scots
+montclair-state,cfb,Montclair State,MON,sprague-field,53.89,New Jersey,iii,Montclair State|MON|Montclair St|Montclair State Red Hawks
+moravian,cfb,Moravian,MOR,rocco-calvo-field,54.28,Landmark Conference,iii,Moravian|MOR|Moravian Greyhounds
+morrisville-state,cfb,Morrisville State,MOR,drake-field-ny,47.21,Empire 8,iii,Morrisville State|MOR|Morrisville St|Morrisville State Mustangs
+mount-st-joseph,cfb,Mount St. Joseph,MTS,schueler-field,56.36,Heartland,iii,Mount St. Joseph|MTS|Mount St. Joseph Lions
+mount-union,cfb,Mount Union,MTU,mount-union-stadium,51.95,Ohio,iii,Mount Union|MTU|Mount Union Raiders
+muhlenberg,cfb,Muhlenberg,MUH,scotty-wood-stadium,54.04,Centennial,iii,Muhlenberg|MUH|Muhlenberg Mules
+muskingum,cfb,Muskingum,MUS,sherman-field-at-mcconagha-stadium,53.64,Ohio,iii,Muskingum|MUS|Muskingum Muskies
+nc-wesleyan,cfb,NC Wesleyan,UNCW,bishop-stadium,61.91,USA South,iii,NC Wesleyan|UNCW|UNC Welseyan|NC Wesleyan Battling Bishops
+nichols,cfb,Nichols,NIC,vendetti-field,50.58,Commonwealth Coast,iii,Nichols|NIC|Nichols Bison
+north-central,cfb,North Central,NOC,benedetti-wehrli-stadium,51.27,CCIW,iii,North Central|NOC|North Central Cardinals
+north-park,cfb,North Park,NOR,holmgren-athletic-complex,51.11,CCIW,iii,North Park|NOR|North Park Vikings
+northwestern-mn,cfb,Northwestern (MN),NWM,reynolds-field,46.42,Upper Midwest,iii,Northwestern (MN)|NWM|NW (MN)|Northwestern (MN) Eagles
+norwich,cfb,Norwich,NOR,sabine-field-at-haynes-family-stadium,46.43,NEWMAC,iii,Norwich|NOR|Norwich Cadets
+oberlin,cfb,Oberlin,OBE,austin-e-knowlton-athletics-complex,52.18,North Coast,iii,Oberlin|OBE|Oberlin Yeomen
+ohio-northern,cfb,Ohio Northern,ON,dial-roberson-stadium,55.61,Ohio,iii,Ohio Northern|ON|Ohio Northern Polar Bears
+ohio-wesleyan,cfb,Ohio Wesleyan,OHI,selby-stadium,53.16,North Coast,iii,Ohio Wesleyan|OHI|Ohio Wesleyan Battling Bishops
+olivet-college,cfb,Olivet College,OLI,cutler-field,50.16,Michigan,iii,Olivet College|OLI|Olivet College Comets
+otterbein,cfb,Otterbein,OTT,memorial-stadium-westerville-oh,53.55,Ohio,iii,Otterbein|OTT|Otterbein Cardinals
+pacific-or,cfb,Pacific (OR),PAC,hanson-stadium,53.05,Northwest,iii,Pacific (OR)|PAC|Pacific (OR) Boxers
+pacific-lutheran,cfb,Pacific Lutheran,PAC,sparks-stadium,52.1,Northwest,iii,Pacific Lutheran|PAC|Pacific Lutheran Lutes
+plymouth-state,cfb,Plymouth State,PLY,charles-l-currier-memorial-field,47.06,MSCAC,iii,Plymouth State|PLY|Plymouth St|Plymouth State Panthers
+pomona-pitzer,cfb,Pomona-Pitzer,POM,merritt-field,62.76,So. Cal.,iii,Pomona-Pitzer|POM|Pomona-Pitzer Sagehens
+puget-sound,cfb,Puget Sound,PUG,baker-stadium,52.22,Northwest,iii,Puget Sound|PUG|Puget Sound Loggers
+randolph-macon,cfb,Randolph-Macon,RAN,day-field,59.35,Old Dominion,iii,Randolph-Macon|RAN|Randolph-Macon Yellow Jackets
+redlands,cfb,Redlands,RED,ted-runner-stadium,64.02,So. Cal.,iii,Redlands|RED|Redlands Bulldogs
+rensselaer,cfb,Rensselaer,REN,ecav-stadium,51.31,Liberty League,iii,Rensselaer|REN|Rensselaer Engineers
+rhodes,cfb,Rhodes,RHO,crain-field,62.82,Southern Athletic,iii,Rhodes|RHO|Rhodes Lynx
+ripon,cfb,Ripon,RIPON,ingalls-field,47.87,Midwest,iii,Ripon|RIPON|Ripon Redhawks
+rochester,cfb,Rochester,ROC,edwin-fauver-stadium,50.21,Liberty League,iii,Rochester|ROC|Rochester Yellow Jackets
+rockford,cfb,Rockford,ROC,sam-greeley-field,50.7,NACC,iii,Rockford|ROC|Rockford Regents
+rose-hulman,cfb,Rose-Hulman,ROS,cook-stadium,55.54,Heartland,iii,Rose-Hulman|ROS|Rose-Hulman Engineers
+rowan,cfb,Rowan,ROWAN,richard-wackar-stadium,56.78,New Jersey,iii,Rowan|ROWAN|Rowan Professors
+suny-cortland,cfb,SUNY Cortland,COR,stadium-red-field,53.83,Empire 8,iii,SUNY Cortland|COR|SUNY Cortland Red Dragons
+suny-maritime,cfb,SUNY Maritime,MAR,reinhart-field,55,NEWMAC,iii,SUNY Maritime|MAR|SUNY Maritime Privateers
+salisbury,cfb,Salisbury,SAL,sea-gull-stadium,58.95,New Jersey,iii,Salisbury|SAL|Salisbury Sea Gulls
+salve-regina,cfb,Salve Regina,SAL,toppa-field,53.4,NEWMAC,iii,Salve Regina|SAL|Salve Regina Seahawks
+sewanee-univ-of-the-south,cfb,Sewanee Univ. of the South,SEW,hardee-mcgee-field,57.35,Southern Athletic,iii,Sewanee Univ. of the South|SEW|Sewanee|Sewanee University|Sewanee Univ. of the South Tigers
+shenandoah,cfb,Shenandoah,SHE,shentel-stadium,55.87,Old Dominion,iii,Shenandoah|SHE|Shenandoah Hornets
+simpson-college,cfb,Simpson College,SIM,bill-buxton-stadium,52.22,American Rivers,iii,Simpson College|SIM|Simpson|Simpson |Simpson College Storm
+southern-virginia,cfb,Southern Virginia,SVA,knight-stadium,57.03,USA South,iii,Southern Virginia|SVA|S Virginia|Southern Virginia Knights
+southwestern-university,cfb,Southwestern University,SW,birkelbach-field,69.12,Southern Athletic,iii,Southwestern University|SW|Southwestern (TX)|Southwestern U|Southwestern University Pirates
+springfield,cfb,Springfield,SPR,stagg-field,52.18,NEWMAC,iii,Springfield|SPR|Springfield Pride
+st-lawrence,cfb,St Lawrence,STL,leckonby-stadium,47.36,Liberty League,iii,St Lawrence|STL|St Lawrence Saints
+st-john-fisher,cfb,St. John Fisher,STJ,growney-stadium,50.21,Empire 8,iii,St. John Fisher|STJ|St. John Fisher Cardinals
+st-johns-mn,cfb,St. Johns (MN),STJ,clemens-stadium,45.63,Minnesota,iii,St. Johns (MN)|STJ|St. John's|St. Johns (MN) Johnnies
+st-norbert,cfb,St. Norbert,STN,donald-j-schneider-stadium,48.06,NACC,iii,St. Norbert|STN|St. Norbert Green Knights
+st-olaf-college,cfb,St. Olaf College,STO,klein-field-at-manitou,47.5,Minnesota,iii,St. Olaf College|STO|St. Olaf |St. Olaf College Oles
+st-scholastica,cfb,St. Scholastica,SS,public-schools-stadium,42.7,Minnesota,iii,St. Scholastica|SS|St. Scholastica College of St. Scholastica
+st-vincent,cfb,St. Vincent,STV,chuck-noll-field,52.95,Presidents',iii,St. Vincent|STV|St. Vincent Bearcats
+stevenson,cfb,Stevenson,STU,mustang-stadium,56.07,Mid Atlantic,iii,Stevenson|STU|Stevenson Mustangs
+susquehanna,cfb,Susquehanna,SUS,amos-alonzo-stagg-field-pa,53.83,Landmark Conference,iii,Susquehanna|SUS|Susquehanna Crusaders
+texas-lutheran,cfb,Texas Lutheran,TEX,bulldog-stadium-tx,70.5,Southern Collegiate Athletic,iii,Texas Lutheran|TEX|Texas Lutheran Bulldogs
+thiel-college,cfb,Thiel College,THI,alumni-stadium-pa,66.3,Presidents',iii,Thiel College|THI|Thiel College Tomcats
+trine,cfb,Trine,TRI,fred-zollner-athletic-stadium,50.48,Michigan,iii,Trine|TRI|Trine Thunder
+trinity-ct,cfb,Trinity (CT),TRI,jessee-miller-field,52.8,NESCAC,iii,Trinity (CT)|TRI|Trinity (CT) Bantams
+trinity-tx,cfb,Trinity (TX),TRI,trinity-university-stadium,71.07,Southern Athletic,iii,Trinity (TX)|TRI|Trinity (TX) Tigers
+tufts,cfb,Tufts,TUF,ellis-oval-at-zimman-field,52.1,NESCAC,iii,Tufts|TUF|Tufts Jumbos
+umass-dartmouth,cfb,UMass Dartmouth,MAS,cressy-field,52.89,MSCAC,iii,UMass Dartmouth|MAS|UMass Dartmouth Corsairs
+uw-oshkosh,cfb,UW-Oshkosh,WIS,jj-keller-field-at-titan-stadium,48.28,Wisconsin,iii,UW-Oshkosh|WIS|UW-Oshkosh Titans
+uw-river-falls,cfb,UW-River Falls,WIS,david-smith-stadium-at-ramer-field,46.94,Wisconsin,iii,UW-River Falls|WIS|UW-River Falls Falcons
+uw-stout,cfb,UW-Stout,WIS,don-and-nona-williams-stadium,46.39,Wisconsin,iii,UW-Stout|WIS|UW-Stout Blue Devils
+uw-whitewater,cfb,UW-Whitewater,WISW,perkins-stadium,49.6,Wisconsin,iii,UW-Whitewater|WISW|UW-Whitewater Warhawks
+union,cfb,Union,UNI,frank-bailey-field,50.16,Liberty League,iii,Union|UNI|Union Dutchmen
+university-of-new-england,cfb,University of New England,UNE,blue-storm-stadium,49.17,Commonwealth Coast,iii,University of New England|UNE|University of New England Nor'Easters
+ursinus,cfb,Ursinus,URS,patterson-field,55.33,Centennial,iii,Ursinus|URS|Ursinus Bears
+utica,cfb,Utica,UTICA,charles-a-gaetano-stadium,48.88,Empire 8,iii,Utica|UTICA|Utica College|Utica Pioneers
+wabash-college,cfb,Wabash College,WAB,little-giant-stadium,53.85,North Coast,iii,Wabash College|WAB|Wabash|Wabash College Little Giants
+wartburg,cfb,Wartburg,WAR,walston-hoover-stadium,49.6,American Rivers,iii,Wartburg|WAR|Wartburg Knights
+washington-jefferson,cfb,Washington & Jefferson,WAS,cameron-stadium,67.43,Presidents',iii,Washington & Jefferson|WAS|W&J|Washington & Jefferson Presidents
+washington-lee,cfb,Washington & Lee,UWL,wilson-field,56.08,Old Dominion,iii,Washington & Lee|UWL|Wash. & Lee|Washington & Lee Generals
+washington-mo,cfb,Washington (MO),WAS,francis-field-mo,57.04,CCIW,iii,Washington (MO)|WAS|Washington (MO) Bears
+waynesburg,cfb,Waynesburg,WAY,john-f-wiley-stadium,53.85,Presidents',iii,Waynesburg|WAY|Waynesburg Yellow Jackets
+wesleyan,cfb,Wesleyan,WES,corwin-stadium,53.09,NESCAC,iii,Wesleyan|WES|Wesleyan Cardinals
+western-connecticut-state,cfb,Western Connecticut State,WES,westside-athletic-complex,52.54,MSCAC,iii,Western Connecticut State|WES|W Conn St|Western Connecticut State Colonials
+western-new-england,cfb,Western New England,WES,golden-bear-stadium,52.18,Commonwealth Coast,iii,Western New England|WES|W New England|Western New England Golden Bears
+westfield-state,cfb,Westfield State,WES,alumni-field-westfield-ma,51.97,MSCAC,iii,Westfield State|WES|Westfield St|Westfield State Owls
+westminster,cfb,Westminster,WMN,blue-jay-stadium,56.22,Upper Midwest,iii,Westminster|WMN|Westminster Blue Jays
+westminster-pa,cfb,Westminster PA,WMN,memorial-field-pa,51.44,Presidents',iii,Westminster PA|WMN|Westminster PA Titans
+wheaton-college-ill,cfb,Wheaton College (Ill),WHE,mccully-stadium,50.99,CCIW,iii,Wheaton College (Ill)|WHE|Wheaton  (Ill)|Wheaton College (Ill) Thunder
+whittier,cfb,Whittier,WHI,memorial-stadium-whittier-ca,64.12,So. Cal.,iii,Whittier|WHI|Whittier Poets
+whitworth,cfb,Whitworth,WHI,the-pine-bowl,50.32,Northwest,iii,Whitworth|WHI|Whitworth Pirates
+widener,cfb,Widener,WID,leslie-c-quick-jr-stadium,56.69,Mid Atlantic,iii,Widener|WID|Widener Pride
+wilkes,cfb,Wilkes,WIL,schmidt-stadium,62.09,Landmark Conference,iii,Wilkes|WIL|Wilkes Colonels
+willamette,cfb,Willamette,WIL,mcculloch-stadium,53.45,Northwest,iii,Willamette|WIL|Willamette Bearcats
+william-paterson,cfb,William Paterson,WMP,wightman-stadium,53.54,New Jersey,iii,William Paterson|WMP|William Paterson Pioneers
+williams,cfb,Williams,WIL,farley-lamb-field,48.02,NESCAC,iii,Williams|WIL|Williams Ephs
+wilmington-oh,cfb,Wilmington (OH),WIL,wiliams-stadium-oh,54.15,Ohio,iii,Wilmington (OH)|WIL|Wilmington (OH) Quakers
+wisconsin-lutheran,cfb,Wisconsin Lutheran,WIS,warrior-field-at-raabe-stadium,49.47,NACC,iii,Wisconsin Lutheran|WIS|Wisconsin Lutheran Warriors
+wisconsin-eau-claire,cfb,Wisconsin-Eau Claire,WIS,carson-park,46.83,Wisconsin,iii,Wisconsin-Eau Claire|WIS|UW-Eau Claire|Wisconsin-Eau Claire Blugolds
+wisconsin-la-crosse,cfb,Wisconsin-La Crosse,WIS,veterans-memorial-stadium-wi,49,Wisconsin,iii,Wisconsin-La Crosse|WIS|UW-La Crosse|Wisconsin-La Crosse Eagles
+wisconsin-platteville,cfb,Wisconsin-Platteville,WIS,ralph-e-davis-pioneer-stadium,49.32,Wisconsin,iii,Wisconsin-Platteville|WIS|UW-Platteville|Wisconsin-Platteville Pioneers
+wisconsin-stevens-point,cfb,Wisconsin-Stevens Point,WIS,community-stadium-at-goerke-park,46.39,Wisconsin,iii,Wisconsin-Stevens Point|WIS|UW-Stevens Point|Wisconsin-Stevens Point Pointers
+wittenberg,cfb,Wittenberg,WIT,edwards-maurer-field,53.31,North Coast,iii,Wittenberg|WIT|Wittenberg Tigers
+wooster,cfb,Wooster,WOO,john-p-papp-stadium,52.88,North Coast,iii,Wooster|WOO|Wooster Fighting Scots
+worcester-polytechnic,cfb,Worcester Polytechnic,WPI,alumni-stadium-worcester-ma,51.12,NEWMAC,iii,Worcester Polytechnic|WPI|Worcester Polytechnic Engineers
+worcester-state-college,cfb,Worcester State College,WOR,john-coughlin-memorial-field,51.12,MSCAC,iii,Worcester State College|WOR|Worcester St |Worcester State College Lancers

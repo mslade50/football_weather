@@ -1,0 +1,292 @@
+{
+  "ari": [
+    "ARI",
+    "Arizona Cardinals",
+    "arizona",
+    "Cardinals",
+    "Arizona",
+    "arizona cardinals",
+    "ARZ",
+    "Ari"
+  ],
+  "atl": [
+    "ATL",
+    "Atlanta Falcons",
+    "atlanta",
+    "Falcons",
+    "Atlanta",
+    "atlanta falcons"
+  ],
+  "bal": [
+    "BAL",
+    "Baltimore Ravens",
+    "baltimore",
+    "Ravens",
+    "Baltimore",
+    "baltimore ravens",
+    "BLT"
+  ],
+  "buf": [
+    "BUF",
+    "Buffalo Bills",
+    "buffalo",
+    "Bills",
+    "Buffalo",
+    "buffalo bills"
+  ],
+  "car": [
+    "CAR",
+    "Carolina Panthers",
+    "carolina",
+    "Panthers",
+    "Carolina",
+    "carolina panthers"
+  ],
+  "chi": [
+    "CHI",
+    "Chicago Bears",
+    "chicago",
+    "Bears",
+    "Chicago",
+    "chicago bears"
+  ],
+  "cin": [
+    "CIN",
+    "Cincinnati Bengals",
+    "cincinnati",
+    "Bengals",
+    "Cincinnati",
+    "cincinnati bengals"
+  ],
+  "cle": [
+    "CLE",
+    "Cleveland Browns",
+    "cleveland",
+    "Browns",
+    "Cleveland",
+    "cleveland browns",
+    "CLV"
+  ],
+  "dal": [
+    "DAL",
+    "Dallas Cowboys",
+    "dallas",
+    "Cowboys",
+    "Dallas",
+    "dallas cowboys"
+  ],
+  "den": [
+    "DEN",
+    "Denver Broncos",
+    "denver",
+    "Broncos",
+    "Denver",
+    "denver broncos"
+  ],
+  "det": [
+    "DET",
+    "Detroit Lions",
+    "detroit",
+    "Lions",
+    "Detroit",
+    "detroit lions"
+  ],
+  "gb": [
+    "GB",
+    "Green Bay Packers",
+    "green bay",
+    "Packers",
+    "Green Bay",
+    "green bay packers",
+    "GNB"
+  ],
+  "hou": [
+    "HOU",
+    "Houston Texans",
+    "houston",
+    "Texans",
+    "Houston",
+    "houston texans"
+  ],
+  "ind": [
+    "IND",
+    "Indianapolis Colts",
+    "indianapolis",
+    "Colts",
+    "Indianapolis",
+    "indianapolis colts"
+  ],
+  "jax": [
+    "JAX",
+    "Jacksonville Jaguars",
+    "jacksonville",
+    "Jaguars",
+    "Jacksonville",
+    "jacksonville jaguars",
+    "JAC"
+  ],
+  "kc": [
+    "KC",
+    "Kansas City Chiefs",
+    "kansas city",
+    "Chiefs",
+    "Kansas City",
+    "kansas city chiefs",
+    "KAN"
+  ],
+  "la": [
+    "LA",
+    "Los Angeles Rams",
+    "l.a. rams",
+    "Rams",
+    "Los Angeles",
+    "los angeles",
+    "l.a. rams rams",
+    "LAR",
+    "LA Rams",
+    "Los Angeles R"
+  ],
+  "lac": [
+    "LAC",
+    "Los Angeles Chargers",
+    "l.a. chargers",
+    "Chargers",
+    "Los Angeles",
+    "los angeles",
+    "l.a. chargers chargers",
+    "LA Chargers",
+    "Los Angeles C",
+    "SD"
+  ],
+  "lv": [
+    "LV",
+    "Las Vegas Raiders",
+    "las vegas",
+    "Raiders",
+    "Las Vegas",
+    "las vegas raiders",
+    "LVR",
+    "OAK",
+    "Oakland"
+  ],
+  "mia": [
+    "MIA",
+    "Miami Dolphins",
+    "miami",
+    "Dolphins",
+    "Miami",
+    "miami dolphins"
+  ],
+  "min": [
+    "MIN",
+    "Minnesota Vikings",
+    "minnesota",
+    "Vikings",
+    "Minnesota",
+    "minnesota vikings"
+  ],
+  "ne": [
+    "NE",
+    "New England Patriots",
+    "new england",
+    "Patriots",
+    "New England",
+    "new england patriots",
+    "NWE"
+  ],
+  "no": [
+    "NO",
+    "New Orleans Saints",
+    "new orleans",
+    "Saints",
+    "New Orleans",
+    "new orleans saints",
+    "NOR"
+  ],
+  "nyg": [
+    "NYG",
+    "New York Giants",
+    "n.y. giants",
+    "Giants",
+    "New York",
+    "new york",
+    "n.y. giants giants",
+    "NY Giants",
+    "New York G",
+    "ny giants"
+  ],
+  "nyj": [
+    "NYJ",
+    "New York Jets",
+    "n.y. jets",
+    "Jets",
+    "New York",
+    "new york",
+    "n.y. jets jets",
+    "NY Jets",
+    "New York J",
+    "ny jets"
+  ],
+  "phi": [
+    "PHI",
+    "Philadelphia Eagles",
+    "philadelphia",
+    "Eagles",
+    "Philadelphia",
+    "philadelphia eagles"
+  ],
+  "pit": [
+    "PIT",
+    "Pittsburgh Steelers",
+    "pittsburgh",
+    "Steelers",
+    "Pittsburgh",
+    "pittsburgh steelers"
+  ],
+  "sea": [
+    "SEA",
+    "Seattle Seahawks",
+    "seattle",
+    "Seahawks",
+    "Seattle",
+    "seattle seahawks"
+  ],
+  "sf": [
+    "SF",
+    "San Francisco 49ers",
+    "san francisco",
+    "49ers",
+    "San Francisco",
+    "san francisco 49ers",
+    "SFO"
+  ],
+  "tb": [
+    "TB",
+    "Tampa Bay Buccaneers",
+    "tampa bay",
+    "Buccaneers",
+    "Tampa Bay",
+    "tampa bay buccaneers",
+    "TAM",
+    "Bucs"
+  ],
+  "ten": [
+    "TEN",
+    "Tennessee Titans",
+    "tennessee",
+    "Titans",
+    "Tennessee",
+    "tennessee titans"
+  ],
+  "was": [
+    "WAS",
+    "Washington Commanders",
+    "washington",
+    "Commanders",
+    "Washington",
+    "washington commanders",
+    "WSH",
+    "Redskins",
+    "Football Team"
+  ]
+}

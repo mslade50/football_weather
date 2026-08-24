@@ -1,0 +1,1247 @@
+{
+ "events": [
+  {
+   "competitors": [
+    {
+     "abbreviation": "TEN",
+     "display_name": "Tennessee Titans",
+     "id": 34,
+     "name": "Tennessee Titans",
+     "side": "home"
+    },
+    {
+     "abbreviation": "SEA",
+     "display_name": "Seattle Seahawks",
+     "id": 30,
+     "name": "Seattle Seahawks",
+     "side": "away"
+    }
+   ],
+   "display_name": "Seattle Seahawks at Tennessee Titans",
+   "event_id": 19739,
+   "live_disabled": false,
+   "name": "Seattle Seahawks at Tennessee Titans",
+   "scheduled": "2026-08-24T00:00:00Z",
+   "sport_name": "American Football",
+   "status": "live",
+   "tournament_id": 31,
+   "tournament_name": "NFL",
+   "updated_at": 1787529604085519000
+  }
+ ],
+ "markets": {
+  "19739": [
+   {
+    "id": 219,
+    "line": 0,
+    "name": "Moneyline",
+    "selections": [
+     [
+      {
+       "competitor_id": 34,
+       "display_name": "Tennessee Titans +240",
+       "display_odds": "+240",
+       "line": 0,
+       "line_id": "d5209e33cd9f89acb8d022bca74fd412",
+       "name": "Tennessee Titans",
+       "odds": 240,
+       "outcome_id": 4,
+       "stake": 93.2,
+       "updated_at": 1787535308390743000,
+       "value": 31.48
+      },
+      {
+       "competitor_id": 34,
+       "display_name": "Tennessee Titans +235",
+       "display_odds": "+235",
+       "line": 0,
+       "line_id": "d5209e33cd9f89acb8d022bca74fd412",
+       "name": "Tennessee Titans",
+       "odds": 235,
+       "outcome_id": 4,
+       "stake": 15.2,
+       "updated_at": 1787535308362586000,
+       "value": 6.47
+      },
+      {
+       "competitor_id": 34,
+       "display_name": "Tennessee Titans +225",
+       "display_odds": "+225",
+       "line": 0,
+       "line_id": "d5209e33cd9f89acb8d022bca74fd412",
+       "name": "Tennessee Titans",
+       "odds": 225,
+       "outcome_id": 4,
+       "stake": 4853.32,
+       "updated_at": 1787535301230851000,
+       "value": 2107.11
+      }
+     ],
+     [
+      {
+       "competitor_id": 30,
+       "display_name": "Seattle Seahawks -270",
+       "display_odds": "-270",
+       "line": 0,
+       "line_id": "e972da08885e3a265d496213fa19dad9",
+       "name": "Seattle Seahawks",
+       "odds": -270,
+       "outcome_id": 5,
+       "stake": 1675.96,
+       "updated_at": 1787535319248183000,
+       "value": 18.25
+      },
+      {
+       "competitor_id": 30,
+       "display_name": "Seattle Seahawks -275",
+       "display_odds": "-275",
+       "line": 0,
+       "line_id": "e972da08885e3a265d496213fa19dad9",
+       "name": "Seattle Seahawks",
+       "odds": -275,
+       "outcome_id": 5,
+       "stake": 3772,
+       "updated_at": 1787535316819346000,
+       "value": 10373
+      },
+      {
+       "competitor_id": 30,
+       "display_name": "Seattle Seahawks -300",
+       "display_odds": "-300",
+       "line": 0,
+       "line_id": "e972da08885e3a265d496213fa19dad9",
+       "name": "Seattle Seahawks",
+       "odds": -300,
+       "outcome_id": 5,
+       "stake": 1.3,
+       "updated_at": 1787535295909690000,
+       "value": 3.9
+      }
+     ]
+    ],
+    "status": "active",
+    "total_stake": 71285.89,
+    "type": "moneyline",
+    "updated_at": 1786943326970803000
+   },
+   {
+    "id": 223,
+    "market_lines": [
+     {
+      "id": 223,
+      "line": -5,
+      "name": "Fixed home -5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-5",
+         "display_name": "Tennessee Titans -5",
+         "display_odds": "",
+         "line": -5,
+         "line_id": "012fa89909ecef4b39f1e53d4644a8d0",
+         "name": "Tennessee Titans -5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+5",
+         "display_name": "Seattle Seahawks +5",
+         "display_odds": "",
+         "line": 5,
+         "line_id": "b7060ae19e1f3b2357270329ce505d42",
+         "name": "Seattle Seahawks +5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -4.5,
+      "name": "Fixed home -4.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-4.5",
+         "display_name": "Tennessee Titans -4.5",
+         "display_odds": "",
+         "line": -4.5,
+         "line_id": "0d4df155e43165589c8c9a807d196141",
+         "name": "Tennessee Titans -4.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+4.5",
+         "display_name": "Seattle Seahawks +4.5",
+         "display_odds": "",
+         "line": 4.5,
+         "line_id": "af8a2254ec1241c2a743004179c4cfd3",
+         "name": "Seattle Seahawks +4.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -4,
+      "name": "Fixed home -4",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-4",
+         "display_name": "Tennessee Titans -4",
+         "display_odds": "",
+         "line": -4,
+         "line_id": "7ff0b84ed1e58731d28f1f3120965275",
+         "name": "Tennessee Titans -4",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+4",
+         "display_name": "Seattle Seahawks +4",
+         "display_odds": "",
+         "line": 4,
+         "line_id": "d6fd36094e7afb2397ccd1ea5171a066",
+         "name": "Seattle Seahawks +4",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -3.5,
+      "name": "Fixed home -3.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-3.5",
+         "display_name": "Tennessee Titans -3.5",
+         "display_odds": "",
+         "line": -3.5,
+         "line_id": "d76c91035b013794ba8c42be861491d1",
+         "name": "Tennessee Titans -3.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+3.5",
+         "display_name": "Seattle Seahawks +3.5",
+         "display_odds": "",
+         "line": 3.5,
+         "line_id": "e2f5c71badb7909eb79b4adfe63189b8",
+         "name": "Seattle Seahawks +3.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -3,
+      "name": "Fixed home -3",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-3",
+         "display_name": "Tennessee Titans -3",
+         "display_odds": "",
+         "line": -3,
+         "line_id": "80a2fb72c642cfe51e741092053012bf",
+         "name": "Tennessee Titans -3",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+3",
+         "display_name": "Seattle Seahawks +3",
+         "display_odds": "",
+         "line": 3,
+         "line_id": "75ec1fb0159494bad69ceb2561e9884a",
+         "name": "Seattle Seahawks +3",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -2.5,
+      "name": "Fixed home -2.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-2.5",
+         "display_name": "Tennessee Titans -2.5",
+         "display_odds": "",
+         "line": -2.5,
+         "line_id": "fe2d884ab1e8ff687d9d92e93376e587",
+         "name": "Tennessee Titans -2.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+2.5",
+         "display_name": "Seattle Seahawks +2.5",
+         "display_odds": "",
+         "line": 2.5,
+         "line_id": "381408520133bc1ee081deef4784e22d",
+         "name": "Seattle Seahawks +2.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": -1.5,
+      "name": "Fixed home -1.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "-1.5",
+         "display_name": "Tennessee Titans -1.5",
+         "display_odds": "",
+         "line": -1.5,
+         "line_id": "7f23cd8413305941813db7f221274d04",
+         "name": "Tennessee Titans -1.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "+1.5",
+         "display_name": "Seattle Seahawks +1.5",
+         "display_odds": "",
+         "line": 1.5,
+         "line_id": "580e560f5c6e82d41bfeb402db4449ff",
+         "name": "Seattle Seahawks +1.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 2.5,
+      "name": "Fixed home +2.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+2.5",
+         "display_name": "Tennessee Titans +2.5",
+         "display_odds": "",
+         "line": 2.5,
+         "line_id": "a019f23727a0909da51bfbf519612a84",
+         "name": "Tennessee Titans +2.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-2.5",
+         "display_name": "Seattle Seahawks -2.5",
+         "display_odds": "",
+         "line": -2.5,
+         "line_id": "04e02eb36d4a24df9db8502f4b6bbd60",
+         "name": "Seattle Seahawks -2.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 3.5,
+      "name": "Fixed home +3.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+3.5",
+         "display_name": "Tennessee Titans +3.5",
+         "display_odds": "",
+         "line": 3.5,
+         "line_id": "c8290ad270a93896ec6ab1ef206ec474",
+         "name": "Tennessee Titans +3.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-3.5",
+         "display_name": "Seattle Seahawks -3.5",
+         "display_odds": "",
+         "line": -3.5,
+         "line_id": "e75f514273354082b21ab526c6e32f95",
+         "name": "Seattle Seahawks -3.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "favourite": true,
+      "id": 223,
+      "line": 5.5,
+      "name": "Fixed home +5.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+5.5",
+         "display_name": "Tennessee Titans +5.5",
+         "display_odds": "-104",
+         "line": 5.5,
+         "line_id": "71343645b728e5da65da4b2fb5dc022b",
+         "name": "Tennessee Titans +5.5",
+         "odds": -104,
+         "outcome_id": 1714,
+         "stake": 3553,
+         "updated_at": 1787535314722171000,
+         "value": 3695.12
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-5.5",
+         "display_name": "Seattle Seahawks -5.5",
+         "display_odds": "-125",
+         "line": -5.5,
+         "line_id": "466c0f246dda70fc9ce3b9978be4fcc2",
+         "name": "Seattle Seahawks -5.5",
+         "odds": -125,
+         "outcome_id": 1715,
+         "stake": 3354,
+         "updated_at": 1787535314722320000,
+         "value": 4192.5
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 6.5,
+      "name": "Fixed home +6.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+6.5",
+         "display_name": "Tennessee Titans +6.5",
+         "display_odds": "",
+         "line": 6.5,
+         "line_id": "32bf7cc72f08187f554a0af9ef54a58d",
+         "name": "Tennessee Titans +6.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-6.5",
+         "display_name": "Seattle Seahawks -6.5",
+         "display_odds": "",
+         "line": -6.5,
+         "line_id": "4bd7fbc221dd6e47caa29cf15e53d54a",
+         "name": "Seattle Seahawks -6.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 7.5,
+      "name": "Fixed home +7.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+7.5",
+         "display_name": "Tennessee Titans +7.5",
+         "display_odds": "",
+         "line": 7.5,
+         "line_id": "dad3d8722acfe084188398382525a975",
+         "name": "Tennessee Titans +7.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-7.5",
+         "display_name": "Seattle Seahawks -7.5",
+         "display_odds": "",
+         "line": -7.5,
+         "line_id": "b749de81451e66ff24c18fac5f11b9d8",
+         "name": "Seattle Seahawks -7.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 8.5,
+      "name": "Fixed home +8.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+8.5",
+         "display_name": "Tennessee Titans +8.5",
+         "display_odds": "",
+         "line": 8.5,
+         "line_id": "0650b089dca41c22372639ac2330c8ed",
+         "name": "Tennessee Titans +8.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-8.5",
+         "display_name": "Seattle Seahawks -8.5",
+         "display_odds": "",
+         "line": -8.5,
+         "line_id": "cc7aa2b5ae3b9f4753991692a24d7c76",
+         "name": "Seattle Seahawks -8.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 9.5,
+      "name": "Fixed home +9.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+9.5",
+         "display_name": "Tennessee Titans +9.5",
+         "display_odds": "",
+         "line": 9.5,
+         "line_id": "001b3a4ccaadabbbe7c156ebbd2f3bcc",
+         "name": "Tennessee Titans +9.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-9.5",
+         "display_name": "Seattle Seahawks -9.5",
+         "display_odds": "",
+         "line": -9.5,
+         "line_id": "074e268361b1a39f18d1c0d1b99b992e",
+         "name": "Seattle Seahawks -9.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 10.5,
+      "name": "Fixed home +10.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+10.5",
+         "display_name": "Tennessee Titans +10.5",
+         "display_odds": "",
+         "line": 10.5,
+         "line_id": "dfa37e82bb0e906ea32ac6055ee81351",
+         "name": "Tennessee Titans +10.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-10.5",
+         "display_name": "Seattle Seahawks -10.5",
+         "display_odds": "",
+         "line": -10.5,
+         "line_id": "bbeee1374ead25184a31eca4cf88d6c8",
+         "name": "Seattle Seahawks -10.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     },
+     {
+      "id": 223,
+      "line": 12.5,
+      "name": "Fixed home +12.5",
+      "selections": [
+       [
+        {
+         "competitor_id": 34,
+         "display_line": "+12.5",
+         "display_name": "Tennessee Titans +12.5",
+         "display_odds": "",
+         "line": 12.5,
+         "line_id": "3170ffacdba52935e07371f1e3fc4b3c",
+         "name": "Tennessee Titans +12.5",
+         "odds": null,
+         "outcome_id": 1714,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "competitor_id": 30,
+         "display_line": "-12.5",
+         "display_name": "Seattle Seahawks -12.5",
+         "display_odds": "",
+         "line": -12.5,
+         "line_id": "e03fb6717bba1d2877a16a96303a98a1",
+         "name": "Seattle Seahawks -12.5",
+         "odds": null,
+         "outcome_id": 1715,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "spread"
+     }
+    ],
+    "name": "Spread",
+    "status": "active",
+    "total_stake": 87619.84,
+    "type": "spread",
+    "updated_at": 1786943326970803000
+   },
+   {
+    "id": 225,
+    "market_lines": [
+     {
+      "id": 225,
+      "line": 37.5,
+      "name": "Fixed total 37.5",
+      "selections": [
+       [
+        {
+         "display_line": "37.5",
+         "display_name": "under 37.5",
+         "display_odds": "",
+         "line": 37.5,
+         "line_id": "ba7fc7f7c91e9c0382905de8a529b989",
+         "name": "under 37.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "37.5",
+         "display_name": "over 37.5",
+         "display_odds": "",
+         "line": 37.5,
+         "line_id": "1e7da02c0ea4632c6f8b6c2b0f80f6dc",
+         "name": "over 37.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 38,
+      "name": "Fixed total 38",
+      "selections": [
+       [
+        {
+         "display_line": "38",
+         "display_name": "under 38",
+         "display_odds": "",
+         "line": 38,
+         "line_id": "8d8104e475eb7f0422b8b511958ef41b",
+         "name": "under 38",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "38",
+         "display_name": "over 38",
+         "display_odds": "",
+         "line": 38,
+         "line_id": "8265c396145031e6c169d081ce5396b6",
+         "name": "over 38",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 38.5,
+      "name": "Fixed total 38.5",
+      "selections": [
+       [
+        {
+         "display_line": "38.5",
+         "display_name": "under 38.5",
+         "display_odds": "",
+         "line": 38.5,
+         "line_id": "1a0aaefa7066ccb323fe6cf0f7d4d232",
+         "name": "under 38.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "38.5",
+         "display_name": "over 38.5",
+         "display_odds": "",
+         "line": 38.5,
+         "line_id": "c902980ff9314f1e32b0262cb5408d4a",
+         "name": "over 38.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 42.5,
+      "name": "Fixed total 42.5",
+      "selections": [
+       [
+        {
+         "display_line": "42.5",
+         "display_name": "under 42.5",
+         "display_odds": "",
+         "line": 42.5,
+         "line_id": "ff18940a0dc78d71c97832a4629ae529",
+         "name": "under 42.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "42.5",
+         "display_name": "over 42.5",
+         "display_odds": "",
+         "line": 42.5,
+         "line_id": "8185cbe52ad02ab3ac318e9c86b82a4c",
+         "name": "over 42.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 43.5,
+      "name": "Fixed total 43.5",
+      "selections": [
+       [
+        {
+         "display_line": "43.5",
+         "display_name": "under 43.5",
+         "display_odds": "",
+         "line": 43.5,
+         "line_id": "7fb6b11880c7784f71752dede6613a25",
+         "name": "under 43.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "43.5",
+         "display_name": "over 43.5",
+         "display_odds": "",
+         "line": 43.5,
+         "line_id": "12a2b2a8e7f924927d44b1fc90a548e9",
+         "name": "over 43.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "favourite": true,
+      "id": 225,
+      "line": 44.5,
+      "name": "Fixed total 44.5",
+      "selections": [
+       [
+        {
+         "display_line": "44.5",
+         "display_name": "under 44.5",
+         "display_odds": "",
+         "line": 44.5,
+         "line_id": "3f8aa1eb2d8f21f2914e2d1e60d2a39b",
+         "name": "under 44.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "44.5",
+         "display_name": "over 44.5",
+         "display_odds": "",
+         "line": 44.5,
+         "line_id": "cd60fd9f17e30a0c8ab4043e1a7623aa",
+         "name": "over 44.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 45.5,
+      "name": "Fixed total 45.5",
+      "selections": [
+       [
+        {
+         "display_line": "45.5",
+         "display_name": "under 45.5",
+         "display_odds": "",
+         "line": 45.5,
+         "line_id": "120b15dde8f06ffac0fda188d9679d52",
+         "name": "under 45.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "45.5",
+         "display_name": "over 45.5",
+         "display_odds": "",
+         "line": 45.5,
+         "line_id": "7095fd0f10b89b470feb2a994f6cc75c",
+         "name": "over 45.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 46.5,
+      "name": "Fixed total 46.5",
+      "selections": [
+       [
+        {
+         "display_line": "46.5",
+         "display_name": "under 46.5",
+         "display_odds": "",
+         "line": 46.5,
+         "line_id": "bbd37a12a1373909bc64c57d359a873d",
+         "name": "under 46.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "46.5",
+         "display_name": "over 46.5",
+         "display_odds": "",
+         "line": 46.5,
+         "line_id": "a15bea373fc47600dabbb2199ce372a4",
+         "name": "over 46.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 47.5,
+      "name": "Fixed total 47.5",
+      "selections": [
+       [
+        {
+         "display_line": "47.5",
+         "display_name": "under 47.5",
+         "display_odds": "",
+         "line": 47.5,
+         "line_id": "8af25730c7e009f4344e3be2b22cabae",
+         "name": "under 47.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "47.5",
+         "display_name": "over 47.5",
+         "display_odds": "",
+         "line": 47.5,
+         "line_id": "2c17a5705d505df258aec8abbcb7719f",
+         "name": "over 47.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 48.5,
+      "name": "Fixed total 48.5",
+      "selections": [
+       [
+        {
+         "display_line": "48.5",
+         "display_name": "under 48.5",
+         "display_odds": "",
+         "line": 48.5,
+         "line_id": "dfece08871e025a32505a8c8235b5751",
+         "name": "under 48.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "48.5",
+         "display_name": "over 48.5",
+         "display_odds": "",
+         "line": 48.5,
+         "line_id": "8a36f6162ded8a7ca380290837c0cdbb",
+         "name": "over 48.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 49.5,
+      "name": "Fixed total 49.5",
+      "selections": [
+       [
+        {
+         "display_line": "49.5",
+         "display_name": "under 49.5",
+         "display_odds": "",
+         "line": 49.5,
+         "line_id": "8028e780695a687d24755112244f68f1",
+         "name": "under 49.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "49.5",
+         "display_name": "over 49.5",
+         "display_odds": "",
+         "line": 49.5,
+         "line_id": "b0bfc5ba7ad548ec32b91f593bbd606d",
+         "name": "over 49.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     },
+     {
+      "id": 225,
+      "line": 50.5,
+      "name": "Fixed total 50.5",
+      "selections": [
+       [
+        {
+         "display_line": "50.5",
+         "display_name": "under 50.5",
+         "display_odds": "",
+         "line": 50.5,
+         "line_id": "98ce22ff6cab489758ad2f918b68aa57",
+         "name": "under 50.5",
+         "odds": null,
+         "outcome_id": 13,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ],
+       [
+        {
+         "display_line": "50.5",
+         "display_name": "over 50.5",
+         "display_odds": "",
+         "line": 50.5,
+         "line_id": "96722d52025016fc31c0128ea84721bf",
+         "name": "over 50.5",
+         "odds": null,
+         "outcome_id": 12,
+         "stake": 0,
+         "updated_at": 0,
+         "value": 0
+        }
+       ]
+      ],
+      "type": "total"
+     }
+    ],
+    "name": "Total Points",
+    "status": "active",
+    "total_stake": 14442.6,
+    "type": "total",
+    "updated_at": 1786943326970803000
+   }
+  ]
+ }
+}

@@ -1,0 +1,69 @@
+# Cloudflare Worker for the private football weather/odds board.
+# Serves the static frontend (site/web) and proxies /data/*.json to R2; small
+# read-only /api/* routes query D1. Adapted from golf_scraping/board/worker.
+# Deploy:  cd site/worker && npx wrangler deploy      (see SETUP.md)
+# Privacy: HTTP Basic Auth in index.js (BOARD_PASSWORD viewer, BOARD_ADMIN_* admin).
+
+name = "football-board"
+main = "index.js"
+compatibility_date = "2026-07-22"
+
+# Static frontend (index.html, app.js, vendor/). The Worker delegates non-/data,
+# non-/api requests to these assets.
+[assets]
+directory = "../web"
+binding = "ASSETS"
+# Route every path through the Worker before static-asset matching so the
+# authentication gate also protects the homepage and frontend assets.
+run_worker_first = ["/*"]
+# Disable the asset layer's automatic / -> /index.html resolution; index.js
+# performs the rewrite only after authentication.
+html_handling = "none"
+
+# R2 bucket holding board JSON + state (written by pipeline.yml under board/),
+# raw captures (raw/), snapshots (snapshots/), legacy files (legacy/).
+[[r2_buckets]]
+binding = "ODDS"
+bucket_name = "football-board"
+
+# D1: odds_history / weather_history / openers / games / runs / alerts.
+# database_id is printed by `npx wrangler d1 create football-odds` — paste it
+# here before the first deploy (SETUP.md step 2).
+[[d1_databases]]
+binding = "DB"
+database_name = "football-odds"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+BOARD_ADMIN_USERNAME = "mslade"
+# GitHub repo whose pipeline.yml the Worker dispatches (scheduled() + /refresh).
+GH_REPO = "mslade50/football_weather"
+GH_WORKFLOW = "pipeline.yml"
+GH_REF = "main"
+
+# ── Cron Triggers ─────────────────────────────────────────────────────────────
+# FREE PLAN (current): the account has at most 2 free cron triggers left, so the
+# FULL scrape schedule lives in .github/workflows/pipeline.yml `schedule:` and
+# Cloudflare only provides (a) a liveness heartbeat and (b) one reliable mid-day
+# dispatch (GitHub's own schedule is frequently late/dropped). scheduled() in
+# index.js maps event.cron -> {sport, scope} via CRON_PLAN and trims by ET
+# month/DOW/hour (Intl America/New_York, so DST is handled). Trimmed fires
+# still write board/cf_heartbeat.json and cost zero GitHub minutes.
+#
+# DAY-OF-WEEK IS QUARTZ-STYLE: 1=Sun, 2=Mon ... 7=Sat (NOT 0=Sun / ISO). Verified
+# empirically on the golf board 2026-07-19 — see golf_scraping wrangler.toml.
+#
+# WORKERS PAID ($5/mo) EXPANSION: replace the two entries below with the
+# PAID_CRONS list in index.js (also documented in SETUP.md). Every expression in
+# that list is already handled by CRON_PLAN, so expanding is a wrangler.toml-only
+# change plus `npx wrangler deploy`.
+[triggers]
+crons = [
+  # Heartbeat every 30 min. Never dispatches; pipeline.build alerts when
+  # board/cf_heartbeat.json goes >20h stale (the only signal that CF crons died).
+  "*/30 * * * *",
+  # Mid-day dispatch: 17:15 UTC = 13:15 EDT / 12:15 EST. sport=all scope=full
+  # in season (Aug-Feb, NFL-only in Feb); trimmed to nothing off-season.
+  "15 17 * * *",
+]

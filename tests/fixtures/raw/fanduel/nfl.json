@@ -1,0 +1,5153 @@
+{
+ "attachments": {
+  "competitions": {
+   "11432305": {
+    "name": "NFL Preseason",
+    "competitionId": 11432305,
+    "eventTypeId": 6423,
+    "eventId": 28339327
+   },
+   "12282733": {
+    "name": "NFL",
+    "competitionId": 12282733,
+    "eventTypeId": 6423,
+    "eventId": 28041972
+   }
+  },
+  "events": {
+   "35950174": {
+    "eventId": 35950174,
+    "name": "Seattle Seahawks @ Tennessee Titans",
+    "eventTypeId": 6423,
+    "competitionId": 11432305,
+    "countryCode": "GB",
+    "openDate": "2026-08-24T00:10:00.000Z",
+    "videoAvailable": true,
+    "statsAvailable": false
+   },
+   "35609021": {
+    "eventId": 35609021,
+    "name": "New York Jets @ Tennessee Titans",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35607262": {
+    "eventId": 35607262,
+    "name": "New England Patriots @ Seattle Seahawks",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-10T00:15:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35596960": {
+    "eventId": 35596960,
+    "name": "San Francisco 49ers @ Los Angeles Rams",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-11T00:35:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610167": {
+    "eventId": 35610167,
+    "name": "Buffalo Bills @ Houston Texans",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:00:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35609020": {
+    "eventId": 35609020,
+    "name": "Atlanta Falcons @ Pittsburgh Steelers",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35607426": {
+    "eventId": 35607426,
+    "name": "Chicago Bears @ Carolina Panthers",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610168": {
+    "eventId": 35610168,
+    "name": "New Orleans Saints @ Detroit Lions",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35609019": {
+    "eventId": 35609019,
+    "name": "Cleveland Browns @ Jacksonville Jaguars",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610169": {
+    "eventId": 35610169,
+    "name": "Tampa Bay Buccaneers @ Cincinnati Bengals",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610190": {
+    "eventId": 35610190,
+    "name": "Baltimore Ravens @ Indianapolis Colts",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T17:01:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35609293": {
+    "eventId": 35609293,
+    "name": "Washington Commanders @ Philadelphia Eagles",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T20:25:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610171": {
+    "eventId": 35610171,
+    "name": "Green Bay Packers @ Minnesota Vikings",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T20:25:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35609018": {
+    "eventId": 35609018,
+    "name": "Miami Dolphins @ Las Vegas Raiders",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T20:26:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35610170": {
+    "eventId": 35610170,
+    "name": "Arizona Cardinals @ Los Angeles Chargers",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-13T20:26:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35596943": {
+    "eventId": 35596943,
+    "name": "Dallas Cowboys @ New York Giants",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-14T00:20:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35601246": {
+    "eventId": 35601246,
+    "name": "Denver Broncos @ Kansas City Chiefs",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-09-15T00:15:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35605982": {
+    "eventId": 35605982,
+    "name": "Indianapolis Colts @ Washington Commanders",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-10-04T13:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35605983": {
+    "eventId": 35605983,
+    "name": "Philadelphia Eagles @ Jacksonville Jaguars",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-10-11T13:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   },
+   "35605984": {
+    "eventId": 35605984,
+    "name": "Houston Texans @ Jacksonville Jaguars",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "countryCode": "GB",
+    "openDate": "2026-10-18T13:30:00.000Z",
+    "videoAvailable": false,
+    "statsAvailable": true
+   }
+  },
+  "markets": {
+   "704.181441377": {
+    "marketId": "704.181441377",
+    "eventTypeId": 6423,
+    "competitionId": 11432305,
+    "eventId": 35950174,
+    "exchangeMarketId": "1.261222205",
+    "marketName": "Total Points",
+    "marketTime": "2026-08-24T00:10:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": true,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 42.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 42.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -125,
+        "americanOddsInt": -125
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.8
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 125
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.181441378": {
+    "marketId": "704.181441378",
+    "eventTypeId": 6423,
+    "competitionId": 11432305,
+    "eventId": 35950174,
+    "exchangeMarketId": "1.261222003",
+    "marketName": "Spread",
+    "marketTime": "2026-08-24T00:10:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": true,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50213,
+      "handicap": -6.5,
+      "runnerName": "Seattle Seahawks",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SEA Seahawks",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -130,
+        "americanOddsInt": -130
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.769230769230769
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 130
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50206,
+      "handicap": 6.5,
+      "runnerName": "Tennessee Titans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TEN Titans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.181441379": {
+    "marketId": "704.181441379",
+    "eventTypeId": 6423,
+    "competitionId": 11432305,
+    "eventId": 35950174,
+    "exchangeMarketId": "1.261222407",
+    "marketName": "Moneyline",
+    "marketTime": "2026-08-24T00:10:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": true,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50213,
+      "handicap": 0,
+      "runnerName": "Seattle Seahawks",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SEA Seahawks",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -370,
+        "americanOddsInt": -370
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.27027027027027
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 37
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50206,
+      "handicap": 0,
+      "runnerName": "Tennessee Titans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TEN Titans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 265,
+        "americanOddsInt": 265
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 3.65
+        },
+        "fractionalOdds": {
+         "numerator": 265,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035517": {
+    "marketId": "704.169035517",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609021,
+    "exchangeMarketId": "1.260889494",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 39.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 39.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035518": {
+    "marketId": "704.169035518",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609021,
+    "exchangeMarketId": "1.260889392",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50202,
+      "handicap": 2.5,
+      "runnerName": "New York Jets",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NY Jets",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50206,
+      "handicap": -2.5,
+      "runnerName": "Tennessee Titans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TEN Titans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035519": {
+    "marketId": "704.169035519",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609021,
+    "exchangeMarketId": "1.260889391",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50202,
+      "handicap": 0,
+      "runnerName": "New York Jets",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NY Jets",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 118,
+        "americanOddsInt": 118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.18
+        },
+        "fractionalOdds": {
+         "numerator": 118,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50206,
+      "handicap": 0,
+      "runnerName": "Tennessee Titans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TEN Titans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -138,
+        "americanOddsInt": -138
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.72463768115942
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 138
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168927752": {
+    "marketId": "704.168927752",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607262,
+    "exchangeMarketId": "1.260888286",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-10T00:15:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 44.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 44.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168927753": {
+    "marketId": "704.168927753",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607262,
+    "exchangeMarketId": "1.260888183",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-10T00:15:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50204,
+      "handicap": 0,
+      "runnerName": "New England Patriots",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NE Patriots",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 162,
+        "americanOddsInt": 162
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.62
+        },
+        "fractionalOdds": {
+         "numerator": 162,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50213,
+      "handicap": 0,
+      "runnerName": "Seattle Seahawks",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SEA Seahawks",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -194,
+        "americanOddsInt": -194
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.515463917525773
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 194
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168927754": {
+    "marketId": "704.168927754",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607262,
+    "exchangeMarketId": "1.260888184",
+    "marketName": "Spread",
+    "marketTime": "2026-09-10T00:15:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50204,
+      "handicap": 3.5,
+      "runnerName": "New England Patriots",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NE Patriots",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50213,
+      "handicap": -3.5,
+      "runnerName": "Seattle Seahawks",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SEA Seahawks",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168659156": {
+    "marketId": "704.168659156",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596960,
+    "exchangeMarketId": "1.260888341",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-11T00:35:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 43010249,
+      "handicap": 0,
+      "runnerName": "San Francisco 49ers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SF 49ers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 166,
+        "americanOddsInt": 166
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.66
+        },
+        "fractionalOdds": {
+         "numerator": 166,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 10782388,
+      "handicap": 0,
+      "runnerName": "Los Angeles Rams",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LA Rams",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -198,
+        "americanOddsInt": -198
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.505050505050505
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 198
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168659157": {
+    "marketId": "704.168659157",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596960,
+    "exchangeMarketId": "1.260888342",
+    "marketName": "Spread",
+    "marketTime": "2026-09-11T00:35:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 43010249,
+      "handicap": 3.5,
+      "runnerName": "San Francisco 49ers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "SF 49ers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 10782388,
+      "handicap": -3.5,
+      "runnerName": "Los Angeles Rams",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LA Rams",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168659158": {
+    "marketId": "704.168659158",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596960,
+    "exchangeMarketId": "1.260888444",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-11T00:35:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 48.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 48.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069070": {
+    "marketId": "704.169069070",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610167,
+    "exchangeMarketId": "1.260890226",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:00:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50203,
+      "handicap": 0,
+      "runnerName": "Buffalo Bills",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "BUF Bills",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 179823,
+      "handicap": 0,
+      "runnerName": "Houston Texans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "HOU Texans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069071": {
+    "marketId": "704.169069071",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610167,
+    "exchangeMarketId": "1.260890227",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:00:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50203,
+      "handicap": 1.5,
+      "runnerName": "Buffalo Bills",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "BUF Bills",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 179823,
+      "handicap": -1.5,
+      "runnerName": "Houston Texans",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "HOU Texans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069073": {
+    "marketId": "704.169069073",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610167,
+    "exchangeMarketId": "1.260890329",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:00:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 44.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 44.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035479": {
+    "marketId": "704.169035479",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609020,
+    "exchangeMarketId": "1.260889813",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 41.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 41.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035480": {
+    "marketId": "704.169035480",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609020,
+    "exchangeMarketId": "1.260889710",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50199,
+      "handicap": 0,
+      "runnerName": "Atlanta Falcons",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "ATL Falcons",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 136,
+        "americanOddsInt": 136
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.36
+        },
+        "fractionalOdds": {
+         "numerator": 136,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50208,
+      "handicap": 0,
+      "runnerName": "Pittsburgh Steelers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PIT Steelers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -162,
+        "americanOddsInt": -162
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.617283950617284
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 162
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035481": {
+    "marketId": "704.169035481",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609020,
+    "exchangeMarketId": "1.260889711",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50199,
+      "handicap": 3,
+      "runnerName": "Atlanta Falcons",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "ATL Falcons",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50208,
+      "handicap": -3,
+      "runnerName": "Pittsburgh Steelers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PIT Steelers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168939040": {
+    "marketId": "704.168939040",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607426,
+    "exchangeMarketId": "1.260889868",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50194,
+      "handicap": -2.5,
+      "runnerName": "Chicago Bears",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CHI Bears",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50198,
+      "handicap": 2.5,
+      "runnerName": "Carolina Panthers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CAR Panthers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168939039": {
+    "marketId": "704.168939039",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607426,
+    "exchangeMarketId": "1.260889972",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 47.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -114,
+        "americanOddsInt": -114
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.87719298245614
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 114
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 47.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168939037": {
+    "marketId": "704.168939037",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35607426,
+    "exchangeMarketId": "1.260889867",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50194,
+      "handicap": 0,
+      "runnerName": "Chicago Bears",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CHI Bears",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -146,
+        "americanOddsInt": -146
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.684931506849315
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 146
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50198,
+      "handicap": 0,
+      "runnerName": "Carolina Panthers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CAR Panthers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 124,
+        "americanOddsInt": 124
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.24
+        },
+        "fractionalOdds": {
+         "numerator": 124,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069075": {
+    "marketId": "704.169069075",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610168,
+    "exchangeMarketId": "1.260889124",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50196,
+      "handicap": 0,
+      "runnerName": "New Orleans Saints",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NO Saints",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 290,
+        "americanOddsInt": 290
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 3.9
+        },
+        "fractionalOdds": {
+         "numerator": 29,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50193,
+      "handicap": 0,
+      "runnerName": "Detroit Lions",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DET Lions",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -360,
+        "americanOddsInt": -360
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.277777777777778
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 36
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069076": {
+    "marketId": "704.169069076",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610168,
+    "exchangeMarketId": "1.260889125",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50196,
+      "handicap": 7,
+      "runnerName": "New Orleans Saints",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NO Saints",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50193,
+      "handicap": -7,
+      "runnerName": "Detroit Lions",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DET Lions",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069077": {
+    "marketId": "704.169069077",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610168,
+    "exchangeMarketId": "1.260889227",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 49.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 49.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035458": {
+    "marketId": "704.169035458",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609019,
+    "exchangeMarketId": "1.260890068",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50209,
+      "handicap": 7.5,
+      "runnerName": "Cleveland Browns",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CLE Browns",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": -7.5,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035460": {
+    "marketId": "704.169035460",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609019,
+    "exchangeMarketId": "1.260890067",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50209,
+      "handicap": 0,
+      "runnerName": "Cleveland Browns",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CLE Browns",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 330,
+        "americanOddsInt": 330
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 4.3
+        },
+        "fractionalOdds": {
+         "numerator": 33,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": 0,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -420,
+        "americanOddsInt": -420
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.238095238095238
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 42
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035461": {
+    "marketId": "704.169035461",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609019,
+    "exchangeMarketId": "1.260890170",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 40.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 40.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069102": {
+    "marketId": "704.169069102",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610169,
+    "exchangeMarketId": "1.260888607",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50190,
+      "handicap": 0,
+      "runnerName": "Tampa Bay Buccaneers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TB Buccaneers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 176,
+        "americanOddsInt": 176
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.76
+        },
+        "fractionalOdds": {
+         "numerator": 176,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50210,
+      "handicap": 0,
+      "runnerName": "Cincinnati Bengals",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CIN Bengals",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -210,
+        "americanOddsInt": -210
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.476190476190476
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 210
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069103": {
+    "marketId": "704.169069103",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610169,
+    "exchangeMarketId": "1.260888710",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 51.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 51.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069104": {
+    "marketId": "704.169069104",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610169,
+    "exchangeMarketId": "1.260888608",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50190,
+      "handicap": 3.5,
+      "runnerName": "Tampa Bay Buccaneers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "TB Buccaneers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50210,
+      "handicap": -3.5,
+      "runnerName": "Cincinnati Bengals",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "CIN Bengals",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169070163": {
+    "marketId": "704.169070163",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610190,
+    "exchangeMarketId": "1.260889656",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 48.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 48.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169070164": {
+    "marketId": "704.169070164",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610190,
+    "exchangeMarketId": "1.260889553",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50205,
+      "handicap": 0,
+      "runnerName": "Baltimore Ravens",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "BAL Ravens",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -186,
+        "americanOddsInt": -186
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.537634408602151
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 186
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50200,
+      "handicap": 0,
+      "runnerName": "Indianapolis Colts",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "IND Colts",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 156,
+        "americanOddsInt": 156
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.56
+        },
+        "fractionalOdds": {
+         "numerator": 156,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169070162": {
+    "marketId": "704.169070162",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610190,
+    "exchangeMarketId": "1.260889554",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T17:01:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50205,
+      "handicap": -3.5,
+      "runnerName": "Baltimore Ravens",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "BAL Ravens",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50200,
+      "handicap": 3.5,
+      "runnerName": "Indianapolis Colts",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "IND Colts",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169039772": {
+    "marketId": "704.169039772",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609293,
+    "exchangeMarketId": "1.260890820",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 46.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 46.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169039773": {
+    "marketId": "704.169039773",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609293,
+    "exchangeMarketId": "1.260890717",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 42568622,
+      "handicap": 0,
+      "runnerName": "Washington Commanders",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "WAS Commanders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 198,
+        "americanOddsInt": 198
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.98
+        },
+        "fractionalOdds": {
+         "numerator": 198,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50186,
+      "handicap": 0,
+      "runnerName": "Philadelphia Eagles",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PHI Eagles",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -240,
+        "americanOddsInt": -240
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.416666666666667
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 240
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169039775": {
+    "marketId": "704.169039775",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609293,
+    "exchangeMarketId": "1.260890718",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 42568622,
+      "handicap": 5.5,
+      "runnerName": "Washington Commanders",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "WAS Commanders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50186,
+      "handicap": -5.5,
+      "runnerName": "Philadelphia Eagles",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PHI Eagles",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069156": {
+    "marketId": "704.169069156",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610171,
+    "exchangeMarketId": "1.260890664",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 45.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 45.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -114,
+        "americanOddsInt": -114
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.87719298245614
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 114
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069157": {
+    "marketId": "704.169069157",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610171,
+    "exchangeMarketId": "1.260890562",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50192,
+      "handicap": 1.5,
+      "runnerName": "Green Bay Packers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "GB Packers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50191,
+      "handicap": -1.5,
+      "runnerName": "Minnesota Vikings",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "MIN Vikings",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069158": {
+    "marketId": "704.169069158",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610171,
+    "exchangeMarketId": "1.260890561",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T20:25:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50192,
+      "handicap": 0,
+      "runnerName": "Green Bay Packers",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "GB Packers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50191,
+      "handicap": 0,
+      "runnerName": "Minnesota Vikings",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "MIN Vikings",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -116,
+        "americanOddsInt": -116
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.862068965517241
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 116
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035430": {
+    "marketId": "704.169035430",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609018,
+    "exchangeMarketId": "1.260890485",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 40.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 40.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035431": {
+    "marketId": "704.169035431",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609018,
+    "exchangeMarketId": "1.260890382",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50201,
+      "handicap": 0,
+      "runnerName": "Miami Dolphins",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "MIA Dolphins",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 168,
+        "americanOddsInt": 168
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.68
+        },
+        "fractionalOdds": {
+         "numerator": 168,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 27443341,
+      "handicap": 0,
+      "runnerName": "Las Vegas Raiders",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LV Raiders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -200,
+        "americanOddsInt": -200
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.5
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 200
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169035432": {
+    "marketId": "704.169035432",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35609018,
+    "exchangeMarketId": "1.260890383",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50201,
+      "handicap": 3.5,
+      "runnerName": "Miami Dolphins",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "MIA Dolphins",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 27443341,
+      "handicap": -3.5,
+      "runnerName": "Las Vegas Raiders",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LV Raiders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069152": {
+    "marketId": "704.169069152",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610170,
+    "exchangeMarketId": "1.260890875",
+    "marketName": "Spread",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50188,
+      "handicap": 10.5,
+      "runnerName": "Arizona Cardinals",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "ARI Cardinals",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -114,
+        "americanOddsInt": -114
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.87719298245614
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 114
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 12481798,
+      "handicap": -10.5,
+      "runnerName": "Los Angeles Chargers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LA Chargers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -106,
+        "americanOddsInt": -106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.943396226415094
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 106
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069153": {
+    "marketId": "704.169069153",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610170,
+    "exchangeMarketId": "1.260890874",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50188,
+      "handicap": 0,
+      "runnerName": "Arizona Cardinals",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "ARI Cardinals",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 450,
+        "americanOddsInt": 450
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 5.5
+        },
+        "fractionalOdds": {
+         "numerator": 45,
+         "denominator": 10
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 12481798,
+      "handicap": 0,
+      "runnerName": "Los Angeles Chargers",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "LA Chargers",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -600,
+        "americanOddsInt": -600
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.166666666666667
+        },
+        "fractionalOdds": {
+         "numerator": 10,
+         "denominator": 60
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.169069151": {
+    "marketId": "704.169069151",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35610170,
+    "exchangeMarketId": "1.260890977",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-13T20:26:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 46.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 46.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168658298": {
+    "marketId": "704.168658298",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596943,
+    "exchangeMarketId": "1.260891033",
+    "marketName": "Spread",
+    "marketTime": "2026-09-14T00:20:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50189,
+      "handicap": -2.5,
+      "runnerName": "Dallas Cowboys",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DAL Cowboys",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50185,
+      "handicap": 2.5,
+      "runnerName": "New York Giants",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NY Giants",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -102,
+        "americanOddsInt": -102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.980392156862745
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 102
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168658295": {
+    "marketId": "704.168658295",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596943,
+    "exchangeMarketId": "1.260891135",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-14T00:20:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 48.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 48.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168658297": {
+    "marketId": "704.168658297",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35596943,
+    "exchangeMarketId": "1.260891032",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-14T00:20:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50189,
+      "handicap": 0,
+      "runnerName": "Dallas Cowboys",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DAL Cowboys",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -146,
+        "americanOddsInt": -146
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.684931506849315
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 146
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50185,
+      "handicap": 0,
+      "runnerName": "New York Giants",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "NY Giants",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 124,
+        "americanOddsInt": 124
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.24
+        },
+        "fractionalOdds": {
+         "numerator": 124,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168767873": {
+    "marketId": "704.168767873",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35601246,
+    "exchangeMarketId": "1.260891191",
+    "marketName": "Spread",
+    "marketTime": "2026-09-15T00:15:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50211,
+      "handicap": 2.5,
+      "runnerName": "Denver Broncos",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DEN Broncos",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50214,
+      "handicap": -2.5,
+      "runnerName": "Kansas City Chiefs",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "KC Chiefs",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168767872": {
+    "marketId": "704.168767872",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35601246,
+    "exchangeMarketId": "1.260891190",
+    "marketName": "Moneyline",
+    "marketTime": "2026-09-15T00:15:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50211,
+      "handicap": 0,
+      "runnerName": "Denver Broncos",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "DEN Broncos",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 130,
+        "americanOddsInt": 130
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.3
+        },
+        "fractionalOdds": {
+         "numerator": 130,
+         "denominator": 100
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50214,
+      "handicap": 0,
+      "runnerName": "Kansas City Chiefs",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "KC Chiefs",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -154,
+        "americanOddsInt": -154
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.649350649350649
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 154
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168767871": {
+    "marketId": "704.168767871",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35601246,
+    "exchangeMarketId": "1.260891293",
+    "marketName": "Total Points",
+    "marketTime": "2026-09-15T00:15:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 43.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 43.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897422": {
+    "marketId": "704.168897422",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605982,
+    "marketName": "Moneyline",
+    "marketTime": "2026-10-04T13:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50200,
+      "handicap": 0,
+      "runnerName": "Indianapolis Colts",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "IND Colts",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -124,
+        "americanOddsInt": -124
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.806451612903226
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 124
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 42568622,
+      "handicap": 0,
+      "runnerName": "Washington Commanders",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "WAS Commanders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 106,
+        "americanOddsInt": 106
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.06
+        },
+        "fractionalOdds": {
+         "numerator": 106,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897424": {
+    "marketId": "704.168897424",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605982,
+    "marketName": "Spread",
+    "marketTime": "2026-10-04T13:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50200,
+      "handicap": -1.5,
+      "runnerName": "Indianapolis Colts",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "IND Colts",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 42568622,
+      "handicap": 1.5,
+      "runnerName": "Washington Commanders",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "WAS Commanders",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897425": {
+    "marketId": "704.168897425",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605982,
+    "marketName": "Total Match Points",
+    "marketTime": "2026-10-04T13:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 49.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 49.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -110,
+        "americanOddsInt": -110
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.909090909090909
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 110
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897430": {
+    "marketId": "704.168897430",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605983,
+    "marketName": "Spread",
+    "marketTime": "2026-10-11T13:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50186,
+      "handicap": -1.5,
+      "runnerName": "Philadelphia Eagles",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PHI Eagles",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -108,
+        "americanOddsInt": -108
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.925925925925926
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 108
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": 1.5,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897426": {
+    "marketId": "704.168897426",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605983,
+    "marketName": "Total Match Points",
+    "marketTime": "2026-10-11T13:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 44.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 44.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897427": {
+    "marketId": "704.168897427",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605983,
+    "marketName": "Moneyline",
+    "marketTime": "2026-10-11T13:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 50186,
+      "handicap": 0,
+      "runnerName": "Philadelphia Eagles",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "PHI Eagles",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -120,
+        "americanOddsInt": -120
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.833333333333333
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 120
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": 0,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": 102,
+        "americanOddsInt": 102
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 2.02
+        },
+        "fractionalOdds": {
+         "numerator": 102,
+         "denominator": 100
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897475": {
+    "marketId": "704.168897475",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605984,
+    "marketName": "Total Match Points",
+    "marketTime": "2026-10-18T13:30:00.000Z",
+    "marketType": "TOTAL_POINTS_(OVER/UNDER)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -880,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 7017916,
+      "handicap": 40.5,
+      "runnerName": "Over",
+      "sortPriority": 1,
+      "result": {
+       "type": "OVER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -115,
+        "americanOddsInt": -115
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.869565217391304
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 115
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 7017917,
+      "handicap": 40.5,
+      "runnerName": "Under",
+      "sortPriority": 2,
+      "result": {
+       "type": "UNDER"
+      },
+      "runnerStatus": "ACTIVE",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -105,
+        "americanOddsInt": -105
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.952380952380952
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 105
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897473": {
+    "marketId": "704.168897473",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605984,
+    "marketName": "Moneyline",
+    "marketTime": "2026-10-18T13:30:00.000Z",
+    "marketType": "MONEY_LINE",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -900,
+    "bettingType": "ODDS",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 179823,
+      "handicap": 0,
+      "runnerName": "Houston Texans",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "HOU Texans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -112,
+        "americanOddsInt": -112
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.892857142857143
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 112
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": 0,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   },
+   "704.168897474": {
+    "marketId": "704.168897474",
+    "eventTypeId": 6423,
+    "competitionId": 12282733,
+    "eventId": 35605984,
+    "marketName": "Spread",
+    "marketTime": "2026-10-18T13:30:00.000Z",
+    "marketType": "MATCH_HANDICAP_(2-WAY)",
+    "bspMarket": false,
+    "sgmMarket": true,
+    "inPlay": false,
+    "numberOfRunners": 2,
+    "numberOfActiveRunners": 2,
+    "numberOfWinners": 1,
+    "sortPriority": -890,
+    "bettingType": "MOVING_HANDICAP",
+    "marketStatus": "OPEN",
+    "marketLevels": [
+     "AVB_EVENT"
+    ],
+    "runners": [
+     {
+      "selectionId": 179823,
+      "handicap": -1.5,
+      "runnerName": "Houston Texans",
+      "sortPriority": 1,
+      "result": {
+       "type": "AWAY"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "HOU Texans",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -104,
+        "americanOddsInt": -104
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.961538461538462
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 104
+        }
+       }
+      }
+     },
+     {
+      "selectionId": 50207,
+      "handicap": 1.5,
+      "runnerName": "Jacksonville Jaguars",
+      "sortPriority": 2,
+      "result": {
+       "type": "HOME"
+      },
+      "runnerStatus": "ACTIVE",
+      "nameAbbr": "JAX Jaguars",
+      "winRunnerOdds": {
+       "americanDisplayOdds": {
+        "americanOdds": -118,
+        "americanOddsInt": -118
+       },
+       "trueOdds": {
+        "decimalOdds": {
+         "decimalOdds": 1.847457627118644
+        },
+        "fractionalOdds": {
+         "numerator": 100,
+         "denominator": 118
+        }
+       }
+      }
+     }
+    ],
+    "canTurnInPlay": true,
+    "isSuperSubEnabled": false,
+    "shouldDisplayStatsInRunner": true,
+    "eachwayAvailable": false,
+    "legTypes": [
+     "SIMPLE_SELECTION"
+    ]
+   }
+  }
+ }
+}

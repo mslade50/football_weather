@@ -1,0 +1,3594 @@
+{
+  "air-force": [
+    "Air Force",
+    "AFA",
+    "Air Force Falcons"
+  ],
+  "akron": [
+    "Akron",
+    "AKR",
+    "Akron Zips"
+  ],
+  "alabama": [
+    "Alabama",
+    "ALA",
+    "Alabama Crimson Tide"
+  ],
+  "appalachian-state": [
+    "Appalachian State",
+    "APP",
+    "Appalachian St",
+    "Appalachian State Mountaineers",
+    "App State"
+  ],
+  "arizona": [
+    "Arizona",
+    "ARIZ",
+    "Arizona Wildcats"
+  ],
+  "arizona-state": [
+    "Arizona State",
+    "ASU",
+    "Arizona State Sun Devils"
+  ],
+  "arkansas": [
+    "Arkansas",
+    "ARK",
+    "Arkansas Razorbacks"
+  ],
+  "arkansas-state": [
+    "Arkansas State",
+    "ARST",
+    "Arkansas State Red Wolves"
+  ],
+  "army": [
+    "Army",
+    "ARMY",
+    "Army Black Knights",
+    "Army West Point"
+  ],
+  "auburn": [
+    "Auburn",
+    "AUB",
+    "Auburn Tigers"
+  ],
+  "ball-state": [
+    "Ball State",
+    "BALL",
+    "Ball State Cardinals"
+  ],
+  "baylor": [
+    "Baylor",
+    "BAY",
+    "Baylor Bears"
+  ],
+  "boise-state": [
+    "Boise State",
+    "BSU",
+    "Boise State Broncos"
+  ],
+  "boston-college": [
+    "Boston College",
+    "BC",
+    "Boston College Eagles"
+  ],
+  "bowling-green": [
+    "Bowling Green",
+    "BGSU",
+    "Bowling Green State",
+    "Bowling Green Falcons"
+  ],
+  "brigham-young": [
+    "Brigham Young",
+    "BYU",
+    "Brigham Young Cougars",
+    "BYU Cougars"
+  ],
+  "buffalo": [
+    "Buffalo",
+    "BUFF",
+    "Buffalo Bulls"
+  ],
+  "california": [
+    "California",
+    "CAL",
+    "Cal",
+    "California Golden Bears"
+  ],
+  "central-michigan": [
+    "Central Michigan",
+    "CMU",
+    "Cent Michigan",
+    "Central Michigan Chippewas"
+  ],
+  "charlotte": [
+    "Charlotte",
+    "CHAR",
+    "Charlotte 49ers"
+  ],
+  "cincinnati": [
+    "Cincinnati",
+    "CIN",
+    "Cincinnati Bearcats"
+  ],
+  "clemson": [
+    "Clemson",
+    "CLEM",
+    "Clemson Tigers"
+  ],
+  "coastal-carolina": [
+    "Coastal Carolina",
+    "CCU",
+    "C. Carolina",
+    "Coastal Carolina Chanticleers",
+    "CCAR"
+  ],
+  "colorado": [
+    "Colorado",
+    "COLO",
+    "Colorado Buffaloes"
+  ],
+  "colorado-state": [
+    "Colorado State",
+    "CSU",
+    "Colorado State Rams"
+  ],
+  "connecticut": [
+    "Connecticut",
+    "CONN",
+    "UConn",
+    "Connecticut Huskies",
+    "Uconn"
+  ],
+  "duke": [
+    "Duke",
+    "DUKE",
+    "Duke Blue Devils"
+  ],
+  "east-carolina": [
+    "East Carolina",
+    "ECU",
+    "East Carolina Pirates"
+  ],
+  "eastern-michigan": [
+    "Eastern Michigan",
+    "EMU",
+    "E Michigan",
+    "Eastern Michigan Eagles"
+  ],
+  "florida": [
+    "Florida",
+    "FLA",
+    "Florida Gators"
+  ],
+  "florida-atlantic": [
+    "Florida Atlantic",
+    "FAU",
+    "Florida Atlantic Owls"
+  ],
+  "florida-international": [
+    "Florida International",
+    "FIU",
+    "Florida Intl",
+    "Florida International Golden Panthers",
+    "Fla International"
+  ],
+  "florida-state": [
+    "Florida State",
+    "FSU",
+    "Florida State Seminoles"
+  ],
+  "fresno-state": [
+    "Fresno State",
+    "FRES",
+    "Fresno State Bulldogs"
+  ],
+  "georgia": [
+    "Georgia",
+    "UGA",
+    "Georgia Bulldogs"
+  ],
+  "georgia-southern": [
+    "Georgia Southern",
+    "GASO",
+    "Ga Southern",
+    "Georgia Southern Eagles"
+  ],
+  "georgia-state": [
+    "Georgia State",
+    "GAST",
+    "Georgia State Panthers"
+  ],
+  "georgia-tech": [
+    "Georgia Tech",
+    "GT",
+    "Georgia Tech Yellow Jackets"
+  ],
+  "hawaii": [
+    "Hawaii",
+    "HAW",
+    "Hawai'i",
+    "Hawaii Rainbow Warriors"
+  ],
+  "houston": [
+    "Houston",
+    "HOU",
+    "Houston Cougars"
+  ],
+  "illinois": [
+    "Illinois",
+    "ILL",
+    "Illinois Fighting Illini"
+  ],
+  "indiana": [
+    "Indiana",
+    "IND",
+    "Indiana Hoosiers"
+  ],
+  "iowa": [
+    "Iowa",
+    "IOWA",
+    "Iowa Hawkeyes"
+  ],
+  "iowa-state": [
+    "Iowa State",
+    "ISU",
+    "Iowa State Cyclones"
+  ],
+  "jacksonville-state": [
+    "Jacksonville State",
+    "JVST",
+    "Jacksonville St",
+    "Jacksonville State Gamecocks",
+    "Jax State"
+  ],
+  "james-madison": [
+    "James Madison",
+    "JMU",
+    "James Madison Dukes"
+  ],
+  "kansas": [
+    "Kansas",
+    "KU",
+    "Kansas Jayhawks"
+  ],
+  "kansas-state": [
+    "Kansas State",
+    "KSU",
+    "Kansas State Wildcats"
+  ],
+  "kennesaw-state": [
+    "Kennesaw State",
+    "KENN",
+    "Kennesaw",
+    "Kennesaw St",
+    "Kennesaw State Owls"
+  ],
+  "kent-state": [
+    "Kent State",
+    "KENT",
+    "Kent State Golden Flashes"
+  ],
+  "kentucky": [
+    "Kentucky",
+    "UK",
+    "Kentucky Wildcats"
+  ],
+  "lsu": [
+    "LSU",
+    "Louisiana State",
+    "LSU Tigers"
+  ],
+  "liberty": [
+    "Liberty",
+    "LIB",
+    "Liberty Flames"
+  ],
+  "louisiana": [
+    "Louisiana",
+    "ULL",
+    "UL Lafayette",
+    "Louisiana Ragin' Cajuns",
+    "Louisiana Lafayette",
+    "Louisiana-Lafayette"
+  ],
+  "louisiana-monroe": [
+    "Louisiana Monroe",
+    "ULM",
+    "La.-Monroe",
+    "UL Monroe",
+    "Louisiana Monroe Warhawks",
+    "Louisiana-Monroe"
+  ],
+  "louisiana-tech": [
+    "Louisiana Tech",
+    "LT",
+    "LA Tech",
+    "Louisiana Tech Bulldogs"
+  ],
+  "louisville": [
+    "Louisville",
+    "LOU",
+    "Louisville Cardinals"
+  ],
+  "marshall": [
+    "Marshall",
+    "MRSH",
+    "Marshall Thundering Herd"
+  ],
+  "maryland": [
+    "Maryland",
+    "MD",
+    "Maryland Terrapins"
+  ],
+  "massachusetts": [
+    "Massachusetts",
+    "UMASS",
+    "UMass",
+    "Massachusetts Minutemen",
+    "UMass Minutemen",
+    "MASS"
+  ],
+  "memphis": [
+    "Memphis",
+    "MEM",
+    "Memphis Tigers"
+  ],
+  "miami-fl": [
+    "Miami (FL)",
+    "MIAMI",
+    "Miami",
+    "Miami (FL) Hurricanes",
+    "Miami Florida",
+    "Miami FL",
+    "Miami Hurricanes",
+    "MIA"
+  ],
+  "miami-oh": [
+    "Miami (OH)",
+    "M-OH",
+    "Miami (OH) RedHawks",
+    "Miami Ohio",
+    "Miami OH",
+    "Miami RedHawks"
+  ],
+  "michigan": [
+    "Michigan",
+    "MICH",
+    "Michigan Wolverines"
+  ],
+  "michigan-state": [
+    "Michigan State",
+    "MSU",
+    "Michigan State Spartans"
+  ],
+  "middle-tennessee": [
+    "Middle Tennessee",
+    "MTSU",
+    "Middle Tennessee State",
+    "Mid Tennessee",
+    "Middle Tennessee Blue Raiders",
+    "MTU"
+  ],
+  "minnesota": [
+    "Minnesota",
+    "MINN",
+    "Minnesota Golden Gophers"
+  ],
+  "mississippi-state": [
+    "Mississippi State",
+    "MSST",
+    "Miss St",
+    "Mississippi State Bulldogs"
+  ],
+  "missouri": [
+    "Missouri",
+    "MIZ",
+    "Missouri Tigers",
+    "MIZZ"
+  ],
+  "nc-state": [
+    "NC State",
+    "NCST",
+    "North Carolina St.",
+    "NC State Wolfpack"
+  ],
+  "navy": [
+    "Navy",
+    "NAVY",
+    "Navy Midshipmen"
+  ],
+  "nebraska": [
+    "Nebraska",
+    "NEB",
+    "Nebraska Cornhuskers"
+  ],
+  "nevada": [
+    "Nevada",
+    "NEV",
+    "Nevada Wolf Pack"
+  ],
+  "new-mexico": [
+    "New Mexico",
+    "UNM",
+    "New Mexico Lobos"
+  ],
+  "new-mexico-state": [
+    "New Mexico State",
+    "NMSU",
+    "New Mexico St",
+    "New Mexico State Aggies"
+  ],
+  "north-carolina": [
+    "North Carolina",
+    "UNC",
+    "North Carolina Tar Heels"
+  ],
+  "north-texas": [
+    "North Texas",
+    "UNT",
+    "North Texas Mean Green"
+  ],
+  "northern-illinois": [
+    "Northern Illinois",
+    "NIU",
+    "N Illinois",
+    "Northern Illinois Huskies"
+  ],
+  "northwestern": [
+    "Northwestern",
+    "NW",
+    "Northwestern Wildcats"
+  ],
+  "notre-dame": [
+    "Notre Dame",
+    "ND",
+    "Notre Dame Fighting Irish"
+  ],
+  "ohio": [
+    "Ohio",
+    "OHIO",
+    "Ohio Bobcats"
+  ],
+  "ohio-state": [
+    "Ohio State",
+    "OSU",
+    "Ohio State Buckeyes"
+  ],
+  "oklahoma": [
+    "Oklahoma",
+    "OKLA",
+    "Oklahoma Sooners"
+  ],
+  "oklahoma-state": [
+    "Oklahoma State",
+    "OKST",
+    "Oklahoma State Cowboys"
+  ],
+  "old-dominion": [
+    "Old Dominion",
+    "ODU",
+    "Old Dominion Monarchs"
+  ],
+  "ole-miss": [
+    "Ole Miss",
+    "MISS",
+    "Ole Miss Rebels",
+    "Mississippi"
+  ],
+  "oregon": [
+    "Oregon",
+    "ORE",
+    "Oregon Ducks"
+  ],
+  "oregon-state": [
+    "Oregon State",
+    "ORST",
+    "Oregon State Beavers"
+  ],
+  "penn-state": [
+    "Penn State",
+    "PSU",
+    "Penn State Nittany Lions"
+  ],
+  "pittsburgh": [
+    "Pittsburgh",
+    "PITT",
+    "Pitt",
+    "Pittsburgh Panthers"
+  ],
+  "purdue": [
+    "Purdue",
+    "PUR",
+    "Purdue Boilermakers"
+  ],
+  "rice": [
+    "Rice",
+    "RICE",
+    "Rice Owls"
+  ],
+  "rutgers": [
+    "Rutgers",
+    "RUTG",
+    "Rutgers Scarlet Knights"
+  ],
+  "smu": [
+    "SMU",
+    "Southern Methodist",
+    "SMU Mustangs"
+  ],
+  "sam-houston-state": [
+    "Sam Houston State",
+    "SHSU",
+    "Sam Houston",
+    "Sam Houston State Bearkats",
+    "Sam Houston St"
+  ],
+  "san-diego-state": [
+    "San Diego State",
+    "SDSU",
+    "San Diego State Aztecs"
+  ],
+  "san-jose-state": [
+    "San Jose State",
+    "SJSU",
+    "San Jose St.",
+    "San Jose State Spartans",
+    "San Jos\u00e9 State",
+    "San Jose St"
+  ],
+  "south-alabama": [
+    "South Alabama",
+    "USA",
+    "South Alabama Jaguars"
+  ],
+  "south-carolina": [
+    "South Carolina",
+    "SC",
+    "South Carolina Gamecocks",
+    "SCAR"
+  ],
+  "south-florida": [
+    "South Florida",
+    "USF",
+    "South Florida Bulls"
+  ],
+  "southern-miss": [
+    "Southern Miss",
+    "USM",
+    "Southern Miss Golden Eagles",
+    "Southern Mississippi"
+  ],
+  "stanford": [
+    "Stanford",
+    "STAN",
+    "Stanford Cardinal"
+  ],
+  "syracuse": [
+    "Syracuse",
+    "SYR",
+    "Syracuse Orange"
+  ],
+  "tcu": [
+    "TCU",
+    "Texas Christian",
+    "TCU Horned Frogs"
+  ],
+  "temple": [
+    "Temple",
+    "TEM",
+    "Temple Owls"
+  ],
+  "tennessee": [
+    "Tennessee",
+    "TENN",
+    "Tennessee Volunteers"
+  ],
+  "texas": [
+    "Texas",
+    "TEX",
+    "Texas Longhorns"
+  ],
+  "texas-am": [
+    "Texas A&M",
+    "TA&M",
+    "Texas A&M Aggies",
+    "Texas AM",
+    "Texas A and M",
+    "TXAM"
+  ],
+  "texas-state": [
+    "Texas State",
+    "TXST",
+    "Texas State Bobcats"
+  ],
+  "texas-tech": [
+    "Texas Tech",
+    "TTU",
+    "Texas Tech Red Raiders"
+  ],
+  "toledo": [
+    "Toledo",
+    "TOL",
+    "Toledo Rockets"
+  ],
+  "troy": [
+    "Troy",
+    "TROY",
+    "Troy Trojans"
+  ],
+  "tulane": [
+    "Tulane",
+    "TULN",
+    "Tulane Green Wave"
+  ],
+  "tulsa": [
+    "Tulsa",
+    "TLSA",
+    "Tulsa Golden Hurricane"
+  ],
+  "uab": [
+    "UAB",
+    "Alabama-Birmingham",
+    "UAB Blazers",
+    "Alabama Birmingham"
+  ],
+  "ucf": [
+    "UCF",
+    "Central Florida",
+    "UCF Knights"
+  ],
+  "ucla": [
+    "UCLA",
+    "UCLA Bruins"
+  ],
+  "unlv": [
+    "UNLV",
+    "Nevada-Las Vegas",
+    "UNLV Rebels",
+    "Nevada Las Vegas"
+  ],
+  "usc": [
+    "USC",
+    "USC Trojans",
+    "Southern California",
+    "Southern Cal"
+  ],
+  "ut-san-antonio": [
+    "UT San Antonio",
+    "UTSA",
+    "Texas-San Antonio",
+    "UT San Antonio Roadrunners",
+    "Texas San Antonio"
+  ],
+  "utep": [
+    "UTEP",
+    "Texas-El Paso",
+    "UTEP Miners",
+    "Texas El Paso"
+  ],
+  "utah": [
+    "Utah",
+    "UTAH",
+    "Utah Utes"
+  ],
+  "utah-state": [
+    "Utah State",
+    "USU",
+    "Utah State Aggies"
+  ],
+  "vanderbilt": [
+    "Vanderbilt",
+    "VAN",
+    "Vanderbilt Commodores"
+  ],
+  "virginia": [
+    "Virginia",
+    "UVA",
+    "Virginia Cavaliers"
+  ],
+  "virginia-tech": [
+    "Virginia Tech",
+    "VT",
+    "Virginia Tech Hokies"
+  ],
+  "wake-forest": [
+    "Wake Forest",
+    "WAKE",
+    "Wake Forest Demon Deacons"
+  ],
+  "washington": [
+    "Washington",
+    "WASH",
+    "Washington Huskies"
+  ],
+  "washington-state": [
+    "Washington State",
+    "WSU",
+    "Washington St",
+    "Washington State Cougars"
+  ],
+  "west-virginia": [
+    "West Virginia",
+    "WVU",
+    "West Virginia Mountaineers",
+    "WV Mountaineers"
+  ],
+  "western-kentucky": [
+    "Western Kentucky",
+    "WKU",
+    "W Kentucky",
+    "Western Kentucky Hilltoppers"
+  ],
+  "western-michigan": [
+    "Western Michigan",
+    "WMU",
+    "W Michigan",
+    "Western Michigan Broncos"
+  ],
+  "wisconsin": [
+    "Wisconsin",
+    "WIS",
+    "Wisconsin Badgers"
+  ],
+  "wyoming": [
+    "Wyoming",
+    "WYO",
+    "Wyoming Cowboys"
+  ],
+  "abilene-christian": [
+    "Abilene Christian",
+    "ACU",
+    "Abil Christian",
+    "Abilene Christian Wildcats",
+    "AC"
+  ],
+  "alabama-am": [
+    "Alabama A&M",
+    "AAMU",
+    "Alabama A&M Bulldogs"
+  ],
+  "alabama-state": [
+    "Alabama State",
+    "ALST",
+    "Alabama State Hornets"
+  ],
+  "albany": [
+    "Albany",
+    "ALBY",
+    "SUNY Albany",
+    "Albany Great Danes",
+    "University at Albany",
+    "UAlbany"
+  ],
+  "alcorn-state": [
+    "Alcorn State",
+    "ALCN",
+    "Alcorn State Braves"
+  ],
+  "arkansas-pine-bluff": [
+    "Arkansas-Pine Bluff",
+    "UAPB",
+    "Arkansas Pine Bluff",
+    "AR-Pine Bluff",
+    "Arkansas-Pine Bluff Golden Lions",
+    "ARPB"
+  ],
+  "austin-peay": [
+    "Austin Peay",
+    "PEAY",
+    "Austin Peay Governors"
+  ],
+  "bethune-cookman": [
+    "Bethune-Cookman",
+    "BCU",
+    "Bethune-Cookman Wildcats",
+    "COOK"
+  ],
+  "brown": [
+    "Brown",
+    "BRWN",
+    "Brown Bears"
+  ],
+  "bryant-university": [
+    "Bryant University",
+    "BRY",
+    "Bryant",
+    "Bryant University Bulldogs"
+  ],
+  "bucknell": [
+    "Bucknell",
+    "BUCK",
+    "Bucknell Bison"
+  ],
+  "butler": [
+    "Butler",
+    "BUT",
+    "Butler Bulldogs"
+  ],
+  "cal-poly": [
+    "Cal Poly",
+    "CP",
+    "Cal Poly Mustangs"
+  ],
+  "campbell": [
+    "Campbell",
+    "CAMP",
+    "Campbell Camels"
+  ],
+  "central-arkansas": [
+    "Central Arkansas",
+    "UCA",
+    "Cent Arkansas",
+    "Central Arkansas Bears",
+    "CARK"
+  ],
+  "central-connecticut-state": [
+    "Central Connecticut State",
+    "CCSU",
+    "Cent Conn St",
+    "Central Connecticut State Blue Devils",
+    "Central Connecticut"
+  ],
+  "charleston-southern": [
+    "Charleston Southern",
+    "CHSO",
+    "Charleston So",
+    "Charleston Southern Buccaneers"
+  ],
+  "chattanooga": [
+    "Chattanooga",
+    "CHAT",
+    "Chattanooga Mocs"
+  ],
+  "citadel": [
+    "Citadel",
+    "CIT",
+    "The Citadel",
+    "Citadel Bulldogs"
+  ],
+  "colgate": [
+    "Colgate",
+    "COLG",
+    "Colgate Raiders"
+  ],
+  "columbia": [
+    "Columbia",
+    "CLMB",
+    "Columbia Lions"
+  ],
+  "cornell": [
+    "Cornell",
+    "COR",
+    "Cornell Big Red"
+  ],
+  "dartmouth": [
+    "Dartmouth",
+    "DART",
+    "Dartmouth Big Green"
+  ],
+  "davidson": [
+    "Davidson",
+    "DAV",
+    "Davidson Wildcats"
+  ],
+  "dayton": [
+    "Dayton",
+    "DAY",
+    "Dayton Flyers"
+  ],
+  "delaware": [
+    "Delaware",
+    "DEL",
+    "Delaware Blue Hens"
+  ],
+  "delaware-state": [
+    "Delaware State",
+    "DSU",
+    "Delaware State Hornets"
+  ],
+  "drake": [
+    "Drake",
+    "DRKE",
+    "Drake Bulldogs"
+  ],
+  "duquesne": [
+    "Duquesne",
+    "DUQ",
+    "Duquesne Dukes"
+  ],
+  "east-tennessee-state": [
+    "East Tennessee State",
+    "ETSU",
+    "East Tennessee State Buccaneers"
+  ],
+  "eastern-illinois": [
+    "Eastern Illinois",
+    "EIU",
+    "E Illinois",
+    "Eastern Illinois Panthers"
+  ],
+  "eastern-kentucky": [
+    "Eastern Kentucky",
+    "EKY",
+    "E Kentucky",
+    "Eastern Kentucky Colonels"
+  ],
+  "eastern-washington": [
+    "Eastern Washington",
+    "EWU",
+    "E Washington",
+    "Eastern Washington Eagles"
+  ],
+  "elon": [
+    "Elon",
+    "ELON",
+    "Elon Phoenix"
+  ],
+  "florida-am": [
+    "Florida A&M",
+    "FAMU",
+    "Florida A&M Rattlers"
+  ],
+  "fordham": [
+    "Fordham",
+    "FOR",
+    "Fordham Rams"
+  ],
+  "furman": [
+    "Furman",
+    "FUR",
+    "Furman Paladins"
+  ],
+  "gardner-webb": [
+    "Gardner-Webb",
+    "WEBB",
+    "Gardner Webb",
+    "Gardner-Webb Bulldogs"
+  ],
+  "georgetown": [
+    "Georgetown",
+    "GTWN",
+    "Georgetown Hoyas"
+  ],
+  "grambling": [
+    "Grambling",
+    "GRAM",
+    "Grambling State",
+    "Grambling Tigers"
+  ],
+  "hampton": [
+    "Hampton",
+    "HAMP",
+    "Hampton Pirates"
+  ],
+  "harvard": [
+    "Harvard",
+    "HARV",
+    "Harvard Crimson"
+  ],
+  "holy-cross": [
+    "Holy Cross",
+    "HC",
+    "Holy Cross Crusaders"
+  ],
+  "houston-christian": [
+    "Houston Christian",
+    "HCU",
+    "Houston Baptist",
+    "Houston Christian Huskies"
+  ],
+  "howard": [
+    "Howard",
+    "HOW",
+    "Howard Bison"
+  ],
+  "idaho": [
+    "Idaho",
+    "IDHO",
+    "Idaho Vandals"
+  ],
+  "idaho-state": [
+    "Idaho State",
+    "IDST",
+    "Idaho State Bengals"
+  ],
+  "illinois-state": [
+    "Illinois State",
+    "ILST",
+    "Illinois State Redbirds"
+  ],
+  "incarnate-word": [
+    "Incarnate Word",
+    "IW",
+    "Incarnate Word Cardinals"
+  ],
+  "indiana-state": [
+    "Indiana State",
+    "INST",
+    "Indiana State Sycamores"
+  ],
+  "jackson-state": [
+    "Jackson State",
+    "JKST",
+    "Jackson State Tigers"
+  ],
+  "lafayette": [
+    "Lafayette",
+    "LAF",
+    "Lafayette Leopards"
+  ],
+  "lamar": [
+    "Lamar",
+    "LAM",
+    "Lamar Cardinals"
+  ],
+  "lehigh": [
+    "Lehigh",
+    "LEH",
+    "Lehigh Mountain Hawks"
+  ],
+  "lindenwood": [
+    "Lindenwood",
+    "LIN",
+    "Lindenwood Lions",
+    "LINW"
+  ],
+  "maine": [
+    "Maine",
+    "MAINE",
+    "Maine Black Bears",
+    "ME"
+  ],
+  "marist": [
+    "Marist",
+    "MRST",
+    "Marist Red Foxes"
+  ],
+  "mcneese-state": [
+    "McNeese State",
+    "MCNS",
+    "McNeese",
+    "McNeese State Cowboys"
+  ],
+  "mercer": [
+    "Mercer",
+    "MER",
+    "Mercer Bears"
+  ],
+  "mercyhurst": [
+    "Mercyhurst",
+    "MER",
+    "Mercyhurst Lakers",
+    "MHU"
+  ],
+  "merrimack": [
+    "Merrimack",
+    "MER",
+    "Merrimack Warriors",
+    "MRMK"
+  ],
+  "mississippi-valley-state": [
+    "Mississippi Valley State",
+    "MVSU",
+    "Miss Valley St",
+    "Mississippi Valley State Delta Devils"
+  ],
+  "missouri-state": [
+    "Missouri State",
+    "MOST",
+    "Missouri State Bears",
+    "Missouri St."
+  ],
+  "monmouth": [
+    "Monmouth",
+    "MONM",
+    "Monmouth NJ",
+    "Monmouth Hawks"
+  ],
+  "montana": [
+    "Montana",
+    "MONT",
+    "Montana Grizzlies"
+  ],
+  "montana-state": [
+    "Montana State",
+    "MTST",
+    "Montana State Bobcats"
+  ],
+  "morehead-state": [
+    "Morehead State",
+    "MORE",
+    "Morehead State Eagles"
+  ],
+  "morgan-state": [
+    "Morgan State",
+    "MORG",
+    "Morgan State Bears"
+  ],
+  "murray-state": [
+    "Murray State",
+    "MURR",
+    "Murray State Racers"
+  ],
+  "new-hampshire": [
+    "New Hampshire",
+    "UNH",
+    "New Hampshire Wildcats"
+  ],
+  "nicholls": [
+    "Nicholls",
+    "NICH",
+    "Nicholls Colonels",
+    "Nicholls St.",
+    "Nicholls State",
+    "Nicholls St"
+  ],
+  "norfolk-state": [
+    "Norfolk State",
+    "NSU",
+    "Norfolk State Spartans",
+    "Norfolk St.",
+    "NORF"
+  ],
+  "north-alabama": [
+    "North Alabama",
+    "NOR",
+    "North Alabama Lions",
+    "UNA"
+  ],
+  "north-carolina-at": [
+    "North Carolina A&T",
+    "NCAT",
+    "NC A&T",
+    "North Carolina A&T Aggies"
+  ],
+  "north-carolina-central": [
+    "North Carolina Central",
+    "NCCU",
+    "NC Central",
+    "North Carolina Central Eagles"
+  ],
+  "north-dakota": [
+    "North Dakota",
+    "UND",
+    "North Dakota Fighting Hawks"
+  ],
+  "north-dakota-state": [
+    "North Dakota State",
+    "NDSU",
+    "North Dakota St",
+    "North Dakota State Bison"
+  ],
+  "northern-arizona": [
+    "Northern Arizona",
+    "NAU",
+    "N Arizona",
+    "Northern Arizona Lumberjacks"
+  ],
+  "northern-colorado": [
+    "Northern Colorado",
+    "UNCO",
+    "N Colorado",
+    "Northern Colorado Bears"
+  ],
+  "northern-iowa": [
+    "Northern Iowa",
+    "UNI",
+    "Northern Iowa Panthers"
+  ],
+  "northwestern-state": [
+    "Northwestern State",
+    "NWST",
+    "Northwestern St",
+    "Northwestern State Demons"
+  ],
+  "pennsylvania": [
+    "Pennsylvania",
+    "PENN",
+    "Penn",
+    "Pennsylvania Quakers"
+  ],
+  "portland-state": [
+    "Portland State",
+    "PRST",
+    "Portland State Vikings"
+  ],
+  "prairie-view": [
+    "Prairie View",
+    "PVAM",
+    "PV A&M",
+    "Prairie View Panthers",
+    "Prairie View A&M",
+    "PV"
+  ],
+  "presbyterian": [
+    "Presbyterian",
+    "PRE",
+    "Presbyterian Blue Hose"
+  ],
+  "princeton": [
+    "Princeton",
+    "PRIN",
+    "Princeton Tigers"
+  ],
+  "rhode-island": [
+    "Rhode Island",
+    "URI",
+    "Rhode Island Rams"
+  ],
+  "richmond": [
+    "Richmond",
+    "RICH",
+    "Richmond Spiders"
+  ],
+  "robert-morris": [
+    "Robert Morris",
+    "RMU",
+    "Robert Morris Colonials"
+  ],
+  "sacramento-state": [
+    "Sacramento State",
+    "SAC",
+    "Cal State Sacramento",
+    "Sacramento St",
+    "Sacramento State Hornets"
+  ],
+  "sacred-heart": [
+    "Sacred Heart",
+    "SHU",
+    "Sacred Heart Pioneers"
+  ],
+  "samford": [
+    "Samford",
+    "SAM",
+    "Samford Bulldogs"
+  ],
+  "san-diego": [
+    "San Diego",
+    "USD",
+    "San Diego Toreros"
+  ],
+  "south-carolina-state": [
+    "South Carolina State",
+    "SCST",
+    "S Carolina St",
+    "South Carolina State Bulldogs"
+  ],
+  "south-dakota": [
+    "South Dakota",
+    "SDAK",
+    "South Dakota Coyotes"
+  ],
+  "south-dakota-state": [
+    "South Dakota State",
+    "SDSU",
+    "South Dakota St",
+    "South Dakota State Jackrabbits",
+    "South Dakota St.",
+    "SDST"
+  ],
+  "southeast-missouri-state": [
+    "Southeast Missouri State",
+    "SEMO",
+    "Southeast Missouri",
+    "SE Missouri St",
+    "Southeast Missouri State Redhawks"
+  ],
+  "southeastern-louisiana": [
+    "Southeastern Louisiana",
+    "SELA",
+    "Southeast Louisiana",
+    "SE Louisiana",
+    "Southeastern Louisiana Lions"
+  ],
+  "southern": [
+    "Southern",
+    "SOU",
+    "Southern Jaguars",
+    "Southern University"
+  ],
+  "southern-illinois": [
+    "Southern Illinois",
+    "SIU",
+    "S Illinois",
+    "Southern Illinois Salukis"
+  ],
+  "southern-utah": [
+    "Southern Utah",
+    "SUU",
+    "Southern Utah Thunderbirds"
+  ],
+  "st-francis-pa": [
+    "St Francis (PA)",
+    "SFU",
+    "St. Francis PA",
+    "St Francis PA",
+    "St Francis (PA) Red Flash"
+  ],
+  "st-thomas-mn": [
+    "St. Thomas (MN)",
+    "STMN",
+    "St Thomas MN",
+    "St. Thomas (MN) Tommies",
+    "St. Thomas",
+    "UST",
+    "St Thomas"
+  ],
+  "stephen-f-austin": [
+    "Stephen F. Austin",
+    "SFA",
+    "Stephen F Austin",
+    "SF Austin",
+    "Stephen F. Austin Lumberjacks"
+  ],
+  "stetson": [
+    "Stetson",
+    "STET",
+    "Stetson Hatters"
+  ],
+  "stonehill": [
+    "Stonehill",
+    "SBI",
+    "Stonehill Chieftains",
+    "STNH"
+  ],
+  "stony-brook": [
+    "Stony Brook",
+    "STON",
+    "Stony Brook Seawolves"
+  ],
+  "tarleton-state": [
+    "Tarleton State",
+    "TAR",
+    "Tarleton St",
+    "Tarleton State Texans",
+    "Tarleton St.",
+    "TARL"
+  ],
+  "tennessee-state": [
+    "Tennessee State",
+    "TNST",
+    "Tennessee St",
+    "Tennessee State Tigers"
+  ],
+  "tennessee-tech": [
+    "Tennessee Tech",
+    "TNTC",
+    "Tenn Tech",
+    "Tennessee Tech Golden Eagles"
+  ],
+  "texas-am-commerce": [
+    "Texas A&M-Commerce",
+    "TXA",
+    "TX A&M-Commerce",
+    "Texas A&M-Commerce Lions",
+    "ETAM",
+    "East Texas A&M",
+    "East Texas A&M Lions"
+  ],
+  "texas-southern": [
+    "Texas Southern",
+    "TXSO",
+    "Texas Southern Tigers"
+  ],
+  "towson": [
+    "Towson",
+    "TOWS",
+    "Towson Tigers"
+  ],
+  "uc-davis": [
+    "UC Davis",
+    "UCD",
+    "California-Davis",
+    "UC Davis Aggies"
+  ],
+  "ut-martin": [
+    "UT Martin",
+    "UTM",
+    "Tennessee Martin",
+    "UT Martin Skyhawks"
+  ],
+  "utah-tech": [
+    "Utah Tech",
+    "UT",
+    "Dixie State",
+    "Dixie St",
+    "Utah Tech Trailblazers",
+    "UTU"
+  ],
+  "vmi": [
+    "VMI",
+    "Virginia Military Institute",
+    "VMI Keydets"
+  ],
+  "valparaiso": [
+    "Valparaiso",
+    "VALP",
+    "Valparaiso Crusaders"
+  ],
+  "villanova": [
+    "Villanova",
+    "NOVA",
+    "Villanova Wildcats",
+    "VILL"
+  ],
+  "wagner": [
+    "Wagner",
+    "WAG",
+    "Wagner Seahawks"
+  ],
+  "weber-state": [
+    "Weber State",
+    "WEB",
+    "Weber State Wildcats"
+  ],
+  "west-georgia": [
+    "West Georgia",
+    "WES",
+    "West Georgia Wolves",
+    "UWGA"
+  ],
+  "western-carolina": [
+    "Western Carolina",
+    "WCU",
+    "W Carolina",
+    "Western Carolina Catamounts"
+  ],
+  "western-illinois": [
+    "Western Illinois",
+    "WIU",
+    "W Illinois",
+    "Western Illinois Leathernecks"
+  ],
+  "william-mary": [
+    "William & Mary",
+    "W&M",
+    "William & Mary Tribe",
+    "WM"
+  ],
+  "wofford": [
+    "Wofford",
+    "WOF",
+    "Wofford Terriers"
+  ],
+  "yale": [
+    "Yale",
+    "YALE",
+    "Yale Bulldogs"
+  ],
+  "youngstown-state": [
+    "Youngstown State",
+    "YSU",
+    "Youngstown St",
+    "Youngstown State Penguins"
+  ],
+  "adams-state": [
+    "Adams State",
+    "ADST",
+    "Adams St",
+    "Adams State Grizzlies"
+  ],
+  "albany-state-ga": [
+    "Albany State (GA)",
+    "ALB",
+    "Albany St (GA)",
+    "Albany State (GA) Golden Rams"
+  ],
+  "alderson-broaddus": [
+    "Alderson-Broaddus",
+    "ABC",
+    "Ald.-Broaddus",
+    "Alderson-Broaddus Battlers"
+  ],
+  "allen": [
+    "Allen",
+    "ALN",
+    "Allen Yellow Jackets"
+  ],
+  "american-international": [
+    "American International",
+    "AIC",
+    "American Intl.",
+    "American International Yellow Jackets"
+  ],
+  "angelo-state": [
+    "Angelo State",
+    "ANG",
+    "Angelo St",
+    "Angelo State Rams"
+  ],
+  "arkansas-tech": [
+    "Arkansas Tech",
+    "ARK",
+    "Arkansas Tech Wonder Boys"
+  ],
+  "arkansas-monticello": [
+    "Arkansas-Monticello",
+    "ARK",
+    "AR-Monticello",
+    "Arkansas-Monticello Weevils"
+  ],
+  "ashland": [
+    "Ashland",
+    "ASH",
+    "Ashland Eagles"
+  ],
+  "assumption": [
+    "Assumption",
+    "ASP",
+    "Assumption College",
+    "Assumption Greyhounds"
+  ],
+  "augustana-sd": [
+    "Augustana (SD)",
+    "AUG",
+    "Augustana (SD) Vikings"
+  ],
+  "barton-college": [
+    "Barton College",
+    "BAR",
+    "Barton College Bulldogs"
+  ],
+  "bemidji-state": [
+    "Bemidji State",
+    "BEM",
+    "Bemidji State Beavers"
+  ],
+  "benedict-college": [
+    "Benedict College",
+    "BBG",
+    "Benedict",
+    "Benedict College Tigers"
+  ],
+  "bentley": [
+    "Bentley",
+    "BENT",
+    "Bentley Falcons"
+  ],
+  "black-hills-state": [
+    "Black Hills State",
+    "BLA",
+    "Black Hills St",
+    "Black Hills State Yellow Jackets"
+  ],
+  "bloomsburg": [
+    "Bloomsburg",
+    "BLO",
+    "Bloomsburg Huskies"
+  ],
+  "bluefield": [
+    "Bluefield",
+    "Bluefield Bluefields"
+  ],
+  "bowie-state": [
+    "Bowie State",
+    "BOW",
+    "Bowie St",
+    "Bowie State Bulldogs"
+  ],
+  "california-pa": [
+    "California (PA)",
+    "CAL",
+    "California (Pennsylvania)",
+    "California (PA) Vulcans"
+  ],
+  "carson-newman": [
+    "Carson-Newman",
+    "CNEW",
+    "Carson Newman College",
+    "Carson-Newman Eagles"
+  ],
+  "catawba": [
+    "Catawba",
+    "CAT",
+    "Catawba College",
+    "Catawba Indians"
+  ],
+  "central-missouri-state": [
+    "Central Missouri State",
+    "CEN",
+    "Cent Missouri St",
+    "Central Missouri State Mules"
+  ],
+  "central-oklahoma": [
+    "Central Oklahoma",
+    "CEN",
+    "Cent Oklahoma",
+    "Central Oklahoma Bronchos"
+  ],
+  "central-state-oh": [
+    "Central State (OH)",
+    "CCI",
+    "Central St",
+    "Central State (OH) Marauders"
+  ],
+  "central-washington": [
+    "Central Washington",
+    "CEN",
+    "Cent Washington",
+    "Central Washington Wildcats"
+  ],
+  "chadron-state": [
+    "Chadron State",
+    "CHA",
+    "Chadron St",
+    "Chadron State Eagles"
+  ],
+  "charleston-wv": [
+    "Charleston (WV)",
+    "CHA",
+    "Charleston (WV) Golden Eagles"
+  ],
+  "chowan": [
+    "Chowan",
+    "CHO",
+    "Chowan Braves"
+  ],
+  "clarion": [
+    "Clarion",
+    "CLA",
+    "Clarion Golden Eagles"
+  ],
+  "clark-atlanta": [
+    "Clark Atlanta",
+    "CLK",
+    "Clark Atlanta Panthers"
+  ],
+  "colorado-mesa": [
+    "Colorado Mesa",
+    "MESA",
+    "Colorado Mesa Mavericks"
+  ],
+  "colorado-mines": [
+    "Colorado Mines",
+    "COL",
+    "Colorado School of Mines",
+    "Colorado Mines Orediggers"
+  ],
+  "colorado-state-pueblo": [
+    "Colorado State-Pueblo",
+    "CSUP",
+    "Colorado St-Pueblo",
+    "Colorado State-Pueblo Thunderwolves"
+  ],
+  "concord": [
+    "Concord",
+    "CON",
+    "Concord Mountain Lions"
+  ],
+  "concordia-st-paul": [
+    "Concordia-St. Paul",
+    "CON",
+    "Concordia-St. Paul Golden Bears"
+  ],
+  "davenport": [
+    "Davenport",
+    "DU",
+    "Davenport Panthers"
+  ],
+  "delta-state": [
+    "Delta State",
+    "DEL",
+    "Delta St",
+    "Delta State Statesmen"
+  ],
+  "east-central": [
+    "East Central",
+    "EAS",
+    "East Central University",
+    "East Central Tigers"
+  ],
+  "east-stroudsburg": [
+    "East Stroudsburg",
+    "EAS",
+    "E Stroudsburg",
+    "East Stroudsburg Warriors"
+  ],
+  "eastern-new-mexico": [
+    "Eastern New Mexico",
+    "EAS",
+    "E New Mexico",
+    "Eastern New Mexico Greyhounds"
+  ],
+  "edinboro": [
+    "Edinboro",
+    "EDI",
+    "Edinboro Fighting Scots"
+  ],
+  "edward-waters": [
+    "Edward Waters",
+    "EDW",
+    "Edward Waters Tigers"
+  ],
+  "elizabeth-city-state": [
+    "Elizabeth City State",
+    "ELI",
+    "Elizabeth City St",
+    "Elizabeth City State Vikings"
+  ],
+  "emory-henry": [
+    "Emory & Henry",
+    "EMO",
+    "Emory & Henry Wasps"
+  ],
+  "emporia-state": [
+    "Emporia State",
+    "EMP",
+    "Emporia St",
+    "Emporia State Hornets"
+  ],
+  "erskine": [
+    "Erskine",
+    "ERS",
+    "Erskine Flying Fleet"
+  ],
+  "fairmont-state": [
+    "Fairmont State",
+    "FAI",
+    "Fairmont St",
+    "Fairmont State Falcons"
+  ],
+  "fayetteville-state": [
+    "Fayetteville State",
+    "FAY",
+    "Fayetteville St",
+    "Fayetteville State Broncos"
+  ],
+  "ferris-state": [
+    "Ferris State",
+    "FER",
+    "Ferris St",
+    "Ferris State Bulldogs"
+  ],
+  "findlay": [
+    "Findlay",
+    "FIN",
+    "Findlay Oilers"
+  ],
+  "fort-hays-state": [
+    "Fort Hays State",
+    "FHSU",
+    "Fort Hays St",
+    "Fort Hays State Tigers"
+  ],
+  "fort-lewis": [
+    "Fort Lewis",
+    "FOR",
+    "Fort Lewis Skyhawks"
+  ],
+  "fort-valley-state": [
+    "Fort Valley State",
+    "FOR",
+    "Fort Valley St",
+    "Fort Valley State Wildcats"
+  ],
+  "frostburg-state": [
+    "Frostburg State",
+    "FRO",
+    "Frostburg St",
+    "Frostburg State Bobcats"
+  ],
+  "gannon": [
+    "Gannon",
+    "GAN",
+    "Gannon Golden Knights"
+  ],
+  "glenville-state": [
+    "Glenville State",
+    "GLE",
+    "Glenville St",
+    "Glenville State Pioneers"
+  ],
+  "grand-valley-state": [
+    "Grand Valley State",
+    "GVSU",
+    "Grand Valley St",
+    "Grand Valley State Lakers"
+  ],
+  "harding": [
+    "Harding",
+    "HAR",
+    "Harding Bison"
+  ],
+  "henderson-state": [
+    "Henderson State",
+    "HEN",
+    "Henderson St",
+    "Henderson State Reddies"
+  ],
+  "hillsdale": [
+    "Hillsdale",
+    "HIL",
+    "Hillsdale Chargers"
+  ],
+  "indiana-pa": [
+    "Indiana (PA)",
+    "IND",
+    "IUP",
+    "Indiana (PA) Crimson Hawks"
+  ],
+  "indianapolis": [
+    "Indianapolis",
+    "IND",
+    "Indianapolis Greyhounds"
+  ],
+  "johnson-c-smith": [
+    "Johnson C Smith",
+    "JOH",
+    "Johnson Smith",
+    "Johnson C Smith Golden Bulls"
+  ],
+  "kentucky-state": [
+    "Kentucky State",
+    "KYS",
+    "Kentucky St",
+    "Kentucky State Thorobreds"
+  ],
+  "kentucky-wesleyan": [
+    "Kentucky Wesleyan",
+    "KYW",
+    "Kentucky Wesleyan Panthers"
+  ],
+  "kutztown": [
+    "Kutztown",
+    "KUT",
+    "Kutztown Golden Bears"
+  ],
+  "lake-erie-college": [
+    "Lake Erie College",
+    "LKE",
+    "Lake Erie ",
+    "Lake Erie College Storm"
+  ],
+  "lane": [
+    "Lane",
+    "LAN",
+    "Lane College",
+    "Lane Dragons"
+  ],
+  "lenoir-rhyne": [
+    "Lenoir-Rhyne",
+    "LEN",
+    "Lenoir-Rhyne Bears"
+  ],
+  "limestone": [
+    "Limestone",
+    "LIM",
+    "Limestone Saints"
+  ],
+  "lincoln-mo": [
+    "Lincoln (MO)",
+    "LIN",
+    "Lincoln (MO) Blue Tigers"
+  ],
+  "lincoln-pa": [
+    "Lincoln (PA)",
+    "LIN",
+    "Lincoln (PA) Lions"
+  ],
+  "livingstone": [
+    "Livingstone",
+    "LVI",
+    "Livingstone Blue Bears"
+  ],
+  "lock-haven": [
+    "Lock Haven",
+    "LOC",
+    "Lock Haven Bald Eagles"
+  ],
+  "mars-hill": [
+    "Mars Hill",
+    "MAR",
+    "Mars Hill Lions"
+  ],
+  "mckendree": [
+    "McKendree",
+    "MAN",
+    "McKendree Bearcats"
+  ],
+  "michigan-tech": [
+    "Michigan Tech",
+    "MIC",
+    "Michigan Tech Huskies"
+  ],
+  "midwestern-state": [
+    "Midwestern State",
+    "MID",
+    "Midwest",
+    "Midwestern State Mustangs"
+  ],
+  "miles": [
+    "Miles",
+    "MIL",
+    "Miles Golden Bears"
+  ],
+  "millersville": [
+    "Millersville",
+    "MIL",
+    "Millersville Marauders"
+  ],
+  "minnesota-st-moorhead": [
+    "Minnesota St-Moorhead",
+    "MOO",
+    "Minn St-Moorhead",
+    "Minnesota St-Moorhead Dragon"
+  ],
+  "minnesota-state": [
+    "Minnesota State",
+    "MNST",
+    "Minnesota State Mankato",
+    "Minnesota St",
+    "Minnesota State Mavericks"
+  ],
+  "minnesota-duluth": [
+    "Minnesota-Duluth",
+    "MNDU",
+    "Minnesota-Duluth Bulldogs"
+  ],
+  "minot-state": [
+    "Minot State",
+    "MIN",
+    "Minot St",
+    "Minot State Beavers"
+  ],
+  "mississippi-college": [
+    "Mississippi College",
+    "MIS",
+    "Miss. College",
+    "Mississippi College Choctaws"
+  ],
+  "missouri-st": [
+    "Missouri S&T",
+    "S&T",
+    "Missouri S&T Miners",
+    "MOSU"
+  ],
+  "missouri-southern-state": [
+    "Missouri Southern State",
+    "MOS",
+    "Missouri South St",
+    "Missouri Southern State Lions"
+  ],
+  "missouri-western": [
+    "Missouri Western",
+    "MOW",
+    "Missouri West",
+    "Missouri Western Griffons"
+  ],
+  "morehouse": [
+    "Morehouse",
+    "MOR",
+    "Morehouse Tigers"
+  ],
+  "nebraska-kearney": [
+    "Nebraska-Kearney",
+    "NEB",
+    "Nebraska-Kearney Lopers"
+  ],
+  "new-haven": [
+    "New Haven",
+    "NH",
+    "New Haven Chargers",
+    "NHC"
+  ],
+  "new-mexico-highlands": [
+    "New Mexico Highlands",
+    "NMH",
+    "New Mexico Highlands Cowboys"
+  ],
+  "newberry": [
+    "Newberry",
+    "NBY",
+    "Newberry Wolves"
+  ],
+  "north-greenville": [
+    "North Greenville",
+    "NGR",
+    "N Greenville",
+    "North Greenville Crusaders"
+  ],
+  "northeastern-state": [
+    "Northeastern State",
+    "NEO",
+    "NE St",
+    "Northeastern State RiverHawks"
+  ],
+  "northern-michigan": [
+    "Northern Michigan",
+    "NOR",
+    "N Michigan",
+    "Northern Michigan Wildcats"
+  ],
+  "northern-state": [
+    "Northern State",
+    "NOR",
+    "Northern St",
+    "Northern State Wolves"
+  ],
+  "northwest-missouri-state": [
+    "Northwest Missouri State",
+    "NWMS",
+    "NW Missouri St",
+    "Northwest Missouri State Bearcats"
+  ],
+  "northwestern-oklahoma-state": [
+    "Northwestern Oklahoma State",
+    "NWO",
+    "NW Oklahoma St",
+    "Northwestern Oklahoma State Rangers"
+  ],
+  "northwood-mi": [
+    "Northwood (MI)",
+    "NAR",
+    "Northwood University",
+    "Northwood",
+    "Northwood (MI) Timberwolves"
+  ],
+  "notre-dame-college": [
+    "Notre Dame College",
+    "NOT",
+    "Notre Dame College Blue Falcons"
+  ],
+  "ohio-dominican": [
+    "Ohio Dominican",
+    "Panthers",
+    "Ohio Dominican Panthers"
+  ],
+  "oklahoma-baptist": [
+    "Oklahoma Baptist",
+    "OB",
+    "Oklahoma Bapt",
+    "Oklahoma Baptist Bison"
+  ],
+  "ouachita-baptist": [
+    "Ouachita Baptist",
+    "OUA",
+    "Ouachita Baptist Tigers"
+  ],
+  "pace": [
+    "Pace",
+    "PAC",
+    "Pace Setters"
+  ],
+  "pittsburg-state": [
+    "Pittsburg State",
+    "PIT",
+    "Pittsburg St",
+    "Pittsburg State Gorillas"
+  ],
+  "quincy": [
+    "Quincy",
+    "QUI",
+    "Quincy Hawks"
+  ],
+  "saginaw-valley": [
+    "Saginaw Valley",
+    "SAG",
+    "Saginaw Valley State",
+    "Saginaw Valley Cardinals"
+  ],
+  "savannah-state": [
+    "Savannah State",
+    "SAV",
+    "Savannah State Tigers"
+  ],
+  "seton-hill-college": [
+    "Seton Hill College",
+    "SET",
+    "Seton Hill ",
+    "Seton Hill College Griffins"
+  ],
+  "shaw": [
+    "Shaw",
+    "SHA",
+    "Shaw Bears"
+  ],
+  "shepherd": [
+    "Shepherd",
+    "SHE",
+    "Shepherd Rams"
+  ],
+  "shippensburg": [
+    "Shippensburg",
+    "SHI",
+    "Shippensburg Raiders"
+  ],
+  "shorter": [
+    "Shorter",
+    "SHO",
+    "Shorter Hawks"
+  ],
+  "simon-fraser": [
+    "Simon Fraser",
+    "SIM",
+    "Simon Fraser Clansmen"
+  ],
+  "sioux-falls": [
+    "Sioux Falls",
+    "SIO",
+    "Sioux Falls Cougars"
+  ],
+  "slippery-rock": [
+    "Slippery Rock",
+    "SRU",
+    "Slippery Rock The Rock"
+  ],
+  "south-dakota-mines": [
+    "South Dakota Mines",
+    "SDA",
+    "SD Mines",
+    "South Dakota Mines Hardrockers"
+  ],
+  "southeastern-oklahoma": [
+    "Southeastern Oklahoma",
+    "SEOS",
+    "Southeastern Oklahoma State",
+    "SEOkla St",
+    "Southeastern Oklahoma Savage Storm"
+  ],
+  "southern-arkansas": [
+    "Southern Arkansas",
+    "SOU",
+    "S Arkansas",
+    "Southern Arkansas Muleriders"
+  ],
+  "southern-connecticut-state": [
+    "Southern Connecticut State",
+    "SOU",
+    "S Conn St",
+    "Southern Connecticut State Owls"
+  ],
+  "southern-nazarene": [
+    "Southern Nazarene",
+    "STN",
+    "S Nazarene",
+    "Southern Nazarene Crimson Storm"
+  ],
+  "southwest-baptist": [
+    "Southwest Baptist",
+    "SWB",
+    "SW Baptist",
+    "Southwest Baptist Bearcats"
+  ],
+  "southwest-minnesota-state": [
+    "Southwest Minnesota State",
+    "SWM",
+    "SW Minnesota St",
+    "Southwest Minnesota State Mustangs"
+  ],
+  "southwestern-oklahoma": [
+    "Southwestern Oklahoma",
+    "SWO",
+    "Southwestern Oklahoma State",
+    "SW Oklahoma",
+    "Southwestern Oklahoma Bulldogs"
+  ],
+  "st-anselm": [
+    "St. Anselm",
+    "STA",
+    "St. Anselm Hawks"
+  ],
+  "st-augustines": [
+    "St. Augustine's",
+    "STA",
+    "St. Augustine's Falcons"
+  ],
+  "sul-ross-state": [
+    "Sul Ross State",
+    "SUL",
+    "Sul Ross St",
+    "Sul Ross State Lobos"
+  ],
+  "texas-am-kingsville": [
+    "Texas A&M-Kingsville",
+    "TXA",
+    "Texas A&M-Kingsville Javelinas"
+  ],
+  "tiffin": [
+    "Tiffin",
+    "TIF",
+    "Tiffin Dragons"
+  ],
+  "truman-state": [
+    "Truman State",
+    "TRU",
+    "Truman St",
+    "Truman State Bulldogs"
+  ],
+  "tusculum": [
+    "Tusculum",
+    "TUS",
+    "Tusculum Pioneers"
+  ],
+  "tuskegee": [
+    "Tuskegee",
+    "TUS",
+    "Tuskegee Golden Tigers"
+  ],
+  "unc-pembroke": [
+    "UNC Pembroke",
+    "NCP",
+    "UNC Pembroke Braves"
+  ],
+  "uva-wise": [
+    "UVA-Wise",
+    "VAW",
+    "UVA Wise",
+    "UVA-Wise Highland Cavaliers"
+  ],
+  "university-of-mary": [
+    "University of Mary",
+    "MAR",
+    "U of Mary",
+    "University of Mary Marauders"
+  ],
+  "university-of-texas-of-the-permian-basin": [
+    "University of Texas of the Permian Basin",
+    "UTPB",
+    "University of Texas of the Permian Basin Falcons"
+  ],
+  "upper-iowa": [
+    "Upper Iowa",
+    "UI",
+    "Upper Iowa Peacocks"
+  ],
+  "valdosta-state": [
+    "Valdosta State",
+    "VAL",
+    "Valdosta St",
+    "Valdosta State Blazers"
+  ],
+  "virginia-state": [
+    "Virginia State",
+    "VIR",
+    "Virginia St",
+    "Virginia State Trojans"
+  ],
+  "virginia-union": [
+    "Virginia Union",
+    "VIR",
+    "Virginia Union Panthers"
+  ],
+  "wv-wesleyan": [
+    "WV Wesleyan",
+    "WVW",
+    "West Virginia Wesleyan",
+    "WV Wesleyan Bobcats"
+  ],
+  "walsh": [
+    "Walsh",
+    "WALSH",
+    "Walsh Cavaliers"
+  ],
+  "washburn": [
+    "Washburn",
+    "WAS",
+    "Washburn Ichabods"
+  ],
+  "wayne-state-mi": [
+    "Wayne State (MI)",
+    "WAY",
+    "Wayne St (MI)",
+    "Wayne State (MI) Warriors"
+  ],
+  "wayne-state-ne": [
+    "Wayne State (NE)",
+    "WAY",
+    "Wayne St (NE)",
+    "Wayne State (NE) Wildcats"
+  ],
+  "west-alabama": [
+    "West Alabama",
+    "WES",
+    "West Alabama Tigers"
+  ],
+  "west-chester": [
+    "West Chester",
+    "WES",
+    "West Chester Golden Rams"
+  ],
+  "west-liberty": [
+    "West Liberty",
+    "WES",
+    "West Liberty Hilltoppers"
+  ],
+  "west-texas-am": [
+    "West Texas A&M",
+    "WES",
+    "West Texas A&M Buffaloes"
+  ],
+  "west-virginia-state": [
+    "West Virginia State",
+    "WES",
+    "WV St",
+    "West Virginia State Yellow Jackets"
+  ],
+  "western-new-mexico": [
+    "Western New Mexico",
+    "WES",
+    "W New Mexico",
+    "Western New Mexico Mustangs"
+  ],
+  "western-oregon": [
+    "Western Oregon",
+    "WES",
+    "Western Oregon Wolves"
+  ],
+  "western-state": [
+    "Western State",
+    "WES",
+    "Western St.",
+    "Western State Mountaineers"
+  ],
+  "wheeling-jesuit": [
+    "Wheeling Jesuit",
+    "WJ",
+    "Wheeling Jesuit Cardinals"
+  ],
+  "william-jewell-college": [
+    "William Jewell College",
+    "WJC",
+    "William Jewell",
+    "William Jewell ",
+    "William Jewell College Cardinals"
+  ],
+  "wingate": [
+    "Wingate",
+    "WIN",
+    "Wingate Bulldogs"
+  ],
+  "winona-state": [
+    "Winona State",
+    "WIN",
+    "Winona St",
+    "Winona State Warriors"
+  ],
+  "winston-salem": [
+    "Winston-Salem",
+    "WSSU",
+    "Winston-Salem Rams"
+  ],
+  "adrian": [
+    "Adrian",
+    "ADR",
+    "Adrian Bulldogs"
+  ],
+  "albion": [
+    "Albion",
+    "ALBI",
+    "Albion Britons"
+  ],
+  "albright": [
+    "Albright",
+    "ALB",
+    "Albright Lions"
+  ],
+  "alfred": [
+    "Alfred",
+    "ALF",
+    "Alfred Saxons"
+  ],
+  "alfred-state-college": [
+    "Alfred State College",
+    "ASC",
+    "Alfred St ",
+    "Alfred State College Pioneers"
+  ],
+  "allegheny": [
+    "Allegheny",
+    "ALL",
+    "Allegheny Golden Gators"
+  ],
+  "alma-college": [
+    "Alma College",
+    "ALM",
+    "Alma College Scots"
+  ],
+  "alvernia-university": [
+    "Alvernia University",
+    "ALV",
+    "Alvernia University Golden Wolves"
+  ],
+  "amherst-college": [
+    "Amherst College",
+    "AMH",
+    "Amherst",
+    "Amherst ",
+    "Amherst College Mammoths"
+  ],
+  "anderson-in": [
+    "Anderson (IN)",
+    "AND",
+    "Anderson (IN) Ravens"
+  ],
+  "anna-maria-college": [
+    "Anna Maria College",
+    "ANN",
+    "Anna Maria ",
+    "Anna Maria College Amcats"
+  ],
+  "apprentice-school": [
+    "Apprentice School",
+    "APP",
+    "Apprentice School Builders"
+  ],
+  "augsburg": [
+    "Augsburg",
+    "AUG",
+    "Augsburg Auggies"
+  ],
+  "augustana-il": [
+    "Augustana (IL)",
+    "AUG",
+    "Augustana (IL) Vikings"
+  ],
+  "aurora": [
+    "Aurora",
+    "AUR",
+    "Aurora Spartans"
+  ],
+  "austin-college": [
+    "Austin College",
+    "AUS",
+    "Austin College Kangaroos"
+  ],
+  "averett": [
+    "Averett",
+    "AVE",
+    "Averett Cougars"
+  ],
+  "baldwin-wallace": [
+    "Baldwin-Wallace",
+    "BAL",
+    "Baldwin-Wallace Yellow Jackets"
+  ],
+  "bates-college": [
+    "Bates College",
+    "BAT",
+    "Bates",
+    "Bates College Bobcats"
+  ],
+  "belhaven-college": [
+    "Belhaven College",
+    "BEL",
+    "Belhaven ",
+    "Belhaven College Blazers"
+  ],
+  "beloit-college": [
+    "Beloit College",
+    "BEL",
+    "Beloit",
+    "Beloit College Buccaneers"
+  ],
+  "benedictine-il": [
+    "Benedictine (IL)",
+    "BEN",
+    "Benedictine (IL) Eagles"
+  ],
+  "berry-college": [
+    "Berry College",
+    "BER",
+    "Berry",
+    "Berry College Vikings"
+  ],
+  "bethany-wv": [
+    "Bethany (WV)",
+    "BET",
+    "Bethany (West Virginia)",
+    "Bethany (WV) Bison"
+  ],
+  "bethel-mn": [
+    "Bethel (MN)",
+    "BET",
+    "Bethel (MN) Royals"
+  ],
+  "birmingham-southern": [
+    "Birmingham-Southern",
+    "BIR",
+    "Birmingham-Southern Panthers"
+  ],
+  "bluffton": [
+    "Bluffton",
+    "BLU",
+    "Bluffton Beavers"
+  ],
+  "bowdoin": [
+    "Bowdoin",
+    "BOW",
+    "Bowdoin Polar Bears"
+  ],
+  "brevard-college": [
+    "Brevard College",
+    "BRE",
+    "Brevard ",
+    "Brevard College Tornados"
+  ],
+  "bridgewater-va": [
+    "Bridgewater (VA)",
+    "BRD",
+    "Bridgewater (VA) Eagles"
+  ],
+  "bridgewater-state": [
+    "Bridgewater State",
+    "BGW",
+    "Bridgewater St",
+    "Bridgewater State Bears"
+  ],
+  "brockport-state-ny": [
+    "Brockport State (NY)",
+    "BRO",
+    "Brockport St (NY)",
+    "Brockport State (NY) Golden Eagles"
+  ],
+  "buena-vista": [
+    "Buena Vista",
+    "BUE",
+    "Buena Vista Beavers"
+  ],
+  "buffalo-state": [
+    "Buffalo State",
+    "BUF",
+    "Buffalo St",
+    "Buffalo State Bengals"
+  ],
+  "cal-lutheran": [
+    "Cal Lutheran",
+    "CAL",
+    "California Lutheran",
+    "Cal Lutheran Kingsmen"
+  ],
+  "capital": [
+    "Capital",
+    "CAP",
+    "Capital Crusaders"
+  ],
+  "carleton": [
+    "Carleton",
+    "CAR",
+    "Carleton Knights"
+  ],
+  "carnegie-mellon": [
+    "Carnegie Mellon",
+    "CAR",
+    "Carnegie Mellon Tartans"
+  ],
+  "carroll-wi": [
+    "Carroll (WI)",
+    "CAR",
+    "Carroll (Wisconsin)",
+    "Carroll (WI) Pioneers"
+  ],
+  "carthage": [
+    "Carthage",
+    "CAR",
+    "Carthage Redmen"
+  ],
+  "case-western-reserve": [
+    "Case Western Reserve",
+    "CSR",
+    "Case West Reserve",
+    "Case Western Reserve Spartans"
+  ],
+  "castleton-state-college": [
+    "Castleton State College",
+    "CAS",
+    "Castleton St ",
+    "Castleton State College Spartans"
+  ],
+  "catholic-university": [
+    "Catholic University",
+    "CATH",
+    "Catholic Univ.",
+    "Catholic University Cardinals"
+  ],
+  "central": [
+    "Central",
+    "CEN",
+    "Central Dutch"
+  ],
+  "centre": [
+    "Centre",
+    "CEN",
+    "Centre Colonels"
+  ],
+  "chapman": [
+    "Chapman",
+    "CHA",
+    "Chapman Panthers"
+  ],
+  "chicago": [
+    "Chicago",
+    "CHI",
+    "Chicago Maroons"
+  ],
+  "christopher-newport": [
+    "Christopher Newport",
+    "CHR",
+    "Christopher Newport Captains"
+  ],
+  "claremont": [
+    "Claremont",
+    "CLA",
+    "Claremont Stags"
+  ],
+  "coast-guard": [
+    "Coast Guard",
+    "COA",
+    "Coast Guard Bears"
+  ],
+  "coe": [
+    "Coe",
+    "COE",
+    "Coe College",
+    "Coe Kohawks"
+  ],
+  "colby": [
+    "Colby",
+    "COL",
+    "Colby White Mules"
+  ],
+  "college-of-new-jersey": [
+    "College of New Jersey",
+    "CNJ",
+    "College of NJ",
+    "College of New Jersey Lions"
+  ],
+  "concordia-il": [
+    "Concordia (IL)",
+    "CON",
+    "Concordia (IL) Cougars"
+  ],
+  "concordia-mn": [
+    "Concordia (MN)",
+    "CON",
+    "Concordia (MN) Cobbers"
+  ],
+  "concordia-wi": [
+    "Concordia (WI)",
+    "CON",
+    "Concordia (WI) Falcons"
+  ],
+  "cornell-college-ia": [
+    "Cornell College (IA)",
+    "COR",
+    "Cornell College",
+    "Cornell  (IA)",
+    "Cornell College (IA) Rams"
+  ],
+  "curry": [
+    "Curry",
+    "CUR",
+    "Curry Colonels"
+  ],
+  "depauw": [
+    "DePauw",
+    "DEP",
+    "DePauw Tigers"
+  ],
+  "dean-college": [
+    "Dean College",
+    "DEA",
+    "Dean College Bulldogs"
+  ],
+  "defiance": [
+    "Defiance",
+    "DEF",
+    "Defiance Yellow Jackets"
+  ],
+  "delaware-valley": [
+    "Delaware Valley",
+    "DV",
+    "Delaware Valley Aggies"
+  ],
+  "denison": [
+    "Denison",
+    "DEN",
+    "Denison Big Red"
+  ],
+  "dickinson": [
+    "Dickinson",
+    "DIC",
+    "Dickinson Red Devils"
+  ],
+  "dubuque": [
+    "Dubuque",
+    "DUB",
+    "Dubuque Spartans"
+  ],
+  "east-texas-baptist": [
+    "East Texas Baptist",
+    "EAS",
+    "E Texas Baptist",
+    "East Texas Baptist Tigers"
+  ],
+  "elmhurst": [
+    "Elmhurst",
+    "ELM",
+    "Elmhurst Blue Jays"
+  ],
+  "endicott-college": [
+    "Endicott College",
+    "END",
+    "Endicott ",
+    "Endicott College Gulls"
+  ],
+  "eureka-college": [
+    "Eureka College",
+    "EUR",
+    "Eureka College Red Devils"
+  ],
+  "fdu-florham": [
+    "FDU-Florham",
+    "FDU",
+    "FDU-Florham Devils"
+  ],
+  "ferrum": [
+    "Ferrum",
+    "FER",
+    "Ferrum Panthers"
+  ],
+  "fitchburg-state": [
+    "Fitchburg State",
+    "FIT",
+    "Fitchburg St",
+    "Fitchburg State Falcons"
+  ],
+  "framingham-state": [
+    "Framingham State",
+    "FRA",
+    "Framingham St",
+    "Framingham State Rams"
+  ],
+  "franklin": [
+    "Franklin",
+    "FRA",
+    "Franklin Grizzlies"
+  ],
+  "franklin-marshall": [
+    "Franklin & Marshall",
+    "F&M",
+    "Franklin & Marshall Diplomats"
+  ],
+  "gallaudet": [
+    "Gallaudet",
+    "GAL",
+    "Gallaudet Bison"
+  ],
+  "geneva-college": [
+    "Geneva College",
+    "GEN",
+    "Geneva College Golden Tornadoes"
+  ],
+  "george-fox-university": [
+    "George Fox University",
+    "GFU",
+    "George Fox",
+    "George Fox University Bruins"
+  ],
+  "gettysburg": [
+    "Gettysburg",
+    "GET",
+    "Gettysburg Bullets"
+  ],
+  "greensboro": [
+    "Greensboro",
+    "GRN",
+    "Greensboro Pride"
+  ],
+  "greenville": [
+    "Greenville",
+    "GRE",
+    "Greenville Panthers"
+  ],
+  "grinnell": [
+    "Grinnell",
+    "GRI",
+    "Grinnell Pioneers"
+  ],
+  "grove-city-college": [
+    "Grove City College",
+    "GRO",
+    "Grove City ",
+    "Grove City College Wolverines"
+  ],
+  "guilford": [
+    "Guilford",
+    "GUI",
+    "Guilford Quakers"
+  ],
+  "gustavus-adolphus": [
+    "Gustavus Adolphus",
+    "GUS",
+    "Gustavus Adolphus Golden Gusties"
+  ],
+  "hamilton": [
+    "Hamilton",
+    "HAM",
+    "Hamilton Continentals"
+  ],
+  "hamline": [
+    "Hamline",
+    "HAM",
+    "Hamline Fighting Pipers"
+  ],
+  "hampden-sydney": [
+    "Hampden-Sydney",
+    "HAM",
+    "Hampden-Sydney Tigers"
+  ],
+  "hanover": [
+    "Hanover",
+    "HAN",
+    "Hanover Panthers"
+  ],
+  "hardin-simmons": [
+    "Hardin-Simmons",
+    "HAR",
+    "Hardin-Simmons Cowboys"
+  ],
+  "hartwick": [
+    "Hartwick",
+    "HAR",
+    "Hartwick Hawks"
+  ],
+  "heidelberg": [
+    "Heidelberg",
+    "HEI",
+    "Heidelberg Student Princes"
+  ],
+  "hendrix-college": [
+    "Hendrix College",
+    "HEND",
+    "Hendrix",
+    "Hendrix College Warriors"
+  ],
+  "hiram": [
+    "Hiram",
+    "HIR",
+    "Hiram Terriers"
+  ],
+  "hobart": [
+    "Hobart",
+    "HOB",
+    "Hobart Statesmen"
+  ],
+  "hope": [
+    "Hope",
+    "HOP",
+    "Hope Flying Dutchmen"
+  ],
+  "howard-payne": [
+    "Howard Payne",
+    "HOW",
+    "Howard Payne Yellow Jackets"
+  ],
+  "huntingdon": [
+    "Huntingdon",
+    "HUN",
+    "Huntingdon Hawks"
+  ],
+  "husson": [
+    "Husson",
+    "HUS",
+    "Husson Eagles"
+  ],
+  "illinois-college": [
+    "Illinois College",
+    "ILLC",
+    "Illinois College Blueboys"
+  ],
+  "illinois-wesleyan": [
+    "Illinois Wesleyan",
+    "ILL",
+    "Illinois Wesleyan Titans"
+  ],
+  "ithaca": [
+    "Ithaca",
+    "ITH",
+    "Ithaca Bombers"
+  ],
+  "john-carroll": [
+    "John Carroll",
+    "JOH",
+    "John Carroll Blue Streaks"
+  ],
+  "johns-hopkins": [
+    "Johns Hopkins",
+    "JOH",
+    "Johns Hopkins Blue Jays"
+  ],
+  "juniata": [
+    "Juniata",
+    "JUN",
+    "Juniata Eagles"
+  ],
+  "kalamazoo": [
+    "Kalamazoo",
+    "KAL",
+    "Kalamazoo Hornets"
+  ],
+  "kean": [
+    "Kean",
+    "KEA",
+    "Kean Cougars"
+  ],
+  "kenyon": [
+    "Kenyon",
+    "KEN",
+    "Kenyon Lords"
+  ],
+  "keystone": [
+    "Keystone",
+    "KEYS",
+    "Keystone Giants"
+  ],
+  "kings-college-pa": [
+    "King's College (PA)",
+    "KIN",
+    "King's  (PA)",
+    "King's College (PA) Monarchs"
+  ],
+  "knox-college": [
+    "Knox College",
+    "KNO",
+    "Knox",
+    "Knox College Prairie Fire"
+  ],
+  "la-verne": [
+    "La Verne",
+    "LAV",
+    "La Verne Leopards"
+  ],
+  "lagrange-college": [
+    "LaGrange College",
+    "LAG",
+    "LaGrange ",
+    "LaGrange College Panthers"
+  ],
+  "lake-forest": [
+    "Lake Forest",
+    "LAK",
+    "Lake Forest Foresters"
+  ],
+  "lakeland-university": [
+    "Lakeland University",
+    "LAKE",
+    "Lakeland",
+    "Lakeland University Lakeland"
+  ],
+  "lawrence": [
+    "Lawrence",
+    "LAW",
+    "Lawrence Vikings"
+  ],
+  "lebanon-valley": [
+    "Lebanon Valley",
+    "LEB",
+    "Lebanon Valley Flying Dutchmen"
+  ],
+  "lewis-clark": [
+    "Lewis & Clark",
+    "LEW",
+    "Lewis & Clark Pioneers"
+  ],
+  "linfield": [
+    "Linfield",
+    "LIN",
+    "Linfield Wildcats"
+  ],
+  "loras-college": [
+    "Loras College",
+    "LOR",
+    "Loras College Duhawks "
+  ],
+  "luther": [
+    "Luther",
+    "LUT",
+    "Luther Norse"
+  ],
+  "lycoming": [
+    "Lycoming",
+    "LYC",
+    "Lycoming Warriors"
+  ],
+  "mit": [
+    "MIT",
+    "MIT Engineers"
+  ],
+  "macalester": [
+    "Macalester",
+    "MAC",
+    "Macalester Scots"
+  ],
+  "manchester": [
+    "Manchester",
+    "MAN",
+    "Manchester Spartans"
+  ],
+  "marietta": [
+    "Marietta",
+    "MAR",
+    "Marietta Pioneers"
+  ],
+  "martin-luther-college": [
+    "Martin Luther College",
+    "MAR",
+    "Martin Luther ",
+    "Martin Luther College Knights"
+  ],
+  "mary-hardin-baylor": [
+    "Mary Hardin-Baylor",
+    "MAR",
+    "Mary Hardin-Baylor Crusaders"
+  ],
+  "maryville-tn": [
+    "Maryville TN",
+    "MAR",
+    "Maryville (TN)",
+    "Maryville TN Fighting Scots"
+  ],
+  "mass-maritime": [
+    "Mass Maritime",
+    "MAS",
+    "Mass Maritime Buccaneers"
+  ],
+  "mcdaniel-college": [
+    "McDaniel College",
+    "MCD",
+    "McDaniel ",
+    "McDaniel College Terrors"
+  ],
+  "mcmurry": [
+    "McMurry",
+    "MCM",
+    "McMurry War Hawks"
+  ],
+  "merchant-marine": [
+    "Merchant Marine",
+    "MER",
+    "Merchant Marine Mariners"
+  ],
+  "methodist": [
+    "Methodist",
+    "MTH",
+    "Methodist Monarchs"
+  ],
+  "middlebury": [
+    "Middlebury",
+    "MID",
+    "Middlebury Panthers"
+  ],
+  "millikin": [
+    "Millikin",
+    "MIL",
+    "Millikin Big Blue"
+  ],
+  "millsaps": [
+    "Millsaps",
+    "MIL",
+    "Millsaps Majors"
+  ],
+  "minnesota-morris": [
+    "Minnesota-Morris",
+    "MIN",
+    "Minnesota-Morris Cougars"
+  ],
+  "misericordia": [
+    "Misericordia",
+    "MISC",
+    "Misericordia Cougars"
+  ],
+  "monmouth-il": [
+    "Monmouth (IL)",
+    "MON",
+    "Monmouth (IL) Fighting Scots"
+  ],
+  "montclair-state": [
+    "Montclair State",
+    "MON",
+    "Montclair St",
+    "Montclair State Red Hawks"
+  ],
+  "moravian": [
+    "Moravian",
+    "MOR",
+    "Moravian Greyhounds"
+  ],
+  "morrisville-state": [
+    "Morrisville State",
+    "MOR",
+    "Morrisville St",
+    "Morrisville State Mustangs"
+  ],
+  "mount-st-joseph": [
+    "Mount St. Joseph",
+    "MTS",
+    "Mount St. Joseph Lions"
+  ],
+  "mount-union": [
+    "Mount Union",
+    "MTU",
+    "Mount Union Raiders"
+  ],
+  "muhlenberg": [
+    "Muhlenberg",
+    "MUH",
+    "Muhlenberg Mules"
+  ],
+  "muskingum": [
+    "Muskingum",
+    "MUS",
+    "Muskingum Muskies"
+  ],
+  "nc-wesleyan": [
+    "NC Wesleyan",
+    "UNCW",
+    "UNC Welseyan",
+    "NC Wesleyan Battling Bishops"
+  ],
+  "nichols": [
+    "Nichols",
+    "NIC",
+    "Nichols Bison"
+  ],
+  "north-central": [
+    "North Central",
+    "NOC",
+    "North Central Cardinals"
+  ],
+  "north-park": [
+    "North Park",
+    "NOR",
+    "North Park Vikings"
+  ],
+  "northwestern-mn": [
+    "Northwestern (MN)",
+    "NWM",
+    "NW (MN)",
+    "Northwestern (MN) Eagles"
+  ],
+  "norwich": [
+    "Norwich",
+    "NOR",
+    "Norwich Cadets"
+  ],
+  "oberlin": [
+    "Oberlin",
+    "OBE",
+    "Oberlin Yeomen"
+  ],
+  "ohio-northern": [
+    "Ohio Northern",
+    "ON",
+    "Ohio Northern Polar Bears"
+  ],
+  "ohio-wesleyan": [
+    "Ohio Wesleyan",
+    "OHI",
+    "Ohio Wesleyan Battling Bishops"
+  ],
+  "olivet-college": [
+    "Olivet College",
+    "OLI",
+    "Olivet College Comets"
+  ],
+  "otterbein": [
+    "Otterbein",
+    "OTT",
+    "Otterbein Cardinals"
+  ],
+  "pacific-or": [
+    "Pacific (OR)",
+    "PAC",
+    "Pacific (OR) Boxers"
+  ],
+  "pacific-lutheran": [
+    "Pacific Lutheran",
+    "PAC",
+    "Pacific Lutheran Lutes"
+  ],
+  "plymouth-state": [
+    "Plymouth State",
+    "PLY",
+    "Plymouth St",
+    "Plymouth State Panthers"
+  ],
+  "pomona-pitzer": [
+    "Pomona-Pitzer",
+    "POM",
+    "Pomona-Pitzer Sagehens"
+  ],
+  "puget-sound": [
+    "Puget Sound",
+    "PUG",
+    "Puget Sound Loggers"
+  ],
+  "randolph-macon": [
+    "Randolph-Macon",
+    "RAN",
+    "Randolph-Macon Yellow Jackets"
+  ],
+  "redlands": [
+    "Redlands",
+    "RED",
+    "Redlands Bulldogs"
+  ],
+  "rensselaer": [
+    "Rensselaer",
+    "REN",
+    "Rensselaer Engineers"
+  ],
+  "rhodes": [
+    "Rhodes",
+    "RHO",
+    "Rhodes Lynx"
+  ],
+  "ripon": [
+    "Ripon",
+    "RIPON",
+    "Ripon Redhawks"
+  ],
+  "rochester": [
+    "Rochester",
+    "ROC",
+    "Rochester Yellow Jackets"
+  ],
+  "rockford": [
+    "Rockford",
+    "ROC",
+    "Rockford Regents"
+  ],
+  "rose-hulman": [
+    "Rose-Hulman",
+    "ROS",
+    "Rose-Hulman Engineers"
+  ],
+  "rowan": [
+    "Rowan",
+    "ROWAN",
+    "Rowan Professors"
+  ],
+  "suny-cortland": [
+    "SUNY Cortland",
+    "COR",
+    "SUNY Cortland Red Dragons"
+  ],
+  "suny-maritime": [
+    "SUNY Maritime",
+    "MAR",
+    "SUNY Maritime Privateers"
+  ],
+  "salisbury": [
+    "Salisbury",
+    "SAL",
+    "Salisbury Sea Gulls"
+  ],
+  "salve-regina": [
+    "Salve Regina",
+    "SAL",
+    "Salve Regina Seahawks"
+  ],
+  "sewanee-univ-of-the-south": [
+    "Sewanee Univ. of the South",
+    "SEW",
+    "Sewanee",
+    "Sewanee University",
+    "Sewanee Univ. of the South Tigers"
+  ],
+  "shenandoah": [
+    "Shenandoah",
+    "SHE",
+    "Shenandoah Hornets"
+  ],
+  "simpson-college": [
+    "Simpson College",
+    "SIM",
+    "Simpson",
+    "Simpson ",
+    "Simpson College Storm"
+  ],
+  "southern-virginia": [
+    "Southern Virginia",
+    "SVA",
+    "S Virginia",
+    "Southern Virginia Knights"
+  ],
+  "southwestern-university": [
+    "Southwestern University",
+    "SW",
+    "Southwestern (TX)",
+    "Southwestern U",
+    "Southwestern University Pirates"
+  ],
+  "springfield": [
+    "Springfield",
+    "SPR",
+    "Springfield Pride"
+  ],
+  "st-lawrence": [
+    "St Lawrence",
+    "STL",
+    "St Lawrence Saints"
+  ],
+  "st-john-fisher": [
+    "St. John Fisher",
+    "STJ",
+    "St. John Fisher Cardinals"
+  ],
+  "st-johns-mn": [
+    "St. Johns (MN)",
+    "STJ",
+    "St. John's",
+    "St. Johns (MN) Johnnies"
+  ],
+  "st-norbert": [
+    "St. Norbert",
+    "STN",
+    "St. Norbert Green Knights"
+  ],
+  "st-olaf-college": [
+    "St. Olaf College",
+    "STO",
+    "St. Olaf ",
+    "St. Olaf College Oles"
+  ],
+  "st-scholastica": [
+    "St. Scholastica",
+    "SS",
+    "St. Scholastica College of St. Scholastica"
+  ],
+  "st-vincent": [
+    "St. Vincent",
+    "STV",
+    "St. Vincent Bearcats"
+  ],
+  "stevenson": [
+    "Stevenson",
+    "STU",
+    "Stevenson Mustangs"
+  ],
+  "susquehanna": [
+    "Susquehanna",
+    "SUS",
+    "Susquehanna Crusaders"
+  ],
+  "texas-lutheran": [
+    "Texas Lutheran",
+    "TEX",
+    "Texas Lutheran Bulldogs"
+  ],
+  "thiel-college": [
+    "Thiel College",
+    "THI",
+    "Thiel College Tomcats"
+  ],
+  "trine": [
+    "Trine",
+    "TRI",
+    "Trine Thunder"
+  ],
+  "trinity-ct": [
+    "Trinity (CT)",
+    "TRI",
+    "Trinity (CT) Bantams"
+  ],
+  "trinity-tx": [
+    "Trinity (TX)",
+    "TRI",
+    "Trinity (TX) Tigers"
+  ],
+  "tufts": [
+    "Tufts",
+    "TUF",
+    "Tufts Jumbos"
+  ],
+  "umass-dartmouth": [
+    "UMass Dartmouth",
+    "MAS",
+    "UMass Dartmouth Corsairs"
+  ],
+  "uw-oshkosh": [
+    "UW-Oshkosh",
+    "WIS",
+    "UW-Oshkosh Titans"
+  ],
+  "uw-river-falls": [
+    "UW-River Falls",
+    "WIS",
+    "UW-River Falls Falcons"
+  ],
+  "uw-stout": [
+    "UW-Stout",
+    "WIS",
+    "UW-Stout Blue Devils"
+  ],
+  "uw-whitewater": [
+    "UW-Whitewater",
+    "WISW",
+    "UW-Whitewater Warhawks"
+  ],
+  "union": [
+    "Union",
+    "UNI",
+    "Union Dutchmen"
+  ],
+  "university-of-new-england": [
+    "University of New England",
+    "UNE",
+    "University of New England Nor'Easters"
+  ],
+  "ursinus": [
+    "Ursinus",
+    "URS",
+    "Ursinus Bears"
+  ],
+  "utica": [
+    "Utica",
+    "UTICA",
+    "Utica College",
+    "Utica Pioneers"
+  ],
+  "wabash-college": [
+    "Wabash College",
+    "WAB",
+    "Wabash",
+    "Wabash College Little Giants"
+  ],
+  "wartburg": [
+    "Wartburg",
+    "WAR",
+    "Wartburg Knights"
+  ],
+  "washington-jefferson": [
+    "Washington & Jefferson",
+    "WAS",
+    "W&J",
+    "Washington & Jefferson Presidents"
+  ],
+  "washington-lee": [
+    "Washington & Lee",
+    "UWL",
+    "Wash. & Lee",
+    "Washington & Lee Generals"
+  ],
+  "washington-mo": [
+    "Washington (MO)",
+    "WAS",
+    "Washington (MO) Bears"
+  ],
+  "waynesburg": [
+    "Waynesburg",
+    "WAY",
+    "Waynesburg Yellow Jackets"
+  ],
+  "wesleyan": [
+    "Wesleyan",
+    "WES",
+    "Wesleyan Cardinals"
+  ],
+  "western-connecticut-state": [
+    "Western Connecticut State",
+    "WES",
+    "W Conn St",
+    "Western Connecticut State Colonials"
+  ],
+  "western-new-england": [
+    "Western New England",
+    "WES",
+    "W New England",
+    "Western New England Golden Bears"
+  ],
+  "westfield-state": [
+    "Westfield State",
+    "WES",
+    "Westfield St",
+    "Westfield State Owls"
+  ],
+  "westminster": [
+    "Westminster",
+    "WMN",
+    "Westminster Blue Jays"
+  ],
+  "westminster-pa": [
+    "Westminster PA",
+    "WMN",
+    "Westminster PA Titans"
+  ],
+  "wheaton-college-ill": [
+    "Wheaton College (Ill)",
+    "WHE",
+    "Wheaton  (Ill)",
+    "Wheaton College (Ill) Thunder"
+  ],
+  "whittier": [
+    "Whittier",
+    "WHI",
+    "Whittier Poets"
+  ],
+  "whitworth": [
+    "Whitworth",
+    "WHI",
+    "Whitworth Pirates"
+  ],
+  "widener": [
+    "Widener",
+    "WID",
+    "Widener Pride"
+  ],
+  "wilkes": [
+    "Wilkes",
+    "WIL",
+    "Wilkes Colonels"
+  ],
+  "willamette": [
+    "Willamette",
+    "WIL",
+    "Willamette Bearcats"
+  ],
+  "william-paterson": [
+    "William Paterson",
+    "WMP",
+    "William Paterson Pioneers"
+  ],
+  "williams": [
+    "Williams",
+    "WIL",
+    "Williams Ephs"
+  ],
+  "wilmington-oh": [
+    "Wilmington (OH)",
+    "WIL",
+    "Wilmington (OH) Quakers"
+  ],
+  "wisconsin-lutheran": [
+    "Wisconsin Lutheran",
+    "WIS",
+    "Wisconsin Lutheran Warriors"
+  ],
+  "wisconsin-eau-claire": [
+    "Wisconsin-Eau Claire",
+    "WIS",
+    "UW-Eau Claire",
+    "Wisconsin-Eau Claire Blugolds"
+  ],
+  "wisconsin-la-crosse": [
+    "Wisconsin-La Crosse",
+    "WIS",
+    "UW-La Crosse",
+    "Wisconsin-La Crosse Eagles"
+  ],
+  "wisconsin-platteville": [
+    "Wisconsin-Platteville",
+    "WIS",
+    "UW-Platteville",
+    "Wisconsin-Platteville Pioneers"
+  ],
+  "wisconsin-stevens-point": [
+    "Wisconsin-Stevens Point",
+    "WIS",
+    "UW-Stevens Point",
+    "Wisconsin-Stevens Point Pointers"
+  ],
+  "wittenberg": [
+    "Wittenberg",
+    "WIT",
+    "Wittenberg Tigers"
+  ],
+  "wooster": [
+    "Wooster",
+    "WOO",
+    "Wooster Fighting Scots"
+  ],
+  "worcester-polytechnic": [
+    "Worcester Polytechnic",
+    "WPI",
+    "Worcester Polytechnic Engineers"
+  ],
+  "worcester-state-college": [
+    "Worcester State College",
+    "WOR",
+    "Worcester St ",
+    "Worcester State College Lancers"
+  ]
+}

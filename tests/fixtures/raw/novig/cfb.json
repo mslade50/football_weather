@@ -1,0 +1,3695 @@
+{
+ "data": {
+  "event": [
+   {
+    "id": "019fdea3-da5f-7151-a076-c64e705d767c",
+    "description": "Notre Dame @ Wisconsin",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-06T23:30:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "cc59dbd7-316c-4831-8c80-4092d376c244",
+      "name": "Wisconsin",
+      "symbol": "WIS",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "6234f250-c3db-409a-96b7-c149518ed0de",
+      "name": "Notre Dame",
+      "symbol": "ND",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-4f4d-79d1-b428-998dad2c0088",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-4f4d-79d1-b428-999232d0ac06",
+        "index": 0,
+        "type": "Home",
+        "description": "WIS",
+        "available": 0.475,
+        "last": 0.25,
+        "competitor": {
+         "id": "cc59dbd7-316c-4831-8c80-4092d376c244",
+         "name": "Wisconsin",
+         "symbol": "WIS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-4f4d-79d1-b428-99a55ab88e70",
+        "index": 1,
+        "type": "Away",
+        "description": "ND",
+        "available": 0.98,
+        "last": 0.75,
+        "competitor": {
+         "id": "6234f250-c3db-409a-96b7-c149518ed0de",
+         "name": "Notre Dame",
+         "symbol": "ND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-4f4d-79d1-b428-995647c06e80",
+      "type": "SPREAD",
+      "strike": 20.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-4f4d-79d1-b428-997bbe6304ac",
+        "index": 1,
+        "type": "Away",
+        "description": "ND -20.5",
+        "available": 0.54,
+        "last": 0.54,
+        "competitor": {
+         "id": "6234f250-c3db-409a-96b7-c149518ed0de",
+         "name": "Notre Dame",
+         "symbol": "ND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-4f4d-79d1-b428-996d11fb1df6",
+        "index": 0,
+        "type": "Home",
+        "description": "WIS +20.5",
+        "available": 0.53,
+        "last": 0.46,
+        "competitor": {
+         "id": "cc59dbd7-316c-4831-8c80-4092d376c244",
+         "name": "Wisconsin",
+         "symbol": "WIS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-4f4d-79d1-b428-99b2da687618",
+      "type": "TOTAL",
+      "strike": 47.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-4f4d-79d1-b428-99cfb5c7a39b",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 47.5",
+        "available": 0.54,
+        "last": 0.48,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-4f4d-79d1-b428-99d343d71fbd",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 47.5",
+        "available": 0.52,
+        "last": 0.52,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c1f-c465-71a2-9e15-565c5ca699b9",
+    "description": "Mercyhurst @ Youngstown State",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-27T22:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "08e578b6-ece0-49f4-8da2-3f84ee710c78",
+      "name": "Youngstown State",
+      "symbol": "YSU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "7a20d680-257d-4e94-a061-79c68508d52a",
+      "name": "Mercyhurst",
+      "symbol": "Mercyh",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c1f-c4bb-78f2-9971-97adc955330f",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c1f-c4bb-78f2-9971-97b92e70f588",
+        "index": 0,
+        "type": "Home",
+        "description": "YSU",
+        "available": 0.98,
+        "last": 0.952,
+        "competitor": {
+         "id": "08e578b6-ece0-49f4-8da2-3f84ee710c78",
+         "name": "Youngstown State",
+         "symbol": "YSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c1f-c4bb-78f2-9971-97c274c2e923",
+        "index": 1,
+        "type": "Away",
+        "description": "Mercyh",
+        "available": 0.05,
+        "last": 0.048,
+        "competitor": {
+         "id": "7a20d680-257d-4e94-a061-79c68508d52a",
+         "name": "Mercyhurst",
+         "symbol": "Mercyh",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01dd1-a34d-7e20-91fd-7f2563e93533",
+      "type": "SPREAD",
+      "strike": -27.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01dd1-a34d-7e20-91fd-7f33dbd8f083",
+        "index": 0,
+        "type": "Home",
+        "description": "YSU -27.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "08e578b6-ece0-49f4-8da2-3f84ee710c78",
+         "name": "Youngstown State",
+         "symbol": "YSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01dd1-a34d-7e20-91fd-7f46959df54b",
+        "index": 1,
+        "type": "Away",
+        "description": "Mercyh +27.5",
+        "available": 0.545,
+        "last": null,
+        "competitor": {
+         "id": "7a20d680-257d-4e94-a061-79c68508d52a",
+         "name": "Mercyhurst",
+         "symbol": "Mercyh",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c1f-c4bb-78f2-9971-97707ec2e94b",
+      "type": "TOTAL",
+      "strike": 53.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c1f-c4bb-78f2-9971-9781827f34ab",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 53.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c1f-c4bb-78f2-9971-97928c60d0cf",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 53.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c56-b0b3-7b93-adfb-7bf816fd8ad4",
+    "description": "Charleston Southern @ Lindenwood",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-27T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "a739a3a7-9afa-49bb-9a91-3a671ebfe339",
+      "name": "Lindenwood",
+      "symbol": "LIN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "5b77a185-f8fe-442f-a702-91d2a2020f73",
+      "name": "Charleston Southern",
+      "symbol": "CHSO",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c56-b12e-79c1-ae2d-dba0427d2e39",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-dbbc785e6e93",
+        "index": 0,
+        "type": "Home",
+        "description": "LINDEN",
+        "available": 0.84,
+        "last": null,
+        "competitor": {
+         "id": "a739a3a7-9afa-49bb-9a91-3a671ebfe339",
+         "name": "Lindenwood",
+         "symbol": "LIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-dbc9665407df",
+        "index": 1,
+        "type": "Away",
+        "description": "CHSO",
+        "available": 0.22,
+        "last": null,
+        "competitor": {
+         "id": "5b77a185-f8fe-442f-a702-91d2a2020f73",
+         "name": "Charleston Southern",
+         "symbol": "CHSO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b12e-79c1-ae2d-db7f8dbd7029",
+      "type": "SPREAD",
+      "strike": -11.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-db80a2491048",
+        "index": 0,
+        "type": "Home",
+        "description": "LINDEN -11.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "a739a3a7-9afa-49bb-9a91-3a671ebfe339",
+         "name": "Lindenwood",
+         "symbol": "LIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-db9ba55a5d8e",
+        "index": 1,
+        "type": "Away",
+        "description": "CHSO +11.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "5b77a185-f8fe-442f-a702-91d2a2020f73",
+         "name": "Charleston Southern",
+         "symbol": "CHSO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b12e-79c1-ae2d-db4a88f437cb",
+      "type": "TOTAL",
+      "strike": 45.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-db5f443ef824",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 45.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b12e-79c1-ae2d-db6bae374e24",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 45.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c56-b3ed-7d30-a48a-da6fa5fb0b25",
+    "description": "Houston Christian @ Southeastern Louisiana",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-27T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "8c1d1a65-8670-4540-9de8-e292ea9fdf44",
+      "name": "Southeastern Louisiana",
+      "symbol": "SELA",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "d215a4ac-8013-4265-be86-2da482116314",
+      "name": "Houston Christian",
+      "symbol": "HCU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c56-b445-7052-8545-ed90930b4c9b",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b445-7052-8545-edaf789ec300",
+        "index": 0,
+        "type": "Home",
+        "description": "SELA",
+        "available": 0.969,
+        "last": null,
+        "competitor": {
+         "id": "8c1d1a65-8670-4540-9de8-e292ea9fdf44",
+         "name": "Southeastern Louisiana",
+         "symbol": "SELA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b445-7052-8545-edb129b494e2",
+        "index": 1,
+        "type": "Away",
+        "description": "HCU",
+        "available": 0.06,
+        "last": null,
+        "competitor": {
+         "id": "d215a4ac-8013-4265-be86-2da482116314",
+         "name": "Houston Christian",
+         "symbol": "HCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b445-7052-8545-ed609730f661",
+      "type": "SPREAD",
+      "strike": -25.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b445-7052-8545-ed7f715cbbbe",
+        "index": 0,
+        "type": "Home",
+        "description": "SELA -25.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "8c1d1a65-8670-4540-9de8-e292ea9fdf44",
+         "name": "Southeastern Louisiana",
+         "symbol": "SELA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b445-7052-8545-ed872467ca26",
+        "index": 1,
+        "type": "Away",
+        "description": "HCU +25.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "d215a4ac-8013-4265-be86-2da482116314",
+         "name": "Houston Christian",
+         "symbol": "HCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b445-7052-8545-ed343c88a929",
+      "type": "TOTAL",
+      "strike": 50.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b445-7052-8545-ed4ecc2c8558",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 50.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b445-7052-8545-ed5ceaec8af0",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 50.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c56-b137-7d00-8037-2a275ce6ebf8",
+    "description": "Gardner-Webb @ Austin Peay",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-27T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "58bb27a3-a9e9-4d23-b690-8fa9d32b8e3d",
+      "name": "Austin Peay",
+      "symbol": "APSU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "ff143a4a-125d-4226-972b-20b9beb274c0",
+      "name": "Gardner-Webb",
+      "symbol": "GWEB",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c56-b1b2-7203-9c2b-a181365c0042",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a19d5489c562",
+        "index": 0,
+        "type": "Home",
+        "description": "APSU",
+        "available": 0.89,
+        "last": null,
+        "competitor": {
+         "id": "58bb27a3-a9e9-4d23-b690-8fa9d32b8e3d",
+         "name": "Austin Peay",
+         "symbol": "APSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a1aed157e95f",
+        "index": 1,
+        "type": "Away",
+        "description": "GWEB",
+        "available": 0.18,
+        "last": null,
+        "competitor": {
+         "id": "ff143a4a-125d-4226-972b-20b9beb274c0",
+         "name": "Gardner-Webb",
+         "symbol": "GWEB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b1b2-7203-9c2b-a1220bd99a2c",
+      "type": "SPREAD",
+      "strike": -14.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a13761c3e84b",
+        "index": 0,
+        "type": "Home",
+        "description": "APSU -14.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "58bb27a3-a9e9-4d23-b690-8fa9d32b8e3d",
+         "name": "Austin Peay",
+         "symbol": "APSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a141d3c6ebcc",
+        "index": 1,
+        "type": "Away",
+        "description": "GWEB +14.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "ff143a4a-125d-4226-972b-20b9beb274c0",
+         "name": "Gardner-Webb",
+         "symbol": "GWEB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b1b2-7203-9c2b-a155b56bf49e",
+      "type": "TOTAL",
+      "strike": 57.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a168ec696153",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 57.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b1b2-7203-9c2b-a17d98257433",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 57.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c56-b449-7e02-b243-454f2ab61a9c",
+    "description": "Mississippi Valley State @ Nicholls",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-27T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "f890d148-d954-474d-8b7a-3e7a30b2b05d",
+      "name": "Nicholls",
+      "symbol": "NICH",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "0b48d3e9-d79e-419a-b85d-bb8ae1ea9c9b",
+      "name": "Mississippi Valley State",
+      "symbol": "MVSU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c56-b4c2-7ec3-a32c-de1a423794b4",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-de3113a0ea7d",
+        "index": 1,
+        "type": "Away",
+        "description": "MVSU",
+        "available": 0.04,
+        "last": null,
+        "competitor": {
+         "id": "0b48d3e9-d79e-419a-b85d-bb8ae1ea9c9b",
+         "name": "Mississippi Valley State",
+         "symbol": "MVSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-de2f774f85b9",
+        "index": 0,
+        "type": "Home",
+        "description": "NICH",
+        "available": 0.979,
+        "last": null,
+        "competitor": {
+         "id": "f890d148-d954-474d-8b7a-3e7a30b2b05d",
+         "name": "Nicholls",
+         "symbol": "NICH",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b4c2-7ec3-a32c-ddbcc1e8f950",
+      "type": "SPREAD",
+      "strike": -30.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-ddc31783ad86",
+        "index": 0,
+        "type": "Home",
+        "description": "NICH -30.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "f890d148-d954-474d-8b7a-3e7a30b2b05d",
+         "name": "Nicholls",
+         "symbol": "NICH",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-ddd979194d5c",
+        "index": 1,
+        "type": "Away",
+        "description": "MVSU +30.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": {
+         "id": "0b48d3e9-d79e-419a-b85d-bb8ae1ea9c9b",
+         "name": "Mississippi Valley State",
+         "symbol": "MVSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c56-b4c2-7ec3-a32c-dde66a8be251",
+      "type": "TOTAL",
+      "strike": 52.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-ddfad79ffde5",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 52.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c56-b4c2-7ec3-a32c-de07cfddf69b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 52.5",
+        "available": 0.65,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01c8d-b3f3-7171-8086-df2581f69204",
+    "description": "Long Island University @ North Dakota",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-28T00:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "c7ba1fb6-57ae-4bff-bf80-7860ddc84fdb",
+      "name": "North Dakota",
+      "symbol": "UND",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "8820135d-67f8-4c92-8282-17315dbec2cf",
+      "name": "Long Island University",
+      "symbol": "LIU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01c8d-b471-7e13-87b9-3030231ce9a6",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c8d-b471-7e13-87b9-30433a6ba2f7",
+        "index": 0,
+        "type": "Home",
+        "description": "UND",
+        "available": 0.973,
+        "last": null,
+        "competitor": {
+         "id": "c7ba1fb6-57ae-4bff-bf80-7860ddc84fdb",
+         "name": "North Dakota",
+         "symbol": "UND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c8d-b471-7e13-87b9-3056f3592935",
+        "index": 1,
+        "type": "Away",
+        "description": "LIU",
+        "available": 0.05,
+        "last": null,
+        "competitor": {
+         "id": "8820135d-67f8-4c92-8282-17315dbec2cf",
+         "name": "Long Island University",
+         "symbol": "LIU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c8d-b471-7e13-87b9-306dff6efde4",
+      "type": "SPREAD",
+      "strike": -27.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c8d-b471-7e13-87b9-307071d5e494",
+        "index": 0,
+        "type": "Home",
+        "description": "UND -27.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "c7ba1fb6-57ae-4bff-bf80-7860ddc84fdb",
+         "name": "North Dakota",
+         "symbol": "UND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c8d-b471-7e13-87b9-308ee4146dba",
+        "index": 1,
+        "type": "Away",
+        "description": "LIU +27.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "8820135d-67f8-4c92-8282-17315dbec2cf",
+         "name": "Long Island University",
+         "symbol": "LIU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01c8d-b471-7e13-87b9-30085a1bc1ae",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01c8d-b471-7e13-87b9-301a128e1cd0",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01c8d-b471-7e13-87b9-30288427bc08",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a02132-4990-7232-beb8-1e2bda69f28b",
+    "description": "William & Mary @ Villanova",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-28T22:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "567c1d1f-cb24-44fb-b741-1301301a5b11",
+      "name": "Villanova",
+      "symbol": "VILL",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "c7a88c2d-e22c-4277-8e84-7819d27604f1",
+      "name": "William & Mary",
+      "symbol": "W&M",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a02132-4aab-78c0-a16c-252d1ce8bfac",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02132-4aab-78c0-a16c-253fe726ee99",
+        "index": 0,
+        "type": "Home",
+        "description": "VILL",
+        "available": 0.84,
+        "last": null,
+        "competitor": {
+         "id": "567c1d1f-cb24-44fb-b741-1301301a5b11",
+         "name": "Villanova",
+         "symbol": "VILL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02132-4aab-78c0-a16c-254d61b00487",
+        "index": 1,
+        "type": "Away",
+        "description": "W&M",
+        "available": 0.22,
+        "last": null,
+        "competitor": {
+         "id": "c7a88c2d-e22c-4277-8e84-7819d27604f1",
+         "name": "William & Mary",
+         "symbol": "W&M",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a02132-4aab-78c0-a16c-24c86921fdf6",
+      "type": "SPREAD",
+      "strike": -11.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02132-4aab-78c0-a16c-24d87a9df66e",
+        "index": 0,
+        "type": "Home",
+        "description": "VILL -11.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "567c1d1f-cb24-44fb-b741-1301301a5b11",
+         "name": "Villanova",
+         "symbol": "VILL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02132-4aab-78c0-a16c-24ebebf2d4f6",
+        "index": 1,
+        "type": "Away",
+        "description": "W&M +11.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "c7a88c2d-e22c-4277-8e84-7819d27604f1",
+         "name": "William & Mary",
+         "symbol": "W&M",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a02132-4aab-78c0-a16c-24f0be4c7f5f",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02132-4aab-78c0-a16c-25076584ae50",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02132-4aab-78c0-a16c-251b7d839c6f",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a01d69-9923-7f11-a9d0-e0c1859883e8",
+    "description": "Rhode Island @ Merrimack",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-28T22:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "9afecff3-54a2-493d-a737-98c0bb0add3b",
+      "name": "Merrimack",
+      "symbol": "MRMK",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "102d9f0c-00fa-4733-9b1b-7f484095e5d9",
+      "name": "Rhode Island",
+      "symbol": "URI",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a01d69-9979-7430-8ba6-a79cb53010db",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01d69-9979-7430-8ba6-a7a902dd1137",
+        "index": 0,
+        "type": "Home",
+        "description": "MRMK",
+        "available": 0.13,
+        "last": null,
+        "competitor": {
+         "id": "9afecff3-54a2-493d-a737-98c0bb0add3b",
+         "name": "Merrimack",
+         "symbol": "MRMK",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01d69-9979-7430-8ba6-a7b0a9ea2d7a",
+        "index": 1,
+        "type": "Away",
+        "description": "URI",
+        "available": 0.93,
+        "last": null,
+        "competitor": {
+         "id": "102d9f0c-00fa-4733-9b1b-7f484095e5d9",
+         "name": "Rhode Island",
+         "symbol": "URI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01d69-9979-7430-8ba6-a7c252272b03",
+      "type": "SPREAD",
+      "strike": 20.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01d69-9979-7430-8ba6-a7df7125a9ad",
+        "index": 0,
+        "type": "Home",
+        "description": "MRMK +20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "9afecff3-54a2-493d-a737-98c0bb0add3b",
+         "name": "Merrimack",
+         "symbol": "MRMK",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01d69-9979-7430-8ba6-a7e065405fa1",
+        "index": 1,
+        "type": "Away",
+        "description": "URI -20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "102d9f0c-00fa-4733-9b1b-7f484095e5d9",
+         "name": "Rhode Island",
+         "symbol": "URI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a01d69-9979-7430-8ba6-a76091a77b62",
+      "type": "TOTAL",
+      "strike": 55.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a01d69-9979-7430-8ba6-a774e8b08dde",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 55.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a01d69-9979-7430-8ba6-a78391726beb",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 55.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a0220e-1f38-77d0-87ac-274b73a8b24a",
+    "description": "Idaho @ Cal Poly",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T02:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "5285d092-9704-4804-a3e5-0d03acde5b60",
+      "name": "Cal Poly",
+      "symbol": "CP",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "b226ab92-ac93-4047-85fd-222c5fdc7b7f",
+      "name": "Idaho",
+      "symbol": "IDHO",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0220e-1fe8-7070-9ab1-1c1f5137bbd7",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1c261a1902b5",
+        "index": 0,
+        "type": "Home",
+        "description": "CP",
+        "available": 0.47,
+        "last": null,
+        "competitor": {
+         "id": "5285d092-9704-4804-a3e5-0d03acde5b60",
+         "name": "Cal Poly",
+         "symbol": "CP",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1c3cf5c26965",
+        "index": 1,
+        "type": "Away",
+        "description": "IDHO",
+        "available": 0.59,
+        "last": null,
+        "competitor": {
+         "id": "b226ab92-ac93-4047-85fd-222c5fdc7b7f",
+         "name": "Idaho",
+         "symbol": "IDHO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0220e-1fe8-7070-9ab1-1be0ea772bcb",
+      "type": "SPREAD",
+      "strike": 2.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1bf90b0d0008",
+        "index": 0,
+        "type": "Home",
+        "description": "CP +2.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "5285d092-9704-4804-a3e5-0d03acde5b60",
+         "name": "Cal Poly",
+         "symbol": "CP",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1c0dabbba472",
+        "index": 1,
+        "type": "Away",
+        "description": "IDHO -2.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "b226ab92-ac93-4047-85fd-222c5fdc7b7f",
+         "name": "Idaho",
+         "symbol": "IDHO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0220e-1fe8-7070-9ab1-1c47ca1af9a2",
+      "type": "TOTAL",
+      "strike": 55.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1c5eddd43f45",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 55.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0220e-1fe8-7070-9ab1-1c673329773e",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 55.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fabe-7661-981f-9196e424e183",
+    "description": "North Carolina @ TCU",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T16:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "cb4a47bb-a63e-49b4-99dc-ef6a0f90ef6f",
+      "name": "TCU",
+      "symbol": "TCU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "82dc9dd5-ccdc-4afd-a16d-8306c76bb2f6",
+      "name": "North Carolina",
+      "symbol": "UNC",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-165d-74a0-b0af-36f1a3ba9eba",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-165d-74a0-b0af-3700ffe3584e",
+        "index": 0,
+        "type": "Home",
+        "description": "TCU",
+        "available": 0.755,
+        "last": 0.73,
+        "competitor": {
+         "id": "cb4a47bb-a63e-49b4-99dc-ef6a0f90ef6f",
+         "name": "TCU",
+         "symbol": "TCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165d-74a0-b0af-371cb8150073",
+        "index": 1,
+        "type": "Away",
+        "description": "UNC",
+        "available": 0.265,
+        "last": 0.27,
+        "competitor": {
+         "id": "82dc9dd5-ccdc-4afd-a16d-8306c76bb2f6",
+         "name": "North Carolina",
+         "symbol": "UNC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165d-74a0-b0af-3ed5495176fc",
+      "type": "SPREAD",
+      "strike": -27.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-165d-74a0-b0af-3ee3d5c09f2c",
+        "index": 0,
+        "type": "Home",
+        "description": "TCU -27.5",
+        "available": 0.475,
+        "last": null,
+        "competitor": {
+         "id": "cb4a47bb-a63e-49b4-99dc-ef6a0f90ef6f",
+         "name": "TCU",
+         "symbol": "TCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165d-74a0-b0af-3efdba1c6555",
+        "index": 1,
+        "type": "Away",
+        "description": "UNC +27.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "82dc9dd5-ccdc-4afd-a16d-8306c76bb2f6",
+         "name": "North Carolina",
+         "symbol": "UNC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165d-74a0-b0af-3f9c6b4b0332",
+      "type": "SPREAD",
+      "strike": -24.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-165d-74a0-b0af-3fa5c163027a",
+        "index": 0,
+        "type": "Home",
+        "description": "TCU -24.5",
+        "available": 0.165,
+        "last": null,
+        "competitor": {
+         "id": "cb4a47bb-a63e-49b4-99dc-ef6a0f90ef6f",
+         "name": "TCU",
+         "symbol": "TCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165d-74a0-b0af-3fb70f02601d",
+        "index": 1,
+        "type": "Away",
+        "description": "UNC +24.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "82dc9dd5-ccdc-4afd-a16d-8306c76bb2f6",
+         "name": "North Carolina",
+         "symbol": "UNC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165d-74a0-b0af-369286e4c7cd",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-165d-74a0-b0af-36abcb71ba11",
+        "index": 0,
+        "type": "Home",
+        "description": "TCU -7.5",
+        "available": 0.515,
+        "last": 0.495,
+        "competitor": {
+         "id": "cb4a47bb-a63e-49b4-99dc-ef6a0f90ef6f",
+         "name": "TCU",
+         "symbol": "TCU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165d-74a0-b0af-36b969702cc0",
+        "index": 1,
+        "type": "Away",
+        "description": "UNC +7.5",
+        "available": 0.505,
+        "last": 0.505,
+        "competitor": {
+         "id": "82dc9dd5-ccdc-4afd-a16d-8306c76bb2f6",
+         "name": "North Carolina",
+         "symbol": "UNC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165f-7310-9ee5-5dc424188d9d",
+      "type": "TOTAL",
+      "strike": 46.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-165f-7310-9ee5-5dd568b16630",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 46.5",
+        "available": 0.56,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165f-7310-9ee5-5de2986b591b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 46.5",
+        "available": 0.51,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165d-74a0-b0af-372c2991117e",
+      "type": "TOTAL",
+      "strike": 47.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-165d-74a0-b0af-373722b80667",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 47.5",
+        "available": 0.5,
+        "last": 0.475,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165d-74a0-b0af-3742ff45ccb9",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 47.5",
+        "available": 0.525,
+        "last": 0.525,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-165f-7310-9ee5-5df4b69f5a5c",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-165f-7310-9ee5-5e110dba48a8",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": 0.57,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-165f-7310-9ee5-5e085f4f867f",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.465,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fb78-7ee1-8283-63fcdb67d450",
+    "description": "San Jose State @ USC",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T19:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+      "name": "USC",
+      "symbol": "USC",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "0c605744-26cc-40a1-bae7-5820c6e373e2",
+      "name": "San Jose State",
+      "symbol": "SJSU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1730-71f0-8fb5-9c35ef198603",
+      "type": "SPREAD",
+      "strike": -41.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1730-71f0-8fb5-9c45dc30db2b",
+        "index": 0,
+        "type": "Home",
+        "description": "USC -41.5",
+        "available": 0.44,
+        "last": null,
+        "competitor": {
+         "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+         "name": "USC",
+         "symbol": "USC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1730-71f0-8fb5-9c5ea9759199",
+        "index": 1,
+        "type": "Away",
+        "description": "SJSU +41.5",
+        "available": 0.61,
+        "last": null,
+        "competitor": {
+         "id": "0c605744-26cc-40a1-bae7-5820c6e373e2",
+         "name": "San Jose State",
+         "symbol": "SJSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-172f-7491-92b7-5e2e6e27861e",
+      "type": "SPREAD",
+      "strike": -38.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-172f-7491-92b7-5e334ecf13b3",
+        "index": 0,
+        "type": "Home",
+        "description": "USC -38.5",
+        "available": 0.505,
+        "last": 0.48,
+        "competitor": {
+         "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+         "name": "USC",
+         "symbol": "USC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-172f-7491-92b7-5e4f3e1a4a20",
+        "index": 1,
+        "type": "Away",
+        "description": "SJSU +38.5",
+        "available": 0.52,
+        "last": 0.52,
+        "competitor": {
+         "id": "0c605744-26cc-40a1-bae7-5820c6e373e2",
+         "name": "San Jose State",
+         "symbol": "SJSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1730-71f0-8fb5-9cccf1afc9dc",
+      "type": "SPREAD",
+      "strike": -37.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1730-71f0-8fb5-9ce147bb3354",
+        "index": 1,
+        "type": "Away",
+        "description": "SJSU +37.5",
+        "available": 0.51,
+        "last": null,
+        "competitor": {
+         "id": "0c605744-26cc-40a1-bae7-5820c6e373e2",
+         "name": "San Jose State",
+         "symbol": "SJSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1730-71f0-8fb5-9cd10290f168",
+        "index": 0,
+        "type": "Home",
+        "description": "USC -37.5",
+        "available": 0.56,
+        "last": null,
+        "competitor": {
+         "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+         "name": "USC",
+         "symbol": "USC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-172f-7491-92b7-669e26502947",
+      "type": "TOTAL",
+      "strike": 58.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-172f-7491-92b7-66aadbdbef63",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 58.5",
+        "available": 0.585,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-172f-7491-92b7-66bf38d02208",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 58.5",
+        "available": 0.49,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-172f-7491-92b7-66c15762a932",
+      "type": "TOTAL",
+      "strike": 59.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-172f-7491-92b7-66e625277f2d",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 59.5",
+        "available": 0.51,
+        "last": 0.515,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-172f-7491-92b7-66d0877f04ec",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 59.5",
+        "available": 0.53,
+        "last": 0.485,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-172f-7491-92b7-5d616a0c6d80",
+      "type": "TOTAL",
+      "strike": 60.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-172f-7491-92b7-5d74c84945fd",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 60.5",
+        "available": 0.49,
+        "last": 0.49,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-172f-7491-92b7-5d81c0cebde1",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 60.5",
+        "available": 0.52,
+        "last": 0.51,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fc21-7c02-aaec-092abc409ce8",
+    "description": "North Carolina State @ Virginia",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T19:30:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "46e60c24-a83c-4841-bc49-0c9b40f04938",
+      "name": "Virginia",
+      "symbol": "UVA",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "c12c0618-9fba-401c-b898-704fea239acf",
+      "name": "North Carolina State",
+      "symbol": "NCSU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-181d-70e1-b9de-9b3cc092e244",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-181d-70e1-b9de-9b5769bbeba0",
+        "index": 1,
+        "type": "Away",
+        "description": "NCSU",
+        "available": 0.345,
+        "last": 0.34,
+        "competitor": {
+         "id": "c12c0618-9fba-401c-b898-704fea239acf",
+         "name": "North Carolina State",
+         "symbol": "NCSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181d-70e1-b9de-9b43bdfe2646",
+        "index": 0,
+        "type": "Home",
+        "description": "UVA",
+        "available": 0.675,
+        "last": 0.66,
+        "competitor": {
+         "id": "46e60c24-a83c-4841-bc49-0c9b40f04938",
+         "name": "Virginia",
+         "symbol": "UVA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181d-70e1-b9de-a2b94d231631",
+      "type": "SPREAD",
+      "strike": -20.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-181d-70e1-b9de-a2dabbaedc94",
+        "index": 1,
+        "type": "Away",
+        "description": "NCSU +20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "c12c0618-9fba-401c-b898-704fea239acf",
+         "name": "North Carolina State",
+         "symbol": "NCSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181d-70e1-b9de-a2cd549ab4fe",
+        "index": 0,
+        "type": "Home",
+        "description": "UVA -20.5",
+        "available": 0.18,
+        "last": null,
+        "competitor": {
+         "id": "46e60c24-a83c-4841-bc49-0c9b40f04938",
+         "name": "Virginia",
+         "symbol": "UVA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181d-70e1-b9de-a1fc2c15ecb4",
+      "type": "SPREAD",
+      "strike": -17.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-181d-70e1-b9de-a20d21779418",
+        "index": 0,
+        "type": "Home",
+        "description": "UVA -17.5",
+        "available": 0.225,
+        "last": null,
+        "competitor": {
+         "id": "46e60c24-a83c-4841-bc49-0c9b40f04938",
+         "name": "Virginia",
+         "symbol": "UVA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181d-70e1-b9de-a21f1bf377ab",
+        "index": 1,
+        "type": "Away",
+        "description": "NCSU +17.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "c12c0618-9fba-401c-b898-704fea239acf",
+         "name": "North Carolina State",
+         "symbol": "NCSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181d-70e1-b9de-9b63990064d6",
+      "type": "SPREAD",
+      "strike": -5.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-181d-70e1-b9de-9b7bb7013883",
+        "index": 0,
+        "type": "Home",
+        "description": "UVA -5.5",
+        "available": 0.5,
+        "last": 0.495,
+        "competitor": {
+         "id": "46e60c24-a83c-4841-bc49-0c9b40f04938",
+         "name": "Virginia",
+         "symbol": "UVA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181d-70e1-b9de-9b80eb655ca6",
+        "index": 1,
+        "type": "Away",
+        "description": "NCSU +5.5",
+        "available": 0.505,
+        "last": 0.505,
+        "competitor": {
+         "id": "c12c0618-9fba-401c-b898-704fea239acf",
+         "name": "North Carolina State",
+         "symbol": "NCSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181e-78f0-93cc-d3b7f8eb46db",
+      "type": "TOTAL",
+      "strike": 51.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-181e-78f0-93cc-d3c0eaf553a5",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 51.5",
+        "available": 0.55,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181e-78f0-93cc-d3d960554cf2",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 51.5",
+        "available": 0.5,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181e-78f0-93cc-d3e14fae69dc",
+      "type": "TOTAL",
+      "strike": 52.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-181e-78f0-93cc-d3f8d5144e01",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 52.5",
+        "available": 0.545,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181e-78f0-93cc-d404679bbf47",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 52.5",
+        "available": 0.505,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-181d-70e1-b9de-9bc3e5f1fef3",
+      "type": "TOTAL",
+      "strike": 53.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-181d-70e1-b9de-9be716b1e5ce",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 53.5",
+        "available": 0.525,
+        "last": 0.525,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-181d-70e1-b9de-9bdf82c51f51",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 53.5",
+        "available": 0.5,
+        "last": 0.475,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fcf1-7e30-a592-9599bf330764",
+    "description": "Jacksonville State @ North Dakota State",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T21:30:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "13d1aa9b-8a53-4443-8293-edce452d2b66",
+      "name": "North Dakota State",
+      "symbol": "NDSU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "080250c0-13f2-4f2e-bd2f-f738ab2ddae8",
+      "name": "Jacksonville State",
+      "symbol": "JVST",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1987-75a2-9551-d3067b0afd5b",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1987-75a2-9551-d319229d17ae",
+        "index": 0,
+        "type": "Home",
+        "description": "NDSU",
+        "available": 0.72,
+        "last": 0.685,
+        "competitor": {
+         "id": "13d1aa9b-8a53-4443-8293-edce452d2b66",
+         "name": "North Dakota State",
+         "symbol": "NDSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1987-75a2-9551-d326adbf1e0f",
+        "index": 1,
+        "type": "Away",
+        "description": "JVST",
+        "available": 0.305,
+        "last": 0.315,
+        "competitor": {
+         "id": "080250c0-13f2-4f2e-bd2f-f738ab2ddae8",
+         "name": "Jacksonville State",
+         "symbol": "JVST",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1989-7f61-975d-fac6dfab5cfc",
+      "type": "SPREAD",
+      "strike": -13.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1989-7f61-975d-fadc66d86753",
+        "index": 0,
+        "type": "Home",
+        "description": "NDSU -13.5",
+        "available": 0.35,
+        "last": null,
+        "competitor": {
+         "id": "13d1aa9b-8a53-4443-8293-edce452d2b66",
+         "name": "North Dakota State",
+         "symbol": "NDSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1989-7f61-975d-fae4ba7c4b21",
+        "index": 1,
+        "type": "Away",
+        "description": "JVST +13.5",
+        "available": 0.715,
+        "last": null,
+        "competitor": {
+         "id": "080250c0-13f2-4f2e-bd2f-f738ab2ddae8",
+         "name": "Jacksonville State",
+         "symbol": "JVST",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1989-7f61-975d-fafd0bf180aa",
+      "type": "SPREAD",
+      "strike": -12.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1989-7f61-975d-fb0a520a48c5",
+        "index": 0,
+        "type": "Home",
+        "description": "NDSU -12.5",
+        "available": 0.375,
+        "last": null,
+        "competitor": {
+         "id": "13d1aa9b-8a53-4443-8293-edce452d2b66",
+         "name": "North Dakota State",
+         "symbol": "NDSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1989-7f61-975d-fb1fd2968d89",
+        "index": 1,
+        "type": "Away",
+        "description": "JVST +12.5",
+        "available": 0.695,
+        "last": null,
+        "competitor": {
+         "id": "080250c0-13f2-4f2e-bd2f-f738ab2ddae8",
+         "name": "Jacksonville State",
+         "symbol": "JVST",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1987-75a2-9551-d36603fc7087",
+      "type": "SPREAD",
+      "strike": -6.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1987-75a2-9551-d38b66ceac18",
+        "index": 1,
+        "type": "Away",
+        "description": "JVST +6.5",
+        "available": 0.485,
+        "last": 0.485,
+        "competitor": {
+         "id": "080250c0-13f2-4f2e-bd2f-f738ab2ddae8",
+         "name": "Jacksonville State",
+         "symbol": "JVST",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1987-75a2-9551-d3725e384823",
+        "index": 0,
+        "type": "Home",
+        "description": "NDSU -6.5",
+        "available": 0.55,
+        "last": 0.515,
+        "competitor": {
+         "id": "13d1aa9b-8a53-4443-8293-edce452d2b66",
+         "name": "North Dakota State",
+         "symbol": "NDSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1988-75a2-a64b-28f40a4e9604",
+      "type": "TOTAL",
+      "strike": 45.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1988-75a2-a64b-29083052953e",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 45.5",
+        "available": 0.555,
+        "last": 0.49,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1988-75a2-a64b-2915fb38544b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 45.5",
+        "available": 0.51,
+        "last": 0.51,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1988-75a2-a64b-2922f773482a",
+      "type": "TOTAL",
+      "strike": 46.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1988-75a2-a64b-293b00020547",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 46.5",
+        "available": 0.515,
+        "last": 0.515,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1988-75a2-a64b-2946d6f0d8fe",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 46.5",
+        "available": 0.525,
+        "last": 0.485,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1987-75a2-9551-d27bb1ba992b",
+      "type": "TOTAL",
+      "strike": 47.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1987-75a2-9551-d28dab293dc8",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 47.5",
+        "available": 0.49,
+        "last": 0.445,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1987-75a2-9551-d290e7ebbc69",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 47.5",
+        "available": 0.555,
+        "last": 0.553,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fd95-7021-a36c-0cce97a87f4d",
+    "description": "Sacramento State @ Eastern Michigan",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T22:30:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "9ff5c04d-8e00-4f74-a17d-21c6d5137f50",
+      "name": "Eastern Michigan",
+      "symbol": "EMU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "742e64f0-af69-4d7f-817f-b1d56bac400a",
+      "name": "Sacramento State",
+      "symbol": "CSUS",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1a7b-7652-876e-e8e506022af4",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7b-7652-876e-e9017be0d031",
+        "index": 1,
+        "type": "Away",
+        "description": "SAC",
+        "available": 0.245,
+        "last": 0.26,
+        "competitor": {
+         "id": "742e64f0-af69-4d7f-817f-b1d56bac400a",
+         "name": "Sacramento State",
+         "symbol": "CSUS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7b-7652-876e-e8f945ef4237",
+        "index": 0,
+        "type": "Home",
+        "description": "EMU",
+        "available": 0.78,
+        "last": 0.74,
+        "competitor": {
+         "id": "9ff5c04d-8e00-4f74-a17d-21c6d5137f50",
+         "name": "Eastern Michigan",
+         "symbol": "EMU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7b-7652-876e-f068f8df29f0",
+      "type": "SPREAD",
+      "strike": -24.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7b-7652-876e-f071a61504b8",
+        "index": 0,
+        "type": "Home",
+        "description": "EMU -24.5",
+        "available": 0.195,
+        "last": null,
+        "competitor": {
+         "id": "9ff5c04d-8e00-4f74-a17d-21c6d5137f50",
+         "name": "Eastern Michigan",
+         "symbol": "EMU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7b-7652-876e-f08c860dd24e",
+        "index": 1,
+        "type": "Away",
+        "description": "SAC +24.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "742e64f0-af69-4d7f-817f-b1d56bac400a",
+         "name": "Sacramento State",
+         "symbol": "CSUS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7b-7652-876e-f0c72526f8e8",
+      "type": "SPREAD",
+      "strike": -23.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7b-7652-876e-f0d512967748",
+        "index": 0,
+        "type": "Home",
+        "description": "EMU -23.5",
+        "available": 0.22,
+        "last": null,
+        "competitor": {
+         "id": "9ff5c04d-8e00-4f74-a17d-21c6d5137f50",
+         "name": "Eastern Michigan",
+         "symbol": "EMU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7b-7652-876e-f0eefe16f4f5",
+        "index": 1,
+        "type": "Away",
+        "description": "SAC +23.5",
+        "available": 0.855,
+        "last": null,
+        "competitor": {
+         "id": "742e64f0-af69-4d7f-817f-b1d56bac400a",
+         "name": "Sacramento State",
+         "symbol": "CSUS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7c-7160-8fbb-683a2ff59411",
+      "type": "SPREAD",
+      "strike": -9.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7c-7160-8fbb-6855c3c1d924",
+        "index": 1,
+        "type": "Away",
+        "description": "SAC +9.5",
+        "available": 0.505,
+        "last": 0.465,
+        "competitor": {
+         "id": "742e64f0-af69-4d7f-817f-b1d56bac400a",
+         "name": "Sacramento State",
+         "symbol": "CSUS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7c-7160-8fbb-6845a233450f",
+        "index": 0,
+        "type": "Home",
+        "description": "EMU -9.5",
+        "available": 0.535,
+        "last": 0.535,
+        "competitor": {
+         "id": "9ff5c04d-8e00-4f74-a17d-21c6d5137f50",
+         "name": "Eastern Michigan",
+         "symbol": "EMU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7d-75b0-b775-5a6c85089c09",
+      "type": "TOTAL",
+      "strike": 51.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7d-75b0-b775-5a80a839932c",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 51.5",
+        "available": 0.505,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7d-75b0-b775-5a74eba6925f",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 51.5",
+        "available": 0.57,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7b-7652-876e-e914e8a1589c",
+      "type": "TOTAL",
+      "strike": 52.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7b-7652-876e-e92904b25207",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 52.5",
+        "available": 0.525,
+        "last": 0.525,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7b-7652-876e-e937a6ad5a63",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 52.5",
+        "available": 0.52,
+        "last": 0.516,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1a7d-75b0-b775-5a99f5ff1fd4",
+      "type": "TOTAL",
+      "strike": 53.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1a7d-75b0-b775-5ab9330b61f0",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 53.5",
+        "available": 0.555,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1a7d-75b0-b775-5aa1397d352b",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 53.5",
+        "available": 0.505,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-fe51-7dd2-9c6f-24e1fb5c85cf",
+    "description": "New Mexico State @ Florida State",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "fa00f2b5-bd05-4e60-b53c-92d46f6b72f1",
+      "name": "Florida State",
+      "symbol": "FSU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "e1334046-66a6-414a-b5f4-27352addc122",
+      "name": "New Mexico State",
+      "symbol": "NMSU",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1c1c-7b42-8eb2-b41893e2f924",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b4274f4fa19b",
+        "index": 0,
+        "type": "Home",
+        "description": "FSU",
+        "available": null,
+        "last": 0.953,
+        "competitor": {
+         "id": "fa00f2b5-bd05-4e60-b53c-92d46f6b72f1",
+         "name": "Florida State",
+         "symbol": "FSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b431aa6b19e5",
+        "index": 1,
+        "type": "Away",
+        "description": "NMSU",
+        "available": 0.044,
+        "last": 0.047,
+        "competitor": {
+         "id": "e1334046-66a6-414a-b5f4-27352addc122",
+         "name": "New Mexico State",
+         "symbol": "NMSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1d-71b0-b752-c2bde2f88d08",
+      "type": "SPREAD",
+      "strike": -32.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1d-71b0-b752-c2d810c1fa6a",
+        "index": 1,
+        "type": "Away",
+        "description": "NMSU +32.5",
+        "available": 0.595,
+        "last": null,
+        "competitor": {
+         "id": "e1334046-66a6-414a-b5f4-27352addc122",
+         "name": "New Mexico State",
+         "symbol": "NMSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1d-71b0-b752-c2cb268b6b2b",
+        "index": 0,
+        "type": "Home",
+        "description": "FSU -32.5",
+        "available": 0.48,
+        "last": null,
+        "competitor": {
+         "id": "fa00f2b5-bd05-4e60-b53c-92d46f6b72f1",
+         "name": "Florida State",
+         "symbol": "FSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1c-7b42-8eb2-b4434e12de73",
+      "type": "SPREAD",
+      "strike": -31.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b457b57cd339",
+        "index": 0,
+        "type": "Home",
+        "description": "FSU -31.5",
+        "available": 0.495,
+        "last": 0.49,
+        "competitor": {
+         "id": "fa00f2b5-bd05-4e60-b53c-92d46f6b72f1",
+         "name": "Florida State",
+         "symbol": "FSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b46de27dfd66",
+        "index": 1,
+        "type": "Away",
+        "description": "NMSU +31.5",
+        "available": 0.52,
+        "last": 0.51,
+        "competitor": {
+         "id": "e1334046-66a6-414a-b5f4-27352addc122",
+         "name": "New Mexico State",
+         "symbol": "NMSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1d-71b0-b752-c2e037b73b7d",
+      "type": "SPREAD",
+      "strike": -30.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1d-71b0-b752-c2ff02691f8f",
+        "index": 0,
+        "type": "Home",
+        "description": "FSU -30.5",
+        "available": 0.535,
+        "last": 0.52,
+        "competitor": {
+         "id": "fa00f2b5-bd05-4e60-b53c-92d46f6b72f1",
+         "name": "Florida State",
+         "symbol": "FSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1d-71b0-b752-c30a4d2ddba2",
+        "index": 1,
+        "type": "Away",
+        "description": "NMSU +30.5",
+        "available": 0.48,
+        "last": 0.48,
+        "competitor": {
+         "id": "e1334046-66a6-414a-b5f4-27352addc122",
+         "name": "New Mexico State",
+         "symbol": "NMSU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1e-75a2-9f95-746fa0437385",
+      "type": "TOTAL",
+      "strike": 51.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1e-75a2-9f95-7478dd58464d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 51.5",
+        "available": 0.585,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1e-75a2-9f95-748fc49be608",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 51.5",
+        "available": 0.49,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1c-7b42-8eb2-b56260c79ec7",
+      "type": "TOTAL",
+      "strike": 52.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b58fa0df332a",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 52.5",
+        "available": 0.5,
+        "last": 0.535,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b57b73de6b02",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 52.5",
+        "available": 0.54,
+        "last": 0.465,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1c1c-7b42-8eb2-b4702dc3f323",
+      "type": "TOTAL",
+      "strike": 53.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b488db3ce2b2",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 53.5",
+        "available": 0.535,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1c1c-7b42-8eb2-b49be4d976e0",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 53.5",
+        "available": 0.535,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-feea-7e52-a334-2d4bb692e1ae",
+    "description": "Hawaii @ Stanford",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-29T23:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "76069bda-82f3-41bb-a447-92b0e2798087",
+      "name": "Stanford",
+      "symbol": "STAN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "96fa3de5-46ed-49b4-8a36-ea202b095d88",
+      "name": "Hawaii",
+      "symbol": "HAW",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1cb2-7752-9e8e-9c4669bf39f4",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9c5be80c2845",
+        "index": 0,
+        "type": "Home",
+        "description": "STAN",
+        "available": 0.675,
+        "last": 0.65,
+        "competitor": {
+         "id": "76069bda-82f3-41bb-a447-92b0e2798087",
+         "name": "Stanford",
+         "symbol": "STAN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9c6d98577b2f",
+        "index": 1,
+        "type": "Away",
+        "description": "HAW",
+        "available": 0.355,
+        "last": 0.35,
+        "competitor": {
+         "id": "96fa3de5-46ed-49b4-8a36-ea202b095d88",
+         "name": "Hawaii",
+         "symbol": "HAW",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb2-7752-9e8e-a3f1cf912ead",
+      "type": "SPREAD",
+      "strike": -20.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-a40ca2fce708",
+        "index": 0,
+        "type": "Home",
+        "description": "STAN -20.5",
+        "available": 0.185,
+        "last": null,
+        "competitor": {
+         "id": "76069bda-82f3-41bb-a447-92b0e2798087",
+         "name": "Stanford",
+         "symbol": "STAN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-a41642c9a603",
+        "index": 1,
+        "type": "Away",
+        "description": "HAW +20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "96fa3de5-46ed-49b4-8a36-ea202b095d88",
+         "name": "Hawaii",
+         "symbol": "HAW",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb2-7752-9e8e-9f4c26a898e7",
+      "type": "SPREAD",
+      "strike": -17.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9f5c778df8ba",
+        "index": 0,
+        "type": "Home",
+        "description": "STAN -17.5",
+        "available": 0.23,
+        "last": null,
+        "competitor": {
+         "id": "76069bda-82f3-41bb-a447-92b0e2798087",
+         "name": "Stanford",
+         "symbol": "STAN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9f6d62a79364",
+        "index": 1,
+        "type": "Away",
+        "description": "HAW +17.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "96fa3de5-46ed-49b4-8a36-ea202b095d88",
+         "name": "Hawaii",
+         "symbol": "HAW",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb2-7752-9e8e-9c1039601cc7",
+      "type": "SPREAD",
+      "strike": -5.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9c2a484564d7",
+        "index": 0,
+        "type": "Home",
+        "description": "STAN -5.5",
+        "available": 0.515,
+        "last": 0.51,
+        "competitor": {
+         "id": "76069bda-82f3-41bb-a447-92b0e2798087",
+         "name": "Stanford",
+         "symbol": "STAN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9c3d95771e5d",
+        "index": 1,
+        "type": "Away",
+        "description": "HAW +5.5",
+        "available": 0.515,
+        "last": 0.49,
+        "competitor": {
+         "id": "96fa3de5-46ed-49b4-8a36-ea202b095d88",
+         "name": "Hawaii",
+         "symbol": "HAW",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb4-7cc0-8b11-4bbcce1987ee",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb4-7cc0-8b11-4bce185b3a12",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.52,
+        "last": 0.52,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb4-7cc0-8b11-4bd1815633a2",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": 0.52,
+        "last": 0.48,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb2-7752-9e8e-9ca9d926286b",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9cb5c9ec832c",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": 0.505,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb2-7752-9e8e-9cc033cb1fc4",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": 0.54,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1cb4-7cc0-8b11-4bee32f1ebbe",
+      "type": "TOTAL",
+      "strike": 50.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1cb4-7cc0-8b11-4bf80e133fce",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 50.5",
+        "available": 0.465,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1cb4-7cc0-8b11-4c05f42467fd",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 50.5",
+        "available": 0.575,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a02711-a6de-7f83-8803-551313a9360b",
+    "description": "Weber State @ Northern Colorado",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-30T01:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "188e4b2e-bee7-48bc-8bbc-acfa03e4647e",
+      "name": "Northern Colorado",
+      "symbol": "UNCO",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "4f332333-c17f-45c0-b96a-f9a034743e8e",
+      "name": "Weber State",
+      "symbol": "WEB",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a02711-a756-76c2-bcc8-fa310c86138e",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02711-a756-76c2-bcc8-fa4a2cebb22d",
+        "index": 0,
+        "type": "Home",
+        "description": "UNCO",
+        "available": 0.625,
+        "last": null,
+        "competitor": {
+         "id": "188e4b2e-bee7-48bc-8bbc-acfa03e4647e",
+         "name": "Northern Colorado",
+         "symbol": "UNCO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02711-a756-76c2-bcc8-fa560c4b6f19",
+        "index": 1,
+        "type": "Away",
+        "description": "WEB",
+        "available": 0.445,
+        "last": null,
+        "competitor": {
+         "id": "4f332333-c17f-45c0-b96a-f9a034743e8e",
+         "name": "Weber State",
+         "symbol": "WEB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a02711-a756-76c2-bcc8-fa0a0b6ac471",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02711-a756-76c2-bcc8-fa1be5ee6f96",
+        "index": 0,
+        "type": "Home",
+        "description": "UNCO -3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "188e4b2e-bee7-48bc-8bbc-acfa03e4647e",
+         "name": "Northern Colorado",
+         "symbol": "UNCO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02711-a756-76c2-bcc8-fa29087098df",
+        "index": 1,
+        "type": "Away",
+        "description": "WEB +3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "4f332333-c17f-45c0-b96a-f9a034743e8e",
+         "name": "Weber State",
+         "symbol": "WEB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a02711-a756-76c2-bcc8-f9db957dfc78",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a02711-a756-76c2-bcc8-f9e495c1fe61",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a02711-a756-76c2-bcc8-f9ff713fe9b9",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcbf1-ff57-74c2-b1ff-ba3aaac808d8",
+    "description": "Memphis @ UNLV",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-08-30T02:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "5e45c5d7-6d55-46ad-9f5c-a372caeedb8a",
+      "name": "UNLV",
+      "symbol": "UNLV",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "f352db80-7bdd-4d29-93d3-92014b053e18",
+      "name": "Memphis",
+      "symbol": "MEM",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1d56-7f90-a418-9ede6f11f32b",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-9ef4ef23f7a6",
+        "index": 1,
+        "type": "Away",
+        "description": "MEM",
+        "available": 0.345,
+        "last": 0.335,
+        "competitor": {
+         "id": "f352db80-7bdd-4d29-93d3-92014b053e18",
+         "name": "Memphis",
+         "symbol": "MEM",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-9eea780ddbd3",
+        "index": 0,
+        "type": "Home",
+        "description": "UNLV",
+        "available": 0.675,
+        "last": 0.665,
+        "competitor": {
+         "id": "5e45c5d7-6d55-46ad-9f5c-a372caeedb8a",
+         "name": "UNLV",
+         "symbol": "UNLV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d56-7f90-a418-a53787560c69",
+      "type": "SPREAD",
+      "strike": -24.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-a55b7347881c",
+        "index": 1,
+        "type": "Away",
+        "description": "MEM +24.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "f352db80-7bdd-4d29-93d3-92014b053e18",
+         "name": "Memphis",
+         "symbol": "MEM",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-a54f35aa4cb8",
+        "index": 0,
+        "type": "Home",
+        "description": "UNLV -24.5",
+        "available": 0.125,
+        "last": null,
+        "competitor": {
+         "id": "5e45c5d7-6d55-46ad-9f5c-a372caeedb8a",
+         "name": "UNLV",
+         "symbol": "UNLV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d56-7f90-a418-a204ac39215a",
+      "type": "SPREAD",
+      "strike": -23.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-a2181919ff37",
+        "index": 0,
+        "type": "Home",
+        "description": "UNLV -23.5",
+        "available": 0.14,
+        "last": null,
+        "competitor": {
+         "id": "5e45c5d7-6d55-46ad-9f5c-a372caeedb8a",
+         "name": "UNLV",
+         "symbol": "UNLV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-a229e9e75ecd",
+        "index": 1,
+        "type": "Away",
+        "description": "MEM +23.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "f352db80-7bdd-4d29-93d3-92014b053e18",
+         "name": "Memphis",
+         "symbol": "MEM",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d56-7f90-a418-9fcf27f8a031",
+      "type": "SPREAD",
+      "strike": -5.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-9fed22e1d87e",
+        "index": 1,
+        "type": "Away",
+        "description": "MEM +5.5",
+        "available": 0.495,
+        "last": 0.49,
+        "competitor": {
+         "id": "f352db80-7bdd-4d29-93d3-92014b053e18",
+         "name": "Memphis",
+         "symbol": "MEM",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-9fd60f347460",
+        "index": 0,
+        "type": "Home",
+        "description": "UNLV -5.5",
+        "available": 0.51,
+        "last": 0.51,
+        "competitor": {
+         "id": "5e45c5d7-6d55-46ad-9f5c-a372caeedb8a",
+         "name": "UNLV",
+         "symbol": "UNLV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d56-7f90-a418-9f02643ad975",
+      "type": "TOTAL",
+      "strike": 56.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-9f20a3767807",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 56.5",
+        "available": 0.515,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-9f145d46629d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 56.5",
+        "available": 0.545,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d56-7f90-a418-9f6539dcbeef",
+      "type": "TOTAL",
+      "strike": 57.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d56-7f90-a418-9f80fb0517da",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 57.5",
+        "available": 0.535,
+        "last": 0.54,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d56-7f90-a418-9f7e8a6cd611",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 57.5",
+        "available": 0.51,
+        "last": 0.46,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1d57-7121-b1a5-59983b895360",
+      "type": "TOTAL",
+      "strike": 58.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a0005f-1d57-7121-b1a5-59aed5765f15",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 58.5",
+        "available": 0.49,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1d57-7121-b1a5-59b8c3f73af7",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 58.5",
+        "available": 0.575,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fcf14-418f-7252-807d-a7be02eaaa8d",
+    "description": "Massachusetts @ Rutgers",
+    "league": "NCAAF",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-03T22:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "a3468145-6107-4fc5-8a2e-6de2c4feb2db",
+      "name": "Rutgers",
+      "symbol": "RUTG",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "2fd3fbb7-3f66-4298-b59c-2c86a1e89319",
+      "name": "Massachusetts",
+      "symbol": "MASS",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a0005f-1e6b-71d2-a16d-3f4138daa9c4",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-3f5e483dbca8",
+        "index": 0,
+        "type": "Home",
+        "description": "RUTG",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "a3468145-6107-4fc5-8a2e-6de2c4feb2db",
+         "name": "Rutgers",
+         "symbol": "RUTG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-3f63688de663",
+        "index": 1,
+        "type": "Away",
+        "description": "MASS",
+        "available": 0.048,
+        "last": null,
+        "competitor": {
+         "id": "2fd3fbb7-3f66-4298-b59c-2c86a1e89319",
+         "name": "Massachusetts",
+         "symbol": "MASS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1e6b-71d2-a16d-3ebebb830f2e",
+      "type": "SPREAD",
+      "strike": -30.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-3edc77d8b2e8",
+        "index": 1,
+        "type": "Away",
+        "description": "MASS +30.5",
+        "available": 0.525,
+        "last": 0.525,
+        "competitor": {
+         "id": "2fd3fbb7-3f66-4298-b59c-2c86a1e89319",
+         "name": "Massachusetts",
+         "symbol": "MASS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-3ec5cf9afc05",
+        "index": 0,
+        "type": "Home",
+        "description": "RUTG -30.5",
+        "available": null,
+        "last": 0.475,
+        "competitor": {
+         "id": "a3468145-6107-4fc5-8a2e-6de2c4feb2db",
+         "name": "Rutgers",
+         "symbol": "RUTG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a0005f-1e6b-71d2-a16d-41eb4a556d57",
+      "type": "TOTAL",
+      "strike": 53.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-420f86214911",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 53.5",
+        "available": null,
+        "last": 0.475,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a0005f-1e6b-71d2-a16d-41f4205e5100",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 53.5",
+        "available": null,
+        "last": 0.525,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   }
+  ]
+ }
+}

@@ -1,0 +1,207 @@
+name: backtest
+
+# Phase 6: weekly backtest + CLV (ARCH §9.3, PLAN Phase 6).
+#
+#   * Tuesday 06:17 ET-ish (10:17 UTC, off-the-minute like pipeline.yml): fetch the
+#     state files pipeline.backtest reads from R2 board/ (alerts, closings, history,
+#     wx_history, openers), pull the D1 tables it joins as {table}.json
+#     (`d1 execute --json`), optionally mirror R2 snapshots/ (boto3, when the S3 keys
+#     are set), run `python -m pipeline.backtest` -> data/board/backtest.json (bucket
+#     grid + stadium results + matched games + alerts_clv by tier/league/book/model)
+#     and data/backtest/*.parquet, push backtest.json to R2 board/ and the parquet
+#     files to R2 backtest/, and archive the closings / stadium_results rows it
+#     produced to D1. The board's Backtest tab reads /data/backtest.json.
+#   * Monday 08:17 ET-ish (12:17 UTC): same job, plus the weekly CLV digest
+#     (`python -m pipeline.alerts --digest clv`) — CLV by tier/league/book, v1 vs v2
+#     and the promotion gate, from alerts.json records + the fresh backtest.json.
+#   * State is read-only here: nothing under board/ except backtest.json is written,
+#     so this job can never clobber openers or alert markers. A failed R2 state fetch
+#     (anything but NoSuchKey) still fails the job — a backtest on blank state would
+#     publish an empty grid over a good one.
+#
+# Requires GitHub secrets: CLOUDFLARE_API_TOKEN (R2:Edit, D1:Read), CF_ACCOUNT_ID,
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID; optional CFBD_API_KEY (scores), TELEGRAM_CHAT_ID_NFL/CFB.
+
+on:
+  schedule:
+    - cron: '17 10 * * 2'    # Tue 06:17 EDT / 05:17 EST — weekly backtest
+    - cron: '17 12 * * 1'    # Mon 08:17 EDT / 07:17 EST — backtest + CLV digest
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: 'Also send the weekly CLV digest to Telegram'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Build backtest.json but push nothing and print the digest instead of sending'
+        type: boolean
+        required: false
+        default: false
+
+# Same group as pipeline.yml: never race the board's R2 put loop.
+concurrency:
+  group: football-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  R2_BUCKET: football-board
+  D1_DATABASE: football-odds
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+  DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+  # Monday schedule or explicit dispatch input -> send the CLV digest.
+  SEND_DIGEST: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 12 * * 1') || inputs.digest == true }}
+  # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
+  STATE_FILES: alerts closings history wx_history openers
+  D1_TABLES: games odds_history closings alerts stadiums teams weather_history
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps (no Playwright)
+        run: |
+          python -m pip install --upgrade pip
+          grep -viE '^(playwright|playwright-stealth|streamlit|streamlit-plotly-events|plotly|fsspec|pytz)\b' requirements.txt > requirements-light.txt
+          pip install -r requirements-light.txt
+      - name: Run id
+        run: echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-bt${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+      - name: Fetch board state from R2 (read-only)
+        # NoSuchKey -> absent (fresh bucket). ANY other failure -> exit 1: a backtest
+        # on blank state would publish an empty grid over the last good one.
+        run: |
+          mkdir -p data/state
+          for f in $STATE_FILES meta; do
+            DEST="data/state/$f.json"
+            [ "$f" = "meta" ] && DEST="data/state/prev_meta.json"
+            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1)"; then
+              echo "$f.json fetched"
+            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+              echo "::notice::$f.json absent - backtest input starts empty"
+              rm -f "$DEST"
+            else
+              echo "$OUT"
+              echo "::error::R2 state fetch failed for $f.json (not NoSuchKey) - refusing to backtest on blank state"
+              exit 1
+            fi
+          done
+      - name: Export D1 tables
+        # {table}.json per table in the `d1 execute --json` shape ([{results: [...]}]),
+        # which pipeline.backtest.load_export_dir reads. A missing table on a fresh
+        # database is a warning, not a failure.
+        run: |
+          mkdir -p data/d1_export
+          for t in $D1_TABLES; do
+            if npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --json --command "SELECT * FROM $t" > "data/d1_export/$t.json"; then
+              echo "$t.json exported"
+            else
+              echo "::warning::d1 export $t failed (fresh database?)"; rm -f "data/d1_export/$t.json"
+            fi
+          done
+          ls -la data/d1_export
+      - name: Mirror snapshots from R2 (optional, boto3)
+        # snapshots/{sport}/{season}/{week}/{run_id}.json are the per-run GameCard lists the
+        # backtest replays for lead-N forecasts. wrangler has no prefix download, so this
+        # uses the S3 API when the keys are configured; without them the D1 games table
+        # carries the backtest.
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          mkdir -p data/snapshots
+          if [ -z "$R2_ACCESS_KEY_ID" ]; then echo "::notice::R2 S3 keys not set - skipping snapshot mirror"; exit 0; fi
+          python - <<'PY'
+          import os, boto3
+          from pathlib import Path
+          s3 = boto3.client("s3", endpoint_url=f"https://{os.environ['CLOUDFLARE_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+                            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"], region_name="auto")
+          bucket, n = os.environ["R2_BUCKET"], 0
+          for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="snapshots/"):
+              for obj in page.get("Contents") or []:
+                  dest = Path("data") / obj["Key"]
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  s3.download_file(bucket, obj["Key"], str(dest)); n += 1
+          print(f"mirrored {n} snapshot object(s)")
+          PY
+      - name: Run backtest
+        # State is read-only here (no --freeze): closings are frozen and alert CLV settled
+        # by pipeline.yml every run; this job only reads alerts.json / closings.json.
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: |
+          mkdir -p data/board data/backtest
+          python -m pipeline.backtest --state-dir data/state --snapshot-dir data/snapshots --export-dir data/d1_export \
+            --board-dir data/board --parquet-dir data/backtest --d1-sql data/d1_backtest.sql
+          python - <<'PY'
+          import json
+          d = json.load(open("data/board/backtest.json"))
+          print(f"grid rows: {len(d.get('grid') or [])}  stadiums: {len(d.get('stadium_results') or [])}  games: {len(d.get('games') or [])}")
+          PY
+      - name: Push backtest to R2
+        # board/backtest.json (served as /data/backtest.json) + parquet under backtest/.
+        # 3 retries each; a failure still fails the job. board/meta.json is NOT touched.
+        if: env.DRY_RUN == ''
+        run: |
+          put() {  # put <r2 key> <local file> <content-type>
+            for i in 1 2 3; do
+              npx --yes wrangler@4 r2 object put "$R2_BUCKET/$1" --file="$2" \
+                --content-type="$3" --remote && return 0
+              echo "::warning::R2 put $1 failed (attempt $i/3)"; sleep 5
+            done
+            echo "::error::R2 put $1 failed after 3 attempts"
+            return 1
+          }
+          for p in data/backtest/*.parquet; do
+            [ -f "$p" ] || continue
+            put "backtest/$(basename "$p")" "$p" "application/octet-stream"
+          done
+          put "board/backtest.json" "data/board/backtest.json" "application/json"
+      - name: Archive backtest rows to D1 (closings / stadium_results)
+        if: env.DRY_RUN == '' && hashFiles('data/d1_backtest.sql') != ''
+        run: |
+          npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_backtest.sql
+      - name: Weekly CLV digest
+        if: env.SEND_DIGEST == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID_NFL: ${{ secrets.TELEGRAM_CHAT_ID_NFL }}
+          TELEGRAM_CHAT_ID_CFB: ${{ secrets.TELEGRAM_CHAT_ID_CFB }}
+        run: |
+          python -m pipeline.alerts --digest clv --state-dir data/state --backtest data/board/backtest.json ${DRY_RUN:+--dry-run}
+      - name: Upload backtest artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-${{ github.run_id }}
+          path: |
+            data/board/backtest.json
+            data/backtest/
+            data/d1_backtest.sql
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Telegram on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          [ -n "$TELEGRAM_BOT_TOKEN" ] && curl -s --max-time 15 \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="FAILED backtest.yml (${{ github.event_name }}): ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            >/dev/null || true

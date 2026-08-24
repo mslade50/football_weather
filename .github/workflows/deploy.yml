@@ -1,0 +1,70 @@
+name: deploy
+
+# Deploys the Cloudflare Worker + static frontend (site/worker, site/web) and
+# applies pending D1 migrations first, so index.js never queries a table that
+# does not exist yet. Adapted from golf_scraping/.github/workflows/board.yml
+# (deploy job). Data refreshes live in pipeline.yml, not here.
+#
+# Requires GitHub secrets: CLOUDFLARE_API_TOKEN (Workers Scripts: Edit, Workers
+# R2 Storage: Edit, D1: Edit), CF_ACCOUNT_ID. Optional: TELEGRAM_BOT_TOKEN,
+# TELEGRAM_CHAT_ID for the failure ping.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deploys/migrations at once; queue rather than cancel.
+concurrency:
+  group: football-deploy
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Worker unit tests
+        run: node --test "site/worker/test/*.test.mjs"
+
+      # Migrations BEFORE deploy: a new route must never outrun its table.
+      # `--remote` is required — without it wrangler applies to a local SQLite.
+      - name: Apply D1 migrations
+        working-directory: site/worker
+        run: npx --yes wrangler@4 d1 migrations apply football-odds --remote
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          workingDirectory: site/worker
+          command: deploy
+
+      - name: Telegram on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then exit 0; fi
+          curl -fsS --max-time 30 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            --data-urlencode text="⚠️ football-board deploy FAILED: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            || true

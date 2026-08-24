@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Football Weather Board</title>
+<link rel="stylesheet" href="vendor/maplibre-gl.css" />
+<link rel="stylesheet" href="vendor/uPlot.min.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Football Weather</h1>
+    <span class="event" id="event">—</span>
+    <span class="updated" id="updated"></span>
+    <span class="nextrun" id="nextrun"></span>
+    <span class="chips" id="bookchips"></span>
+    <div class="refresh-actions">
+      <button class="refreshbtn fast" id="lightrefreshbtn" data-admin-refresh hidden
+        title="Re-scrape API books (httpx) for the current sport; weather + schedule stay as-is">⚡ Light</button>
+      <button class="refreshbtn" id="refreshbtn" data-admin-refresh hidden
+        title="Full run: schedule + weather + every book (~3–5 min, auto-reloads when new data lands)">↻ Refresh All</button>
+    </div>
+    <span class="refreshmsg" id="refreshmsg"></span>
+  </header>
+  <div class="banners" id="banners"></div>
+  <div class="tabs">
+    <div class="tab" data-view="map" data-sport="nfl">NFL Map</div>
+    <div class="tab" data-view="map" data-sport="cfb">CFB Map</div>
+    <div class="tab" data-view="signals">Signals</div>
+    <div class="tab active" data-view="table">Table</div>
+    <div class="tab" data-view="alerts">Alerts</div>
+    <div class="tab" data-view="backtest">Backtest</div>
+    <div class="tab" data-view="status">Status</div>
+  </div>
+  <div class="controls">
+    <select id="sport" title="Sport">
+      <option value="nfl">NFL</option>
+      <option value="cfb">CFB</option>
+    </select>
+    <select id="week" title="Week"></select>
+    <select id="signal" title="Impact tier filter">
+      <option value="">Signal: all</option>
+      <option value="Very High">Very High</option>
+      <option value="High">High</option>
+      <option value="Mid">Mid</option>
+      <option value="Low">Low (any)</option>
+      <option value="No">No</option>
+    </select>
+    <select id="book" title="Book column focus / edge filter"></select>
+    <span class="skillbox" title="Show only games whose best edge (pts) clears this">
+      Min edge <input id="minedge" type="number" step="0.5" placeholder="pts" />
+    </span>
+    <label class="chk" title="Show dome / closed-roof games"><input type="checkbox" id="showdomes" checked /> domes</label>
+    <label class="chk" title="Include watch-tier edges"><input type="checkbox" id="showwatch" checked /> watch</label>
+    <input id="search" placeholder="Filter team / stadium…" />
+    <button type="button" class="controlbtn presetchip" id="presetchip" style="display:none" title="Signals preset active — click to clear"></button>
+    <span class="sub" id="rowcount"></span>
+  </div>
+  <div class="signalsbar" id="signalsbar" style="display:none"></div>
+  <div class="statusbar" id="statusbar"></div>
+  <div class="wrap" id="tablewrap"><table id="table"><thead></thead><tbody></tbody></table></div>
+  <div id="mapwrap" style="display:none">
+    <div id="map"></div>
+    <div class="maplegend" id="maplegend"></div>
+  </div>
+  <div id="alertswrap" class="view-pane" style="display:none"></div>
+  <div id="backtestwrap" class="view-pane" style="display:none"></div>
+  <div id="statuswrap" class="view-pane" style="display:none"></div>
+  <div id="hovercard"></div>
+  <aside id="drawer" class="drawer" hidden>
+    <div class="drawer-head">
+      <div class="drawer-title" id="drawer-title"></div>
+      <button class="controlbtn" id="drawer-close" type="button" title="Close (Esc)">✕</button>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="vendor/uPlot.iife.min.js"></script>
+  <script src="status.js"></script>
+  <script src="table.js"></script>
+  <script src="signals.js"></script>
+  <script src="map.js"></script>
+  <script src="drawer.js"></script>
+  <script src="alerts.js"></script>
+  <script src="backtest.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

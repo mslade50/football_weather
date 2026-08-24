@@ -1,0 +1,107 @@
+{
+ "30.4381,-84.3044": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/TAE/83,86",
+  "gridId": "TAE",
+  "gridX": 83,
+  "gridY": 86,
+  "timeZone": "America/New_York"
+ },
+ "30.4382,-84.3044": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/TAE/83,86",
+  "gridId": "TAE",
+  "gridX": 83,
+  "gridY": 86,
+  "timeZone": "America/New_York"
+ },
+ "32.7096,-97.3681": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/FWD/68,101",
+  "gridId": "FWD",
+  "gridX": 68,
+  "gridY": 101,
+  "timeZone": "America/Chicago"
+ },
+ "32.7097,-97.3681": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/FWD/68,101",
+  "gridId": "FWD",
+  "gridX": 68,
+  "gridY": 101,
+  "timeZone": "America/Chicago"
+ },
+ "34.0140,-118.2881": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/LOX/153,44",
+  "gridId": "LOX",
+  "gridX": 153,
+  "gridY": 44,
+  "timeZone": "America/Los_Angeles"
+ },
+ "34.0142,-118.2878": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/LOX/153,44",
+  "gridId": "LOX",
+  "gridX": 153,
+  "gridY": 44,
+  "timeZone": "America/Los_Angeles"
+ },
+ "36.0907,-115.1833": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/VEF/121,95",
+  "gridId": "VEF",
+  "gridX": 121,
+  "gridY": 95,
+  "timeZone": "America/Los_Angeles"
+ },
+ "36.0909,-115.1833": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/VEF/121,95",
+  "gridId": "VEF",
+  "gridX": 121,
+  "gridY": 95,
+  "timeZone": "America/Los_Angeles"
+ },
+ "37.4345,-122.1611": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/MTR/91,88",
+  "gridId": "MTR",
+  "gridX": 91,
+  "gridY": 88,
+  "timeZone": "America/Los_Angeles"
+ },
+ "37.4346,-122.1611": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/MTR/91,88",
+  "gridId": "MTR",
+  "gridX": 91,
+  "gridY": 88,
+  "timeZone": "America/Los_Angeles"
+ },
+ "38.0311,-78.5137": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/LWX/50,26",
+  "gridId": "LWX",
+  "gridX": 50,
+  "gridY": 26,
+  "timeZone": "America/New_York"
+ },
+ "38.0312,-78.5138": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/LWX/50,26",
+  "gridId": "LWX",
+  "gridX": 50,
+  "gridY": 26,
+  "timeZone": "America/New_York"
+ },
+ "42.2559,-83.6474": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/DTX/46,29",
+  "gridId": "DTX",
+  "gridX": 46,
+  "gridY": 29,
+  "timeZone": "America/Detroit"
+ },
+ "42.2561,-83.6473": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/DTX/46,29",
+  "gridId": "DTX",
+  "gridX": 46,
+  "gridY": 29,
+  "timeZone": "America/Detroit"
+ },
+ "46.9030,-96.8003": {
+  "forecastGridData": "https://api.weather.gov/gridpoints/FGF/100,58",
+  "gridId": "FGF",
+  "gridX": 100,
+  "gridY": 58,
+  "timeZone": "America/Chicago"
+ }
+}

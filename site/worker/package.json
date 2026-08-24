@@ -1,0 +1,16 @@
+{
+  "name": "football-board-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker for the private football weather/odds board (Basic Auth, R2 /data proxy, D1 /api, cron dispatch).",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply football-odds --remote",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

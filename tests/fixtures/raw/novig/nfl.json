@@ -1,0 +1,4826 @@
+{
+ "data": {
+  "event": [
+   {
+    "id": "019fed1f-55fc-74a3-8b65-677f965d86fd",
+    "description": "Atlanta Falcons @ Pittsburgh Steelers",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "ad41a0d9-9859-4012-8986-1880ae8cec15",
+      "name": "Pittsburgh Steelers",
+      "symbol": "PIT",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+      "name": "Atlanta Falcons",
+      "symbol": "ATL",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-567a-7902-a1ab-68ed2f62015d",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-567a-7902-a1ab-690a34ec9d46",
+        "index": 1,
+        "type": "Away",
+        "description": "ATL",
+        "available": 0.415,
+        "last": 0.415,
+        "competitor": {
+         "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+         "name": "Atlanta Falcons",
+         "symbol": "ATL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-567a-7902-a1ab-68f74e0fcae9",
+        "index": 0,
+        "type": "Home",
+        "description": "PIT",
+        "available": 0.63,
+        "last": 0.585,
+        "competitor": {
+         "id": "ad41a0d9-9859-4012-8986-1880ae8cec15",
+         "name": "Pittsburgh Steelers",
+         "symbol": "PIT",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5690-74d2-917e-3669f414e27f",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5690-74d2-917e-3672e45a8972",
+        "index": 0,
+        "type": "Home",
+        "description": "PIT -7.5",
+        "available": 0.355,
+        "last": 0.355,
+        "competitor": {
+         "id": "ad41a0d9-9859-4012-8986-1880ae8cec15",
+         "name": "Pittsburgh Steelers",
+         "symbol": "PIT",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5690-74d2-917e-368be1021223",
+        "index": 1,
+        "type": "Away",
+        "description": "ATL +7.5",
+        "available": 0.725,
+        "last": 0.645,
+        "competitor": {
+         "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+         "name": "Atlanta Falcons",
+         "symbol": "ATL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5690-74d2-917e-36fb50bf2e97",
+      "type": "SPREAD",
+      "strike": -4.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5690-74d2-917e-370692221993",
+        "index": 0,
+        "type": "Home",
+        "description": "PIT -4.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "ad41a0d9-9859-4012-8986-1880ae8cec15",
+         "name": "Pittsburgh Steelers",
+         "symbol": "PIT",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5690-74d2-917e-37190fdb7480",
+        "index": 1,
+        "type": "Away",
+        "description": "ATL +4.5",
+        "available": 0.6,
+        "last": null,
+        "competitor": {
+         "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+         "name": "Atlanta Falcons",
+         "symbol": "ATL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-567a-7902-a1ab-69a07289e11f",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-567a-7902-a1ab-69c2a75ef58b",
+        "index": 1,
+        "type": "Away",
+        "description": "ATL +3.5",
+        "available": 0.555,
+        "last": 0.495,
+        "competitor": {
+         "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+         "name": "Atlanta Falcons",
+         "symbol": "ATL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-567a-7902-a1ab-69b1faafc52a",
+        "index": 0,
+        "type": "Home",
+        "description": "PIT -3.5",
+        "available": 0.555,
+        "last": 0.505,
+        "competitor": {
+         "id": "ad41a0d9-9859-4012-8986-1880ae8cec15",
+         "name": "Pittsburgh Steelers",
+         "symbol": "PIT",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-567a-7902-a1ab-6e87f6ce0452",
+      "type": "TOTAL",
+      "strike": 32.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-567a-7902-a1ab-6eaef3987819",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 32.5",
+        "available": 0.295,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-567a-7902-a1ab-6e9a05ba4773",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 32.5",
+        "available": 0.87,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-567f-7d40-8637-01f40dff3808",
+      "type": "TOTAL",
+      "strike": 34.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-567f-7d40-8637-020f2e1faa1c",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 34.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-567f-7d40-8637-02188f99ea70",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 34.5",
+        "available": 0.31,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-567a-7902-a1ab-697ed5f7ec4e",
+      "type": "TOTAL",
+      "strike": 41.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-567a-7902-a1ab-6993a1794530",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 41.5",
+        "available": 0.505,
+        "last": 0.505,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-567a-7902-a1ab-698263d88124",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 41.5",
+        "available": 0.545,
+        "last": 0.495,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "01a007ea-bfc6-77a1-a851-244cfb26928a",
+    "description": "Seattle Seahawks @ Tennessee Titans",
+    "league": "NFL",
+    "status": "OPEN_INGAME",
+    "scheduled_start": "2026-08-24T00:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+      "name": "Tennessee Titans",
+      "symbol": "TEN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+      "name": "Seattle Seahawks",
+      "symbol": "SEA",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "01a00e23-9620-70d1-ab39-a6c5f2dce841",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a00e23-9620-70d1-ab39-a6d2744d26dd",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN",
+        "available": 0.28,
+        "last": 0.28,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00e23-9620-70d1-ab39-a6e5d6bcab78",
+        "index": 1,
+        "type": "Away",
+        "description": "SEA",
+        "available": 0.73,
+        "last": 0.72,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a00e5a-737e-72a3-be54-118266e75f2e",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a00e5a-737e-72a3-be54-119eec917251",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN -3.5",
+        "available": 0.14,
+        "last": 0.44,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00e5a-737e-72a3-be54-11acfe2a8af4",
+        "index": 1,
+        "type": "Away",
+        "description": "SEA +3.5",
+        "available": 0.89,
+        "last": 0.56,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a00e5a-737e-72a3-be54-11b8b2df602d",
+      "type": "SPREAD",
+      "strike": -2.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a00e5a-737e-72a3-be54-11c5d865f69e",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN -2.5",
+        "available": 0.2,
+        "last": 0.465,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00e5a-737e-72a3-be54-11df290882ac",
+        "index": 1,
+        "type": "Away",
+        "description": "SEA +2.5",
+        "available": 0.85,
+        "last": 0.535,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a03121-3de4-7f51-bb82-b0fbc72aded0",
+      "type": "SPREAD",
+      "strike": 6.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a03121-3de4-7f51-bb82-b10a8e08723a",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN +6.5",
+        "available": 0.535,
+        "last": 0.48,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a03121-3de4-7f51-bb82-b11e9ea7ec9e",
+        "index": 1,
+        "type": "Away",
+        "description": "SEA -6.5",
+        "available": 0.51,
+        "last": 0.52,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a00f36-3e79-72c3-8ab7-8a6ac6f8f621",
+      "type": "TOTAL",
+      "strike": 29.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a00f36-3e79-72c3-8ab7-8a7716ade9f0",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 29.5",
+        "available": null,
+        "last": 0.81,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00f36-3e79-72c3-8ab7-8a80eb65a3fd",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 29.5",
+        "available": 0.125,
+        "last": 0.19,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a00e1f-def0-7252-a785-7465ba9be3a9",
+      "type": "TOTAL",
+      "strike": 32.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "01a00e1f-def0-7252-a785-747b2e01958d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 32.5",
+        "available": 0.88,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00e1f-def0-7252-a785-7482a1f3c1f5",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 32.5",
+        "available": 0.15,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "01a00e1f-def0-7252-a785-761a383b64bd",
+      "type": "TOTAL",
+      "strike": 42.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "01a00e1f-def0-7252-a785-762b214d2806",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 42.5",
+        "available": null,
+        "last": 0.51,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "01a00e1f-def0-7252-a785-763b7fb1de46",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 42.5",
+        "available": null,
+        "last": 0.49,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-51c5-7d72-9b42-e32f23f1bf3d",
+    "description": "New England Patriots @ Seattle Seahawks",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-10T00:20:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+      "name": "Seattle Seahawks",
+      "symbol": "SEA",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "7921e38d-9f59-4f5b-b82b-a64b4f482105",
+      "name": "New England Patriots",
+      "symbol": "NE",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5263-7551-ae03-1ff860d2d950",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-2008015ecf2f",
+        "index": 0,
+        "type": "Home",
+        "description": "SEA",
+        "available": 0.635,
+        "last": 0.635,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-201dd078f382",
+        "index": 1,
+        "type": "Away",
+        "description": "NE",
+        "available": 0.37,
+        "last": 0.365,
+        "competitor": {
+         "id": "7921e38d-9f59-4f5b-b82b-a64b4f482105",
+         "name": "New England Patriots",
+         "symbol": "NE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-2cbf7fd11fc8",
+      "type": "SPREAD",
+      "strike": -20.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-2cc3f71b9413",
+        "index": 0,
+        "type": "Home",
+        "description": "SEA -20.5",
+        "available": 0.15,
+        "last": null,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-2cd8f553b8b0",
+        "index": 1,
+        "type": "Away",
+        "description": "NE +20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "7921e38d-9f59-4f5b-b82b-a64b4f482105",
+         "name": "New England Patriots",
+         "symbol": "NE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-2aae86ed46b2",
+      "type": "SPREAD",
+      "strike": -17.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-2abc816fe338",
+        "index": 0,
+        "type": "Home",
+        "description": "SEA -17.5",
+        "available": 0.19,
+        "last": null,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-2ac89013a3d7",
+        "index": 1,
+        "type": "Away",
+        "description": "NE +17.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "7921e38d-9f59-4f5b-b82b-a64b4f482105",
+         "name": "New England Patriots",
+         "symbol": "NE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-1f6c2961b385",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-1f7f5d0e765c",
+        "index": 0,
+        "type": "Home",
+        "description": "SEA -3.5",
+        "available": 0.51,
+        "last": 0.51,
+        "competitor": {
+         "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+         "name": "Seattle Seahawks",
+         "symbol": "SEA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-1f82a1eb206d",
+        "index": 1,
+        "type": "Away",
+        "description": "NE +3.5",
+        "available": 0.51,
+        "last": 0.49,
+        "competitor": {
+         "id": "7921e38d-9f59-4f5b-b82b-a64b4f482105",
+         "name": "New England Patriots",
+         "symbol": "NE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-2894cbfcc85c",
+      "type": "TOTAL",
+      "strike": 23.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-28be94b8e409",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 23.5",
+        "available": 0.075,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-28a192a3af04",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 23.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-27a0ebf3504d",
+      "type": "TOTAL",
+      "strike": 26.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-27b94c00b75d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 26.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-27ce5e3a45c9",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 26.5",
+        "available": 0.1,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5263-7551-ae03-1f32ddf58891",
+      "type": "TOTAL",
+      "strike": 44.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5263-7551-ae03-1f418cc014ed",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 44.5",
+        "available": 0.52,
+        "last": 0.46,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5263-7551-ae03-1f588c6088d5",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 44.5",
+        "available": 0.54,
+        "last": 0.54,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-52ca-77a3-bf12-1a1a324ea1f5",
+    "description": "San Francisco 49ers @ Los Angeles Rams",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-11T00:35:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "e6afddf5-72dc-4dbc-9da9-a17ea98b3ae8",
+      "name": "Los Angeles Rams",
+      "symbol": "LA",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "4645eb08-a8e5-4724-b1b2-cae70e0986a6",
+      "name": "San Francisco 49ers",
+      "symbol": "SF",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-541c-7b00-b3fe-cc4484a69fd3",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc5e0fff6fd2",
+        "index": 0,
+        "type": "Home",
+        "description": "LAR",
+        "available": 0.645,
+        "last": 0.63,
+        "competitor": {
+         "id": "e6afddf5-72dc-4dbc-9da9-a17ea98b3ae8",
+         "name": "Los Angeles Rams",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc64bf6e2933",
+        "index": 1,
+        "type": "Away",
+        "description": "SF",
+        "available": 0.37,
+        "last": 0.37,
+        "competitor": {
+         "id": "4645eb08-a8e5-4724-b1b2-cae70e0986a6",
+         "name": "San Francisco 49ers",
+         "symbol": "SF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5423-7a93-90b1-16939943dfad",
+      "type": "SPREAD",
+      "strike": -10.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5423-7a93-90b1-16a1f7f92ac1",
+        "index": 0,
+        "type": "Home",
+        "description": "LAR -10.5",
+        "available": 0.33,
+        "last": null,
+        "competitor": {
+         "id": "e6afddf5-72dc-4dbc-9da9-a17ea98b3ae8",
+         "name": "Los Angeles Rams",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5423-7a93-90b1-16b15b2bc6f8",
+        "index": 1,
+        "type": "Away",
+        "description": "SF +10.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "4645eb08-a8e5-4724-b1b2-cae70e0986a6",
+         "name": "San Francisco 49ers",
+         "symbol": "SF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5423-7a93-90b1-16c842e3244b",
+      "type": "SPREAD",
+      "strike": -9.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5423-7a93-90b1-16ee80939047",
+        "index": 1,
+        "type": "Away",
+        "description": "SF +9.5",
+        "available": null,
+        "last": 0.63,
+        "competitor": {
+         "id": "4645eb08-a8e5-4724-b1b2-cae70e0986a6",
+         "name": "San Francisco 49ers",
+         "symbol": "SF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5423-7a93-90b1-16d186729d32",
+        "index": 0,
+        "type": "Home",
+        "description": "LAR -9.5",
+        "available": 0.37,
+        "last": 0.37,
+        "competitor": {
+         "id": "e6afddf5-72dc-4dbc-9da9-a17ea98b3ae8",
+         "name": "Los Angeles Rams",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-541c-7b00-b3fe-cc7e3bb19b4d",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc92fbb17e27",
+        "index": 1,
+        "type": "Away",
+        "description": "SF +3.5",
+        "available": 0.51,
+        "last": 0.485,
+        "competitor": {
+         "id": "4645eb08-a8e5-4724-b1b2-cae70e0986a6",
+         "name": "San Francisco 49ers",
+         "symbol": "SF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc83f173e774",
+        "index": 0,
+        "type": "Home",
+        "description": "LAR -3.5",
+        "available": 0.51,
+        "last": 0.515,
+        "competitor": {
+         "id": "e6afddf5-72dc-4dbc-9da9-a17ea98b3ae8",
+         "name": "Los Angeles Rams",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-541c-7b00-b3fe-d3f5e0961deb",
+      "type": "TOTAL",
+      "strike": 27.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-541c-7b00-b3fe-d407533d6842",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 27.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-541c-7b00-b3fe-d41734c6785a",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 27.5",
+        "available": 0.075,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-541c-7b00-b3fe-d5d096fa61c0",
+      "type": "TOTAL",
+      "strike": 30.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-541c-7b00-b3fe-d5e2bbb62a8c",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 30.5",
+        "available": 0.996,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-541c-7b00-b3fe-d5fdb7400afd",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 30.5",
+        "available": 0.11,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-541c-7b00-b3fe-cc13a9d20f92",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc266bc6df75",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.5,
+        "last": 0.465,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-541c-7b00-b3fe-cc3da97abb3e",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": 0.535,
+        "last": 0.535,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-588e-7502-ba1f-fb909a146418",
+    "description": "Chicago Bears @ Carolina Panthers",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "c01d5d99-5a6e-4443-97ba-d5ae981f99de",
+      "name": "Carolina Panthers",
+      "symbol": "CAR",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "ad5c9721-52b4-4f42-a8bd-434314bcc25a",
+      "name": "Chicago Bears",
+      "symbol": "CHI",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5914-71a2-b64b-4162dd8eaf1d",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5914-71a2-b64b-417bcfdcbda7",
+        "index": 0,
+        "type": "Home",
+        "description": "CAR",
+        "available": 0.43,
+        "last": 0.43,
+        "competitor": {
+         "id": "c01d5d99-5a6e-4443-97ba-d5ae981f99de",
+         "name": "Carolina Panthers",
+         "symbol": "CAR",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5914-71a2-b64b-418957e45bbf",
+        "index": 1,
+        "type": "Away",
+        "description": "CHI",
+        "available": 0.595,
+        "last": 0.57,
+        "competitor": {
+         "id": "ad5c9721-52b4-4f42-a8bd-434314bcc25a",
+         "name": "Chicago Bears",
+         "symbol": "CHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5920-7ba3-8c7c-75448fc9201d",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5920-7ba3-8c7c-755e69886940",
+        "index": 0,
+        "type": "Home",
+        "description": "CAR -3.5",
+        "available": 0.335,
+        "last": null,
+        "competitor": {
+         "id": "c01d5d99-5a6e-4443-97ba-d5ae981f99de",
+         "name": "Carolina Panthers",
+         "symbol": "CAR",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5920-7ba3-8c7c-7568b30b05a0",
+        "index": 1,
+        "type": "Away",
+        "description": "CHI +3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "ad5c9721-52b4-4f42-a8bd-434314bcc25a",
+         "name": "Chicago Bears",
+         "symbol": "CHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5921-7cb1-ac60-6acca537605f",
+      "type": "SPREAD",
+      "strike": 1.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5921-7cb1-ac60-6ad35ba20b48",
+        "index": 0,
+        "type": "Home",
+        "description": "CAR +1.5",
+        "available": 0.485,
+        "last": null,
+        "competitor": {
+         "id": "c01d5d99-5a6e-4443-97ba-d5ae981f99de",
+         "name": "Carolina Panthers",
+         "symbol": "CAR",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5921-7cb1-ac60-6ae57d95c02e",
+        "index": 1,
+        "type": "Away",
+        "description": "CHI -1.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "ad5c9721-52b4-4f42-a8bd-434314bcc25a",
+         "name": "Chicago Bears",
+         "symbol": "CHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5914-71a2-b64b-41c6bdbc5492",
+      "type": "SPREAD",
+      "strike": 2.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5914-71a2-b64b-41df34d62b68",
+        "index": 0,
+        "type": "Home",
+        "description": "CAR +2.5",
+        "available": 0.505,
+        "last": 0.505,
+        "competitor": {
+         "id": "c01d5d99-5a6e-4443-97ba-d5ae981f99de",
+         "name": "Carolina Panthers",
+         "symbol": "CAR",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5914-71a2-b64b-41e221de07e3",
+        "index": 1,
+        "type": "Away",
+        "description": "CHI -2.5",
+        "available": 0.55,
+        "last": 0.495,
+        "competitor": {
+         "id": "ad5c9721-52b4-4f42-a8bd-434314bcc25a",
+         "name": "Chicago Bears",
+         "symbol": "CHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5916-7a52-9e1d-86a756f69ba3",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5916-7a52-9e1d-86b5812a0059",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5916-7a52-9e1d-86cad8c35a0b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.33,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5914-71a2-b64b-41925df86dee",
+      "type": "TOTAL",
+      "strike": 45.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5914-71a2-b64b-41a59b302cb2",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 45.5",
+        "available": 0.61,
+        "last": 0.555,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5914-71a2-b64b-41bbd18d20ec",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 45.5",
+        "available": 0.445,
+        "last": 0.445,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5916-7a52-9e1d-87c011b2bb7d",
+      "type": "TOTAL",
+      "strike": 47.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5916-7a52-9e1d-87d3f2ae6bc3",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 47.5",
+        "available": 0.54,
+        "last": 0.535,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5916-7a52-9e1d-87e65afba3eb",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 47.5",
+        "available": 0.52,
+        "last": 0.465,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5942-7803-abc5-c98597055864",
+    "description": "New York Jets @ Tennessee Titans",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+      "name": "Tennessee Titans",
+      "symbol": "TEN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "553e30c8-b1a9-46dc-928b-559fd8f20aeb",
+      "name": "New York Jets",
+      "symbol": "NYJ",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-59eb-75b3-926a-a106972949c1",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-59eb-75b3-926a-a116a7c62f99",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN",
+        "available": 0.585,
+        "last": 0.565,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59eb-75b3-926a-a12063b44eb0",
+        "index": 1,
+        "type": "Away",
+        "description": "NYJ",
+        "available": 0.435,
+        "last": 0.435,
+        "competitor": {
+         "id": "553e30c8-b1a9-46dc-928b-559fd8f20aeb",
+         "name": "New York Jets",
+         "symbol": "NYJ",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59ec-7ee3-8ce8-88d86d26a830",
+      "type": "SPREAD",
+      "strike": -20.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-59ec-7ee3-8ce8-88f004ab87bc",
+        "index": 1,
+        "type": "Away",
+        "description": "NYJ +20.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "553e30c8-b1a9-46dc-928b-559fd8f20aeb",
+         "name": "New York Jets",
+         "symbol": "NYJ",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59ec-7ee3-8ce8-88ed2d7bdd63",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN -20.5",
+        "available": 0.14,
+        "last": null,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59ed-7870-9fb0-717a59c98ec7",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-59ed-7870-9fb0-718912c6d649",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN -7.5",
+        "available": 0.32,
+        "last": 0.32,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59ed-7870-9fb0-719ac3ba7e97",
+        "index": 1,
+        "type": "Away",
+        "description": "NYJ +7.5",
+        "available": null,
+        "last": 0.68,
+        "competitor": {
+         "id": "553e30c8-b1a9-46dc-928b-559fd8f20aeb",
+         "name": "New York Jets",
+         "symbol": "NYJ",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59eb-75b3-926a-a0729ce65a3b",
+      "type": "SPREAD",
+      "strike": -2.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-59eb-75b3-926a-a0866b6b5ceb",
+        "index": 0,
+        "type": "Home",
+        "description": "TEN -2.5",
+        "available": 0.52,
+        "last": 0.485,
+        "competitor": {
+         "id": "3514b479-ac76-42bd-a32a-0e9ceee9a8f5",
+         "name": "Tennessee Titans",
+         "symbol": "TEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59eb-75b3-926a-a09029b744f2",
+        "index": 1,
+        "type": "Away",
+        "description": "NYJ +2.5",
+        "available": 0.525,
+        "last": 0.515,
+        "competitor": {
+         "id": "553e30c8-b1a9-46dc-928b-559fd8f20aeb",
+         "name": "New York Jets",
+         "symbol": "NYJ",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59f5-7331-bea0-8d4b7d0b27b5",
+      "type": "TOTAL",
+      "strike": 32.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-59f5-7331-bea0-8d6a736511b8",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 32.5",
+        "available": 0.35,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59f5-7331-bea0-8d56b6a0ee97",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 32.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59f5-7331-bea0-8e0403b42769",
+      "type": "TOTAL",
+      "strike": 36.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-59f5-7331-bea0-8e11a37b3254",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 36.5",
+        "available": 0.63,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59f5-7331-bea0-8e205b2bbb76",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 36.5",
+        "available": 0.445,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-59eb-75b3-926a-a16c5fe7ff35",
+      "type": "TOTAL",
+      "strike": 39.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-59eb-75b3-926a-a17ee1cee57a",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 39.5",
+        "available": 0.54,
+        "last": 0.455,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-59eb-75b3-926a-a18af4e9bdb1",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 39.5",
+        "available": 0.545,
+        "last": 0.545,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5a1b-7813-8e48-8b518a7f1c32",
+    "description": "New Orleans Saints @ Detroit Lions",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+      "name": "Detroit Lions",
+      "symbol": "DET",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+      "name": "New Orleans Saints",
+      "symbol": "NO",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5adb-7582-97a8-9050acf3ed71",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adb-7582-97a8-90640b82f633",
+        "index": 0,
+        "type": "Home",
+        "description": "DET",
+        "available": 0.77,
+        "last": 0.75,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adb-7582-97a8-9074f74e498d",
+        "index": 1,
+        "type": "Away",
+        "description": "NO",
+        "available": 0.25,
+        "last": 0.25,
+        "competitor": {
+         "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+         "name": "New Orleans Saints",
+         "symbol": "NO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adb-7582-97a8-94ae1e7a427a",
+      "type": "SPREAD",
+      "strike": -27.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adb-7582-97a8-94b6be4f66eb",
+        "index": 0,
+        "type": "Home",
+        "description": "DET -27.5",
+        "available": 0.14,
+        "last": null,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adb-7582-97a8-94c10decc403",
+        "index": 1,
+        "type": "Away",
+        "description": "NO +27.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+         "name": "New Orleans Saints",
+         "symbol": "NO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adb-7582-97a8-97778c32c16e",
+      "type": "SPREAD",
+      "strike": -14.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adb-7582-97a8-978b1af110fd",
+        "index": 0,
+        "type": "Home",
+        "description": "DET -14.5",
+        "available": 0.285,
+        "last": null,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adb-7582-97a8-97995f6956e0",
+        "index": 1,
+        "type": "Away",
+        "description": "NO +14.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+         "name": "New Orleans Saints",
+         "symbol": "NO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adb-7582-97a8-8fcf942091ba",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adb-7582-97a8-8fd0c0ecc590",
+        "index": 0,
+        "type": "Home",
+        "description": "DET -7.5",
+        "available": 0.47,
+        "last": 0.47,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adb-7582-97a8-8fe007b6091a",
+        "index": 1,
+        "type": "Away",
+        "description": "NO +7.5",
+        "available": 0.58,
+        "last": 0.53,
+        "competitor": {
+         "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+         "name": "New Orleans Saints",
+         "symbol": "NO",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adc-7881-ba48-3855e608fbec",
+      "type": "TOTAL",
+      "strike": 42.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adc-7881-ba48-38712aa848dd",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 42.5",
+        "available": 0.32,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adc-7881-ba48-386b73ded3dd",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 42.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adc-7881-ba48-39453874be6c",
+      "type": "TOTAL",
+      "strike": 47.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adc-7881-ba48-395dbedbf6d5",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 47.5",
+        "available": 0.61,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adc-7881-ba48-396156512930",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 47.5",
+        "available": 0.465,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5adb-7582-97a8-8f35f161cdcb",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5adb-7582-97a8-8f4639f50a01",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": 0.57,
+        "last": 0.455,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5adb-7582-97a8-8f5497bcc79a",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": 0.6,
+        "last": 0.545,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-56ae-7ac1-a6d0-6ce8ee15536d",
+    "description": "Cleveland Browns @ Jacksonville Jaguars",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "1ae3b4d6-d204-4a1a-8105-df4f295badc6",
+      "name": "Jacksonville Jaguars",
+      "symbol": "JAX",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "43c6b31f-1e5d-48a3-8e6b-71867215fbac",
+      "name": "Cleveland Browns",
+      "symbol": "CLE",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5780-76c0-8076-f60db6424318",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5780-76c0-8076-f611317979ca",
+        "index": 0,
+        "type": "Home",
+        "description": "JAX",
+        "available": 0.78,
+        "last": 0.77,
+        "competitor": {
+         "id": "1ae3b4d6-d204-4a1a-8105-df4f295badc6",
+         "name": "Jacksonville Jaguars",
+         "symbol": "JAX",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5780-76c0-8076-f6240b5214cc",
+        "index": 1,
+        "type": "Away",
+        "description": "CLE",
+        "available": 0.23,
+        "last": 0.23,
+        "competitor": {
+         "id": "43c6b31f-1e5d-48a3-8e6b-71867215fbac",
+         "name": "Cleveland Browns",
+         "symbol": "CLE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5780-76c0-8076-f9cb2b720898",
+      "type": "SPREAD",
+      "strike": -27.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5780-76c0-8076-f9e94e1dfdbf",
+        "index": 1,
+        "type": "Away",
+        "description": "CLE +27.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "43c6b31f-1e5d-48a3-8e6b-71867215fbac",
+         "name": "Cleveland Browns",
+         "symbol": "CLE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5780-76c0-8076-f9d81b79c83b",
+        "index": 0,
+        "type": "Home",
+        "description": "JAX -27.5",
+        "available": 0.14,
+        "last": null,
+        "competitor": {
+         "id": "1ae3b4d6-d204-4a1a-8105-df4f295badc6",
+         "name": "Jacksonville Jaguars",
+         "symbol": "JAX",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5780-76c0-8076-feae58d21615",
+      "type": "SPREAD",
+      "strike": -14.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5780-76c0-8076-fec0643c031c",
+        "index": 1,
+        "type": "Away",
+        "description": "CLE +14.5",
+        "available": null,
+        "last": 0.705,
+        "competitor": {
+         "id": "43c6b31f-1e5d-48a3-8e6b-71867215fbac",
+         "name": "Cleveland Browns",
+         "symbol": "CLE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5780-76c0-8076-feb30eb61ebe",
+        "index": 0,
+        "type": "Home",
+        "description": "JAX -14.5",
+        "available": 0.305,
+        "last": 0.295,
+        "competitor": {
+         "id": "1ae3b4d6-d204-4a1a-8105-df4f295badc6",
+         "name": "Jacksonville Jaguars",
+         "symbol": "JAX",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5780-76c0-8076-f57b10d659dd",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5780-76c0-8076-f58d4b28a541",
+        "index": 0,
+        "type": "Home",
+        "description": "JAX -7.5",
+        "available": 0.525,
+        "last": 0.5,
+        "competitor": {
+         "id": "1ae3b4d6-d204-4a1a-8105-df4f295badc6",
+         "name": "Jacksonville Jaguars",
+         "symbol": "JAX",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5780-76c0-8076-f59740e9831c",
+        "index": 1,
+        "type": "Away",
+        "description": "CLE +7.5",
+        "available": 0.5,
+        "last": 0.5,
+        "competitor": {
+         "id": "43c6b31f-1e5d-48a3-8e6b-71867215fbac",
+         "name": "Cleveland Browns",
+         "symbol": "CLE",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-578c-7ef3-8374-6fa4dae21609",
+      "type": "TOTAL",
+      "strike": 33.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-578c-7ef3-8374-6fc8ec62bd09",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 33.5",
+        "available": 0.325,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-578c-7ef3-8374-6fb038c38d23",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 33.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-578c-7ef3-8374-7093bcd4e575",
+      "type": "TOTAL",
+      "strike": 38.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-578c-7ef3-8374-70a4106728b3",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 38.5",
+        "available": 0.615,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-578c-7ef3-8374-70b53b0a3138",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 38.5",
+        "available": 0.46,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5780-76c0-8076-f5d267697964",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5780-76c0-8076-f5e77e7a2334",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": 0.54,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5780-76c0-8076-f5fea875a55b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.53,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5536-7d21-9007-0187d4392068",
+    "description": "Baltimore Ravens @ Indianapolis Colts",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "f339c975-d318-4c52-a87d-fa4297584f9f",
+      "name": "Indianapolis Colts",
+      "symbol": "IND",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "85a1ccd0-6082-42c9-9579-5d45b7c27289",
+      "name": "Baltimore Ravens",
+      "symbol": "BAL",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-55bc-7020-957f-c51397f7869f",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-55bc-7020-957f-c539be71285e",
+        "index": 1,
+        "type": "Away",
+        "description": "BAL",
+        "available": 0.635,
+        "last": 0.615,
+        "competitor": {
+         "id": "85a1ccd0-6082-42c9-9579-5d45b7c27289",
+         "name": "Baltimore Ravens",
+         "symbol": "BAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55bc-7020-957f-c523f403516f",
+        "index": 0,
+        "type": "Home",
+        "description": "IND",
+        "available": 0.385,
+        "last": 0.385,
+        "competitor": {
+         "id": "f339c975-d318-4c52-a87d-fa4297584f9f",
+         "name": "Indianapolis Colts",
+         "symbol": "IND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55bf-7790-910c-9557e227b405",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-55bf-7790-910c-957fd7d435b6",
+        "index": 1,
+        "type": "Away",
+        "description": "BAL +3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "85a1ccd0-6082-42c9-9579-5d45b7c27289",
+         "name": "Baltimore Ravens",
+         "symbol": "BAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55bf-7790-910c-9565f8390fe2",
+        "index": 0,
+        "type": "Home",
+        "description": "IND -3.5",
+        "available": 0.31,
+        "last": null,
+        "competitor": {
+         "id": "f339c975-d318-4c52-a87d-fa4297584f9f",
+         "name": "Indianapolis Colts",
+         "symbol": "IND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55bf-7790-910c-961f777c2a4c",
+      "type": "SPREAD",
+      "strike": 2.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-55bf-7790-910c-96247db1135d",
+        "index": 0,
+        "type": "Home",
+        "description": "IND +2.5",
+        "available": 0.47,
+        "last": null,
+        "competitor": {
+         "id": "f339c975-d318-4c52-a87d-fa4297584f9f",
+         "name": "Indianapolis Colts",
+         "symbol": "IND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55bf-7790-910c-963f26b7fe08",
+        "index": 1,
+        "type": "Away",
+        "description": "BAL -2.5",
+        "available": 0.61,
+        "last": null,
+        "competitor": {
+         "id": "85a1ccd0-6082-42c9-9579-5d45b7c27289",
+         "name": "Baltimore Ravens",
+         "symbol": "BAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55bc-7020-957f-c451536899f5",
+      "type": "SPREAD",
+      "strike": 3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-55bc-7020-957f-c464946d68a1",
+        "index": 0,
+        "type": "Home",
+        "description": "IND +3.5",
+        "available": 0.52,
+        "last": 0.47,
+        "competitor": {
+         "id": "f339c975-d318-4c52-a87d-fa4297584f9f",
+         "name": "Indianapolis Colts",
+         "symbol": "IND",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55bc-7020-957f-c47039033024",
+        "index": 1,
+        "type": "Away",
+        "description": "BAL -3.5",
+        "available": 0.53,
+        "last": 0.53,
+        "competitor": {
+         "id": "85a1ccd0-6082-42c9-9579-5d45b7c27289",
+         "name": "Baltimore Ravens",
+         "symbol": "BAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55cb-7862-a043-49dc08c47a1d",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-55cb-7862-a043-49ef4f4ecb9d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55cb-7862-a043-49f7dd545c21",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.32,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55cb-7862-a043-4ac789e0eaa8",
+      "type": "TOTAL",
+      "strike": 45.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-55cb-7862-a043-4ae424daff13",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 45.5",
+        "available": 0.46,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55cb-7862-a043-4ad410adbe16",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 45.5",
+        "available": 0.62,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-55bc-7020-957f-c48578732c05",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-55bc-7020-957f-c4ab7bf333ec",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": null,
+        "last": 0.554,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-55bc-7020-957f-c4966dc0ce17",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.505,
+        "last": 0.445,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-545e-7070-9c7d-20e314f14f7c",
+    "description": "Tampa Bay Buccaneers @ Cincinnati Bengals",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "59420338-d618-4cbc-a7fc-5262cce1f161",
+      "name": "Cincinnati Bengals",
+      "symbol": "CIN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+      "name": "Tampa Bay Buccaneers",
+      "symbol": "TB",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-54f4-7bc0-a3c2-b804db974b88",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b81ac419708e",
+        "index": 0,
+        "type": "Home",
+        "description": "CIN",
+        "available": 0.66,
+        "last": 0.635,
+        "competitor": {
+         "id": "59420338-d618-4cbc-a7fc-5262cce1f161",
+         "name": "Cincinnati Bengals",
+         "symbol": "CIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b82bfa52f1bf",
+        "index": 1,
+        "type": "Away",
+        "description": "TB",
+        "available": 0.36,
+        "last": 0.365,
+        "competitor": {
+         "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+         "name": "Tampa Bay Buccaneers",
+         "symbol": "TB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-54f6-7b23-b164-6a49ce4c76f7",
+      "type": "SPREAD",
+      "strike": -10.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-54f6-7b23-b164-6a5fdd144f92",
+        "index": 0,
+        "type": "Home",
+        "description": "CIN -10.5",
+        "available": 0.325,
+        "last": 0.325,
+        "competitor": {
+         "id": "59420338-d618-4cbc-a7fc-5262cce1f161",
+         "name": "Cincinnati Bengals",
+         "symbol": "CIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-54f6-7b23-b164-6a6a3d5a2635",
+        "index": 1,
+        "type": "Away",
+        "description": "TB +10.5",
+        "available": 0.815,
+        "last": 0.675,
+        "competitor": {
+         "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+         "name": "Tampa Bay Buccaneers",
+         "symbol": "TB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-54f6-7b23-b164-6b6ccdcff0a8",
+      "type": "SPREAD",
+      "strike": -4.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-54f6-7b23-b164-6b8d6451c1ff",
+        "index": 1,
+        "type": "Away",
+        "description": "TB +4.5",
+        "available": 0.55,
+        "last": 0.585,
+        "competitor": {
+         "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+         "name": "Tampa Bay Buccaneers",
+         "symbol": "TB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-54f6-7b23-b164-6b78d4a8db17",
+        "index": 0,
+        "type": "Home",
+        "description": "CIN -4.5",
+        "available": 0.525,
+        "last": 0.415,
+        "competitor": {
+         "id": "59420338-d618-4cbc-a7fc-5262cce1f161",
+         "name": "Cincinnati Bengals",
+         "symbol": "CIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-54f4-7bc0-a3c2-b7d49904056d",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b7fe94a40dbf",
+        "index": 1,
+        "type": "Away",
+        "description": "TB +3.5",
+        "available": 0.51,
+        "last": 0.515,
+        "competitor": {
+         "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+         "name": "Tampa Bay Buccaneers",
+         "symbol": "TB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b7edd5ec26c9",
+        "index": 0,
+        "type": "Home",
+        "description": "CIN -3.5",
+        "available": 0.525,
+        "last": 0.485,
+        "competitor": {
+         "id": "59420338-d618-4cbc-a7fc-5262cce1f161",
+         "name": "Cincinnati Bengals",
+         "symbol": "CIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-550a-7ee0-aebd-6e79e6b73426",
+      "type": "TOTAL",
+      "strike": 44.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-550a-7ee0-aebd-6e868da9c8f1",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 44.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-550a-7ee0-aebd-6e98ad54d496",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 44.5",
+        "available": 0.335,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-550a-7ee0-aebd-6f3a1a365c62",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-550a-7ee0-aebd-6f42589e1b31",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.63,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-550a-7ee0-aebd-6f5863db2d3b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": 0.445,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-54f4-7bc0-a3c2-b86501ad34f2",
+      "type": "TOTAL",
+      "strike": 51.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b888655d6c6b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 51.5",
+        "available": 0.53,
+        "last": 0.5,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-54f4-7bc0-a3c2-b87731a02340",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 51.5",
+        "available": 0.5,
+        "last": 0.5,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5bc4-73e3-ae68-6f5a627354fe",
+    "description": "Miami Dolphins @ Las Vegas Raiders",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T20:25:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+      "name": "Las Vegas Raiders",
+      "symbol": "LV",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "457e4058-3dfb-4017-a344-93cecacf130f",
+      "name": "Miami Dolphins",
+      "symbol": "MIA",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5c44-7212-9f39-db5086f7dbb1",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c44-7212-9f39-db7071640270",
+        "index": 1,
+        "type": "Away",
+        "description": "MIA",
+        "available": 0.375,
+        "last": 0.365,
+        "competitor": {
+         "id": "457e4058-3dfb-4017-a344-93cecacf130f",
+         "name": "Miami Dolphins",
+         "symbol": "MIA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c44-7212-9f39-db64c84b1f93",
+        "index": 0,
+        "type": "Home",
+        "description": "LV",
+        "available": 0.645,
+        "last": 0.635,
+        "competitor": {
+         "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+         "name": "Las Vegas Raiders",
+         "symbol": "LV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c55-7610-82e7-1617c2dbbe80",
+      "type": "SPREAD",
+      "strike": -4.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c55-7610-82e7-163d13128b9f",
+        "index": 1,
+        "type": "Away",
+        "description": "MIA +4.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "457e4058-3dfb-4017-a344-93cecacf130f",
+         "name": "Miami Dolphins",
+         "symbol": "MIA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c55-7610-82e7-1622903c998a",
+        "index": 0,
+        "type": "Home",
+        "description": "LV -4.5",
+        "available": 0.5,
+        "last": null,
+        "competitor": {
+         "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+         "name": "Las Vegas Raiders",
+         "symbol": "LV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c44-7212-9f39-dbe35d7f1247",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c44-7212-9f39-dbfa2794cfd0",
+        "index": 0,
+        "type": "Home",
+        "description": "LV -3.5",
+        "available": 0.51,
+        "last": 0.505,
+        "competitor": {
+         "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+         "name": "Las Vegas Raiders",
+         "symbol": "LV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c44-7212-9f39-dc0cff8fc85f",
+        "index": 1,
+        "type": "Away",
+        "description": "MIA +3.5",
+        "available": 0.495,
+        "last": 0.495,
+        "competitor": {
+         "id": "457e4058-3dfb-4017-a344-93cecacf130f",
+         "name": "Miami Dolphins",
+         "symbol": "MIA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c55-7610-82e7-164fe5d98c13",
+      "type": "SPREAD",
+      "strike": -2.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c55-7610-82e7-165befe2b5e5",
+        "index": 0,
+        "type": "Home",
+        "description": "LV -2.5",
+        "available": 0.64,
+        "last": null,
+        "competitor": {
+         "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+         "name": "Las Vegas Raiders",
+         "symbol": "LV",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c55-7610-82e7-1662e820c7e4",
+        "index": 1,
+        "type": "Away",
+        "description": "MIA +2.5",
+        "available": 0.525,
+        "last": null,
+        "competitor": {
+         "id": "457e4058-3dfb-4017-a344-93cecacf130f",
+         "name": "Miami Dolphins",
+         "symbol": "MIA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c48-74e3-9d10-d448b475d495",
+      "type": "TOTAL",
+      "strike": 38.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c48-74e3-9d10-d4655502581c",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 38.5",
+        "available": 0.54,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c48-74e3-9d10-d457dbad5ef8",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 38.5",
+        "available": 0.625,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c44-7212-9f39-dbb9daa8c61f",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c44-7212-9f39-dbcf536ef47b",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": 0.54,
+        "last": 0.545,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c44-7212-9f39-dbd959dc8d65",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.54,
+        "last": 0.455,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5c48-74e3-9d10-d4d403842900",
+      "type": "TOTAL",
+      "strike": 42.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5c48-74e3-9d10-d4e79e9ce326",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 42.5",
+        "available": 0.515,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5c48-74e3-9d10-d4f0ea56ff75",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 42.5",
+        "available": 0.655,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5b11-7e21-8027-5320b48fd97a",
+    "description": "Washington Commanders @ Philadelphia Eagles",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T20:25:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+      "name": "Philadelphia Eagles",
+      "symbol": "PHI",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+      "name": "Washington Commanders",
+      "symbol": "WAS",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5b91-7502-9990-6d21d3876358",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b91-7502-9990-6d49a6663077",
+        "index": 1,
+        "type": "Away",
+        "description": "WSH",
+        "available": 0.34,
+        "last": 0.345,
+        "competitor": {
+         "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+         "name": "Washington Commanders",
+         "symbol": "WAS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b91-7502-9990-6d30c3f230ea",
+        "index": 0,
+        "type": "Home",
+        "description": "PHI",
+        "available": 0.685,
+        "last": 0.655,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b9f-7b93-943d-237a4ae27deb",
+      "type": "SPREAD",
+      "strike": -10.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b9f-7b93-943d-238d8f43ed8c",
+        "index": 0,
+        "type": "Home",
+        "description": "PHI -10.5",
+        "available": 0.325,
+        "last": 0.325,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b9f-7b93-943d-239afa4e3cbb",
+        "index": 1,
+        "type": "Away",
+        "description": "WSH +10.5",
+        "available": null,
+        "last": 0.675,
+        "competitor": {
+         "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+         "name": "Washington Commanders",
+         "symbol": "WAS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b91-7502-9990-6cf6a9b265c6",
+      "type": "SPREAD",
+      "strike": -5.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b91-7502-9990-6d12bb8529c6",
+        "index": 1,
+        "type": "Away",
+        "description": "WSH +5.5",
+        "available": 0.61,
+        "last": 0.615,
+        "competitor": {
+         "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+         "name": "Washington Commanders",
+         "symbol": "WAS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b91-7502-9990-6d05e505e856",
+        "index": 0,
+        "type": "Home",
+        "description": "PHI -5.5",
+        "available": null,
+        "last": 0.385,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b91-7502-9990-6cc63c1f47fc",
+      "type": "SPREAD",
+      "strike": -4.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b91-7502-9990-6ced368d8d14",
+        "index": 1,
+        "type": "Away",
+        "description": "WSH +4.5",
+        "available": 0.545,
+        "last": null,
+        "competitor": {
+         "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+         "name": "Washington Commanders",
+         "symbol": "WAS",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b91-7502-9990-6cd8efc551d6",
+        "index": 0,
+        "type": "Home",
+        "description": "PHI -4.5",
+        "available": 0.525,
+        "last": null,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b93-71b0-a468-0edba115052e",
+      "type": "TOTAL",
+      "strike": 39.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b93-71b0-a468-0ee8427925e2",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 39.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b93-71b0-a468-0ef50f7304f7",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 39.5",
+        "available": 0.33,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b93-71b0-a468-0fc1b98b6da7",
+      "type": "TOTAL",
+      "strike": 44.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b93-71b0-a468-0fdfe133efa7",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 44.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b93-71b0-a468-0fe142fcc698",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 44.5",
+        "available": 0.475,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5b91-7502-9990-6c988cafeda2",
+      "type": "TOTAL",
+      "strike": 46.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5b91-7502-9990-6cb64bdf3573",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 46.5",
+        "available": null,
+        "last": 0.54,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5b91-7502-9990-6ca53fa03b3a",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 46.5",
+        "available": 0.57,
+        "last": 0.47,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5c7e-7c42-8c8b-0398b71a150f",
+    "description": "Green Bay Packers @ Minnesota Vikings",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T20:25:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "a2a97b83-2ccd-4e35-a0e6-f5ea369b677c",
+      "name": "Minnesota Vikings",
+      "symbol": "MIN",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+      "name": "Green Bay Packers",
+      "symbol": "GB",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5d01-7822-86e6-a5594da40867",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d01-7822-86e6-a56269614e56",
+        "index": 0,
+        "type": "Home",
+        "description": "MIN",
+        "available": 0.535,
+        "last": 0.505,
+        "competitor": {
+         "id": "a2a97b83-2ccd-4e35-a0e6-f5ea369b677c",
+         "name": "Minnesota Vikings",
+         "symbol": "MIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d01-7822-86e6-a577621ea3ba",
+        "index": 1,
+        "type": "Away",
+        "description": "GB",
+        "available": 0.49,
+        "last": 0.495,
+        "competitor": {
+         "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+         "name": "Green Bay Packers",
+         "symbol": "GB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d01-7822-86e6-aac9242a4f1e",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d01-7822-86e6-aadfaefe4a98",
+        "index": 0,
+        "type": "Home",
+        "description": "MIN -7.5",
+        "available": 0.27,
+        "last": null,
+        "competitor": {
+         "id": "a2a97b83-2ccd-4e35-a0e6-f5ea369b677c",
+         "name": "Minnesota Vikings",
+         "symbol": "MIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d01-7822-86e6-aae200f4fd24",
+        "index": 1,
+        "type": "Away",
+        "description": "GB +7.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+         "name": "Green Bay Packers",
+         "symbol": "GB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d15-7741-8dd7-d017b0f396f6",
+      "type": "SPREAD",
+      "strike": -2.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d15-7741-8dd7-d02faf0091a5",
+        "index": 0,
+        "type": "Home",
+        "description": "MIN -2.5",
+        "available": 0.505,
+        "last": null,
+        "competitor": {
+         "id": "a2a97b83-2ccd-4e35-a0e6-f5ea369b677c",
+         "name": "Minnesota Vikings",
+         "symbol": "MIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d15-7741-8dd7-d03e7d6316ac",
+        "index": 1,
+        "type": "Away",
+        "description": "GB +2.5",
+        "available": 0.57,
+        "last": null,
+        "competitor": {
+         "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+         "name": "Green Bay Packers",
+         "symbol": "GB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d01-7822-86e6-a7095c0b962b",
+      "type": "SPREAD",
+      "strike": -1.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d01-7822-86e6-a71b721b0920",
+        "index": 0,
+        "type": "Home",
+        "description": "MIN -1.5",
+        "available": 0.505,
+        "last": 0.51,
+        "competitor": {
+         "id": "a2a97b83-2ccd-4e35-a0e6-f5ea369b677c",
+         "name": "Minnesota Vikings",
+         "symbol": "MIN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d01-7822-86e6-a72aa04b761d",
+        "index": 1,
+        "type": "Away",
+        "description": "GB +1.5",
+        "available": 0.53,
+        "last": 0.49,
+        "competitor": {
+         "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+         "name": "Green Bay Packers",
+         "symbol": "GB",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d03-7863-80f5-d1622b8b9960",
+      "type": "TOTAL",
+      "strike": 38.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d03-7863-80f5-d18aa5f80983",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 38.5",
+        "available": 0.325,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d03-7863-80f5-d17505b67391",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 38.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d04-79a1-b9f7-4f038e088366",
+      "type": "TOTAL",
+      "strike": 43.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d04-79a1-b9f7-4f138fde1953",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 43.5",
+        "available": 0.595,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d04-79a1-b9f7-4f22bbb67efc",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 43.5",
+        "available": 0.48,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5d04-79a1-b9f7-4f38f974ac27",
+      "type": "TOTAL",
+      "strike": 45.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5d04-79a1-b9f7-4f50b14c4227",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 45.5",
+        "available": 0.55,
+        "last": 0.545,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5d04-79a1-b9f7-4f4e59a9c24d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 45.5",
+        "available": 0.525,
+        "last": 0.455,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5d50-71b2-b802-27b4ee154234",
+    "description": "Arizona Cardinals @ Los Angeles Chargers",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T20:25:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "493b79b7-1654-48c4-88ab-fe2c10281378",
+      "name": "Los Angeles Chargers",
+      "symbol": "LA",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "03fc2bbf-c347-4efd-8aa6-fb4ce1438d7e",
+      "name": "Arizona Cardinals",
+      "symbol": "ARI",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5dd8-7d90-8fdd-8c9f57466373",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8ca590d3dc11",
+        "index": 0,
+        "type": "Home",
+        "description": "LAC",
+        "available": 0.84,
+        "last": 0.83,
+        "competitor": {
+         "id": "493b79b7-1654-48c4-88ab-fe2c10281378",
+         "name": "Los Angeles Chargers",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8cb6472c0ad3",
+        "index": 1,
+        "type": "Away",
+        "description": "ARI",
+        "available": 0.18,
+        "last": 0.17,
+        "competitor": {
+         "id": "03fc2bbf-c347-4efd-8aa6-fb4ce1438d7e",
+         "name": "Arizona Cardinals",
+         "symbol": "ARI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5de6-7fa2-8fb9-2621f366e116",
+      "type": "SPREAD",
+      "strike": -17.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5de6-7fa2-8fb9-2639e4fc1de1",
+        "index": 0,
+        "type": "Home",
+        "description": "LAC -17.5",
+        "available": 0.295,
+        "last": null,
+        "competitor": {
+         "id": "493b79b7-1654-48c4-88ab-fe2c10281378",
+         "name": "Los Angeles Chargers",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5de6-7fa2-8fb9-264b54f4c978",
+        "index": 1,
+        "type": "Away",
+        "description": "ARI +17.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "03fc2bbf-c347-4efd-8aa6-fb4ce1438d7e",
+         "name": "Arizona Cardinals",
+         "symbol": "ARI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5de6-7fa2-8fb9-2747fb078c80",
+      "type": "SPREAD",
+      "strike": -11.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5de6-7fa2-8fb9-275ba1df9be4",
+        "index": 0,
+        "type": "Home",
+        "description": "LAC -11.5",
+        "available": 0.475,
+        "last": null,
+        "competitor": {
+         "id": "493b79b7-1654-48c4-88ab-fe2c10281378",
+         "name": "Los Angeles Chargers",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5de6-7fa2-8fb9-276420463ca7",
+        "index": 1,
+        "type": "Away",
+        "description": "ARI +11.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "03fc2bbf-c347-4efd-8aa6-fb4ce1438d7e",
+         "name": "Arizona Cardinals",
+         "symbol": "ARI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5dd8-7d90-8fdd-8cc6f476fc0d",
+      "type": "SPREAD",
+      "strike": -10.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8cd6a4949594",
+        "index": 0,
+        "type": "Home",
+        "description": "LAC -10.5",
+        "available": 0.485,
+        "last": 0.485,
+        "competitor": {
+         "id": "493b79b7-1654-48c4-88ab-fe2c10281378",
+         "name": "Los Angeles Chargers",
+         "symbol": "LA",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8ce7a02fbd3c",
+        "index": 1,
+        "type": "Away",
+        "description": "ARI +10.5",
+        "available": 0.555,
+        "last": 0.515,
+        "competitor": {
+         "id": "03fc2bbf-c347-4efd-8aa6-fb4ce1438d7e",
+         "name": "Arizona Cardinals",
+         "symbol": "ARI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5dd9-7611-b3ad-938807b24e58",
+      "type": "TOTAL",
+      "strike": 39.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5dd9-7611-b3ad-93907b3e5fa1",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 39.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5dd9-7611-b3ad-93add8f9861b",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 39.5",
+        "available": 0.32,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5dd9-7611-b3ad-93be7c0a5d52",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5dd9-7611-b3ad-93c7bd59be14",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": 0.755,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5dd9-7611-b3ad-93d286248bc9",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.415,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5dd8-7d90-8fdd-8c6aaa3afe1d",
+      "type": "TOTAL",
+      "strike": 46.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8c868791ef82",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 46.5",
+        "available": 0.535,
+        "last": 0.465,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5dd8-7d90-8fdd-8c7611b026d9",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 46.5",
+        "available": 0.535,
+        "last": 0.535,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5e06-7831-abe0-d011ce451bd8",
+    "description": "Dallas Cowboys @ New York Giants",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-14T00:20:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "c8b340dd-4d70-4334-8e82-aa470f1f7b21",
+      "name": "New York Giants",
+      "symbol": "NYG",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+      "name": "Dallas Cowboys",
+      "symbol": "DAL",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5e7f-7000-9d8f-810db7345721",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-8110ed603543",
+        "index": 0,
+        "type": "Home",
+        "description": "NYG",
+        "available": 0.415,
+        "last": 0.415,
+        "competitor": {
+         "id": "c8b340dd-4d70-4334-8e82-aa470f1f7b21",
+         "name": "New York Giants",
+         "symbol": "NYG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-8127919c3315",
+        "index": 1,
+        "type": "Away",
+        "description": "DAL",
+        "available": 0.6,
+        "last": 0.585,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e9a-7ea3-81a1-5475939c77f9",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e9a-7ea3-81a1-5480f30c8cd6",
+        "index": 0,
+        "type": "Home",
+        "description": "NYG -3.5",
+        "available": 0.34,
+        "last": null,
+        "competitor": {
+         "id": "c8b340dd-4d70-4334-8e82-aa470f1f7b21",
+         "name": "New York Giants",
+         "symbol": "NYG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e9a-7ea3-81a1-54912e9b36ef",
+        "index": 1,
+        "type": "Away",
+        "description": "DAL +3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e9a-7ea3-81a1-550370f3cea7",
+      "type": "SPREAD",
+      "strike": 1.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e9a-7ea3-81a1-5512622532f4",
+        "index": 0,
+        "type": "Home",
+        "description": "NYG +1.5",
+        "available": 0.475,
+        "last": null,
+        "competitor": {
+         "id": "c8b340dd-4d70-4334-8e82-aa470f1f7b21",
+         "name": "New York Giants",
+         "symbol": "NYG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e9a-7ea3-81a1-55223fd065d0",
+        "index": 1,
+        "type": "Away",
+        "description": "DAL -1.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e7f-7000-9d8f-8199f656bae7",
+      "type": "SPREAD",
+      "strike": 2.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-81a8d3569218",
+        "index": 0,
+        "type": "Home",
+        "description": "NYG +2.5",
+        "available": 0.475,
+        "last": 0.475,
+        "competitor": {
+         "id": "c8b340dd-4d70-4334-8e82-aa470f1f7b21",
+         "name": "New York Giants",
+         "symbol": "NYG",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-81be0b710804",
+        "index": 1,
+        "type": "Away",
+        "description": "DAL -2.5",
+        "available": 0.58,
+        "last": 0.525,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e7f-7000-9d8f-85b41af55703",
+      "type": "TOTAL",
+      "strike": 27.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-85c17b931a96",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 27.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-85d5d34eb2ca",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 27.5",
+        "available": 0.12,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e7f-7000-9d8f-870d91838133",
+      "type": "TOTAL",
+      "strike": 30.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-871b4da98781",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 30.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-87208d456dd7",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 30.5",
+        "available": 0.155,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5e7f-7000-9d8f-7fb00612f205",
+      "type": "TOTAL",
+      "strike": 48.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-7fcf06e03a9d",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 48.5",
+        "available": 0.5,
+        "last": 0.46,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5e7f-7000-9d8f-7fd4ec66e420",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 48.5",
+        "available": 0.545,
+        "last": 0.54,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5ec4-7b80-b5e7-5ffc5fa650c5",
+    "description": "Denver Broncos @ Kansas City Chiefs",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-15T00:15:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "b34c8829-f647-4b91-8785-eb50ec5f8bca",
+      "name": "Kansas City Chiefs",
+      "symbol": "KC",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "968aa447-cfbe-4d8c-8012-2838f85f46d9",
+      "name": "Denver Broncos",
+      "symbol": "DEN",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-5f5e-7ca2-a6e3-eb345618a1bf",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-eb563d780883",
+        "index": 1,
+        "type": "Away",
+        "description": "DEN",
+        "available": 0.45,
+        "last": 0.45,
+        "competitor": {
+         "id": "968aa447-cfbe-4d8c-8012-2838f85f46d9",
+         "name": "Denver Broncos",
+         "symbol": "DEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-eb486062fd08",
+        "index": 0,
+        "type": "Home",
+        "description": "KC",
+        "available": 0.575,
+        "last": 0.55,
+        "competitor": {
+         "id": "b34c8829-f647-4b91-8785-eb50ec5f8bca",
+         "name": "Kansas City Chiefs",
+         "symbol": "KC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f63-7e02-b29a-24b3ee5a3875",
+      "type": "SPREAD",
+      "strike": -7.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f63-7e02-b29a-24ce2970171c",
+        "index": 0,
+        "type": "Home",
+        "description": "KC -7.5",
+        "available": 0.325,
+        "last": null,
+        "competitor": {
+         "id": "b34c8829-f647-4b91-8785-eb50ec5f8bca",
+         "name": "Kansas City Chiefs",
+         "symbol": "KC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f63-7e02-b29a-24d8363af404",
+        "index": 1,
+        "type": "Away",
+        "description": "DEN +7.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "968aa447-cfbe-4d8c-8012-2838f85f46d9",
+         "name": "Denver Broncos",
+         "symbol": "DEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f63-7e02-b29a-25400d2d51e6",
+      "type": "SPREAD",
+      "strike": -4.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f63-7e02-b29a-2550fd8efdac",
+        "index": 0,
+        "type": "Home",
+        "description": "KC -4.5",
+        "available": 0.43,
+        "last": null,
+        "competitor": {
+         "id": "b34c8829-f647-4b91-8785-eb50ec5f8bca",
+         "name": "Kansas City Chiefs",
+         "symbol": "KC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f63-7e02-b29a-256ec1b8d80b",
+        "index": 1,
+        "type": "Away",
+        "description": "DEN +4.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "968aa447-cfbe-4d8c-8012-2838f85f46d9",
+         "name": "Denver Broncos",
+         "symbol": "DEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f5e-7ca2-a6e3-ebcbef5c81f8",
+      "type": "SPREAD",
+      "strike": -2.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-ebed232fbbc5",
+        "index": 1,
+        "type": "Away",
+        "description": "DEN +2.5",
+        "available": 0.52,
+        "last": 0.46,
+        "competitor": {
+         "id": "968aa447-cfbe-4d8c-8012-2838f85f46d9",
+         "name": "Denver Broncos",
+         "symbol": "DEN",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-ebd32c7181b0",
+        "index": 0,
+        "type": "Home",
+        "description": "KC -2.5",
+        "available": 0.54,
+        "last": 0.54,
+        "competitor": {
+         "id": "b34c8829-f647-4b91-8785-eb50ec5f8bca",
+         "name": "Kansas City Chiefs",
+         "symbol": "KC",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f7e-7600-a534-5c51d0996020",
+      "type": "TOTAL",
+      "strike": 35.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f7e-7600-a534-5c60db4770c0",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 35.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f7e-7600-a534-5c734f4cc832",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 35.5",
+        "available": 0.335,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f7e-7600-a534-5d49f11235bf",
+      "type": "TOTAL",
+      "strike": 40.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f7e-7600-a534-5d5d5767f59a",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 40.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f7e-7600-a534-5d6fa84cd11e",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 40.5",
+        "available": 0.475,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5f5e-7ca2-a6e3-eecea7ca0e03",
+      "type": "TOTAL",
+      "strike": 43.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-eed123dfe291",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 43.5",
+        "available": 0.525,
+        "last": 0.43,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5f5e-7ca2-a6e3-eee3110e0859",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 43.5",
+        "available": 0.64,
+        "last": 0.57,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-5fba-7c72-a6e2-ad8c2d5c2a6e",
+    "description": "Detroit Lions @ Buffalo Bills",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-18T00:15:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+      "name": "Buffalo Bills",
+      "symbol": "BUF",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+      "name": "Detroit Lions",
+      "symbol": "DET",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-6040-70b3-a23e-14b212b201ea",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-6040-70b3-a23e-14c37626f470",
+        "index": 0,
+        "type": "Home",
+        "description": "BUF",
+        "available": 0.74,
+        "last": 0.545,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-6040-70b3-a23e-14d11b6d2159",
+        "index": 1,
+        "type": "Away",
+        "description": "DET",
+        "available": 0.45,
+        "last": 0.455,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-6040-70b3-a23e-142ecb15bff7",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-6040-70b3-a23e-1435d21a1d2c",
+        "index": 0,
+        "type": "Home",
+        "description": "BUF -3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-6040-70b3-a23e-1443515dc83b",
+        "index": 1,
+        "type": "Away",
+        "description": "DET +3.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "6a8b85f2-5a77-4176-908e-a58095dc5a80",
+         "name": "Detroit Lions",
+         "symbol": "DET",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-604b-7ee2-bdf8-e0894bc58517",
+      "type": "TOTAL",
+      "strike": 52.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-604b-7ee2-bdf8-e095f90f72b4",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 52.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-604b-7ee2-bdf8-e0aa0009efc0",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 52.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-57c0-7290-9f06-b3f4ff4c8ea0",
+    "description": "Buffalo Bills @ Houston Texans",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-09-13T17:00:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "b672d5b9-0873-4b32-9441-a93672d14941",
+      "name": "Houston Texans",
+      "symbol": "HOU",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+      "name": "Buffalo Bills",
+      "symbol": "BUF",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-583d-70c1-8f39-00538bd8b8e0",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-583d-70c1-8f39-0061814cacd4",
+        "index": 0,
+        "type": "Home",
+        "description": "HOU",
+        "available": 0.505,
+        "last": 0.505,
+        "competitor": {
+         "id": "b672d5b9-0873-4b32-9441-a93672d14941",
+         "name": "Houston Texans",
+         "symbol": "HOU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-583d-70c1-8f39-007e237647b0",
+        "index": 1,
+        "type": "Away",
+        "description": "BUF",
+        "available": 0.515,
+        "last": 0.495,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-584d-7b00-8262-ed8dbe884940",
+      "type": "SPREAD",
+      "strike": -3.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-584d-7b00-8262-ed9904a8e3a7",
+        "index": 0,
+        "type": "Home",
+        "description": "HOU -3.5",
+        "available": 0.42,
+        "last": 0.355,
+        "competitor": {
+         "id": "b672d5b9-0873-4b32-9441-a93672d14941",
+         "name": "Houston Texans",
+         "symbol": "HOU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-584d-7b00-8262-edafab6b2eef",
+        "index": 1,
+        "type": "Away",
+        "description": "BUF +3.5",
+        "available": null,
+        "last": 0.645,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-583d-70c1-8f39-0147654cd685",
+      "type": "SPREAD",
+      "strike": -1.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-583d-70c1-8f39-0161ced0fae7",
+        "index": 1,
+        "type": "Away",
+        "description": "BUF +1.5",
+        "available": 0.56,
+        "last": 0.49,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-583d-70c1-8f39-015dc06653b8",
+        "index": 0,
+        "type": "Home",
+        "description": "HOU -1.5",
+        "available": 0.515,
+        "last": 0.51,
+        "competitor": {
+         "id": "b672d5b9-0873-4b32-9441-a93672d14941",
+         "name": "Houston Texans",
+         "symbol": "HOU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-584d-7b00-8262-edea49a6f516",
+      "type": "SPREAD",
+      "strike": 1.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-584d-7b00-8262-edf00b876094",
+        "index": 0,
+        "type": "Home",
+        "description": "HOU +1.5",
+        "available": null,
+        "last": 0.57,
+        "competitor": {
+         "id": "b672d5b9-0873-4b32-9441-a93672d14941",
+         "name": "Houston Texans",
+         "symbol": "HOU",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-584d-7b00-8262-ee0eb2470843",
+        "index": 1,
+        "type": "Away",
+        "description": "BUF -1.5",
+        "available": 0.54,
+        "last": 0.43,
+        "competitor": {
+         "id": "3c782909-766f-4c02-8a4a-8b1c168bd5f8",
+         "name": "Buffalo Bills",
+         "symbol": "BUF",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5842-7153-b424-715a2950245e",
+      "type": "TOTAL",
+      "strike": 37.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5842-7153-b424-7166b94cf0d7",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 37.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5842-7153-b424-7178cd0ad130",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 37.5",
+        "available": 0.33,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-5842-7153-b424-72190b7bab56",
+      "type": "TOTAL",
+      "strike": 41.5,
+      "is_consensus": false,
+      "outcomes": [
+       {
+        "id": "019fed1f-5842-7153-b424-722e36cf97d2",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 41.5",
+        "available": null,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-5842-7153-b424-723ee6e99432",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 41.5",
+        "available": 0.44,
+        "last": null,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-583d-70c1-8f39-011c0899b251",
+      "type": "TOTAL",
+      "strike": 44.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-583d-70c1-8f39-012b9a6750d8",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 44.5",
+        "available": 0.53,
+        "last": 0.465,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-583d-70c1-8f39-013fdb95b540",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 44.5",
+        "available": 0.53,
+        "last": 0.535,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   },
+   {
+    "id": "019fed1f-6057-7b73-a1df-c2e2bad37dce",
+    "description": "Philadelphia Eagles @ Dallas Cowboys",
+    "league": "NFL",
+    "status": "OPEN_PREGAME",
+    "scheduled_start": "2026-11-26T21:30:00+00:00",
+    "game": {
+     "homeTeam": {
+      "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+      "name": "Dallas Cowboys",
+      "symbol": "DAL",
+      "__typename": "competitor"
+     },
+     "awayTeam": {
+      "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+      "name": "Philadelphia Eagles",
+      "symbol": "PHI",
+      "__typename": "competitor"
+     },
+     "__typename": "game"
+    },
+    "markets": [
+     {
+      "id": "019fed1f-60e4-7d20-a71a-71873e771c6d",
+      "type": "MONEY",
+      "strike": 0.0,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-60e4-7d20-a71a-719c659a0c67",
+        "index": 0,
+        "type": "Home",
+        "description": "DAL",
+        "available": 0.525,
+        "last": 0.475,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-60e4-7d20-a71a-71a1a1113cb8",
+        "index": 1,
+        "type": "Away",
+        "description": "PHI",
+        "available": 0.525,
+        "last": 0.525,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-60e4-7d20-a71a-71ba6f600425",
+      "type": "SPREAD",
+      "strike": -1.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-60e4-7d20-a71a-71ddecb1a181",
+        "index": 1,
+        "type": "Away",
+        "description": "PHI +1.5",
+        "available": null,
+        "last": null,
+        "competitor": {
+         "id": "2d027586-6142-435b-86ef-900ac29ddd38",
+         "name": "Philadelphia Eagles",
+         "symbol": "PHI",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-60e4-7d20-a71a-71c2f7881cb2",
+        "index": 0,
+        "type": "Home",
+        "description": "DAL -1.5",
+        "available": 0.545,
+        "last": null,
+        "competitor": {
+         "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+         "name": "Dallas Cowboys",
+         "symbol": "DAL",
+         "__typename": "competitor"
+        },
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     },
+     {
+      "id": "019fed1f-60e4-7d20-a71a-712b55732553",
+      "type": "TOTAL",
+      "strike": 49.5,
+      "is_consensus": true,
+      "outcomes": [
+       {
+        "id": "019fed1f-60e4-7d20-a71a-713631d776a9",
+        "index": 0,
+        "type": "Over",
+        "description": "Over 49.5",
+        "available": null,
+        "last": 0.47,
+        "competitor": null,
+        "__typename": "outcome"
+       },
+       {
+        "id": "019fed1f-60e4-7d20-a71a-714e1f114a9f",
+        "index": 1,
+        "type": "Under",
+        "description": "Under 49.5",
+        "available": null,
+        "last": 0.53,
+        "competitor": null,
+        "__typename": "outcome"
+       }
+      ],
+      "__typename": "market"
+     }
+    ],
+    "__typename": "event"
+   }
+  ]
+ }
+}

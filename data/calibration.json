@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "note": "v2 impact coefficients (ARCH 7.5). Refit weekly by calibrate.yml; v1 constants in pipeline/model/config.py are never refit. spread_key_prob / pts_prob_total may be added here to override the shipped pts->prob tables.",
+  "v2": {
+    "gust_blend": 0.7,
+    "head_weight": 0.5,
+    "wind_offset_mph": 10.0,
+    "wind_coeff": 0.56,
+    "wind_exp": 1.02,
+    "wind_cap": 12.0,
+    "dir_mult_weak": 0.5,
+    "rain_prob_min": 0.4,
+    "alt_base_m": 800.0,
+    "alt_slope_per_m": 0.0035,
+    "alt_cap": 3.5,
+    "heat_away_delta_f": 12.0
+  }
+}

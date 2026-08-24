@@ -1,0 +1,31 @@
+# Tooling config only (ruff + pytest). Dependencies live in requirements*.txt.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+    "pages",
+    "app.py",
+    "data",
+    "site/web/vendor",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length handled by formatter/judgement
+    "B008",  # function call in argument defaults (argparse/dataclass patterns)
+    "UP007", # keep Optional[...] where it reads better
+    "UP045", # same as UP007 for Optional[X] (ruff split rule)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # sys.modules stubs must precede imports
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

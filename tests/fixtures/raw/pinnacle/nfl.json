@@ -1,0 +1,8663 @@
+{
+ "matchups": [
+  {
+   "id": 1634219711,
+   "type": "matchup",
+   "isLive": true,
+   "parentId": 1634112890,
+   "status": "started",
+   "startTime": "2026-08-24T00:00:00Z",
+   "league": {
+    "id": 4347,
+    "name": "NFL Pre Season",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Tennessee Titans",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Seattle Seahawks",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-08-24T05:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    },
+    {
+     "cutoffAt": "2026-08-24T01:14:33Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 1,
+     "status": "open"
+    },
+    {
+     "cutoffAt": "2026-08-24T00:10:36Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 3,
+     "status": "open"
+    },
+    {
+     "cutoffAt": "2026-08-24T00:10:42Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 5,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865288,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-10T00:20:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Seattle Seahawks",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "New England Patriots",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-10T00:20:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877987,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-11T00:35:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Los Angeles Rams",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "San Francisco 49ers",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-11T00:35:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865289,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Carolina Panthers",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Chicago Bears",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865290,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Detroit Lions",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "New Orleans Saints",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877988,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Jacksonville Jaguars",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Cleveland Browns",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877989,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Cincinnati Bengals",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Tampa Bay Buccaneers",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877990,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Indianapolis Colts",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Baltimore Ravens",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877991,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Houston Texans",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Buffalo Bills",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877992,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Tennessee Titans",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "New York Jets",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630889899,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T17:00:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Pittsburgh Steelers",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Atlanta Falcons",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T17:00:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865291,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T20:25:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Los Angeles Chargers",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Arizona Cardinals",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T20:25:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865292,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T20:25:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Minnesota Vikings",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Green Bay Packers",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T20:25:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630889900,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T20:25:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Las Vegas Raiders",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Miami Dolphins",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T20:25:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "closed"
+    }
+   ]
+  },
+  {
+   "id": 1630889901,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-13T20:25:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Philadelphia Eagles",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Washington Commanders",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-13T20:25:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630865293,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-14T00:20:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "New York Giants",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Dallas Cowboys",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-14T00:20:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "id": 1630877993,
+   "type": "matchup",
+   "isLive": false,
+   "parentId": null,
+   "status": "pending",
+   "startTime": "2026-09-15T00:15:00Z",
+   "league": {
+    "id": 889,
+    "name": "NFL",
+    "sport": {
+     "id": 15,
+     "name": "Football"
+    }
+   },
+   "participants": [
+    {
+     "alignment": "home",
+     "name": "Kansas City Chiefs",
+     "order": 1
+    },
+    {
+     "alignment": "away",
+     "name": "Denver Broncos",
+     "order": 0
+    }
+   ],
+   "periods": [
+    {
+     "cutoffAt": "2026-09-15T00:15:00Z",
+     "hasMoneyline": true,
+     "hasSpread": true,
+     "hasTeamTotal": true,
+     "hasTotal": true,
+     "period": 0,
+     "status": "open"
+    }
+   ]
+  }
+ ],
+ "markets": [
+  {
+   "matchupId": 1630889899,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -165
+    },
+    {
+     "designation": "away",
+     "price": 145
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -110
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": -102
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -274
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 223
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": -149
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": 128
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -141
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 122
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -133
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 117
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 110
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": 117
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -135
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": 124
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -144
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 198
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -240
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": -121
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": 104
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;34.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 34.5,
+     "price": -289
+    },
+    {
+     "designation": "under",
+     "points": 34.5,
+     "price": 224
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.0,
+     "price": -175
+    },
+    {
+     "designation": "under",
+     "points": 39.0,
+     "price": 145
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -164
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": 136
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.0,
+     "price": -152
+    },
+    {
+     "designation": "under",
+     "points": 40.0,
+     "price": 127
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -142
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": 119
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.0,
+     "price": -132
+    },
+    {
+     "designation": "under",
+     "points": 41.0,
+     "price": 111
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": -113
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": -105
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": -105
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": -113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": 102
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": 109
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": -130
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": 116
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": -138
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889899,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": 183
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -228
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -352
+    },
+    {
+     "designation": "away",
+     "price": 289
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": -103
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -198
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 167
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-6.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -6.0,
+     "price": -148
+    },
+    {
+     "designation": "away",
+     "points": 6.0,
+     "price": 127
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-6.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -6.5,
+     "price": -135
+    },
+    {
+     "designation": "away",
+     "points": 6.5,
+     "price": 117
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.0,
+     "price": -119
+    },
+    {
+     "designation": "away",
+     "points": 7.0,
+     "price": 105
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-8.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -8.0,
+     "price": 102
+    },
+    {
+     "designation": "away",
+     "points": 8.0,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-8.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -8.5,
+     "price": 106
+    },
+    {
+     "designation": "away",
+     "points": 8.5,
+     "price": -122
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-9.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -9.0,
+     "price": 110
+    },
+    {
+     "designation": "away",
+     "points": 9.0,
+     "price": -127
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-14.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -14.5,
+     "price": 240
+    },
+    {
+     "designation": "away",
+     "points": 14.5,
+     "price": -298
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -109
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": -107
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;33.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 33.5,
+     "price": -269
+    },
+    {
+     "designation": "under",
+     "points": 33.5,
+     "price": 212
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.0,
+     "price": -158
+    },
+    {
+     "designation": "under",
+     "points": 38.0,
+     "price": 131
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.5,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 38.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.0,
+     "price": -137
+    },
+    {
+     "designation": "under",
+     "points": 39.0,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.0,
+     "price": -119
+    },
+    {
+     "designation": "under",
+     "points": 40.0,
+     "price": 100
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.0,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 41.0,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": 105
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": 120
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": -144
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": 128
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": -153
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877988,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": 214
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -273
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -187
+    },
+    {
+     "designation": "away",
+     "price": 163
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -125
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": 111
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -309
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 247
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": -169
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": 144
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -162
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 140
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -151
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 132
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -102
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -111
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": 104
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -119
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": 111
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -128
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 179
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -213
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": -105
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -111
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": -278
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": 217
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -151
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 126
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -142
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": 118
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -132
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": 111
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": -123
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": 104
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": -115
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -104
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": 102
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": 109
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -130
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": 116
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": -139
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.5,
+     "price": 125
+    },
+    {
+     "designation": "under",
+     "points": 50.5,
+     "price": -149
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.0,
+     "price": 133
+    },
+    {
+     "designation": "under",
+     "points": 51.0,
+     "price": -160
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877987,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;55.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 55.5,
+     "price": 214
+    },
+    {
+     "designation": "under",
+     "points": 55.5,
+     "price": -274
+    }
+   ],
+   "cutoffAt": "2026-09-11T00:35:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -146
+    },
+    {
+     "designation": "away",
+     "price": 129
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": 106
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": -120
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -249
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 205
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": -133
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -124
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -115
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 102
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 126
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -144
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": 135
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -155
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": 142
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -166
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 218
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -267
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": -109
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": -107
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;35.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 35.5,
+     "price": -268
+    },
+    {
+     "designation": "under",
+     "points": 35.5,
+     "price": 211
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.0,
+     "price": -157
+    },
+    {
+     "designation": "under",
+     "points": 40.0,
+     "price": 131
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.0,
+     "price": -137
+    },
+    {
+     "designation": "under",
+     "points": 41.0,
+     "price": 114
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": 107
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": -119
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": -100
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": -117
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": 105
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": 120
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": -144
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": 128
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": -154
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630877993,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": 196
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -247
+    }
+   ],
+   "cutoffAt": "2026-09-15T00:15:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -318
+    },
+    {
+     "designation": "away",
+     "price": 264
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.0,
+     "price": -103
+    },
+    {
+     "designation": "away",
+     "points": 7.0,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -173
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 148
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.5,
+     "price": -139
+    },
+    {
+     "designation": "away",
+     "points": 5.5,
+     "price": 120
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-6.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -6.0,
+     "price": -130
+    },
+    {
+     "designation": "away",
+     "points": 6.0,
+     "price": 114
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-6.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -6.5,
+     "price": -120
+    },
+    {
+     "designation": "away",
+     "points": 6.5,
+     "price": 106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 111
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -126
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-8.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -8.0,
+     "price": 117
+    },
+    {
+     "designation": "away",
+     "points": 8.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-8.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -8.5,
+     "price": 121
+    },
+    {
+     "designation": "away",
+     "points": 8.5,
+     "price": -141
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-14.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -14.5,
+     "price": 261
+    },
+    {
+     "designation": "away",
+     "points": 14.5,
+     "price": -330
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": -108
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": -274
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": 214
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -155
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": 129
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": -145
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": 121
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": -135
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": 113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": -126
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": 106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": -118
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -101
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": -101
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": -118
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.5,
+     "price": 106
+    },
+    {
+     "designation": "under",
+     "points": 50.5,
+     "price": -127
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.0,
+     "price": 114
+    },
+    {
+     "designation": "under",
+     "points": 51.0,
+     "price": -136
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.5,
+     "price": 122
+    },
+    {
+     "designation": "under",
+     "points": 51.5,
+     "price": -146
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;52.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 52.0,
+     "price": 130
+    },
+    {
+     "designation": "under",
+     "points": 52.0,
+     "price": -156
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865290,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;56.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 56.5,
+     "price": 208
+    },
+    {
+     "designation": "under",
+     "points": 56.5,
+     "price": -264
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -220
+    },
+    {
+     "designation": "away",
+     "price": 190
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": -113
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": 100
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -348
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 273
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -171
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 146
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -147
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": 128
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -122
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": -104
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.0,
+     "price": -100
+    },
+    {
+     "designation": "away",
+     "points": 5.0,
+     "price": -114
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.5,
+     "price": 105
+    },
+    {
+     "designation": "away",
+     "points": 5.5,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.5,
+     "price": 218
+    },
+    {
+     "designation": "away",
+     "points": 10.5,
+     "price": -267
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -109
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": -107
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -276
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": 216
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -158
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": 131
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -137
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -119
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 100
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": 105
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -133
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": 120
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -143
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": 128
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -153
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889901,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;53.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 53.5,
+     "price": 200
+    },
+    {
+     "designation": "under",
+     "points": 53.5,
+     "price": -252
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -216
+    },
+    {
+     "designation": "away",
+     "price": 187
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -118
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 105
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -362
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 283
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -185
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 157
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -173
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 149
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -146
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": 128
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": -111
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -102
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": -103
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -112
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.0,
+     "price": 101
+    },
+    {
+     "designation": "away",
+     "points": 5.0,
+     "price": -117
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.5,
+     "price": 214
+    },
+    {
+     "designation": "away",
+     "points": 10.5,
+     "price": -261
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.0,
+     "price": -110
+    },
+    {
+     "designation": "under",
+     "points": 51.0,
+     "price": -106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -260
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": 205
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": -159
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": 132
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": -149
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": 124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": -138
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": 116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": -129
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": 109
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.5,
+     "price": -120
+    },
+    {
+     "designation": "under",
+     "points": 50.5,
+     "price": 101
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.5,
+     "price": -103
+    },
+    {
+     "designation": "under",
+     "points": 51.5,
+     "price": -115
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;52.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 52.0,
+     "price": 104
+    },
+    {
+     "designation": "under",
+     "points": 52.0,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;52.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 52.5,
+     "price": 111
+    },
+    {
+     "designation": "under",
+     "points": 52.5,
+     "price": -132
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;53.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 53.0,
+     "price": 119
+    },
+    {
+     "designation": "under",
+     "points": 53.0,
+     "price": -142
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;53.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 53.5,
+     "price": 127
+    },
+    {
+     "designation": "under",
+     "points": 53.5,
+     "price": -152
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877989,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;57.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 57.5,
+     "price": 192
+    },
+    {
+     "designation": "under",
+     "points": 57.5,
+     "price": -240
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -149
+    },
+    {
+     "designation": "away",
+     "price": 132
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -114
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 102
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -248
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 204
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.0,
+     "price": -141
+    },
+    {
+     "designation": "away",
+     "points": 1.0,
+     "price": 121
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": -130
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": 113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -122
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": 107
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": -122
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 127
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -146
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": 135
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -158
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 221
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -271
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.0,
+     "price": -110
+    },
+    {
+     "designation": "under",
+     "points": 39.0,
+     "price": -106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;32.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 32.5,
+     "price": -241
+    },
+    {
+     "designation": "under",
+     "points": 32.5,
+     "price": 193
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;36.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 36.5,
+     "price": -159
+    },
+    {
+     "designation": "under",
+     "points": 36.5,
+     "price": 132
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;37.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 37.0,
+     "price": -148
+    },
+    {
+     "designation": "under",
+     "points": 37.0,
+     "price": 124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;37.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 37.5,
+     "price": -138
+    },
+    {
+     "designation": "under",
+     "points": 37.5,
+     "price": 116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.0,
+     "price": -129
+    },
+    {
+     "designation": "under",
+     "points": 38.0,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.5,
+     "price": -120
+    },
+    {
+     "designation": "under",
+     "points": 38.5,
+     "price": 101
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -103
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.0,
+     "price": 104
+    },
+    {
+     "designation": "under",
+     "points": 40.0,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": 111
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": -133
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.0,
+     "price": 119
+    },
+    {
+     "designation": "under",
+     "points": 41.0,
+     "price": -143
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": 127
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": -152
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877992,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": 205
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": -260
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": 152
+    },
+    {
+     "designation": "away",
+     "price": -173
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -119
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;10.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 10.5,
+     "price": -324
+    },
+    {
+     "designation": "away",
+     "points": -10.5,
+     "price": 257
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;5.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 5.0,
+     "price": -144
+    },
+    {
+     "designation": "away",
+     "points": -5.0,
+     "price": 124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 4.5,
+     "price": -137
+    },
+    {
+     "designation": "away",
+     "points": -4.5,
+     "price": 119
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 4.0,
+     "price": -129
+    },
+    {
+     "designation": "away",
+     "points": -4.0,
+     "price": 113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.0,
+     "price": 102
+    },
+    {
+     "designation": "away",
+     "points": -3.0,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.5,
+     "price": 121
+    },
+    {
+     "designation": "away",
+     "points": -2.5,
+     "price": -139
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.0,
+     "price": 125
+    },
+    {
+     "designation": "away",
+     "points": -2.0,
+     "price": -145
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 229
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -283
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": -111
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -105
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -280
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": 219
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -160
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": 133
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -150
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": 125
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -139
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 117
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -130
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": 109
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -121
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": 102
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": -104
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -114
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": 103
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -123
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": 110
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -131
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": 118
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -141
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": 126
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": -151
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877990,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;54.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 54.5,
+     "price": 196
+    },
+    {
+     "designation": "under",
+     "points": 54.5,
+     "price": -246
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -508
+    },
+    {
+     "designation": "away",
+     "price": 394
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.5,
+     "price": 105
+    },
+    {
+     "designation": "away",
+     "points": 10.5,
+     "price": -118
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -250
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 206
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-9.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -9.0,
+     "price": -120
+    },
+    {
+     "designation": "away",
+     "points": 9.0,
+     "price": 103
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-9.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -9.5,
+     "price": -115
+    },
+    {
+     "designation": "away",
+     "points": 9.5,
+     "price": 101
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.0,
+     "price": -104
+    },
+    {
+     "designation": "away",
+     "points": 10.0,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-11.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -11.0,
+     "price": 111
+    },
+    {
+     "designation": "away",
+     "points": 11.0,
+     "price": -126
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-11.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -11.5,
+     "price": 116
+    },
+    {
+     "designation": "away",
+     "points": 11.5,
+     "price": -133
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-12.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -12.0,
+     "price": 120
+    },
+    {
+     "designation": "away",
+     "points": 12.0,
+     "price": -139
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-17.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -17.5,
+     "price": 240
+    },
+    {
+     "designation": "away",
+     "points": 17.5,
+     "price": -298
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -117
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 100
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -280
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": 218
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": -170
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": 140
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -158
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": 132
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -138
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": 107
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -110
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": -108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": -117
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": 105
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": 119
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -143
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865291,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;52.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 52.5,
+     "price": 193
+    },
+    {
+     "designation": "under",
+     "points": 52.5,
+     "price": -242
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -107
+    },
+    {
+     "designation": "away",
+     "price": -105
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.0,
+     "price": -115
+    },
+    {
+     "designation": "away",
+     "points": -1.0,
+     "price": 102
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 7.5,
+     "price": -338
+    },
+    {
+     "designation": "away",
+     "points": -7.5,
+     "price": 267
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.5,
+     "price": -139
+    },
+    {
+     "designation": "away",
+     "points": -2.5,
+     "price": 119
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.0,
+     "price": -130
+    },
+    {
+     "designation": "away",
+     "points": -2.0,
+     "price": 114
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.5,
+     "price": -123
+    },
+    {
+     "designation": "away",
+     "points": -1.5,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.0,
+     "price": -104
+    },
+    {
+     "designation": "away",
+     "points": 1.0,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": 101
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": -115
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": 107
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 148
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -174
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -115
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": -101
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;37.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 37.5,
+     "price": -272
+    },
+    {
+     "designation": "under",
+     "points": 37.5,
+     "price": 214
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": -167
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": 138
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": -156
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": 130
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": -145
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": 121
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": -135
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": 113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": -126
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": 106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -108
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": -110
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -100
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": -118
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": 106
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": -127
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": 114
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": -136
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": 121
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": -145
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630877991,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.5,
+     "price": 184
+    },
+    {
+     "designation": "under",
+     "points": 50.5,
+     "price": -229
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": 139
+    },
+    {
+     "designation": "away",
+     "price": -157
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.0,
+     "price": 114
+    },
+    {
+     "designation": "away",
+     "points": -2.0,
+     "price": -129
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 7.5,
+     "price": -245
+    },
+    {
+     "designation": "away",
+     "points": -7.5,
+     "price": 202
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -136
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 117
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.0,
+     "price": -112
+    },
+    {
+     "designation": "away",
+     "points": -3.0,
+     "price": -102
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.5,
+     "price": 107
+    },
+    {
+     "designation": "away",
+     "points": -2.5,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.5,
+     "price": 120
+    },
+    {
+     "designation": "away",
+     "points": -1.5,
+     "price": -137
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.0,
+     "price": 128
+    },
+    {
+     "designation": "away",
+     "points": -1.0,
+     "price": -148
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.0,
+     "price": 142
+    },
+    {
+     "designation": "away",
+     "points": 1.0,
+     "price": -166
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 204
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -248
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": -121
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": 104
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -297
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": 229
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -176
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": 145
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -164
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": 136
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -152
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 127
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -142
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": 119
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -132
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": 111
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": -113
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -105
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": -105
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -113
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": 101
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": 109
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -129
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": 116
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": -138
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865293,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;54.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 54.5,
+     "price": 185
+    },
+    {
+     "designation": "under",
+     "points": 54.5,
+     "price": -231
+    }
+   ],
+   "cutoffAt": "2026-09-14T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": 131
+    },
+    {
+     "designation": "away",
+     "price": -148
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.5,
+     "price": 101
+    },
+    {
+     "designation": "away",
+     "points": -2.5,
+     "price": -113
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 7.5,
+     "price": -262
+    },
+    {
+     "designation": "away",
+     "points": -7.5,
+     "price": 214
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 4.0,
+     "price": -153
+    },
+    {
+     "designation": "away",
+     "points": -4.0,
+     "price": 131
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -142
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.0,
+     "price": -120
+    },
+    {
+     "designation": "away",
+     "points": -3.0,
+     "price": 106
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.0,
+     "price": 107
+    },
+    {
+     "designation": "away",
+     "points": -2.0,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.5,
+     "price": 113
+    },
+    {
+     "designation": "away",
+     "points": -1.5,
+     "price": -129
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.0,
+     "price": 119
+    },
+    {
+     "designation": "away",
+     "points": -1.0,
+     "price": -138
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": 200
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -242
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": -109
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -107
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -269
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": 211
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -158
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": 131
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": -137
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": -119
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": 100
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -116
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.5,
+     "price": 105
+    },
+    {
+     "designation": "under",
+     "points": 48.5,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.0,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 49.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;49.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 49.5,
+     "price": 120
+    },
+    {
+     "designation": "under",
+     "points": 49.5,
+     "price": -144
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;50.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 50.0,
+     "price": 128
+    },
+    {
+     "designation": "under",
+     "points": 50.0,
+     "price": -153
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865289,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;54.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 54.5,
+     "price": 214
+    },
+    {
+     "designation": "under",
+     "points": 54.5,
+     "price": -273
+    }
+   ],
+   "cutoffAt": "2026-09-13T17:00:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -118
+    },
+    {
+     "designation": "away",
+     "price": 105
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.0",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.0,
+     "price": -109
+    },
+    {
+     "designation": "away",
+     "points": 1.0,
+     "price": -103
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -192
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 162
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 2.0,
+     "price": -139
+    },
+    {
+     "designation": "away",
+     "points": -2.0,
+     "price": 119
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.5,
+     "price": -131
+    },
+    {
+     "designation": "away",
+     "points": -1.5,
+     "price": 114
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;1.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 1.0,
+     "price": -122
+    },
+    {
+     "designation": "away",
+     "points": -1.0,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-1.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -1.5,
+     "price": -104
+    },
+    {
+     "designation": "away",
+     "points": 1.5,
+     "price": -109
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": 102
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": -117
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": 107
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-7.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -7.5,
+     "price": 276
+    },
+    {
+     "designation": "away",
+     "points": 7.5,
+     "price": -352
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": -102
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": -114
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.5,
+     "price": -268
+    },
+    {
+     "designation": "under",
+     "points": 38.5,
+     "price": 210
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": -147
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": -137
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -128
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": 108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -120
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": 101
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": -112
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": -107
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": 104
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": 112
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": 120
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": -143
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": 128
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -154
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;48.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 48.0,
+     "price": 137
+    },
+    {
+     "designation": "under",
+     "points": 48.0,
+     "price": -165
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865292,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;52.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 52.5,
+     "price": 215
+    },
+    {
+     "designation": "under",
+     "points": 52.5,
+     "price": -275
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -190
+    },
+    {
+     "designation": "away",
+     "price": 166
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -108
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": -104
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -329
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 261
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -162
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 139
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -154
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 134
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -131
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": 115
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": 101
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -114
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": 108
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -124
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.0,
+     "price": 114
+    },
+    {
+     "designation": "away",
+     "points": 5.0,
+     "price": -132
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.5,
+     "price": 236
+    },
+    {
+     "designation": "away",
+     "points": 10.5,
+     "price": -293
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": false,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": -105
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": -111
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;37.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 37.5,
+     "price": -269
+    },
+    {
+     "designation": "under",
+     "points": 37.5,
+     "price": 211
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": -151
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": 126
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": -141
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": 118
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": -131
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": 110
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": -123
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": 103
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -114
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": -104
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.0,
+     "price": 102
+    },
+    {
+     "designation": "under",
+     "points": 45.0,
+     "price": -121
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;45.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 45.5,
+     "price": 109
+    },
+    {
+     "designation": "under",
+     "points": 45.5,
+     "price": -130
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.0,
+     "price": 117
+    },
+    {
+     "designation": "under",
+     "points": 46.0,
+     "price": -139
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;46.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 46.5,
+     "price": 125
+    },
+    {
+     "designation": "under",
+     "points": 46.5,
+     "price": -150
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.0",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.0,
+     "price": 133
+    },
+    {
+     "designation": "under",
+     "points": 47.0,
+     "price": -160
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1630865288,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;51.5",
+   "isAlternate": true,
+   "status": "open",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 51.5,
+     "price": 215
+    },
+    {
+     "designation": "under",
+     "points": 51.5,
+     "price": -274
+    }
+   ],
+   "cutoffAt": "2026-09-10T00:20:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "price": 354
+    },
+    {
+     "designation": "away",
+     "price": -473
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;9.5",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 9.5,
+     "price": -116
+    },
+    {
+     "designation": "away",
+     "points": -9.5,
+     "price": -105
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;10.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 10.0,
+     "price": -131
+    },
+    {
+     "designation": "away",
+     "points": -10.0,
+     "price": 104
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;9.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 9.0,
+     "price": -111
+    },
+    {
+     "designation": "away",
+     "points": -9.0,
+     "price": -113
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.0",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.0,
+     "price": -100
+    },
+    {
+     "designation": "under",
+     "points": 44.0,
+     "price": -125
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.5,
+     "price": -106
+    },
+    {
+     "designation": "under",
+     "points": 43.5,
+     "price": -123
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;44.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 44.5,
+     "price": 101
+    },
+    {
+     "designation": "under",
+     "points": 44.5,
+     "price": -132
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 1,
+   "key": "s;1;s;13.0",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 13.0,
+     "price": -122
+    },
+    {
+     "designation": "away",
+     "points": -13.0,
+     "price": -101
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 1,
+   "key": "s;1;s;13.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 13.5,
+     "price": -220
+    },
+    {
+     "designation": "away",
+     "points": -13.5,
+     "price": 163
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "spread",
+   "period": 1,
+   "key": "s;1;s;12.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 12.5,
+     "price": 143
+    },
+    {
+     "designation": "away",
+     "points": -12.5,
+     "price": -188
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 1,
+   "key": "s;1;ou;26.0",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 26.0,
+     "price": 108
+    },
+    {
+     "designation": "under",
+     "points": 26.0,
+     "price": -134
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 1,
+   "key": "s;1;ou;25.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 25.5,
+     "price": -144
+    },
+    {
+     "designation": "under",
+     "points": 25.5,
+     "price": 112
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1634219711,
+   "type": "total",
+   "period": 1,
+   "key": "s;1;ou;26.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 26.5,
+     "price": 150
+    },
+    {
+     "designation": "under",
+     "points": 26.5,
+     "price": -199
+    }
+   ],
+   "cutoffAt": "2026-08-24T05:00:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "moneyline",
+   "period": 0,
+   "key": "s;0;m",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "price": -204
+    },
+    {
+     "designation": "away",
+     "price": 177
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.5",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.5,
+     "price": -115
+    },
+    {
+     "designation": "away",
+     "points": 3.5,
+     "price": 102
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;3.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": 3.5,
+     "price": -333
+    },
+    {
+     "designation": "away",
+     "points": -3.5,
+     "price": 264
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.0,
+     "price": -175
+    },
+    {
+     "designation": "away",
+     "points": 2.0,
+     "price": 149
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-2.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -2.5,
+     "price": -163
+    },
+    {
+     "designation": "away",
+     "points": 2.5,
+     "price": 141
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-3.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -3.0,
+     "price": -140
+    },
+    {
+     "designation": "away",
+     "points": 3.0,
+     "price": 123
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.0,
+     "price": -107
+    },
+    {
+     "designation": "away",
+     "points": 4.0,
+     "price": -106
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-4.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -4.5,
+     "price": 100
+    },
+    {
+     "designation": "away",
+     "points": 4.5,
+     "price": -115
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-5.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -5.0,
+     "price": 105
+    },
+    {
+     "designation": "away",
+     "points": 5.0,
+     "price": -122
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "spread",
+   "period": 0,
+   "key": "s;0;s;-10.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "home",
+     "points": -10.5,
+     "price": 231
+    },
+    {
+     "designation": "away",
+     "points": 10.5,
+     "price": -285
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.5",
+   "isAlternate": false,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.5,
+     "price": -108
+    },
+    {
+     "designation": "under",
+     "points": 40.5,
+     "price": -108
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;33.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 33.5,
+     "price": -260
+    },
+    {
+     "designation": "under",
+     "points": 33.5,
+     "price": 205
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.0,
+     "price": -156
+    },
+    {
+     "designation": "under",
+     "points": 38.0,
+     "price": 130
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;38.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 38.5,
+     "price": -146
+    },
+    {
+     "designation": "under",
+     "points": 38.5,
+     "price": 122
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.0,
+     "price": -136
+    },
+    {
+     "designation": "under",
+     "points": 39.0,
+     "price": 114
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;39.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 39.5,
+     "price": -127
+    },
+    {
+     "designation": "under",
+     "points": 39.5,
+     "price": 107
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;40.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 40.0,
+     "price": -118
+    },
+    {
+     "designation": "under",
+     "points": 40.0,
+     "price": -101
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.0,
+     "price": -101
+    },
+    {
+     "designation": "under",
+     "points": 41.0,
+     "price": -117
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;41.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 41.5,
+     "price": 106
+    },
+    {
+     "designation": "under",
+     "points": 41.5,
+     "price": -126
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.0,
+     "price": 113
+    },
+    {
+     "designation": "under",
+     "points": 42.0,
+     "price": -135
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;42.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 42.5,
+     "price": 121
+    },
+    {
+     "designation": "under",
+     "points": 42.5,
+     "price": -145
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;43.0",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 43.0,
+     "price": 129
+    },
+    {
+     "designation": "under",
+     "points": 43.0,
+     "price": -155
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  },
+  {
+   "matchupId": 1630889900,
+   "type": "total",
+   "period": 0,
+   "key": "s;0;ou;47.5",
+   "isAlternate": true,
+   "status": "closed",
+   "prices": [
+    {
+     "designation": "over",
+     "points": 47.5,
+     "price": 208
+    },
+    {
+     "designation": "under",
+     "points": 47.5,
+     "price": -264
+    }
+   ],
+   "cutoffAt": "2026-09-13T20:25:00+00:00"
+  }
+ ]
+}
