@@ -108,6 +108,7 @@ class Candidate:
 class Plan:
     send: list[Candidate] = field(default_factory=list)          # individual messages
     digest: list[Candidate] = field(default_factory=list)        # overflow → one message
+    ops: list[Candidate] = field(default_factory=list)           # OPS notices → one grouped message
     flush: list[dict[str, Any]] = field(default_factory=list)    # queued items released this run
     queued: list[Candidate] = field(default_factory=list)        # parked for quiet hours
     skipped: list[str] = field(default_factory=list)             # already sent
@@ -174,6 +175,24 @@ def in_quiet_hours(now: datetime) -> bool:
 
 def _slug(s: str, n: int = 40) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")[:n] or "x"
+
+
+# Degradations that are expected or already reported elsewhere: the off-season game window,
+# optional API keys, books disabled via BOOK_*_ENABLED, and a book returning 0 lines (the
+# volume check pages once, edge-triggered, when a book goes dark while peers report). They
+# stay on the Status page and never page Telegram.
+OPS_EXPECTED_SUBSTRINGS = ("games within window", "api key missing", "api_key missing", "disabled via",
+                           "returned 0 lines")
+
+
+def _ops_expected(reason: str) -> bool:
+    r = (reason or "").lower()
+    return any(s in r for s in OPS_EXPECTED_SUBSTRINGS)
+
+
+def _stable(reason: str) -> str:
+    """Drop numbers so a count that changes run to run does not mint a new alert key."""
+    return re.sub(r"\d+", "", reason or "")
 
 
 def _dt(v: Any) -> Optional[datetime]:
@@ -628,15 +647,18 @@ def ops_candidates(
                                  record={"family": "ops", "sport": sport, "game_id": game_id, "run_id": run_id}))
 
     for d in getattr(ctx, "degradations", []) or []:
-        if d.severity not in ("warn", "error"):
+        if d.severity not in ("warn", "error") or _ops_expected(d.reason):
             continue
-        add(f"degr|{d.component}|{_slug(d.reason)}|{day}", "", format_ops(f"Degradation [{d.severity}] {d.component}", d.reason))
+        add(f"degr|{d.component}|{_slug(_stable(d.reason))}|{day}", "",
+            format_ops(f"Degradation [{d.severity}] {d.component}", d.reason))
     for ts, what in ((heartbeat_ts, "CF cron heartbeat"), (prev_meta_ts, "board meta")):
         if ts is not None and (now - ts) > timedelta(hours=STALE_HOURS):
             add(f"heartbeat|{_slug(what)}|{day}", "", format_ops(f"{what} stale", f"last seen {utc_iso(ts)} (> {STALE_HOURS:.0f} h)"))
     names_by_book: dict[str, list[str]] = {}
     for u in getattr(ctx, "unresolved_names", []) or []:
         s = str(u)
+        if s.endswith(":no-schedule-match"):
+            continue   # a book listing a game outside the FBS/NFL schedule (FCS etc.) is expected
         book = s.split(":", 1)[0] if ":" in s and not s.startswith(("nfl:", "cfb:")) else "schedule"
         names_by_book.setdefault(book, []).append(s)
     for book, names in sorted(names_by_book.items()):
@@ -725,7 +747,10 @@ def plan(candidates: Sequence[Candidate], alerts: dict, tg: dict, now: datetime,
             p.queued.append(c)
             continue
         p.send.append(c)
-    budget = max(1, cfg.max_per_run - (1 if p.flush else 0))
+    # OPS notices are health chatter, not bets: one grouped message per run.
+    p.ops = [c for c in p.send if c.family == "ops"]
+    p.send = [c for c in p.send if c.family != "ops"]
+    budget = max(1, cfg.max_per_run - (1 if p.flush else 0) - (1 if p.ops else 0))
     if len(p.send) > budget:
         p.digest = p.send[budget - 1:]
         p.send = p.send[:budget - 1]
@@ -850,6 +875,8 @@ def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config) 
         once(c)
     if p.digest:
         _send_group("Alert digest (run cap)", p.digest, sender, alerts, now, outcome, cfg)
+    if p.ops:
+        _send_group("Ops notices", p.ops, sender, alerts, now, outcome, cfg)
     pstate.prune_alert_records(alerts)
     return outcome
 

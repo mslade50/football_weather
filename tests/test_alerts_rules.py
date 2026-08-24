@@ -354,7 +354,7 @@ def test_ops_candidates_keys():
     c = A.ops_candidates(ctx, cards, alerts, NOW, heartbeat_ts=NOW - timedelta(hours=21), prev_meta_ts=NOW - timedelta(hours=1))
     keys = sorted(x.key for x in c)
     assert keys == sorted([
-        "degr|weather|open-meteo-503-for-3-games|2026-09-18",
+        "degr|weather|open-meteo-for-games|2026-09-18",   # counts stripped → stable across runs
         "heartbeat|cf-cron-heartbeat|2026-09-18",
         "names|betcris|2026-09-18",
         f"stadium|{GID}",

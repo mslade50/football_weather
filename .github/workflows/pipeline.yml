@@ -81,7 +81,14 @@ env:
   SPORT: ${{ inputs.sport || 'all' }}
   SCOPE: ${{ inputs.scope || 'full' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
+  # Per-book kill switches (repo variables; default on). Disabled books are skipped
+  # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}
+  BOOK_PINNACLE_ENABLED: ${{ vars.BOOK_PINNACLE_ENABLED || '1' }}
+  BOOK_BETCRIS_ENABLED: ${{ vars.BOOK_BETCRIS_ENABLED || '1' }}
+  BOOK_FANDUEL_ENABLED: ${{ vars.BOOK_FANDUEL_ENABLED || '1' }}
+  BOOK_KALSHI_ENABLED: ${{ vars.BOOK_KALSHI_ENABLED || '1' }}
+  BOOK_NOVIG_ENABLED: ${{ vars.BOOK_NOVIG_ENABLED || '1' }}
   BOOK_PROPHETX_ENABLED: ${{ vars.BOOK_PROPHETX_ENABLED || '1' }}
   # Model driving edges/alerts (ARCH §7.5). Stays v1 until the calibrate promotion rule is met;
   # pipeline/model/config.py falls back to v1 on any unknown value.

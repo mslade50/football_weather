@@ -57,6 +57,7 @@ import dataclasses
 import importlib
 import json
 import logging
+import os
 import re
 import shutil
 import sys
@@ -159,8 +160,16 @@ def books_for_scope(scope: str, books: Sequence[str] | None = None) -> list[str]
         unknown = [b for b in wanted if b not in BOOK_REGISTRY]
         if unknown:
             raise ValueError(f"unknown book(s): {', '.join(unknown)}")
-        return wanted if scope == "odds" else [b for b in wanted if b in pool]
-    return list(pool)
+        chosen = wanted if scope == "odds" else [b for b in wanted if b in pool]
+    else:
+        chosen = list(pool)
+    # BOOK_<NAME>_ENABLED=0 (repo variable / .env) drops a book from the run entirely:
+    # no scrape, no "returned 0 lines" degradation, not judged by the volume check.
+    return [b for b in chosen if book_enabled(b)]
+
+
+def book_enabled(name: str) -> bool:
+    return os.environ.get(f"BOOK_{name.upper()}_ENABLED", "1").strip() != "0"
 
 
 # ---- stages ---------------------------------------------------------------------
