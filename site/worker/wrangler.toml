@@ -32,7 +32,7 @@ bucket_name = "football-board"
 [[d1_databases]]
 binding = "DB"
 database_name = "football-odds"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "2626784f-62cc-44f2-8c9c-fcbec7de5f73"
 migrations_dir = "migrations"
 
 [vars]
