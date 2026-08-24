@@ -27,7 +27,8 @@ name: pipeline
 #
 # Requires GitHub secrets: CFBD_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
 # CLOUDFLARE_API_TOKEN (Workers Scripts:Edit, R2:Edit, D1:Edit), CF_ACCOUNT_ID.
-# Optional: PROPHETX_*; BOOK_BETONLINE_ENABLED=0 (repo variable) skips Playwright.
+# Optional: PROPHETX_*; BOOK_BETONLINE_ENABLED=0 (repo variable) skips Playwright;
+#   BOOK_PROPHETX_ENABLED=0 (repo variable) skips ProphetX (sandbox-only creds).
 
 on:
   # UTC backstop ~= old 05:15 / 10:00 / 16:20 ET cadence, off-the-minute (GitHub
@@ -81,6 +82,7 @@ env:
   SCOPE: ${{ inputs.scope || 'full' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}
+  BOOK_PROPHETX_ENABLED: ${{ vars.BOOK_PROPHETX_ENABLED || '1' }}
   # Model driving edges/alerts (ARCH §7.5). Stays v1 until the calibrate promotion rule is met;
   # pipeline/model/config.py falls back to v1 on any unknown value.
   ALERT_MODEL: ${{ vars.ALERT_MODEL || 'v1' }}
