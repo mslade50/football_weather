@@ -9,6 +9,7 @@ pure httpx + BS4. Parsing lives in ``pipeline.odds.parsers.betcris``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://lines.bookmaker.eu"
 FOOTBALL_PATH = "/en/sports/football/{slug}/"
+FETCH_TIMEOUT_S = 60.0
+FETCH_ATTEMPTS = 3
+FETCH_BACKOFF_S = 2.0
 
 HEADERS = {
     "User-Agent": (
@@ -57,17 +61,14 @@ class BetcrisScraper(BaseScraper):
             base_url=BASE_URL,
             headers=HEADERS,
             follow_redirects=True,
-            timeout=20.0,
+            # The college-football page is large; GitHub runners saw read timeouts at 20 s.
+            timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0),
         ) as client:
             for slug in PAGES[sport]:
                 path = FOOTBALL_PATH.format(slug=slug)
-                try:
-                    resp = await client.get(path)
-                    resp.raise_for_status()
-                except Exception as e:
-                    logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch failed: {e}")
+                html = await self._get_with_retry(client, slug, path)
+                if html is None:
                     continue
-                html = resp.text
                 if self.raw_store is not None:
                     self.raw_store.put(f"{self.BOOK_NAME}_{slug}", html, url=f"{BASE_URL}{path}", ext="html")
                 if "oddsTable" not in html:
@@ -75,6 +76,21 @@ class BetcrisScraper(BaseScraper):
                     continue
                 pages[slug] = html
         return pages
+
+    async def _get_with_retry(self, client: httpx.AsyncClient, slug: str, path: str) -> str | None:
+        """Per-page retry: a single timed-out page must not blank the whole sport."""
+        for attempt in range(1, FETCH_ATTEMPTS + 1):
+            try:
+                resp = await client.get(path)
+                resp.raise_for_status()
+                return resp.text
+            except Exception as e:  # noqa: BLE001
+                # str(httpx.ReadTimeout) is empty — always name the exception type.
+                logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
+                               f"{type(e).__name__}: {e}")
+                if attempt < FETCH_ATTEMPTS:
+                    await asyncio.sleep(FETCH_BACKOFF_S * attempt)
+        return None
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
         if sport not in PAGES:

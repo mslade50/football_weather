@@ -106,8 +106,23 @@ def test_backtest_exports_d1_and_runs_module(bt: str):
     cmd = next(ln for ln in run.splitlines() if "python -m pipeline.backtest" in ln)
     assert "--freeze" not in cmd          # state stays read-only; pipeline.yml freezes closings
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in run
-    mirror = _step(bt, "Mirror snapshots from R2 (optional, boto3)")
-    assert 'Prefix="snapshots/"' in mirror and "R2_ACCESS_KEY_ID" in mirror and "exit 0" in mirror
+    mirror = _step(bt, "Mirror snapshots from R2 (wrangler, read-only)")
+    # keys rebuilt from the D1 export (game_id + run_id), fetched with the pipeline.yml get loop
+    assert 'snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json' in mirror
+    assert 'for t in ("weather_history", "odds_history"):' in mirror
+    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/$key" --file="$DEST" --remote 2>&1' in mirror
+    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in mirror
+    assert "exit 1" in mirror and "::error::R2 snapshot fetch failed" in mirror
+    assert "SNAPSHOT_MAX" in mirror and 'SNAPSHOT_MAX: "120"' in bt
+    assert "continue-on-error" not in mirror and "exit 0" not in mirror
+
+
+def test_backtest_and_calibrate_use_no_s3_keys(bt: str, cal: str):
+    """R2 access is wrangler-only (CLOUDFLARE_API_TOKEN + CF_ACCOUNT_ID); the S3 keys do not exist."""
+    for text in (bt, cal):
+        for token in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "boto3", "r2.cloudflarestorage.com"):
+            assert token not in text, token
+        assert "npx --yes wrangler@4 r2 object get" in text
     d1 = _step(bt, "Archive backtest rows to D1 (closings / stadium_results)")
     assert "hashFiles('data/d1_backtest.sql') != ''" in d1
     assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_backtest.sql' in d1
@@ -133,7 +148,7 @@ def test_backtest_sends_clv_digest_via_alerts_module(bt: str):
 
 
 def test_backtest_step_order_and_failure_ping(bt: str):
-    order = ["Fetch board state from R2 (read-only)", "Export D1 tables", "Mirror snapshots from R2 (optional, boto3)",
+    order = ["Fetch board state from R2 (read-only)", "Export D1 tables", "Mirror snapshots from R2 (wrangler, read-only)",
              "Run backtest", "Push backtest to R2", "Archive backtest rows to D1 (closings / stadium_results)",
              "Weekly CLV digest", "Upload backtest artifacts", "Telegram on failure"]
     idx = [bt.index(f"- name: {n}\n") for n in order]

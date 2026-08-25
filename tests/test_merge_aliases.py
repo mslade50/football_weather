@@ -106,6 +106,25 @@ def test_shared_abbreviation_resolves_to_highest_level(raw, expected):
     assert normalize_team("cfb", raw, "kalshi") == expected
 
 
+@pytest.mark.parametrize("book,raw,expected", [
+    ("fanduel", "Long Island", "long-island-university"),
+    ("kalshi", "LIU", "long-island-university"),
+    ("novig", "Long Island University", "long-island-university"),
+    ("novig", "Long Island University Sharks", "long-island-university"),
+    ("fanduel", "UTRGV", "ut-rio-grande-valley"),
+    ("novig", "UT Rio Grande Valley", "ut-rio-grande-valley"),
+    ("novig", "UT Rio Grande Valley Vaqueros", "ut-rio-grande-valley"),
+    ("betcris", "UT Rio Grande", "ut-rio-grande-valley"),
+    ("fanduel", "West Florida", "west-florida"),
+    ("kalshi", "UWF", "west-florida"),
+    ("novig", "West Florida Argonauts", "west-florida"),
+])
+def test_new_fcs_programs_resolve_without_fuzzy(book, raw, expected):
+    # LIU (NEC), UTRGV (Southland, new 2025) and West Florida (UAC from 2026) paged OPS daily as unresolved
+    assert normalize_team("cfb", raw, book, fuzzy=False) == expected
+    assert unresolved_names("cfb") == []
+
+
 def test_ambiguous_city_is_unresolved():
     assert normalize_team("nfl", "Los Angeles", "x") is None
     assert normalize_team("nfl", "New York", "x") is None
@@ -299,6 +318,79 @@ def test_openers_ignore_alternates_and_provisional_rows(tmp_path: Path):
     assert opener_for(res.openers, gid, "total", "kalshi")["line"] == 47.5
     assert not (tmp_path / "openers.json").exists()
     assert res.unmatched and res.unresolved == ["cfb|kalshi|Nobody"]
+
+
+def test_candidate_team_ids_exposes_shared_aliases():
+    assert merge_mod.candidate_team_ids("cfb", "MER") == ["mercer", "merchant-marine", "mercyhurst", "merrimack"]
+    assert merge_mod.candidate_team_ids("cfb", "DEL") == ["delaware", "delta-state"]
+    assert merge_mod.candidate_team_ids("cfb", "Ohio State") == ["ohio-state"]
+    assert merge_mod.candidate_team_ids("cfb", "Zzzz Polytechnic") == []
+
+
+def test_ambiguous_abbreviation_settled_by_schedule():
+    """Kalshi 'MER @ DEL': teams.py alone returns None for MER (Mercer / Merrimack /
+    Mercyhurst, all FCS); the schedule says Merrimack visits Delaware this week."""
+    assert normalize_team("cfb", "MER", "kalshi") is None
+    reset_unresolved("cfb")
+    games = [_game("cfb", "merrimack", "delaware"), _game("cfb", "towson", "mercer", kick=KICK + timedelta(days=1))]
+    pid = "cfb:raw:2026-09-05T19:30:MER@DEL"
+    lines = [_ln(pid, "kalshi", "ml", "away", 250, prob=0.28), _ln(pid, "kalshi", "ml", "home", -300, prob=0.75)]
+    res = canonicalize("cfb", lines, games)
+    assert {ln.game_id for ln in res.lines} == {games[0].game_id}
+    assert {ln.side for ln in res.lines} == {"away", "home"}      # sides kept: MER is the away side on both
+    assert res.unmatched == [] and res.unresolved == []
+    assert unresolved_names("cfb") == []                          # never registered as unresolved
+    # swapped listing (DEL @ MER) still lands on the same game, flipped
+    res2 = canonicalize("cfb", [_ln("cfb:raw:2026-09-05T19:30:DEL@MER", "kalshi", "ml", "away", -300)], games)
+    assert [(ln.game_id, ln.side) for ln in res2.lines] == [(games[0].game_id, "home")]
+
+
+def test_ambiguous_abbreviation_stays_unresolved_without_schedule_support():
+    # Delaware plays this week, but not any MER candidate -> unresolved + registered, row dropped
+    games = [_game("cfb", "towson", "delaware")]
+    pid = "cfb:raw:2026-09-05T19:30:MER@DEL"
+    res = canonicalize("cfb", [_ln(pid, "kalshi", "ml", "away", 250)], games)
+    assert res.lines == [] and res.unmatched == [f"kalshi|{pid}|no-schedule-match"]
+    assert res.unresolved == ["cfb|kalshi|MER"]
+    # the resolved side has no schedule game in the window at all (FCS-vs-FCS listing
+    # under a division=fbs schedule, or a meeting a week away): dropped quietly, never
+    # registered — this is the live Kalshi case (PRE@MER, ETAM@MER = Mercer home games)
+    reset_unresolved("cfb")
+    far = [_game("cfb", "merrimack", "delaware", kick=KICK + timedelta(days=7))]
+    res = canonicalize("cfb", [_ln(pid, "kalshi", "ml", "away", 250)], far)
+    assert res.lines == [] and res.unmatched == [f"kalshi|{pid}|no-schedule-match"]
+    assert res.unresolved == [] and unresolved_names("cfb") == []
+    res = canonicalize("cfb", [_ln("cfb:raw:2026-09-05:PRE@MER", "kalshi", "ml", "away", 250)], games)
+    assert res.lines == [] and res.unresolved == [] and unresolved_names("cfb") == []
+    # two candidates both meet Delaware inside the window -> still ambiguous
+    reset_unresolved("cfb")
+    both = [_game("cfb", "merrimack", "delaware"), _game("cfb", "delaware", "mercer", kick=KICK + timedelta(hours=6), week=2)]
+    res = canonicalize("cfb", [_ln(pid, "kalshi", "ml", "away", 250)], both)
+    assert res.lines == [] and res.unresolved == ["cfb|kalshi|MER"]
+    # both sides ambiguous: nothing to anchor on
+    reset_unresolved("cfb")
+    res = canonicalize("cfb", [_ln("cfb:raw:2026-09-05T19:30:MER@MER", "kalshi", "ml", "away", 250)], games)
+    assert res.lines == [] and res.unresolved == ["cfb|kalshi|MER"]
+
+
+def test_horizon_schedule_matches_the_meeting_the_stamp_points_at():
+    """The odds horizon hands the matcher several weeks at once: an NFL divisional pair
+    meets twice, and a row stamped for the later meeting must land on that game_id
+    (never on the earlier one), with the earlier meeting's openers left untouched."""
+    first = _game("nfl", "buf", "kc", kick=KICK, week=1)
+    rematch = _game("nfl", "buf", "kc", kick=KICK + timedelta(days=28), week=5)
+    stamp = (KICK + timedelta(days=28)).strftime("%Y%m%d")
+    lines = [
+        _ln(f"nfl:raw:{stamp}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "under", -110, 44.5, sport="nfl"),
+        _ln(f"nfl:raw:{KICK.strftime('%Y%m%d')}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "under", -110, 47.0, sport="nfl"),
+    ]
+    openers = state_mod.migrate(None, "openers")
+    res = merge_odds("nfl", [first, rematch], lines, openers=openers, now=KICK - timedelta(days=20), save=False)
+    by_game = {ln.game_id: ln.line for ln in res.lines}
+    assert by_game == {rematch.game_id: 44.5, first.game_id: 47.0}
+    assert res.unmatched == []
+    assert openers["openers"][f"{rematch.game_id}|total|under|betonline"]["line"] == 44.5
+    assert openers["openers"][f"{first.game_id}|total|under|betonline"]["line"] == 47.0
 
 
 def test_merge_result_from_scraper_registry():

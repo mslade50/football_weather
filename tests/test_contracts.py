@@ -106,6 +106,8 @@ def test_weather_forecast() -> None:
     f = WeatherForecast(game_id="g", source="hrrr", wind_fg=12.0, hourly=[p])
     assert f.hourly[0].wind == 12.0
     assert f.to_dict()["hourly"][0]["wind"] == 12.0
+    assert f.precip_prob_ens is None and "precip_prob_ens" in f.to_dict()
+    assert WeatherForecast(game_id="g", source="hrrr", precip_prob_ens=0.35).precip_prob_ens == 0.35
     with pytest.raises(ValueError):
         WeatherForecast(game_id="g", source="x", roof_state="leaky")
 

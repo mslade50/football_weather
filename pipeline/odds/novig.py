@@ -4,6 +4,11 @@ Transport copied from ``golf_scraping/scrapers/novig.py`` (``_gql`` POST to
 ``api.novig.us/v1/graphql`` with Origin/Referer headers). Football changes:
 ``league _in [NFL | NCAAF]``, ``type Game``, markets ``MONEY/SPREAD/TOTAL``.
 Parsing lives in ``pipeline/odds/parsers/novig.py``.
+
+Transport: httpx first; on a 403 (datacenter-IP bot block, e.g. GitHub Actions)
+the POST is retried through curl_cffi with Chrome TLS impersonation
+(``pipeline.odds.base.fetch_json_with_fallback``). ``BOOK_NOVIG_TRANSPORT``
+= ``auto`` (default) | ``httpx`` | ``curl``.
 """
 
 from __future__ import annotations
@@ -17,23 +22,31 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, browser_headers, fetch_json_with_fallback
 from pipeline.odds.parsers import novig as novig_parser
 
 logger = logging.getLogger(__name__)
 
 GRAPHQL_URL = "https://api.novig.us/v1/graphql"
+SITE_ORIGIN = "https://novig.com"
 
+# httpx path (works from residential IPs as-is).
 HEADERS = {
     "Content-Type": "application/json",
-    "Origin": "https://novig.com",
-    "Referer": "https://novig.com/",
+    "Origin": SITE_ORIGIN,
+    "Referer": f"{SITE_ORIGIN}/",
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/135.0.0.0 Safari/537.36"
     ),
 }
+
+# curl_cffi path: full Chrome XHR header set (api.novig.us <- novig.com is cross-site).
+CURL_HEADERS = browser_headers(
+    origin=SITE_ORIGIN, referer=f"{SITE_ORIGIN}/", accept="application/json", fetch_site="cross-site",
+    extra={"Content-Type": "application/json"},
+)
 
 GAMES_QUERY = """query($leagues: [String!]) {
   event(
@@ -67,19 +80,22 @@ class NovigScraper(BaseScraper):
 
     def __init__(self, headless: bool = True, timeout: float = 30.0) -> None:
         self.timeout = timeout
+        self.last_transport: str | None = None
 
-    async def _gql(self, client: httpx.AsyncClient, query: str, variables: dict | None = None) -> dict:
+    async def _gql(self, client: httpx.AsyncClient | None, query: str, variables: dict | None = None) -> dict:
         payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
-        resp = await client.post(GRAPHQL_URL, headers=HEADERS, json=payload)
-        resp.raise_for_status()
-        return resp.json()
+        res = await fetch_json_with_fallback(
+            GRAPHQL_URL, method="POST", headers=HEADERS, curl_headers=CURL_HEADERS, json_body=payload,
+            timeout=self.timeout, label="novig", logger=logger, client=client,
+        )
+        self.last_transport = res.transport
+        return res.payload
 
     async def fetch_raw(self, sport: str) -> dict:
         league = novig_parser.LEAGUE_BY_SPORT[sport]
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            data = await self._gql(client, GAMES_QUERY, {"leagues": [league]})
+        data = await self._gql(None, GAMES_QUERY, {"leagues": [league]})  # helper owns the httpx client
         if data.get("errors"):
             raise RuntimeError(f"Novig GraphQL errors: {data['errors']}")
         return data
@@ -104,8 +120,11 @@ class NovigScraper(BaseScraper):
             lines = [ln for ln in lines if ln.market == market]
         n_events = len(((data.get("data") or {}).get("event")) or [])
         n_games = len({ln.game_id for ln in lines})
-        logger.info(f"[novig] {sport}: {n_events} events, {n_games} games with prices, {len(lines)} lines")
+        logger.info(
+            f"[novig] {sport}: {n_events} events, {n_games} games with prices, {len(lines)} lines "
+            f"(via {self.last_transport})"
+        )
         return lines
 
 
-__all__ = ["NovigScraper", "GRAPHQL_URL", "GAMES_QUERY", "HEADERS"]
+__all__ = ["NovigScraper", "GRAPHQL_URL", "GAMES_QUERY", "HEADERS", "CURL_HEADERS"]

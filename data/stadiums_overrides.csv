@@ -5,3 +5,5 @@ estadio-banorte,elevation_m,2200,Mexico City altitude drives alt component
 highmark-stadium,lat,42.773045,"new Highmark Stadium (opens 2026, OSM way/1339149058) is 448 m west of the legacy point; centroid adopted"
 highmark-stadium,lon,-78.792195,"new Highmark Stadium (opens 2026, OSM way/1339149058) is 448 m west of the legacy point; centroid adopted"
 highmark-stadium,needs_review,0,"lat/lon distance to OSM polygon checked manually (new stadium across the street)"
+aviva-stadium,orientation_deg,164.5,pitch runs N-S (OSM rugby pitch way/228122478); stadium footprint MRR wrongly gives E-W
+aviva-stadium,orientation_src,manual,pin against build_stadiums rebuild (no american_football pitch tagged in OSM)

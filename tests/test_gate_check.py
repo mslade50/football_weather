@@ -51,6 +51,23 @@ def test_decide_naive_kickoffs_treated_as_utc():
     assert G.decide([NOW.replace(tzinfo=None) + timedelta(days=1)], NOW) == "scrape"
 
 
+def test_horizon_is_the_odds_horizon_and_agrees_with_build():
+    """gate_check cannot import pipeline.build (httpx-only job), so the constant is
+    duplicated: keep them equal or the gate skips days the build would have used."""
+    from pipeline.build import ODDS_WINDOW_AFTER_D, WINDOW_AFTER_D
+
+    assert G.HORIZON_DAYS == ODDS_WINDOW_AFTER_D == 45
+    assert G.HORIZON_DAYS > WINDOW_AFTER_D
+
+
+def test_decide_scrapes_preseason_when_week1_lines_are_on_the_odds_horizon():
+    preseason = datetime(2026, 8, 24, 15, 0, tzinfo=UTC)
+    week1 = datetime(2026, 9, 11, 0, 20, tzinfo=UTC)      # 17 days out: outside the weather window
+    assert G.decide([week1], preseason) == "scrape"
+    assert G.decide([week1], preseason, horizon_days=10) == "skip"
+    assert G.decide([preseason + timedelta(days=G.HORIZON_DAYS + 1)], preseason) == "skip"
+
+
 # ---- parsers ----------------------------------------------------------------------
 
 def test_parse_nflverse_kickoffs_filters_season_and_converts_et():

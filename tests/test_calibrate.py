@@ -91,6 +91,25 @@ def test_row_from_dict_flat_and_gamecard_shapes():
     assert CAL.row_from_dict({"sport": "mlb", "wind_fg": 1}) is None
 
 
+def test_v1_scores_with_run_month_not_game_month():
+    """v1 rain suppression keys on the RUN month (impact.compute_impact_v1): an October game
+    forecast by a September run scores rain=0. Sources: explicit column, weather.fetched_at,
+    the backtest's src_forecast snapshot stamp, kickoff - lead; else the game month."""
+    base = {"sport": "cfb", "season": 2025, "week": 6, "kickoff_utc": "2025-10-04T20:00:00Z", "wind_fg": 5.0,
+            "temp_fg": 60.0, "rain_fg": 8.0, "total_open": 50.0, "total_close": 48.0}
+    game_only = CAL.row_from_dict(base)
+    assert game_only.month == 10 and game_only.run_month is None
+    assert CAL._v1_pcts(game_only)[0] == pytest.approx(-3.0)          # fallback: game month -> rain tier 3.0
+    snap = CAL.row_from_dict({**base, "src_forecast": "snapshot:2025-09-28T12:17:00Z"})
+    assert snap.run_month == 9 and CAL._v1_pcts(snap)[0] == 0.0       # September run -> rain suppressed
+    assert CAL.row_from_dict({**base, "lead_fc": 96.0}).run_month == 9     # Oct 4 kickoff - 4 d = Sep 30
+    assert CAL.row_from_dict({**base, "lead_fc": 6.0}).run_month == 10
+    assert CAL.row_from_dict({**base, "weather": {"fetched_at": "2025-09-29T09:17:00Z"}}).run_month == 9
+    assert CAL.row_from_dict({**base, "run_month": 9, "src_forecast": "snapshot:2025-10-03T12:00:00Z"}).run_month == 9
+    assert CAL.row_from_dict({**base, "commit_date": "2025-09-30"}).run_month == 9
+    assert CAL.row_from_dict({**base, "src_forecast": "d1:games"}).run_month is None
+
+
 def test_load_rows_json_and_csv(tmp_path: Path):
     rows = synth_rows(12, weeks=2)
     (tmp_path / "bt.json").write_text(json.dumps({"games": rows}), encoding="utf-8")

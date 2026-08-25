@@ -220,6 +220,7 @@ lafayette,cfb,Lafayette,LAF,fisher-field,53.94,Patriot,fcs,Lafayette|LAF|Lafayet
 lamar,cfb,Lamar,LAM,provost-umphrey-stadium,69.7,Southland,fcs,Lamar|LAM|Lamar Cardinals
 lehigh,cfb,Lehigh,LEH,goodman-stadium,54.29,Patriot,fcs,Lehigh|LEH|Lehigh Mountain Hawks
 lindenwood,cfb,Lindenwood,LIN,hunter-stadium,56.85,Big South-OVC,fcs,Lindenwood|LIN|Lindenwood Lions
+long-island-university,cfb,Long Island University,LIU,bethpage-federal-credit-union-stadium,54.08,NEC,fcs,Long Island University|LIU|Long Island|LIU Sharks|Long Island Sharks|Long Island University Sharks|Long Island U
 maine,cfb,Maine,MAINE,alfond-stadium,47.2,CAA,fcs,Maine|MAINE|Maine Black Bears
 marist,cfb,Marist,MRST,leonidoff-field,52.79,Pioneer,fcs,Marist|MRST|Marist Red Foxes
 mcneese-state,cfb,McNeese State,MCNS,cowboy-stadium,69.38,Southland,fcs,McNeese State|MCNS|McNeese|McNeese State Cowboys
@@ -280,12 +281,14 @@ texas-southern,cfb,Texas Southern,TXSO,bbva-compass-stadium,70.18,SWAC,fcs,Texas
 towson,cfb,Towson,TOWS,johnny-unitas-stadium,55.68,CAA,fcs,Towson|TOWS|Towson Tigers
 uc-davis,cfb,UC Davis,UCD,aggie-stadium-davis,62.21,Big Sky,fcs,UC Davis|UCD|California-Davis|UC Davis Aggies
 ut-martin,cfb,UT Martin,UTM,graham-stadium,60.73,Big South-OVC,fcs,UT Martin|UTM|Tennessee Martin|UT Martin Skyhawks
+ut-rio-grande-valley,cfb,UT Rio Grande Valley,UTRGV,robert-and-janet-vackar-stadium,75.74,Southland,fcs,UT Rio Grande Valley|UTRGV|UT Rio Grande|Texas-Rio Grande Valley|Texas Rio Grande Valley|Rio Grande Valley|UTRGV Vaqueros|UT Rio Grande Valley Vaqueros
 utah-tech,cfb,Utah Tech,UT,greater-zion-stadium,64.26,UAC,fcs,Utah Tech|UT|Dixie State|Dixie St|Utah Tech Trailblazers
 vmi,cfb,VMI,VMI,alumni-memorial-field,56.39,Southern,fcs,VMI|Virginia Military Institute|VMI Keydets
 valparaiso,cfb,Valparaiso,VALP,brown-field,51.54,Pioneer,fcs,Valparaiso|VALP|Valparaiso Crusaders
 villanova,cfb,Villanova,NOVA,villanova-stadium,55.05,CAA,fcs,Villanova|NOVA|Villanova Wildcats
 wagner,cfb,Wagner,WAG,wagner-college-stadium,54.47,NEC,fcs,Wagner|WAG|Wagner Seahawks
 weber-state,cfb,Weber State,WEB,stewart-stadium,48.26,Big Sky,fcs,Weber State|WEB|Weber State Wildcats
+west-florida,cfb,West Florida,UWF,pen-air-field,68.64,UAC,fcs,West Florida|UWF|West Florida Argonauts|UWF Argonauts|W Florida
 west-georgia,cfb,West Georgia,WES,university-stadium-ga,61.56,UAC,fcs,West Georgia|WES|West Georgia Wolves
 western-carolina,cfb,Western Carolina,WCU,e-j-whitmire-stadium,56.57,Southern,fcs,Western Carolina|WCU|W Carolina|Western Carolina Catamounts
 western-illinois,cfb,Western Illinois,WIU,hanson-field,53.84,Big South-OVC,fcs,Western Illinois|WIU|W Illinois|Western Illinois Leathernecks

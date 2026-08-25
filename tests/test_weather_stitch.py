@@ -163,6 +163,7 @@ def test_build_forecast_with_ensemble_fills_vol_and_band(om: ParsedLocation, ens
     assert fc.wind_p10 <= fc.wind_p50 <= fc.wind_p90
     assert fc.wind_vol_fc == pytest.approx(fc.wind_p90 - fc.wind_p10)
     assert res.precip_prob_ens is not None and 0.0 <= res.precip_prob_ens <= 1.0
+    assert fc.precip_prob_ens == res.precip_prob_ens     # contract field, not only the MergeResult side-output
     assert res.ensemble is not None and res.ensemble.n_members == 82
     assert len(fc.hourly) == 6
     assert all(p.p10 is not None and p.p90 is not None and p.p10 <= p.p90 for p in fc.hourly)

@@ -9,7 +9,7 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python -m pytest tests -q -o addopts=""` | **612 passed** (15 s) |
+| Python tests | `python -m pytest tests -q -o addopts=""` | **656 passed** (17 s) |
 | Lint | `ruff check .` | All checks passed |
 | Worker tests | `node --test "site/worker/test/*.mjs"` | **21 pass / 0 fail** |
 | Frontend syntax | `node --check site/web/*.js` | 8 files ok (`alerts app backtest drawer map signals status table`) |
@@ -18,9 +18,9 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 | Calibrate | `python -m pipeline.calibrate --dry-run` | "0 usable game(s) … nothing to fit" (expected: no settled data yet) |
 | Full build | `python -m pipeline.build --sport all --scope light --no-alerts --run-id final-integration` (scratch out/state/board/snapshot dirs) | exit 0; NFL 0 games in window (272 in 2026 season), CFB week-1 board; pinnacle/betcris/fanduel/kalshi/novig lines live, prophetx 0 (no key), 63 CFB unresolved book names (FCS); wrote legacy csv/xlsx, 8 board JSONs (meta last), 5 state files incl. `closings.json` |
 
-Per-file pytest counts: alert_format 10, alerts_rules 30, backtest_grid 15,
-backtest_workflow 17, betcris_parse 26, betonline_parse 14, build_odds 17,
-build_stadiums 27, calibrate 14, climatology 6, clv 19, contracts 9, d1_out 11,
+Per-file pytest counts: alert_format 11, alerts_rules 30, backtest_grid 15,
+backtest_workflow 18, betcris_parse 26, betonline_parse 14, build_odds 17,
+build_stadiums 27, calibrate 15, climatology 6, clv 19, contracts 9, d1_out 11,
 deploy_workflow 10, fair 18, fanduel_parse 12, gate_check 17, impact_v1 26,
 impact_v2 24, json_out 18, kalshi_parse 19, legacy_columns 9, merge_aliases 57,
 novig_parse 12, pinnacle_parse 7, pipeline_workflow 23, prophetx_parse 10,
@@ -34,6 +34,18 @@ freezes closings from state `history.json` for kicked-off games into
 settled) and passes the new closing rows to `d1_out.build_statements(closings=…)`
 so `d1_inserts.sql` carries `INSERT OR IGNORE INTO closings`. Non-fatal (warn
 degradation) like the alert stage; skipped in `--scope weather` (no books).
+
+Leftovers closed in the follow-up pass: `pipeline/alerts.py` formats impact /
+components / emoji from the active model's block (`card["impact"][alert_model()]`,
+v1 fallback) and labels the version in the impact line (`(wind 6.5 · v1)`);
+`pipeline/calibrate.py` scores v1 with the RUN month (`Row.run_month` from
+`src_forecast` snapshot stamp / `weather.fetched_at` / kickoff − lead; game month
+is the documented fallback); `WeatherForecast.precip_prob_ens` is a contract
+field populated by `weather/merge.py` and emitted in the GameCard weather block
+(ARCH §5 updated); `backtest.yml` mirrors R2 snapshots with the pipeline.yml
+`wrangler r2 object get` loop (keys rebuilt from the D1 `weather_history` /
+`odds_history` export, newest `SNAPSHOT_MAX=120`) — no S3 keys anywhere in the
+workflows.
 
 ## 2. What is implemented, per phase
 
@@ -108,7 +120,7 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB` | `pipeline/alerts.py` per-sport routing (fallback `TELEGRAM_CHAT_ID`) | .env, GH (pipeline.yml) | optional |
 | `CLOUDFLARE_API_TOKEN` | `pipeline.yml`, `deploy.yml`, `backtest.yml`, `calibrate.yml`, `build-stadiums.yml` (wrangler r2/d1/deploy) — needs Workers Scripts: Edit, R2 Storage: Edit, D1: Edit | GH | required for any Cloudflare workflow |
 | `CF_ACCOUNT_ID` | same workflows (exported as `CLOUDFLARE_ACCOUNT_ID`); `pipeline/outputs/r2.py` boto3 endpoint | GH, .env | required; value `ba4875f01f2bc46dd48e1e26d2ec9080` |
-| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional `R2_BUCKET`, `R2_ENDPOINT`) | `pipeline/outputs/r2.py` boto3 path (`--publish`, `--merge-into-r2` betonline job), `backtest.yml` snapshot mirror | .env, GH | optional — pipeline.yml uses wrangler puts; required for the betonline merge job and the backtest snapshot mirror |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional `R2_BUCKET`, `R2_ENDPOINT`) | `pipeline/outputs/r2.py` boto3 path (`--publish`, `--merge-into-r2`) | .env | optional, local only — no workflow references them (pipeline / backtest / calibrate use wrangler get/put); the secrets do not exist on GitHub |
 | `GITHUB_TOKEN` | `calibrate.yml` PR creation, `deploy.yml` | provided by Actions | — |
 | `BOARD_PASSWORD` | Worker viewer Basic Auth | wrangler | required before first deploy (Worker is OPEN without it) |
 | `BOARD_ADMIN_PASSWORD`, `BOARD_ADMIN_USERNAME` | Worker admin (`POST /refresh`); username defaults to `mslade` var in `wrangler.toml` | wrangler | admin password required for `/refresh`; must differ from `BOARD_PASSWORD` |
@@ -121,7 +133,7 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 ```bash
 # 0. local
 cp .env.example .env   # (create .env with the .env rows above; never committed)
-python -m pytest tests -q -o addopts=""        # 612
+python -m pytest tests -q -o addopts=""        # 656
 cd site/worker && node --test "test/*.mjs"     # 21
 npx wrangler login
 
@@ -155,7 +167,7 @@ done
 # 5. GitHub secrets (repo mslade50/football_weather)
 gh secret set CLOUDFLARE_API_TOKEN
 gh secret set CF_ACCOUNT_ID --body ba4875f01f2bc46dd48e1e26d2ec9080
-gh secret set R2_ACCESS_KEY_ID ; gh secret set R2_SECRET_ACCESS_KEY      # betonline merge job + backtest mirror
+#   (no R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: every workflow goes through wrangler)
 gh secret set TELEGRAM_BOT_TOKEN ; gh secret set TELEGRAM_CHAT_ID         # (+ TELEGRAM_CHAT_ID_NFL / _CFB optional)
 gh secret set CFBD_API_KEY ; gh secret set PROPHETX_API_KEY ; gh secret set PROPHETX_SECRET_KEY ; gh secret set PROPHETX_ACCESS_KEY
 gh variable set BOOK_BETONLINE_ENABLED --body 1
@@ -173,11 +185,13 @@ Note: `SETUP.md` §2 lists migrations 0001–0003; `0004_v2.sql` (v2 columns on
 - ~~v1 golden reproduction stuck at 0.9706 with ~2.2% unexplained mismatches~~ — resolved 2026-08-24: the legacy rules were partially mis-reverse-engineered. Corrections (now in `pipeline/model/{config,impact}.py`, AUDIT §5): rain tiers `>1 / ≥6 / >12` keyed on the RUN month; heat_away = `home_temp − away_temp ≥ 10` (NFL every era; CFB until 2024-09-26, then `away_temp < 54`); CFB 2.0 altitude tier (`travel_alt ≥ 700` and home elevation ≥ 1100 m); CFB away components SUM (NFL keeps max); NFL 3.5-alt threshold 1283; NFL cold_away floor 60 from Jan 2026 (65 before); NFL test tolerance = the csv's 5-dp storage quantum. Era switches live only in the golden replay (`era_date`). Rate now ≈0.9964; the remaining ~150 rows are CFB `wind_fg` stored at 1 dp exactly on a tier threshold (12.0/15.0/17.0) — irreducible from the stored files.
 - Nothing deployed: no Cloudflare resources exist, `wrangler.toml` still has `REPLACE_WITH_D1_DATABASE_ID`, no workflow has run on GitHub, no commit made by the rebuild.
 - Backtest / calibration / CLV grids are structurally complete but empty until games settle (first kickoff 2026-08-29); the v2 promotion gate cannot fire before ≥4 distinct weeks. `calibrate.py` needs `backtest/games.parquet` rows carrying `total_open/total_close`.
-- `backtest.yml` D1 export does `SELECT *` on `odds_history`; add a season filter / LIMIT once the table grows. Snapshot mirror is skipped without `R2_ACCESS_KEY_ID`.
+- `backtest.yml` D1 export does `SELECT *` on `odds_history`; add a season filter / LIMIT once the table grows. The snapshot mirror fetches only the newest `SNAPSHOT_MAX` (120) run snapshots referenced by that export, one `wrangler r2 object get` each; older weeks come from the D1 tables.
 - The build's CLV freeze only uses state `history.json` (cap 120 points per key); the D1 `odds_history` path is used by `pipeline.backtest` from the weekly export, which is authoritative for closings.
 - NFL: 0 games inside the current window today (season 2026 schedule loaded, 272 games) — expected pre-season; CFB week 1 has 63 unresolved FCS book names (aliases only cover FBS + common FCS).
-- CFBD key absent locally → ESPN scoreboard fallback; neutral-site venue `3504` unknown (north-carolina@tcu) falls back to the home stadium.
-- prophetx returns 0 lines without keys; betonline Playwright job requires `playwright install chromium` (or `BETONLINE_CHANNEL=chrome`) and was not run in this pass.
+- `CFBD_API_KEY` still pending (not set locally or on GitHub) → ESPN scoreboard fallback for the CFB schedule and backtest results; neutral-site venue `3504` unknown (north-carolina@tcu) falls back to the home stadium.
+- ProphetX sandbox credentials still pending (`PROPHETX_API_KEY` / `_SECRET_KEY` / `_ACCESS_KEY`); the book returns 0 lines until they are set.
+- FanDuel and Novig answer 403 to requests from GitHub Actions IPs; a `curl_cffi` (browser-impersonating TLS) fallback for those httpx books is in progress by another agent.
+- betonline Playwright job requires `playwright install chromium` (or `BETONLINE_CHANNEL=chrome`) and was not run in this pass.
 - Telegram sending, Worker `/refresh` dispatch and CF crons are unit-tested only. Free plan limits the Worker to 2 cron triggers; the full scrape cadence lives in `pipeline.yml`.
 - Legacy backtest sheet row 110 has an inconsistent `+ CLV` value (183 > Sample 87); carried through as a `legacy` reference only.
 - `ODDS_API_KEY` opener seeding is not called from any workflow (manual use).

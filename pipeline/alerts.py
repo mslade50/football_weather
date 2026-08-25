@@ -29,6 +29,11 @@ the candidates with their keys instead of sending.
 
 Chat routing: ``TELEGRAM_CHAT_ID_NFL`` / ``TELEGRAM_CHAT_ID_CFB`` fall back to
 ``TELEGRAM_CHAT_ID``; OPS alerts always go to the default chat.
+
+Impact numbers / components / emoji in every message come from the active alert
+model's block — ``card["impact"][alert_model()]`` (``pipeline.model.config``), falling
+back to v1 when the card has no such block — and the impact line names the version
+it shows (``(wind 6.5 · v1)``).
 """
 
 from __future__ import annotations
@@ -48,6 +53,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pipeline import state as pstate
+from pipeline.model import config as model_config
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
 
 logger = logging.getLogger(__name__)
@@ -285,8 +291,19 @@ def board_link(board_url: str, card: dict[str, Any]) -> str:
     return f'<a href="{html.escape(href, quote=True)}">board</a>'
 
 
+def _impact_block(card: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """``(model_version, impact block)`` for the active alert model (``ALERT_MODEL``,
+    ``pipeline.model.config.alert_model``); a card without that block falls back to v1."""
+    blocks = card.get("impact") or {}
+    want = model_config.alert_model()
+    blk = blocks.get(want)
+    if blk:
+        return want, blk
+    return model_config.MODEL_VERSION_V1, (blocks.get(model_config.MODEL_VERSION_V1) or {})
+
+
 def _impact(card: dict[str, Any]) -> dict[str, Any]:
-    return ((card.get("impact") or {}).get("v1")) or {}
+    return _impact_block(card)[1]
 
 
 def _components(card: dict[str, Any]) -> dict[str, float]:
@@ -329,18 +346,25 @@ def _wx_line(card: dict[str, Any]) -> str:
 
 
 def _impact_line(card: dict[str, Any], edge: dict[str, Any]) -> str:
-    imp = _impact(card)
+    """'Impact −6.5% (wind 6.5 · v1) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)' — the
+    impact block of the active alert model, labelled with the version actually shown."""
+    version, imp = _impact_block(card)
     comps = _components(card)
     comp_s = " ".join(f"{k} {v:.1f}" for k, v in sorted(comps.items(), key=lambda kv: -kv[1])[:3])
+    label = f"{comp_s} · {version}" if comp_s else version
     gs = _fmt_pct(imp.get("gs_fg_pct"))
     fair = card.get("fair") or {}
     market = edge.get("market")
-    fair_val = edge.get("fair_line") if edge.get("fair_line") is not None else fair.get(f"fair_{market}")
+    fair_val = edge.get("fair_line")
+    if fair_val is None:
+        # v2 fair lines live beside v1's in the card (fair_total_v2 / fair_spread_v2)
+        fair_val = fair.get(f"fair_{market}_v2") if version == model_config.MODEL_VERSION_V2 else None
+        fair_val = fair_val if fair_val is not None else fair.get(f"fair_{market}")
     conf = _num(edge.get("confidence"))
     conf_s = f"{conf:.2f}" if conf is not None else "?"
     ref = edge.get("ref_book") or (card.get("consensus") or {}).get("ref_book") or "?"
     n_books = edge.get("n_books") or (card.get("consensus") or {}).get("n_books") or 0
-    return (f"Impact {gs} ({comp_s}) · conf {conf_s} · fair {market} {_fmt_line(fair_val, signed=market == 'spread')} "
+    return (f"Impact {gs} ({label}) · conf {conf_s} · fair {market} {_fmt_line(fair_val, signed=market == 'spread')} "
             f"(ref {ref}, {n_books} books)")
 
 

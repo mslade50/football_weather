@@ -181,6 +181,7 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "wind_dir_deg": fc.wind_dir_deg,
         "rain_fg": fc.rain_fg_mm,
         "precip_prob": fc.precip_prob,
+        "precip_prob_ens": fc.precip_prob_ens,
         "wind_vol_fc": fc.wind_vol_fc,
         "wind_p10": fc.wind_p10,
         "wind_p50": fc.wind_p50,

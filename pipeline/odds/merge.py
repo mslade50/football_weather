@@ -148,6 +148,20 @@ def raw_games_from_scraper(scraper: Any, book: str, sport: str) -> dict[str, Raw
 
 # ---- schedule matching ----------------------------------------------------------
 
+def candidate_team_ids(sport: str, raw: str, data_dir: Path = teams_mod.DATA_DIR) -> list[str]:
+    """Every team_id an exact alias hit could mean (``TeamResolver.exact`` tier walk over
+    data/aliases + teams.csv): one id for a clean alias, several for a shared one
+    (``MER``), none when the string is not an alias at all."""
+    res = teams_mod.get_resolver(sport, data_dir)
+    keys = [teams_mod.normalize_alias(v) for v in teams_mod.variants(raw)]
+    for tier in (res.index, res.gen, res.ids):
+        for key in keys:
+            if key in tier:
+                amb = res.ambiguous.get((id(tier), key))
+                return sorted(amb) if amb else [tier[key]]
+    return []
+
+
 @dataclass(frozen=True)
 class Match:
     game: Game
@@ -171,13 +185,45 @@ class GameMatcher:
         self.now = now
         self.data_dir = data_dir
         self.by_pair: dict[tuple[str, str], list[Game]] = {}
+        self.by_team: dict[str, list[Game]] = {}
         for g in games:
             if g.sport != sport:
                 continue
             self.by_pair.setdefault((g.away_id, g.home_id), []).append(g)
+            for tid in (g.away_id, g.home_id):
+                self.by_team.setdefault(tid, []).append(g)
 
     def resolve(self, raw: str, book: str) -> str | None:
         return teams_mod.normalize_team(self.sport, raw, book, data_dir=self.data_dir)
+
+    def _resolve_quiet(self, raw: str) -> str | None:
+        """Resolver only — nothing registered as unresolved yet (the schedule may still settle it)."""
+        return teams_mod.get_resolver(self.sport, self.data_dir).resolve(raw)
+
+    def _in_window(self, games: Sequence[Game], raw: RawGame) -> bool:
+        if raw.kickoff_utc is None:
+            return bool(games)
+        kick = raw.kickoff_utc if raw.kickoff_utc.tzinfo else raw.kickoff_utc.replace(tzinfo=timezone.utc)
+        return any(abs(g.kickoff_utc - kick) <= self.window for g in games)
+
+    def _meets(self, a: str, b: str, raw: RawGame) -> bool:
+        return self._in_window(self.by_pair.get((a, b), []) + self.by_pair.get((b, a), []), raw)
+
+    def disambiguate(self, raw_name: str, other_id: str, raw: RawGame) -> tuple[str | None, bool]:
+        """Schedule-aware fallback for an alias shared by several teams (Kalshi ``MER`` =
+        Mercer / Merrimack / Mercyhurst / Merchant Marine, all below FBS, which
+        ``teams.py`` refuses by design): the one candidate that meets ``other_id`` on the
+        schedule inside the matching window wins. Returns ``(team_id, off_board)``:
+        ``team_id`` None when zero or several candidates match; ``off_board`` True when
+        the resolved side has no schedule game in the window at all (an FCS-vs-FCS
+        listing under a division=fbs schedule) — nothing to resolve, nothing to report."""
+        cands = candidate_team_ids(self.sport, raw_name, self.data_dir)
+        if len(cands) < 2:
+            return None, False
+        if not self._in_window(self.by_team.get(other_id, []), raw):
+            return None, True
+        hits = [c for c in cands if c != other_id and self._meets(c, other_id, raw)]
+        return (hits[0] if len(hits) == 1 else None), False
 
     def _pick(self, cands: list[Game], raw: RawGame) -> tuple[Game | None, float | None]:
         if raw.kickoff_utc is None:
@@ -199,8 +245,20 @@ class GameMatcher:
         return best, best_d
 
     def match(self, raw: RawGame) -> Match | None:
-        away_id = self.resolve(raw.away, raw.book)
-        home_id = self.resolve(raw.home, raw.book)
+        away_id = self._resolve_quiet(raw.away)
+        home_id = self._resolve_quiet(raw.home)
+        off_board = False
+        if away_id is None and home_id is not None:
+            away_id, off_board = self.disambiguate(raw.away, home_id, raw)
+        elif home_id is None and away_id is not None:
+            home_id, off_board = self.disambiguate(raw.home, away_id, raw)
+        if off_board:
+            return None   # shared alias vs a side with no game this window: not on the board, not a resolver problem
+        # still unresolved: go through normalize_team so the name is logged + registered
+        if away_id is None:
+            away_id = self.resolve(raw.away, raw.book)
+        if home_id is None:
+            home_id = self.resolve(raw.home, raw.book)
         if not away_id or not home_id:
             return None
         direct, d1 = self._pick(self.by_pair.get((away_id, home_id), []), raw)
@@ -467,7 +525,7 @@ def board_summary(res: MergeResult) -> dict[str, Any]:
 
 
 __all__ = [
-    "BOOK_WEIGHTS", "WINDOW_H", "RawGame", "Match", "MergeResult", "GameMatcher",
+    "BOOK_WEIGHTS", "WINDOW_H", "RawGame", "Match", "MergeResult", "GameMatcher", "candidate_team_ids",
     "parse_provisional", "parse_stamp", "is_provisional", "raw_games_from_lines",
     "raw_games_from_scraper", "canonicalize", "select_main", "consensus_lines", "pivot",
     "update_openers", "opener_for", "merge_odds", "board_summary",

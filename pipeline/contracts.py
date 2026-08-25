@@ -164,6 +164,9 @@ class WeatherForecast(_AsDict):
     cross_mph: Optional[float] = None
     head_mph: Optional[float] = None
     model_disagreement: Optional[float] = None
+    # share of ensemble members with >0.1 mm over the game window (weather/merge.py
+    # ensemble_stats); None without an ensemble. Feeds v2 rain and the card's weather block.
+    precip_prob_ens: Optional[float] = None
     roof_state: Optional[str] = None
     hourly: list[WeatherPoint] = field(default_factory=list)
 

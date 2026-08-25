@@ -3,8 +3,9 @@
 Deterministic Open-Meteo models + NWS fallback, plus (Phase 5) the ensemble
 members: ``wind_vol_fc = P90-P10`` of pooled member wind over kickoff..+3h,
 ``wind_p10/p50/p90``, per-hour p10/p90 on the display strip and
-``precip_prob_ens`` (fraction of members with >0.1 mm in the window, exposed on
-:class:`MergeResult`). With no ensemble every one of those stays None and a
+``precip_prob_ens`` (fraction of members with >0.1 mm in the window, carried on
+``WeatherForecast.precip_prob_ens`` and mirrored on :class:`MergeResult` for the
+build's ``wx_extras``). With no ensemble every one of those stays None and a
 Degradation(info) says so — downstream falls back to the static wind_vol.
 
 Stitching by lead time (hours from `now` to kickoff):
@@ -409,6 +410,7 @@ def build_forecast(
         cross_mph=cross,
         head_mph=head,
         model_disagreement=model_disagreement(om, window),
+        precip_prob_ens=stats.precip_prob_ens if stats else None,
         roof_state=roof_state,
         hourly=hourly,
     )

@@ -5,8 +5,8 @@ name: backtest
 #   * Tuesday 06:17 ET-ish (10:17 UTC, off-the-minute like pipeline.yml): fetch the
 #     state files pipeline.backtest reads from R2 board/ (alerts, closings, history,
 #     wx_history, openers), pull the D1 tables it joins as {table}.json
-#     (`d1 execute --json`), optionally mirror R2 snapshots/ (boto3, when the S3 keys
-#     are set), run `python -m pipeline.backtest` -> data/board/backtest.json (bucket
+#     (`d1 execute --json`), mirror the R2 snapshots/ those exports reference (wrangler
+#     `r2 object get`, newest SNAPSHOT_MAX), run `python -m pipeline.backtest` -> data/board/backtest.json (bucket
 #     grid + stadium results + matched games + alerts_clv by tier/league/book/model)
 #     and data/backtest/*.parquet, push backtest.json to R2 board/ and the parquet
 #     files to R2 backtest/, and archive the closings / stadium_results rows it
@@ -58,6 +58,8 @@ env:
   # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
   STATE_FILES: alerts closings history wx_history openers
   D1_TABLES: games odds_history closings alerts stadiums teams weather_history
+  # newest snapshot objects mirrored per run (one `wrangler r2 object get` each)
+  SNAPSHOT_MAX: "120"
 
 jobs:
   backtest:
@@ -113,30 +115,51 @@ jobs:
             fi
           done
           ls -la data/d1_export
-      - name: Mirror snapshots from R2 (optional, boto3)
+      - name: Mirror snapshots from R2 (wrangler, read-only)
         # snapshots/{sport}/{season}/{week}/{run_id}.json are the per-run GameCard lists the
-        # backtest replays for lead-N forecasts. wrangler has no prefix download, so this
-        # uses the S3 API when the keys are configured; without them the D1 games table
-        # carries the backtest.
-        env:
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        # backtest replays for lead-N forecasts. wrangler cannot list a prefix, so the keys
+        # are rebuilt from the D1 export just made: every (game_id, run_id) in
+        # weather_history / odds_history names the snapshot that run wrote (game_id =
+        # sport:season:week:away@home, run_id = the snapshot stem). Newest SNAPSHOT_MAX runs
+        # only (one wrangler call per object); older weeks are carried by the D1 tables.
+        # Same get loop as pipeline.yml: NoSuchKey -> skipped, ANY other failure -> exit 1.
         run: |
           mkdir -p data/snapshots
-          if [ -z "$R2_ACCESS_KEY_ID" ]; then echo "::notice::R2 S3 keys not set - skipping snapshot mirror"; exit 0; fi
           python - <<'PY'
-          import os, boto3
+          import json, os
           from pathlib import Path
-          s3 = boto3.client("s3", endpoint_url=f"https://{os.environ['CLOUDFLARE_ACCOUNT_ID']}.r2.cloudflarestorage.com",
-                            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"], region_name="auto")
-          bucket, n = os.environ["R2_BUCKET"], 0
-          for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="snapshots/"):
-              for obj in page.get("Contents") or []:
-                  dest = Path("data") / obj["Key"]
-                  dest.parent.mkdir(parents=True, exist_ok=True)
-                  s3.download_file(bucket, obj["Key"], str(dest)); n += 1
-          print(f"mirrored {n} snapshot object(s)")
+          keys = set()
+          for t in ("weather_history", "odds_history"):
+              p = Path("data/d1_export") / f"{t}.json"
+              if not p.is_file():
+                  continue
+              for block in json.loads(p.read_text(encoding="utf-8")) or []:
+                  for row in block.get("results") or []:
+                      gid, run_id = str(row.get("game_id") or ""), str(row.get("run_id") or "")
+                      parts = gid.split(":")
+                      if len(parts) == 4 and run_id:
+                          keys.add(f"snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json")
+          newest = sorted(keys, key=lambda k: k.rsplit("/", 1)[1], reverse=True)[: int(os.environ.get("SNAPSHOT_MAX", "120"))]
+          Path("data/snapshot_keys.txt").write_text("\n".join(newest) + ("\n" if newest else ""), encoding="utf-8")
+          print(f"{len(keys)} snapshot key(s) referenced by D1, mirroring {len(newest)}")
           PY
+          n=0
+          while read -r key; do
+            [ -n "$key" ] || continue
+            DEST="data/$key"
+            mkdir -p "$(dirname "$DEST")"
+            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/$key" --file="$DEST" --remote 2>&1)"; then
+              n=$((n + 1))
+            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+              echo "::notice::$key absent in R2 - skipped"
+              rm -f "$DEST"
+            else
+              echo "$OUT"
+              echo "::error::R2 snapshot fetch failed for $key (not NoSuchKey) - refusing to backtest on a partial mirror"
+              exit 1
+            fi
+          done < data/snapshot_keys.txt
+          echo "mirrored $n snapshot object(s)"
       - name: Run backtest
         # State is read-only here (no --freeze): closings are frozen and alert CLV settled
         # by pipeline.yml every run; this job only reads alerts.json / closings.json.

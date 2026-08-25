@@ -266,7 +266,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
           wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind, avg_wind_month},
  travel_alt, home_temp, away_temp,
  weather {temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg, precip_prob,
-          wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
+          precip_prob_ens, wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
           hourly [{t, temp, wind, gust, dir, precip, pop, p10, p90}]  (kickoff-1h .. kickoff+4h)},
  impact {v1 {gs_fg_pct, away_fg_pct, components {wind, cold, heat, rain, alt, heat_away, cold_away}},
          v2 {...same + w_eff, dir_mult, conf}, model_version},
@@ -420,7 +420,8 @@ Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minu
 - `build-stadiums.yml`: workflow_dispatch → `python -m pipeline.stadiums.build_stadiums` → opens PR (peter-evans/create-pull-request) with diff; never commits to main.
 - `backtest.yml`: schedule `'0 11 * * 2'` (Tue 06:00 ET-ish) + dispatch → `python -m pipeline.backtest` → R2 `board/backtest.json` + `data/backtest/*.parquet` to R2; Telegram Monday CLV digest is sent by `pipeline.alerts --digest` inside this job.
 - `calibrate.yml`: schedule weekly Tue after backtest → `python -m pipeline.calibrate` → PR updating `data/calibration.json`.
-- Season gating: `gate_check.py` skips when no kickoff within 10 days for the requested sport (CFB dark Jan–Aug after bowls; NFL skip Mar–Jul); `--force` bypasses.
+- Season gating: `gate_check.py` skips when no kickoff within `HORIZON_DAYS` = 45 days for the requested sport (CFB dark Jan–Jul after bowls; NFL skip Mar–Jul); `--force` bypasses.
+- Two horizons in `pipeline/build.py`: the **weather window** `[now−6h, now+10d]` (`WINDOW_AFTER_D`) bounds forecasts, impact, cards, legacy files and alerts; the **odds horizon** `[now−6h, now+45d]` (`ODDS_WINDOW_AFTER_D` == `gate_check.HORIZON_DAYS`, pinned by test) bounds which schedule games scraped lines are matched against, so openers, `history.json` series, `archive_last` and D1 `odds_history` / `openers` / `games` rows (impact columns NULL until the game has a card) start when a book first posts the line. The OPENERS digest keys on openers new *to the board* (game entered the window since the previous run) rather than new to state.
 
 ## 10. Telegram alert spec (`pipeline/alerts.py`)
 

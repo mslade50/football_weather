@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from pipeline import alerts as A
 from pipeline import state as pstate
+from pipeline.model import config as C
 from tests.test_alerts_rules import GID, KICK, NOW, _edge, card
 
 BOARD = "https://football-board.test.workers.dev"
@@ -32,7 +33,7 @@ def test_edge_message_matches_spec_sample():
     lines = text.split("\n")
     assert lines[0] == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
     assert lines[1] == "Gillette Stadium · wind 18 mph SE (gust 26 · vol 6 · cross 15) · 41°F · rain 20% / 0.8 mm"
-    assert lines[2] == "Impact −6.5% (wind 6.5) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
+    assert lines[2] == "Impact −6.5% (wind 6.5 · v1) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
     assert lines[3] == "<b>UNDER 38 −110 @ BetOnline</b> · edge 3.4 pts / +4.1% · open 38"
     assert lines[4] == "Best: Under 38.5 −108 Betcris · FD 38 · Novig 38 · Kalshi 37.5 (52¢)"
     assert lines[5] == f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">board</a>'
@@ -71,6 +72,34 @@ def test_edge_message_roof_closed_and_emoji_by_dominant_component():
     c3 = card()
     c3["impact"]["v1"]["components"] = {"cold": 1.0}
     assert A.format_edge(c3, _edge(), BOARD).startswith("<b>🥶 ")
+
+
+def test_edge_message_uses_active_alert_model_block(monkeypatch):
+    """ALERT_MODEL=v2 -> impact numbers, components, emoji and the label come from impact.v2;
+    a card without a v2 block falls back to v1 and says so."""
+    c = _sample_card()
+    c["impact"]["v2"] = {"gs_fg_pct": -8.2, "away_fg_pct": 0.0, "components": {"wind": 5.2, "rain": 3.0, "cold": 0.0}}
+    c["fair"]["fair_total_v2"] = 33.9
+    monkeypatch.setattr(C, "ALERT_MODEL", "v2")
+    text = A.format_edge(c, _edge(), BOARD)
+    assert text.split("\n")[2] == "Impact −8.2% (wind 5.2 rain 3.0 · v2) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
+    assert text.startswith("<b>🌬 ")
+    c["impact"]["v2"]["components"] = {"rain": 4.0, "wind": 1.0}
+    assert A.format_edge(c, _edge(), BOARD).startswith("<b>🌧 ")
+    # no edge fair_line -> the v2 fair line from the card, not v1's
+    e = dict(_edge(), fair_line=None)
+    assert "fair total 33.9" in A.format_edge(c, e, BOARD)
+    # openers digest reads the same block
+    op = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|total|over|betcris"])], BOARD)
+    assert "−8.2%" in op and "−6.5%" not in op
+    # fallback: v2 requested, card only carries v1 -> v1 numbers, labelled v1
+    c1 = _sample_card()
+    assert "Impact −6.5% (wind 6.5 · v1)" in A.format_edge(c1, _edge(), BOARD)
+    monkeypatch.setattr(C, "ALERT_MODEL", "v1")
+    assert "Impact −6.5% (wind 6.5 · v1)" in A.format_edge(c, _edge(), BOARD)
+    # no components at all -> bare version label, no dangling separator
+    c1["impact"]["v1"]["components"] = {}
+    assert "Impact −6.5% (v1) ·" in A.format_edge(c1, _edge(), BOARD)
 
 
 def test_move_gone_wx_messages():

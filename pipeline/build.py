@@ -22,7 +22,12 @@ present, else built-in) and openers/archive_last/scrape_baseline are persisted u
 (NFL: BetOnline, CFB: FanDuel) with consensus fallback; openers come from
 ``openers.json`` so ``*_open`` stays fixed while ``*_now`` moves.
 
-Only games kicking off within [now-6h, now+10d] are processed. A failing stage is
+Two horizons (decoupled): weather / impact / cards / legacy files / alerts cover
+games kicking off within [now-6h, now+10d] (``WINDOW_AFTER_D``); the odds stage
+matches scraped lines against every schedule game within [now-6h, now+45d]
+(``ODDS_WINDOW_AFTER_D``, same number as ``gate_check.HORIZON_DAYS``) so openers,
+line history, archive_last and D1 ``odds_history`` / ``games`` rows start the day a
+book first posts a line, weeks before the game has a card. A failing stage is
 recorded as a ``Degradation`` and the run continues with what it has.
 
 Phase 3 outputs (always written locally unless ``--dry-run``): board JSON under
@@ -63,7 +68,7 @@ import shutil
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -93,9 +98,14 @@ DEFAULT_D1_SQL = REPO_ROOT / "data" / d1_out.D1_SQL_FILENAME
 PUBLISH_MANIFEST = "publish_manifest.json"
 PREV_META_FILE = "prev_meta.json"
 
-# Games outside this window are dropped before the weather stage (matches gate_check).
+# Weather window: games outside it get no forecast / impact / card / legacy row / alert.
 WINDOW_BEFORE_H = 6.0
 WINDOW_AFTER_D = 10.0
+# Odds horizon: books post NFL week 1+ and CFB weeks ahead long before the weather
+# window opens, so lines are matched (openers / history / archive_last / D1) against
+# every schedule game within [now-6h, now+ODDS_WINDOW_AFTER_D]. gate_check.HORIZON_DAYS
+# must carry the same number (pinned by tests/test_gate_check.py).
+ODDS_WINDOW_AFTER_D = 45.0
 
 # ---- books ------------------------------------------------------------------------
 # book -> (module, class); order = display / alert order.
@@ -142,9 +152,30 @@ def default_season(now: datetime) -> int:
     return now.year - 1 if now.month <= 2 else now.year
 
 
-def in_window(kickoff_utc: datetime, now: datetime) -> bool:
+def in_window(kickoff_utc: datetime, now: datetime, after_d: float = WINDOW_AFTER_D) -> bool:
     delta_h = (kickoff_utc - now).total_seconds() / 3600.0
-    return -WINDOW_BEFORE_H <= delta_h <= WINDOW_AFTER_D * 24.0
+    return -WINDOW_BEFORE_H <= delta_h <= after_d * 24.0
+
+
+def in_odds_horizon(kickoff_utc: datetime, now: datetime) -> bool:
+    return in_window(kickoff_utc, now, ODDS_WINDOW_AFTER_D)
+
+
+def split_schedule(games: Sequence[Game], now: datetime) -> tuple[list[Game], list[Game]]:
+    """``(window games, odds-horizon games)`` — the first is a subset of the second."""
+    horizon = [g for g in games if in_odds_horizon(g.kickoff_utc, now)]
+    window = [g for g in horizon if in_window(g.kickoff_utc, now)]
+    return window, horizon
+
+
+def entered_window_ids(games: Sequence[Game], prev_finished: datetime | None, now: datetime) -> set[str]:
+    """Window games whose window entry (kickoff − WINDOW_AFTER_D) fell after the previous
+    run: their openers were recorded weeks ago (odds horizon) but are new *to the board*,
+    which is what the OPENERS digest is about. No previous run: every window game."""
+    if prev_finished is None:
+        return {g.game_id for g in games}
+    lead = timedelta(days=WINDOW_AFTER_D)
+    return {g.game_id for g in games if prev_finished < g.kickoff_utc - lead <= now}
 
 
 def books_for_scope(scope: str, books: Sequence[str] | None = None) -> list[str]:
@@ -186,7 +217,10 @@ def stage_stadiums(ctx: RunContext, sport: str) -> Any | None:
         return None
 
 
-def stage_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | None, book: Any) -> list[Game]:
+def fetch_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | None, book: Any) -> list[Game]:
+    """Every non-final game of the season the source knows about (nflverse games.csv
+    and CFBD ``/games?year`` are full-season; the ESPN scoreboard fallback is only
+    the current slate, so the odds horizon simply sees fewer games)."""
     mod = _import(f"pipeline.schedule.{sport}")
     if mod is None:
         ctx.degrade("schedule", f"pipeline.schedule.{sport} not importable", "error")
@@ -201,13 +235,25 @@ def stage_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | Non
     except Exception as exc:  # noqa: BLE001 - any stage failure becomes a Degradation
         ctx.degrade("schedule", f"{sport}: {type(exc).__name__}: {exc}", "error")
         return []
-    games = [g for g in (games or []) if isinstance(g, Game)]
-    now = ctx.now_utc
-    upcoming = [g for g in games if in_window(g.kickoff_utc, now)]
-    ctx.count("schedule", sport, len(upcoming))
-    if not upcoming:
-        ctx.degrade("schedule", f"{sport}: 0 games within window ({len(games)} in season {season})", "warn")
-    return upcoming
+    return [g for g in (games or []) if isinstance(g, Game)]
+
+
+def stage_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | None, book: Any) -> tuple[list[Game], list[Game]]:
+    """``(window games, odds-horizon games)``. An empty window with games on the odds
+    horizon (NFL preseason, CFB August) is expected — lines-only runs — so it is an
+    ``info`` degradation; ``warn`` only when nothing is upcoming at all."""
+    games = fetch_schedule(ctx, sport, raw, season, book)
+    window, horizon = split_schedule(games, ctx.now_utc)
+    ctx.count("schedule", sport, len(window))
+    ctx.count("schedule", f"{sport}.odds", len(horizon))
+    if not window:
+        ctx.degrade(
+            "schedule",
+            f"{sport}: 0 games within the {WINDOW_AFTER_D:.0f}-day window ({len(horizon)} within the "
+            f"{ODDS_WINDOW_AFTER_D:.0f}-day odds horizon, {len(games)} in season {season or default_season(ctx.started_et)})",
+            "info" if horizon else "warn",
+        )
+    return window, horizon
 
 
 def _is_conus(st: Stadium) -> bool:
@@ -506,6 +552,17 @@ def volume_scope(sport: str, games: Sequence[Game], season: int | None) -> str:
     if games:
         g = min(games, key=lambda x: x.kickoff_utc)
         return f"{sport}:{g.season}:{g.week}"
+    return f"{sport}:{season or '?'}:?"
+
+
+def baseline_scope(sport: str, games: Sequence[Game], odds_games: Sequence[Game] = (), season: int | None = None) -> str:
+    """Volume-baseline scope keyed on the WINDOW games (resets week to week as before).
+    Empty window (preseason lines-only runs): week stays ``?`` so the peaks ratcheted
+    on a preseason-shaped board do not judge week 1; season comes from the horizon."""
+    if games:
+        return volume_scope(sport, games, season)
+    if season is None and odds_games:
+        season = min(odds_games, key=lambda x: x.kickoff_utc).season
     return f"{sport}:{season or '?'}:?"
 
 
@@ -872,6 +929,8 @@ def stage_odds(
     dry_run: bool = False,
     alerts: bool = True,
 ) -> OddsResult:
+    """``games`` is the odds-horizon schedule (``split_schedule``): every game in it
+    is matched and gets openers / archive_last / deltas / consensus, card or not."""
     if not books:
         return OddsResult([], {}, pstate.load_openers(state_dir), {}, [], {})
     raw_arg: RawStore | None = None if isinstance(raw, NullRawStore) else raw
@@ -898,7 +957,7 @@ def stage_odds(
     # volume alert (edge-triggered; state persisted so a sustained drop pings once)
     with ctx.stage(f"{sport}.volume"):
         try:
-            scope = volume_scope(sport, games, season)
+            scope = baseline_scope(sport, [g for g in games if in_window(g.kickoff_utc, ctx.now_utc)], games, season)
             baseline = pstate.load_baseline(state_dir, scope)
             drops = check_scrape_volume(scrape_counts(all_lines), baseline, books)
             if not dry_run:
@@ -929,7 +988,14 @@ def stage_odds(
             uniq = sorted(set(unresolved))
             ctx.unresolved_names.extend(uniq)
             n_book_games = len({ln.game_id for ln in all_lines})
-            ctx.degrade("odds.merge", f"{sport}: {len(uniq)} unresolved book games/names (of {n_book_games} book games)", "warn")
+            # Games a book lists that are not on the FBS/NFL schedule (FCS etc.) are expected;
+            # only genuinely unmapped team names are a resolver problem worth paging.
+            names = [u for u in uniq if not u.endswith(":no-schedule-match")]
+            n_off = len(uniq) - len(names)
+            if names:
+                ctx.degrade("odds.merge", f"{sport}: {len(names)} unresolved book team names (of {n_book_games} book games)", "warn")
+            if n_off:
+                ctx.degrade("odds.merge", f"{sport}: {n_off} book games outside the schedule (of {n_book_games} book games)", "info")
         ctx.count("merge", sport, len(lines))
 
     # Books not scraped this run (the Playwright job runs --books betonline only)
@@ -1142,13 +1208,24 @@ class SportResult:
     fairs_v2: dict[str, Any] = dataclasses.field(default_factory=dict)          # game_id -> v2 GameFair (side by side)
     wx_extras: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)  # game_id -> merge side-outputs
     home_stadiums: dict[str, Stadium] = dataclasses.field(default_factory=dict)  # stadium_id -> home venue of every team row (D1 FK)
+    odds_games: list[Game] = dataclasses.field(default_factory=list)   # odds-horizon schedule (superset of ``games``)
+    board_new_opener_keys: list[str] | None = None   # opener keys new to the BOARD (alerts); None -> odds.new_opener_keys
 
     @property
     def season_week(self) -> tuple[int | None, int | None]:
-        if not self.games:
+        src = self.games or self.odds_games
+        if not src:
             return None, None
-        g = min(self.games, key=lambda x: x.kickoff_utc)
+        g = min(src, key=lambda x: x.kickoff_utc)
         return g.season, g.week
+
+    @property
+    def d1_games(self) -> list[Game]:
+        """``games`` rows for D1: every card game plus the out-of-window games that carry
+        lines (their impact columns stay NULL until they enter the weather window)."""
+        carded = {g.game_id for g in self.games}
+        priced = set(self.odds.by_game)
+        return [*self.games, *(g for g in self.odds_games if g.game_id not in carded and g.game_id in priced)]
 
 
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],
@@ -1220,11 +1297,44 @@ def _legacy_derived(fair_mod: Any, sport: str, game_odds: dict[str, Any], impact
         return None
 
 
+def previous_run_finished(state_dir: Path, sport: str) -> datetime | None:
+    """``finished_at`` of the last run that built ``sport`` (state status.json, which
+    rides R2 like the other state files); None on a fresh state."""
+    prev = json_out.load_previous_status(state_dir) or {}
+    for run in prev.get("runs") or []:
+        if not isinstance(run, dict) or run.get("sport") not in (sport, "all"):
+            continue
+        ts = run.get("finished_at")
+        if not isinstance(ts, str) or not ts:
+            return None
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return None
+
+
+def board_new_opener_keys(res: SportResult, prev_finished: datetime | None, now: datetime) -> list[str]:
+    """Opener keys the OPENERS digest should see: recorded this run, or belonging to a
+    game that entered the weather window since the previous run (its openers were
+    captured earlier on the odds horizon, so ``new_opener_keys`` no longer carries them)."""
+    entered = entered_window_ids(res.games, prev_finished, now)
+    keys = set(res.odds.new_opener_keys)
+    for key in res.odds.openers.get("openers") or {}:
+        if key.split("|", 1)[0] in entered:
+            keys.add(key)
+    return sorted(keys)
+
+
 def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: Path, dry_run: bool) -> None:
     """history.json (odds change-points + model fair) and wx_history.json /
     wx_last.json (weather change-points; ``res.wx_changed`` = D1 rows)."""
     now = utc_iso(ctx.now_utc)
     active = {g.game_id for g in res.games}
+    # odds series live for the whole odds horizon (bounded by ODDS_WINDOW_AFTER_D) so
+    # the drawer chart starts at the opener, not at window entry
+    odds_active = active | {g.game_id for g in res.odds_games}
     with ctx.stage(f"{sport}.history"):
         hist = pstate.load_history(state_dir)
         n_pts = pstate.update_history(hist, [ln for ln in res.odds.scraped if ln.is_main], now)
@@ -1235,7 +1345,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
                 if isinstance(val, (int, float)):
                     fairs[f"{gid}|{market}|{side}"] = float(val)
         n_fair = pstate.update_fair_history(hist, fairs, now)
-        pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, active) | _active_for(hist.get("fair_series") or {}, sport, active))
+        pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
+        res.board_new_opener_keys = board_new_opener_keys(res, previous_run_finished(state_dir, sport), ctx.now_utc)
         wx_hist = json_out.load_wx_history(state_dir)
         wx_last = d1_out.load_wx_last(state_dir)
         points = {gid: pt for gid, fc in res.forecasts.items() if (pt := json_out.wx_point(fc, res.impacts.get(gid))) is not None}
@@ -1264,7 +1375,7 @@ def run_sport(
         book = stage_stadiums(ctx, sport)
 
     with ctx.stage(f"{sport}.schedule"):
-        games = stage_schedule(ctx, sport, raw, season, book)
+        games, odds_games = stage_schedule(ctx, sport, raw, season, book)
 
     with ctx.stage(f"{sport}.resolve"):
         stadiums: dict[str, Stadium] = {}
@@ -1287,7 +1398,14 @@ def run_sport(
     with ctx.stage(f"{sport}.weather"):
         forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras)
 
-    odds = stage_odds(ctx, sport, games, book, raw, books, state_dir, season, dry_run=ctx.dry_run, alerts=alerts)
+    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run, alerts=alerts)
+    if books:
+        carded_ids = {g.game_id for g in games}
+        n_priced = len(odds.by_game)
+        n_carded = sum(1 for gid in odds.by_game if gid in carded_ids)
+        ctx.count("odds_games", sport, n_priced)
+        print(f"  odds games {sport}: {n_priced} with lines within {ODDS_WINDOW_AFTER_D:.0f} d "
+              f"({len(odds_games)} scheduled), {n_carded} of them on the {WINDOW_AFTER_D:.0f}-day board")
 
     records: list[LegacyRecord] = []
     rows: list[dict[str, Any]] = []
@@ -1370,7 +1488,7 @@ def run_sport(
     ctx.count("legacy", sport, len(records))
     res = SportResult(sport, records, rows, cards, games, stadiums, teams, forecasts, impacts, odds, fairs,
                       impacts_v2={k: v for k, v in impacts_v2.items() if v is not None}, fairs_v2=fairs_v2,
-                      wx_extras=wx_extras, home_stadiums=home_stadiums)
+                      wx_extras=wx_extras, home_stadiums=home_stadiums, odds_games=odds_games)
     ctx.count("impact_v2", sport, len(res.impacts_v2))
     n_ens = sum(1 for e in wx_extras.values() if e.get("ensemble"))
     if forecasts and n_ens == 0:
@@ -1390,7 +1508,8 @@ def run_alert_stage(ctx: RunContext, results: Sequence[SportResult], state_dir: 
         try:
             run = alerts_mod.run_alerts(
                 ctx, {r.sport: r.cards for r in results}, state_dir, enabled=enabled, dry_run=dry_run,
-                new_keys_by_sport={r.sport: r.odds.new_opener_keys for r in results},
+                new_keys_by_sport={r.sport: (r.board_new_opener_keys if r.board_new_opener_keys is not None
+                                             else r.odds.new_opener_keys) for r in results},
                 sender=alerts_mod.print_sender() if stdout else None, now=now,
             )
         except Exception as exc:  # noqa: BLE001
@@ -1460,7 +1579,9 @@ def d1_statements(ctx: RunContext, results: Sequence[SportResult], finished_at: 
     n_games = n_lines = 0
     seasons: list[tuple[int, int]] = []
     for res in results:
-        games += d1_out.game_rows(res.games, now, impacts=res.impacts, impacts_v2=res.impacts_v2)
+        # card games + out-of-window games carrying lines (impact columns NULL) so
+        # odds_history / openers rows always join to a games row
+        games += d1_out.game_rows(res.d1_games, now, impacts=res.impacts, impacts_v2=res.impacts_v2)
         stadiums += d1_out.stadium_rows([*res.stadiums.values(), *res.home_stadiums.values()], now)
         teams += d1_out.team_rows(res.teams.values(), now)
         edges = [e for gf in res.fairs.values() for e in (getattr(gf, "edges", None) or [])]
@@ -1503,7 +1624,7 @@ def write_outputs(
     baselines: dict[str, dict] = {}
     for r in results:
         try:
-            baselines[r.sport] = pstate.load_baseline(state_dir, volume_scope(r.sport, r.games, None))
+            baselines[r.sport] = pstate.load_baseline(state_dir, baseline_scope(r.sport, r.games, r.odds_games))
         except Exception:  # noqa: BLE001
             continue
     books = json_out.books_status(ctx.counts, book_list, baselines, utc_iso(finished),

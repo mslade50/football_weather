@@ -3,7 +3,12 @@
 Decides whether ``pipeline.yml`` should run the build at all, using only httpx +
 stdlib (never imports ``pipeline.build`` or pandas): SKIP when the requested
 sport(s) have no kickoff inside ``[now - LOOKBACK_HOURS, now + HORIZON_DAYS]``
-(CFB dark Jan-Aug, NFL dark Mar-Jul; ARCH §9.3), otherwise SCRAPE.
+(CFB dark Jan-Jul, NFL dark Mar-Jul; ARCH §9.3), otherwise SCRAPE.
+
+``HORIZON_DAYS`` is the ODDS horizon (``pipeline.build.ODDS_WINDOW_AFTER_D``, pinned
+equal by tests/test_gate_check.py), not the 10-day weather window: books post NFL
+week 1+ and CFB weeks ahead, and a run that only records openers / line history is
+still a run worth having.
 
 Fail-open: any network/parse/credential problem -> ``scrape`` (a wasted run is
 cheap; a missed run is not). ``--force`` / ``PIPELINE_FORCE=1`` bypasses.
@@ -30,7 +35,7 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
-HORIZON_DAYS = 10
+HORIZON_DAYS = 45      # == pipeline.build.ODDS_WINDOW_AFTER_D (odds horizon, not the 10-day weather window)
 LOOKBACK_HOURS = 6
 TIMEOUT_S = 20
 

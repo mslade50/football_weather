@@ -254,7 +254,10 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     o2 = legacy_odds("nfl", KC_BUF, res2.by_game, res2.consensus, res2.openers)
     assert (o2["spread_now"], o2["spread_open"]) == (-3.5, -2.5)
     assert ctx2.counts["betonline"]["nfl"] == 2
-    bl = pstate.load_baseline(tmp_path, "nfl:2026:1")
+    # baseline scope keys on the weather-window games ('nfl:2026:1' once the game is
+    # inside 10 days, 'nfl:2026:?' while it is only on the odds horizon)
+    scope = build.baseline_scope("nfl", [g for g in games if build.in_window(g.kickoff_utc, ctx2.now_utc)], games, 2026)
+    bl = pstate.load_baseline(tmp_path, scope)
     assert bl["peaks"]["betonline|spread"] == 1
 
 
@@ -364,6 +367,163 @@ def test_playwright_style_run_keeps_fanduel_now_via_archive(tmp_path: Path, monk
     assert (o2["fd_now"], o2["odds_n"], o2["fd_open"], o2["ref_book"]) == (51.5, -112, 51.5, "fanduel")
     assert r2.consensus[(gid, "total")].n_books == 2
     assert {ln.book for ln in r2.lines} == {"betonline", "fanduel"}
+
+
+# ---- odds horizon vs weather window ------------------------------------------------------
+
+def test_split_schedule_window_is_subset_of_odds_horizon():
+    from datetime import timedelta
+
+    now = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
+    near = _game("nfl:2026:1:buf@kc", kick=now + timedelta(days=3))
+    far = _game("nfl:2026:3:kc@buf", away="kc", home="buf", kick=now + timedelta(days=20))
+    beyond = _game("nfl:2026:8:buf@kc", kick=now + timedelta(days=build.ODDS_WINDOW_AFTER_D + 1))
+    played = _game("nfl:2026:0:buf@kc", kick=now - timedelta(hours=7))
+    window, horizon = build.split_schedule([played, beyond, far, near], now)
+    assert [g.game_id for g in window] == [near.game_id]
+    assert [g.game_id for g in horizon] == [far.game_id, near.game_id]
+    assert build.in_odds_horizon(far.kickoff_utc, now) and not build.in_window(far.kickoff_utc, now)
+
+
+def test_entered_window_ids_and_board_new_opener_keys():
+    from datetime import timedelta
+
+    now = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+    entering = _game("nfl:2026:1:buf@kc", kick=now + timedelta(days=9, hours=20))     # entry ~4 h ago
+    settled = _game("nfl:2026:1:kc@buf", away="kc", home="buf", kick=now + timedelta(days=5))  # entered days ago
+    prev = now - timedelta(hours=6)
+    assert build.entered_window_ids([entering, settled], prev, now) == {entering.game_id}
+    assert build.entered_window_ids([entering, settled], None, now) == {entering.game_id, settled.game_id}
+
+    openers = pstate.migrate(None, "openers")
+    pstate.record_openers(openers, [_ln("betonline", "total", "under", 47.0, game_id=entering.game_id),
+                                    _ln("betonline", "total", "under", 44.0, game_id=settled.game_id),
+                                    _ln("consensus", "total", "under", 47.0, game_id=entering.game_id)], "t0")
+    odds = build.OddsResult([], {}, openers, {}, [], {}, new_opener_keys=[f"{settled.game_id}|spread|home|pinnacle"])
+    res = build.SportResult("nfl", [], [], [], [entering, settled], {}, {}, {}, {}, odds)
+    keys = build.board_new_opener_keys(res, prev, now)
+    # this run's genuinely-new key + every opener of the game that just entered the window
+    assert keys == sorted([f"{settled.game_id}|spread|home|pinnacle", f"{entering.game_id}|total|under|betonline",
+                           f"{entering.game_id}|total|under|consensus"])
+
+
+def test_previous_run_finished_reads_state_status(tmp_path: Path):
+    from pipeline.outputs import json_out
+
+    assert build.previous_run_finished(tmp_path, "nfl") is None
+    json_out.dump_json(tmp_path / json_out.STATUS_FILE, {"runs": [
+        {"run_id": "r3", "sport": "cfb", "finished_at": "2026-09-01T12:00:00Z"},
+        {"run_id": "r2", "sport": "all", "finished_at": "2026-09-01T06:00:00Z"},
+    ]})
+    assert build.previous_run_finished(tmp_path, "nfl") == datetime(2026, 9, 1, 6, 0, tzinfo=timezone.utc)
+    assert build.previous_run_finished(tmp_path, "cfb") == datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+
+
+class _NoVenueBook(_Book):
+    stadiums: dict[str, Any] = {}
+
+    def resolve(self, game: Game, ctx: Any) -> None:
+        return None
+
+
+def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A game 20 days out is matched for odds (openers, history, archive_last, D1 games row)
+    but gets no forecast / card / legacy row; the 3-day game gets both."""
+    from datetime import timedelta
+
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    now = datetime.now(timezone.utc)
+    near = _game("nfl:2026:1:buf@kc", kick=now + timedelta(days=3))
+    far = _game("nfl:2026:3:kc@buf", away="kc", home="buf", kick=now + timedelta(days=20))
+    stamp_near, stamp_far = near.kickoff_utc.strftime("%Y%m%d"), far.kickoff_utc.strftime("%Y%m%d")
+    prov_near = f"nfl:raw:{stamp_near}:buffalo-bills@kansas-city-chiefs"
+    prov_far = f"nfl:raw:{stamp_far}:kansas-city-chiefs@buffalo-bills"
+
+    async def fake_scrape(sport, books, raw, run_id, degrade):
+        return {"betonline": [_ln("betonline", "spread", "home", -2.5, game_id=prov_near), _ln("betonline", "total", "under", 47.0, game_id=prov_near),
+                              _ln("betonline", "spread", "home", 3.0, game_id=prov_far), _ln("betonline", "total", "under", 41.5, game_id=prov_far)],
+                "pinnacle": [_ln("pinnacle", "total", "under", 47.5, game_id=prov_near), _ln("pinnacle", "total", "under", 41.0, game_id=prov_far)]}, {}
+
+    monkeypatch.setattr(build, "scrape_books", fake_scrape)
+    monkeypatch.setattr(build, "_send_alert", lambda text: True)
+    monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
+    monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [near, far])
+    monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
+    real_import = build._import
+    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
+
+    ctx = RunContext(sport="nfl", scope="light", git_sha="t")
+    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline", "pinnacle"], state_dir=tmp_path, alerts=False)
+
+    assert [g.game_id for g in res.games] == [near.game_id]
+    assert {g.game_id for g in res.odds_games} == {near.game_id, far.game_id}
+    assert [c["game_id"] for c in res.cards] == [near.game_id]          # no card for the horizon game
+    assert len(res.records) == 1 and res.records[0].game_id == near.game_id
+    assert {ln.game_id for ln in res.odds.lines} == {near.game_id, far.game_id}
+    store = res.odds.openers["openers"]
+    assert store[f"{far.game_id}|total|under|betonline"]["line"] == 41.5
+    # consensus pseudo-book opener too: pinnacle 41.0 (w3) beats betonline 41.5 (w2)
+    assert store[f"{far.game_id}|total|under|consensus"]["line"] == 41.0
+    assert res.odds.consensus[(far.game_id, "total")].line == 41.0
+    assert ctx.counts["schedule"] == {"nfl": 1, "nfl.odds": 2} and ctx.counts["odds_games"]["nfl"] == 2
+    assert {g.game_id for g in res.d1_games} == {near.game_id, far.game_id}
+    hist = pstate.load_history(tmp_path)
+    assert f"{far.game_id}|total|under|betonline" in hist["series"] and f"{near.game_id}|spread|home|betonline" in hist["series"]
+    archive = pstate.load_archive_last(tmp_path)
+    assert f"{far.game_id}|spread|home|betonline" in archive["last"]
+    assert comp_sev(ctx, "schedule") is None   # window populated: no schedule degradation
+
+    # D1: the horizon game is upserted with NULL impact columns so odds_history joins work
+    stmts = build.d1_statements(ctx, [res], now)
+    games_sql = "\n".join(s for s in stmts if s.startswith("INSERT INTO games"))
+    assert near.game_id in games_sql and far.game_id in games_sql
+    assert any(far.game_id in s for s in stmts if s.startswith("INSERT OR IGNORE INTO odds_history"))
+
+
+def comp_sev(ctx: Any, component: str) -> str | None:
+    return next((d.severity for d in ctx.degradations if d.component == component), None)
+
+
+def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Nothing inside the weather window but week-1 lines on the odds horizon: openers are
+    recorded, no cards, and the empty window is an ``info`` (not ``warn``) degradation."""
+    from datetime import timedelta
+
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    now = datetime.now(timezone.utc)
+    far = _game("nfl:2026:1:buf@kc", kick=now + timedelta(days=17))
+    prov = f"nfl:raw:{far.kickoff_utc.strftime('%Y%m%d')}:buffalo-bills@kansas-city-chiefs"
+
+    async def fake_scrape(sport, books, raw, run_id, degrade):
+        return {"betonline": [_ln("betonline", "total", "under", 47.0, game_id=prov)]}, {}
+
+    monkeypatch.setattr(build, "scrape_books", fake_scrape)
+    monkeypatch.setattr(build, "_send_alert", lambda text: True)
+    monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
+    monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [far])
+    monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
+    real_import = build._import
+    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
+
+    ctx = RunContext(sport="nfl", scope="light", git_sha="t")
+    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path, alerts=False)
+    assert res.games == [] and res.cards == [] and [g.game_id for g in res.odds_games] == [far.game_id]
+    assert f"{far.game_id}|total|under|betonline" in res.odds.openers["openers"]
+    assert comp_sev(ctx, "schedule") == "info"
+    assert res.season_week == (2026, 1)      # meta season/week falls back to the odds horizon
+    # volume baseline keeps week '?' until a game enters the window (fresh peaks for week 1)
+    assert build.baseline_scope("nfl", res.games, res.odds_games) == "nfl:2026:?"
+    assert build.baseline_scope("nfl", res.odds_games, res.odds_games) == "nfl:2026:1"
+    assert pstate.load_baseline(tmp_path, "nfl:2026:?")["peaks"]["betonline|total"] == 1
+    # nothing scheduled anywhere -> warn, as before
+    monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [])
+    ctx2 = RunContext(sport="nfl", scope="light", git_sha="t")
+    build.run_sport(ctx2, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path, alerts=False)
+    assert comp_sev(ctx2, "schedule") == "warn"
 
 
 def test_alerts_stdout_flag_parses_and_print_sender_is_console_safe(capsys: pytest.CaptureFixture[str]):

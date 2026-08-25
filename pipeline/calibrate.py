@@ -29,7 +29,9 @@ coefficient is nudged by a shrinking step while the loss improves. Deterministic
 Data: per-game rows with the forecast at the lead the alerts fire on and the
 opening/closing lines — ``pipeline.backtest`` writes them to ``data/backtest/games.parquet``
 and as ``games[]`` inside ``board/backtest.json``. Flat rows or GameCard-shaped rows
-(``weather.*``, ``stadium.*``, ``consensus.*``, ``closing.*``) both load.
+(``weather.*``, ``stadium.*``, ``consensus.*``, ``closing.*``) both load. v1's error is
+scored with the RUN month (``_run_month``: ``src_forecast`` snapshot stamp / ``fetched_at`` /
+kickoff − lead), falling back to the game month when the row carries no run timestamp.
 
 Guard: at least ``--min-weeks`` (default 4) distinct (season, week) pairs with a closing
 total, else nothing is written (exit 2) unless ``--force``.
@@ -48,7 +50,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -114,6 +116,8 @@ class Row:
     total_close: Optional[float]
     spread_open: Optional[float]
     spread_close: Optional[float]
+    # month of the RUN that produced the forecast (v1 rain suppression keys on it); None -> game month
+    run_month: Optional[int] = None
 
     @property
     def has_total(self) -> bool:
@@ -184,6 +188,45 @@ def _month(v: Any) -> Optional[int]:
     return _int(v) if _int(v) is not None and 1 <= (_int(v) or 0) <= 12 else None
 
 
+def _parse_dt(v: Any) -> Optional[datetime]:
+    if isinstance(v, datetime):
+        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+    s = _str(v)
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _run_month(d: dict[str, Any]) -> Optional[int]:
+    """Month of the RUN that produced the forecast. v1's September rain suppression keys on
+    the generator's clock, not the kickoff (``impact.compute_impact_v1`` ``month``), so an
+    October game forecast in a September run must be scored with month=9.
+
+    Sources, first hit wins: an explicit ``run_month`` / ``commit_date`` / ``run_date`` /
+    ``run_time`` column; a GameCard's ``weather.fetched_at`` (the merge ``run_time``);
+    the snapshot timestamp ``pipeline.backtest`` stamps into ``src_forecast``
+    (``snapshot:<iso>``); else kickoff minus the forecast lead (``lead_fc`` /
+    ``lead_hours``). None when nothing is available — ``_v1_pcts`` then falls back to
+    the game month, which is only wrong for October kickoffs forecast in September."""
+    m = _month(_get(d, "run_month", "commit_date", "run_date", "run_time", "fetched_at", "weather.fetched_at"))
+    if m is not None:
+        return m
+    src = _str(_get(d, "src_forecast"))
+    if src and src.startswith("snapshot:"):
+        m = _month(src.split(":", 1)[1])
+        if m is not None:
+            return m
+    kick = _parse_dt(_get(d, "kickoff_utc", "kickoff"))
+    lead = _num(_get(d, "lead_fc", "lead_hours", "weather.lead_hours"))
+    if kick is not None and lead is not None and lead >= 0:
+        return (kick - timedelta(hours=lead)).month
+    return None
+
+
 def row_from_dict(d: dict[str, Any]) -> Optional[Row]:
     """Flat backtest row or GameCard-shaped row -> ``Row`` (None when the sport is unknown)."""
     sport = SPORT_ALIASES.get(str(_get(d, "sport") or "").strip().lower())
@@ -212,6 +255,7 @@ def row_from_dict(d: dict[str, Any]) -> Optional[Row]:
         total_close=_num(_get(d, "total_close", "closing_total", "closing.total", "consensus.total_close")),
         spread_open=_num(_get(d, "spread_open", "consensus.spread_open")),
         spread_close=_num(_get(d, "spread_close", "closing_spread", "closing.spread", "consensus.spread_close")),
+        run_month=_run_month(d),
     )
 
 
@@ -265,7 +309,10 @@ def _v2(r: Row, cal: dict[str, float]) -> I.ImpactV2:
 
 
 def _v1_pcts(r: Row) -> tuple[float, float]:
-    imp = I.compute_impact_v1(r.sport, r.month, r.temp_fg, r.wind_fg, r.rain_fg or 0.0, r.travel_alt, r.away_temp,
+    # v1 rain suppression keys on the RUN month (see _run_month); the game month is the
+    # documented fallback when the row carries no run timestamp.
+    month = r.run_month if r.run_month is not None else r.month
+    imp = I.compute_impact_v1(r.sport, month, r.temp_fg, r.wind_fg, r.rain_fg or 0.0, r.travel_alt, r.away_temp,
                               roof_state=r.roof_state)
     return imp.gs_fg_pct, imp.away_fg_pct
 

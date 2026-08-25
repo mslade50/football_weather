@@ -165,6 +165,54 @@ def test_neutral_tie_defaults_to_schedule_away(book: StadiumBook) -> None:
     assert rg.travel_alt == (rg.travel_alt_home if rg.penalized_side == "home" else rg.travel_alt_away)
 
 
+def test_espn_neutral_venue_aviva_stadium(book: StadiumBook) -> None:
+    # ESPN venue 3504 (Aer Lingus College Football Classic, Dublin): the ESPN scoreboard parser
+    # passes the numeric venue id as stadium_id; it must map via espn_venue_index, never fall
+    # back to the home stadium with a 'neutral site unknown' degradation.
+    st = book.find_stadium("3504")
+    assert st is not None and st.stadium_id == "aviva-stadium"
+    assert book.find_stadium("Aviva Stadium") is st and book.find_stadium("Lansdowne Road") is st
+    assert st.timezone == "Europe/Dublin" and st.country == "IE" and st.roof_type == "open"
+    assert st.orientation_bucket == "N-S" and st.orientation_src == "manual"
+    assert st.orientation_deg == pytest.approx(164.5)  # overrides pin the pitch axis against a rebuild
+    assert not st.needs_review
+    ctx = RunContext(sport="cfb", git_sha="test")
+    rg = book.resolve(_game("cfb", "tcu", "north-carolina", "3504", neutral=True, week=0), ctx)
+    assert rg.stadium is st and rg.stadium_source == "game.stadium_id"
+    assert rg.roof_state == "outdoors" and rg.game_loc == "53.3352, -6.2285"
+    assert rg.wind_avg == pytest.approx(9.75)  # ERA5 September mean
+    assert not any(d.component == "stadiums" for d in ctx.degradations)
+
+
+@pytest.mark.parametrize("team_id,stadium_id,conference", [
+    ("long-island-university", "bethpage-federal-credit-union-stadium", "NEC"),
+    ("ut-rio-grande-valley", "robert-and-janet-vackar-stadium", "Southland"),
+    ("west-florida", "pen-air-field", "UAC"),
+])
+def test_new_fcs_programs_have_home_stadiums(book: StadiumBook, team_id: str, stadium_id: str, conference: str) -> None:
+    t = book.team("cfb", team_id)
+    assert t is not None and t.conference == conference and t.avg_temp_f is not None
+    assert book.classification[("cfb", team_id)] == "fcs"
+    st = book.stadium_for_team("cfb", team_id)
+    assert st is not None and st.stadium_id == stadium_id and not st.needs_review
+    assert st.timezone in ("America/New_York", "America/Chicago") and st.elevation_m is not None
+    assert st.avg_wind_by_month.get("sep") is not None
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Long Island", "long-island-university"),                 # FanDuel
+    ("LIU", "long-island-university"),                         # Kalshi
+    ("Long Island University", "long-island-university"),      # Novig
+    ("Long Island University Sharks", "long-island-university"),
+    ("UTRGV", "ut-rio-grande-valley"),                         # FanDuel
+    ("UT Rio Grande Valley Vaqueros", "ut-rio-grande-valley"), # ESPN
+    ("West Florida", "west-florida"),                          # FanDuel
+    ("West Florida Argonauts", "west-florida"),
+])
+def test_book_spellings_resolve_in_loader(book: StadiumBook, raw: str, expected: str) -> None:
+    assert book.resolve_team("cfb", raw, fuzzy=False) == expected
+
+
 def test_missing_stadium_degrades(book: StadiumBook) -> None:
     ctx = RunContext(sport="cfb", git_sha="test")
     g = _game("cfb", "no-such-team", "navy", "ZZZ99")

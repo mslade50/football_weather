@@ -3590,5 +3590,33 @@
     "WOR",
     "Worcester St ",
     "Worcester State College Lancers"
+  ],
+  "long-island-university": [
+    "Long Island University",
+    "LIU",
+    "Long Island",
+    "LIU Sharks",
+    "Long Island Sharks",
+    "Long Island University Sharks",
+    "Long Island U",
+    "Long Island (NY)"
+  ],
+  "ut-rio-grande-valley": [
+    "UT Rio Grande Valley",
+    "UTRGV",
+    "UT Rio Grande",
+    "Texas-Rio Grande Valley",
+    "Texas Rio Grande Valley",
+    "Rio Grande Valley",
+    "UTRGV Vaqueros",
+    "UT Rio Grande Valley Vaqueros",
+    "Texas-RGV"
+  ],
+  "west-florida": [
+    "West Florida",
+    "UWF",
+    "West Florida Argonauts",
+    "UWF Argonauts",
+    "W Florida"
   ]
 }
