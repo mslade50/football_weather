@@ -1,5 +1,6 @@
-"""pipeline/alerts.py rules (ARCH §10): thresholds per sport/market, weather gate,
-move buckets, edge-gone, forecast move, quiet-hours queue/flush, 25-per-run cap +
+"""pipeline/alerts.py rules (ARCH §10): the signal-tier gate (legacy bet rules: every game
+in any tier but "No Impact" alerts the TOTAL UNDER, market edge as a note), move buckets,
+signal-gone / signal-change, forecast move, quiet-hours queue/flush, 25-per-run cap +
 digest, mark-only-after-send, dedup, rehydrate, D1 mirror, feed/status payloads."""
 
 from __future__ import annotations
@@ -34,12 +35,14 @@ def _edge(book: str = "betonline", market: str = "total", side: str = "under", l
 
 def card(edges: list[dict[str, Any]] | None = None, *, weather_driven: bool = True, thin: bool = False,
          wind: float = 18.0, rain: float = 0.8, gs: float = -6.5, game_id: str = GID, sport: str = "nfl",
-         kickoff: datetime = KICK, stadium: bool = True) -> dict[str, Any]:
+         kickoff: datetime = KICK, stadium: bool = True, signal: str | None = "Mid Impact",
+         flags: list[str] | None = None) -> dict[str, Any]:
     edges = [_edge()] if edges is None else edges
     return {
         "game_id": game_id, "sport": sport, "season": 2026, "week": 3, "kickoff_utc": kickoff.isoformat(),
         "kickoff_local": kickoff.isoformat(), "tz": "America/New_York", "date_label": "SUN 09/20", "time_label": "01:00 PM",
-        "neutral": False, "status": "scheduled", "signal": {"label": "High Impact", "flags": []},
+        "neutral": False, "status": "scheduled",
+        "signal": {"label": signal, "level": signal, "color": "orange", "size": 12, "flags": list(flags or [])},
         "home": {"team_id": "ne", "name": "New England Patriots", "short": "NE"},
         "away": {"team_id": "sea", "name": "Seattle Seahawks", "short": "SEA"},
         "stadium": {"name": "Gillette Stadium", "roof_state": "outdoors"} if stadium else None,
@@ -79,7 +82,7 @@ def _live(cands: list[A.Candidate], alerts: dict, tg: dict, now: datetime = NOW,
     return A.dispatch(p, alerts, rec, now, cfg), rec, p
 
 
-# ---- thresholds per sport / market (model.fair.tier, the gate EDGE alerts read) ----
+# ---- thresholds per sport / market (model.fair.tier: board tiers only, never an alert gate) ----
 
 def test_edge_thresholds_per_sport_market():
     for sport, market, edge_t, strong_t in (("nfl", "total", 1.5, 2.5), ("nfl", "spread", 1.0, 1.5),
@@ -97,15 +100,102 @@ def test_confidence_and_lead_bypass():
     assert fair.tier("nfl", "ml", 5.0, 0.2, 0.9, 30) == "none"
 
 
-def test_weather_gate_blocks_non_weather_edges():
-    assert fair.tier("nfl", "total", 5.0, 0.1, 0.9, 10, is_weather_driven=False) == "watch"
+# ---- the EDGE gate is the signal tier; fair tiers / weather_driven / thin are board-only ----
+
+def test_signal_tier_is_the_only_gate():
+    assert fair.tier("nfl", "total", 5.0, 0.1, 0.9, 10, is_weather_driven=False) == "watch"   # board tier still exists
     alerts, _ = _fresh()
-    assert A.edge_candidates(card(weather_driven=False), alerts, CFG) == []
-    assert A.edge_candidates(card(thin=True), alerts, CFG) == []
-    assert A.edge_candidates(card([_edge(tier="watch")]), alerts, CFG) == []
+    key = f"edge|2026|3|{GID}|total|under|betonline|v1"
+    for c in (card(weather_driven=False), card(thin=True), card([_edge(tier="watch")]), card([_edge(tier="none", edge_pts=0.1)])):
+        got = A.edge_candidates(c, alerts, CFG)
+        assert [x.key for x in got] == [key]
     c = A.edge_candidates(card(), alerts, CFG)
-    assert [x.key for x in c] == [f"edge|2026|3|{GID}|total|under|betonline|v1"]
-    assert c[0].tier == "edge" and c[0].sport == "nfl" and c[0].kickoff_utc == KICK
+    assert c[0].tier == "mid" and c[0].sport == "nfl" and c[0].kickoff_utc == KICK
+    assert c[0].record["tier"] == "mid" and c[0].record["last_signal"] == "Mid Impact"
+
+
+def test_no_impact_never_alerts():
+    alerts, _ = _fresh()
+    assert A.edge_candidates(card(signal="No Impact"), alerts, CFG) == []
+    assert A.edge_candidates(card(signal=None), alerts, CFG) == []
+    assert A.edge_candidates(card([_edge(edge_pts=9.0, tier="strong")], signal="No Impact"), alerts, CFG) == []
+    assert A._alertable_edges(card(signal="")) == []
+
+
+def test_low_tier_with_negative_market_edge_still_alerts():
+    alerts, _ = _fresh()
+    c = A.edge_candidates(card([_edge(edge_pts=-0.6, edge_prob=-0.012, fair_line=38.6, tier="none")],
+                               signal="Low (Rain)", sport="cfb", game_id="cfb:2026:3:a@b"), alerts, CFG)
+    assert len(c) == 1 and c[0].tier == "low" and c[0].record["tier"] == "low" and c[0].record["last_signal"] == "Low (Rain)"
+    assert c[0].key == "edge|2026|3|cfb:2026:3:a@b|total|under|betonline|v1"
+    assert "market edge −0.6 pts / −1.2% (market already there)" in c[0].text and "<b>Low (Rain)</b>" in c[0].text
+    assert not c[0].bypass_quiet
+
+
+def test_signal_slugs():
+    assert A.signal_slug("Very High Impact") == "very_high" and A.signal_slug("High Impact") == "high"
+    assert A.signal_slug("Mid Impact") == "mid" and A.signal_slug("Low Impact") == "low"
+    assert A.signal_slug("Low (Rain)") == "low" and A.signal_slug("Low (Wind)") == "low" and A.signal_slug("Low (Temp)") == "low"
+    assert A.signal_slug("No Impact") is None and A.signal_slug(None) is None and A.signal_slug("") is None
+
+
+def test_play_is_the_largest_under_edge_any_book():
+    alerts, _ = _fresh()
+    c = A.edge_candidates(card([_edge(), _edge(book="betcris", line=38.5, edge_pts=3.9, tier="watch"),
+                                _edge(book="fanduel", side="over", edge_pts=9.0),
+                                _edge(book="novig", market="spread", side="home", line=-3.0, edge_pts=5.0, tier="strong")]),
+                          alerts, CFG)
+    assert [x.key for x in c] == [f"edge|2026|3|{GID}|total|under|betcris|v1"]
+    assert "<b>UNDER 38.5 −110 @ Betcris</b>" in c[0].text
+
+
+def test_consensus_entry_synthesised_when_no_under_edge():
+    alerts, _ = _fresh()
+    c = A.edge_candidates(card([_edge(side="over", edge_pts=-3.4)]), alerts, CFG)
+    assert [x.key for x in c] == [f"edge|2026|3|{GID}|total|under|consensus|v1"]
+    r = c[0].record
+    assert r["book"] == "consensus" and r["last_line"] == 37.5 and r["last_fair"] == 34.6 and r["last_edge"] == 2.9
+    assert r["last_odds"] is None and r["tier"] == "mid" and r["last_signal"] == "Mid Impact"
+    assert "<b>UNDER 37.5 (consensus)</b> · market edge +2.9 pts vs fair 34.6" in c[0].text
+    e = A.consensus_entry(card([], sport="cfb"))
+    assert e["market"] == "total" and e["side"] == "under" and e["edge_prob"] is None and e["model_version"] == "v1"
+    assert A.parse_edge_key(c[0].key) == {"season": "2026", "week": "3", "game_id": GID, "market": "total", "side": "under",
+                                          "book": "consensus", "model_version": "v1"}
+
+
+def test_no_line_posted_message_and_record():
+    alerts, tg = _fresh()
+    c = card([])
+    c["consensus"]["total_now"] = None
+    c["odds"] = {}
+    cands = A.edge_candidates(c, alerts, CFG)
+    assert len(cands) == 1 and "<b>UNDER</b> · no line posted yet" in cands[0].text and "Books: no lines posted" in cands[0].text
+    assert cands[0].record["last_line"] is None and cands[0].record["last_edge"] is None
+    out, _, _ = _live(cands, alerts, tg)
+    assert out.n_sent == 1
+    # the open consensus record evaluates follow-ups without a line: only GONE / SIGNAL CHANGE can fire
+    assert A.followup_candidates(c, alerts, CFG, NOW) == []
+    gone = A.followup_candidates(dict(c, signal={"label": "No Impact", "flags": []}), alerts, CFG, NOW)
+    assert [x.family for x in gone] == ["gone"] and "SIGNAL GONE: was Mid Impact → No Impact" in gone[0].text
+
+
+def test_bypass_quiet_for_high_tiers_and_gone():
+    mk = lambda tier, fam="edge": A.Candidate("k", fam, "nfl", "<b>x</b>\ny", tier=tier)  # noqa: E731
+    assert mk("high").bypass_quiet and mk("very_high").bypass_quiet
+    assert not mk("mid").bypass_quiet and not mk("low").bypass_quiet and not mk(None).bypass_quiet
+    assert mk("low", "gone").bypass_quiet
+    alerts, _ = _fresh()
+    assert A.edge_candidates(card(signal="Very High Impact"), alerts, CFG)[0].tier == "very_high"
+    assert A.edge_candidates(card(signal="High Impact"), alerts, CFG)[0].bypass_quiet
+
+
+def test_edge_key_roundtrip_unchanged():
+    for book in ("betonline", "consensus"):
+        key = A.edge_key(2026, 3, GID, "total", "under", book, "v1")
+        assert key == f"edge|2026|3|{GID}|total|under|{book}|v1"
+        assert A.parse_edge_key(key) == {"season": "2026", "week": "3", "game_id": GID, "market": "total", "side": "under",
+                                         "book": book, "model_version": "v1"}
+    assert A.parse_edge_key("edge|2026|3|x") is None and A.parse_edge_key("wx|edge|2026|3|g|total|under|b|v1|sig-mid") is None
 
 
 def test_edge_dedup_after_marker():
@@ -114,11 +204,13 @@ def test_edge_dedup_after_marker():
     assert A.edge_candidates(card(), alerts, CFG) == []
 
 
-# ---- move buckets / gone / forecast move: only on games with an open EDGE ----
+# ---- move buckets / gone / signal change / forecast move: only on games with an open EDGE ----
 
-def _with_open_edge(line: float = 38.0, fair_line: float = 34.6, edge_pts: float = 3.4, wind: float = 18.0) -> dict:
+def _with_open_edge(line: float = 38.0, fair_line: float = 34.6, edge_pts: float = 3.4, wind: float = 18.0,
+                    signal: str = "Mid Impact", edges: list[dict[str, Any]] | None = None) -> dict:
     alerts, tg = _fresh()
-    cands = A.edge_candidates(card([_edge(line=line, fair_line=fair_line, edge_pts=edge_pts)], wind=wind), alerts, CFG)
+    edges = [_edge(line=line, fair_line=fair_line, edge_pts=edge_pts)] if edges is None else edges
+    cands = A.edge_candidates(card(edges, wind=wind, signal=signal), alerts, CFG)
     out, _, _ = _live(cands, alerts, tg)
     assert out.n_sent == 1
     return alerts
@@ -163,25 +255,72 @@ def test_move_cooldown_and_rebasing_after_send():
     assert A.followup_candidates(card([_edge(line=39.0, edge_pts=4.4)]), alerts, CFG, NOW + timedelta(hours=6)) == []
 
 
-def test_edge_gone_closes_record_and_suppresses_move():
+def test_signal_gone_closes_record_and_suppresses_move():
     alerts, tg = _fresh()
     alerts = _with_open_edge()
-    gone = card([_edge(line=35.0, edge_pts=0.4)])
+    gone = card([_edge(line=35.0, edge_pts=0.4)], signal="No Impact", wind=6.0)
     c = A.followup_candidates(gone, alerts, CFG, NOW)
-    assert [x.family for x in c] == ["gone"]
+    assert [x.family for x in c] == ["gone"] and c[0].bypass_quiet
     assert c[0].key == f"gone|edge|2026|3|{GID}|total|under|betonline|v1"
+    assert "SIGNAL GONE: was Mid Impact → No Impact · <b>UNDER 35 @ BetOnline</b> · market edge now +0.4 pts" in c[0].text
     out, _, _ = _live(c, alerts, tg)
     assert out.n_sent == 1
     rec = pstate.get_alert_record(alerts, f"edge|2026|3|{GID}|total|under|betonline|v1")
-    assert rec["status"] == "closed"
+    assert rec["status"] == "closed" and rec["last_signal"] == "No Impact"
     assert pstate.open_edge_records(alerts, GID) == []
     assert A.followup_candidates(card([_edge(line=45.0, edge_pts=10.0)]), alerts, CFG, NOW) == []
 
 
-def test_edge_gone_threshold_boundary():
+def test_market_edge_gone_is_not_a_signal_gone():
+    """A vanished market edge no longer closes anything: the signal is the gate."""
     alerts = _with_open_edge()
-    assert [x.family for x in A.followup_candidates(card([_edge(line=35.1, edge_pts=0.5)]), alerts, CFG, NOW)] != ["gone"]
-    assert [x.family for x in A.followup_candidates(card([_edge(line=35.0, edge_pts=0.49)]), alerts, CFG, NOW)] == ["gone"]
+    fams = [x.family for x in A.followup_candidates(card([_edge(line=35.0, edge_pts=0.1)]), alerts, CFG, NOW)]
+    assert "gone" not in fams
+    assert not hasattr(A, "GONE_EDGE_PTS") and not hasattr(A, "ALERTED_TIERS")
+
+
+def test_signal_change_low_to_mid_key_message_and_no_duplicate():
+    alerts, tg = _fresh()
+    alerts = _with_open_edge(signal="Low Impact")
+    ekey = f"edge|2026|3|{GID}|total|under|betonline|v1"
+    assert pstate.get_alert_record(alerts, ekey)["last_signal"] == "Low Impact"
+    assert A.followup_candidates(card(signal="Low Impact"), alerts, CFG, NOW) == []
+    c = A.followup_candidates(card(signal="Mid Impact", wind=17.0), alerts, CFG, NOW)
+    assert [x.key for x in c] == [f"wx|{ekey}|sig-mid"] and c[0].family == "wx" and c[0].tier == "mid"
+    assert "SIGNAL Low Impact → <b>Mid Impact</b> · wind 17 mph · 41°F · rain 0.8 mm" in c[0].text
+    assert "<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1%" in c[0].text and "Books:" in c[0].text
+    out, _, _ = _live(c, alerts, tg)
+    assert out.n_sent == 1
+    rec = pstate.get_alert_record(alerts, ekey)
+    assert rec["last_signal"] == "Mid Impact" and rec["status"] == "open" and rec["tier"] == "low"
+    assert A.followup_candidates(card(signal="Mid Impact"), alerts, CFG, NOW) == []              # no repeat
+    back = A.followup_candidates(card(signal="Low Impact"), alerts, CFG, NOW)
+    assert [x.key for x in back] == [f"wx|{ekey}|sig-low"]
+    _live(back, alerts, tg)
+    assert A.followup_candidates(card(signal="Mid Impact"), alerts, CFG, NOW) == []              # sig-mid already sent
+    # High bypasses quiet hours on the change alert
+    up = A.followup_candidates(card(signal="High Impact"), alerts, CFG, NOW)
+    assert up[0].key == f"wx|{ekey}|sig-high" and up[0].bypass_quiet
+    # a record without last_signal (pre-change rows / D1 rehydrate) never guesses a change
+    rec.pop("last_signal")
+    assert A.followup_candidates(card(signal="High Impact"), alerts, CFG, NOW) == []
+
+
+def test_consensus_record_followups_move_on_consensus_total():
+    alerts, tg = _fresh()
+    alerts = _with_open_edge(edges=[_edge(side="over")])
+    ekey = f"edge|2026|3|{GID}|total|under|consensus|v1"
+    assert pstate.get_alert_record(alerts, ekey)["last_line"] == 37.5
+    same = card([_edge(side="over")])
+    assert A.followup_candidates(same, alerts, CFG, NOW) == []
+    moved = card([_edge(side="over")])
+    moved["consensus"]["total_now"] = 38.5
+    c = A.followup_candidates(moved, alerts, CFG, NOW)
+    assert [x.key for x in c] == [f"move|{ekey}|1"] and "<b>UNDER @ Consensus</b> moved 37.5 → 38.5" in c[0].text
+    gone = A.followup_candidates(card([_edge(side="over")], signal="No Impact"), alerts, CFG, NOW)
+    assert [x.key for x in gone] == [f"gone|{ekey}"] and "@ Consensus" in gone[0].text
+    chg = A.followup_candidates(card([_edge(side="over")], signal="High Impact"), alerts, CFG, NOW)
+    assert [x.key for x in chg] == [f"wx|{ekey}|sig-high"]
 
 
 def test_forecast_move_bucket_on_fair_line():
@@ -211,10 +350,11 @@ def test_quiet_hours_window():
 
 def test_quiet_hours_queue_bypass_and_flush(tmp_path: Path):
     alerts, tg = _fresh()
-    edge = A.edge_candidates(card(), alerts, CFG)[0]
-    strong = A.edge_candidates(card([_edge(book="betcris", tier="strong", edge_pts=4.0)]), alerts, CFG)[0]
+    edge = A.edge_candidates(card(), alerts, CFG)[0]                                                   # Mid → queued
+    strong = A.edge_candidates(card([_edge(book="betcris", edge_pts=4.0)], signal="Very High Impact"), alerts, CFG)[0]
     soon_card = card([_edge(book="fanduel")], kickoff=QUIET + timedelta(hours=2))
     soon = A.edge_candidates(soon_card, alerts, CFG)[0]
+    assert strong.tier == "very_high" and strong.bypass_quiet and not edge.bypass_quiet
     out, rec, p = _live([edge, strong, soon], alerts, tg, now=QUIET)
     assert {c.key for c in p.send} == {strong.key, soon.key}
     assert [c.key for c in p.queued] == [edge.key]
@@ -271,9 +411,10 @@ def test_under_cap_sends_individually():
     assert len(p.send) == 25 and p.digest == [] and out.n_messages == 25
 
 
-def test_strong_and_imminent_prioritised_before_cap():
+def test_high_tier_and_imminent_prioritised_before_cap():
     cands = _many(30)
-    late = A.edge_candidates(card([_edge(book="novig", tier="strong", edge_pts=5.0)], game_id="nfl:2026:3:zz@ne"), _fresh()[0], CFG)[0]
+    late = A.edge_candidates(card([_edge(book="novig", edge_pts=5.0)], game_id="nfl:2026:3:zz@ne", signal="High Impact"),
+                             _fresh()[0], CFG)[0]
     alerts, tg = _fresh()
     _, _, p = _live(cands + [late], alerts, tg)
     assert p.send[0].key == late.key
@@ -433,6 +574,8 @@ def test_d1_alert_rows_and_upsert_freeze_first_columns():
     rows = d1_out.alert_rows(out.records + [{"bogus": 1}, dict(out.records[0], status="weird")])
     assert len(rows) == 1 and set(rows[0]) == set(d1_out.ALERT_COLS)
     assert rows[0]["status"] == "open" and "last_move_at" not in rows[0] and "kickoff_utc" not in rows[0]
+    assert rows[0]["tier"] == "mid" and rows[0]["book"] == "betonline"                 # D1 tier = signal slug
+    assert out.records[0]["last_signal"] == "Mid Impact" and out.records[0]["tier"] == "mid"   # alerts.json record
     sql = d1_out.alert_upsert_sql(rows)
     assert len(sql) == 1 and sql[0].startswith("INSERT INTO alerts (alert_key, family")
     assert "ON CONFLICT(alert_key) DO UPDATE SET" in sql[0]

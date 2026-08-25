@@ -7,13 +7,20 @@
 Families (dedup key → one send per key, markers in ``alerts.json`` round-tripped
 through R2 and mirrored to D1 ``alerts``):
 
-    EDGE     edge|{season}|{week}|{game_id}|{market}|{side}|{book}|{model_version}
+    EDGE     edge|{season}|{week}|{game_id}|total|under|{book}|{model_version}
+                                           fires for every game in a signal tier (legacy bet rules:
+                                           card["signal"]["label"] != "No Impact"); the play is the
+                                           TOTAL UNDER at the book with the largest market edge, or a
+                                           "consensus"-book entry synthesised from consensus.total_now
+                                           vs fair_total; market edge is informational, never a gate.
+                                           Candidate.tier = signal slug low|mid|high|very_high.
     MOVE     move|{edge_key}|{bucket}      bucket = floor(|line_now − first_alerted_line| / step),
                                            step 1.0 total / 0.5 spread, ≤1 per edge key per 2 h
                                            (bucket vs the FIRST line so consecutive 1-pt moves get
                                            distinct keys; direction vs the last line we messaged)
-    GONE     gone|{edge_key}               edge_pts < 0.5 → record status=closed
+    GONE     gone|{edge_key}               signal dropped to "No Impact" → record status=closed
     WX       wx|{edge_key}|{bucket}        fair line moved ≥1.0 pt (weather), bucket = floor(|Δfair|)
+             wx|{edge_key}|sig-{slug}      signal label changed (Low→Mid …) while still in a tier
     OPENERS  openers|{sport}|{season}|{week}|{ET-day}
     OPS      degr|{component}|{reason}|{ET-day}, heartbeat|{ET-day}, stadium|{game_id},
              names|{book}|{ET-day}, noref|{sport}|{ET-day}
@@ -67,13 +74,16 @@ QUIET_END_H = 7                  # .. 07:00 ET
 BYPASS_KICKOFF_H = 3.0           # kickoff < 3 h bypasses quiet hours
 MOVE_STEP = {"total": 1.0, "spread": 0.5}
 MOVE_COOLDOWN_H = 2.0
-GONE_EDGE_PTS = 0.5
 WX_STEP = 1.0
 OPENER_GS_MAX = -2.0             # digest only games with gs_fg ≤ -2 ...
 OPENER_WIND_MIN = 12.0           # ... or wind_fg ≥ 12
 STALE_HOURS = 20.0
 TELEGRAM_MAX_CHARS = 4000        # API limit 4096; leave headroom for the header
-ALERTED_TIERS = ("edge", "strong")
+LADDER_WRAP_CHARS = 180          # "Books:" market ladder wraps to a second line past this
+SIGNAL_NONE = "No Impact"        # pipeline.model.signals.NO — the only label that never alerts
+SIGNAL_SLUGS = (("very high", "very_high"), ("high", "high"), ("mid", "mid"), ("low", "low"))
+BYPASS_TIERS = ("high", "very_high")   # signal tiers that bypass quiet hours / sort first
+CONSENSUS_BOOK = "consensus"
 DEFAULT_BOARD_URL = "https://football-board.mckinleyslade.workers.dev"
 
 FAMILY_PRIORITY = {"edge": 0, "wx": 1, "move": 2, "gone": 3, "openers": 4, "ops": 5}
@@ -104,11 +114,11 @@ class Candidate:
 
     def __post_init__(self) -> None:
         if not self.summary:
-            self.summary = _summary(self.text, 3 if self.family == "edge" else 1)
+            self.summary = _summary(self.text, 4 if self.family == "edge" else 1)   # EDGE: header + bet line
 
     @property
     def bypass_quiet(self) -> bool:
-        return self.tier == "strong" or self.family == "gone"
+        return self.tier in BYPASS_TIERS or self.family == "gone"
 
 
 @dataclass
@@ -383,46 +393,162 @@ def _opener_for(card: dict[str, Any], edge: dict[str, Any]) -> Optional[float]:
     return _num(m.get("open_line"))
 
 
-def _other_books(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
-    """'Best: Under 38.5 −108 Betcris · FD 38.0 · Kalshi 37.5 (52¢)' — same market/side at the other books."""
-    market, side, book = edge.get("market"), edge.get("side"), edge.get("book")
-    peers = [e for e in ((card.get("fair") or {}).get("edges") or [])
-             if e.get("market") == market and e.get("side") == side and e.get("book") != book and _num(e.get("line")) is not None]
-    if not peers:
-        return []
-    peers.sort(key=lambda e: -(_num(e.get("edge_pts")) or -99))
-    out = []
-    for i, e in enumerate(peers):
-        lbl = _book_label(e.get("book"))
-        if i == 0:
-            out.append(f"{str(side).title()} {_fmt_line(e.get('line'), signed=market == 'spread')} {_fmt_odds(e.get('odds'))} {lbl}")
-        elif e.get("book") in CENTS_BOOKS and _num(e.get("vigfree_prob")) is not None:
-            out.append(f"{lbl} {_fmt_line(e.get('line'), signed=market == 'spread')} ({round(e['vigfree_prob'] * 100)}¢)")
+def _signal_label(card: dict[str, Any]) -> Optional[str]:
+    lbl = (card.get("signal") or {}).get("label")
+    return str(lbl).strip() if lbl else None
+
+
+def _in_signal(card: dict[str, Any]) -> bool:
+    """The legacy bet rule: the map dot is any tier but 'No Impact'."""
+    lbl = _signal_label(card)
+    return bool(lbl) and lbl.lower() != SIGNAL_NONE.lower()
+
+
+def signal_slug(label: Optional[str]) -> Optional[str]:
+    """'Very High Impact' → 'very_high', 'Low (Rain)' → 'low', 'No Impact' / None → None."""
+    s = (label or "").strip().lower()
+    if not s or s == SIGNAL_NONE.lower():
+        return None
+    for prefix, slug in SIGNAL_SLUGS:
+        if s.startswith(prefix):
+            return slug
+    return _slug(s, 20)
+
+
+def _wx_numbers(card: dict[str, Any]) -> str:
+    """'wind 18 mph · 41°F · rain 0.8 mm' — the numbers the signal rules read."""
+    wx = card.get("weather") or {}
+    t = _num(wx.get("temp_fg"))
+    return (f"wind {_fmt_line(wx.get('wind_fg'))} mph · {round(t) if t is not None else '?'}°F · "
+            f"rain {_fmt_line(wx.get('rain_fg'))} mm")
+
+
+def _signal_line(card: dict[str, Any]) -> str:
+    flags = [str(f) for f in ((card.get("signal") or {}).get("flags") or []) if f]
+    line = f"<b>{html.escape(_signal_label(card) or '?')}</b> · {_wx_numbers(card)}"
+    return f"{line} · {html.escape(', '.join(flags))}" if flags else line
+
+
+def _is_consensus(edge: dict[str, Any]) -> bool:
+    return edge.get("book") == CONSENSUS_BOOK
+
+
+def _market_edge(edge: dict[str, Any], *, prefix: str = "market edge") -> str:
+    """'market edge +3.4 pts / +4.1%' · '… −0.6 pts (market already there)'; the market
+    edge is a note on a signal alert, never a gate, so ≤ 0 is shown honestly."""
+    pts = _num(edge.get("edge_pts"))
+    if pts is None:
+        return f"{prefix} ?"
+    prob = _num(edge.get("edge_prob"))
+    s = f"{prefix} {_fmt_signed(pts)} pts"
+    if prob is not None:
+        s += f" / {_fmt_pct(prob * 100)}"
+    if _is_consensus(edge) and _num(edge.get("fair_line")) is not None:
+        s += f" vs fair {_fmt_line(edge.get('fair_line'), signed=edge.get('market') == 'spread')}"
+    return s + (" (market already there)" if pts <= 0 else "")
+
+
+def _bet_line(card: dict[str, Any], edge: dict[str, Any], *, opener: bool = True) -> str:
+    """'<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1% · open 38'
+    '<b>UNDER 37.5 (consensus)</b> · market edge −0.6 pts vs fair 38.6 (market already there)'
+    '<b>UNDER</b> · no line posted yet'"""
+    market = edge.get("market")
+    signed = market == "spread"
+    side = _side_label(edge, card)
+    line = _num(edge.get("line"))
+    if line is None:
+        return f"<b>{side}</b> · no line posted yet"
+    if _is_consensus(edge):
+        return f"<b>{side} {_fmt_line(line, signed)} (consensus)</b> · {_market_edge(edge)}"
+    s = f"<b>{side} {_fmt_line(line, signed)} {_fmt_odds(edge.get('odds'))} @ {_book_label(edge.get('book'))}</b> · {_market_edge(edge)}"
+    op = _opener_for(card, edge) if opener else None
+    return s + (f" · open {_fmt_line(op, signed)}" if op is not None else "")
+
+
+def _cents(odds: Any) -> Optional[int]:
+    """American odds → implied price in cents (Kalshi contracts): −108 → 52¢, +120 → 45¢."""
+    n = _num(odds)
+    if n is None or n == 0:
+        return None
+    return int(round(100 * (abs(n) / (100 + abs(n)) if n < 0 else 100 / (100 + n))))
+
+
+def _ladder_rows(card: dict[str, Any], market: str, side: str) -> list[tuple[float, Optional[float], str, str]]:
+    """``(line, odds, book, rendered)`` for every book in ``card['odds']`` pricing ``market``;
+    the line is expressed from the bettor's side (spread away = −home_line)."""
+    rows: list[tuple[float, Optional[float], str, str]] = []
+    for book, blk in (card.get("odds") or {}).items():
+        if book == CONSENSUS_BOOK or not isinstance(blk, dict):
+            continue
+        m = blk.get(market) or {}
+        if market == "total":
+            line, odds = _num(m.get("line")), _num(m.get(side))
+        elif market == "spread":
+            home = _num(m.get("home_line"))
+            line = home if side == "home" else (-home if home is not None else None)
+            odds = _num(m.get(f"{side}_odds"))
         else:
-            out.append(f"{lbl} {_fmt_line(e.get('line'), signed=market == 'spread')}")
-    return out
+            continue
+        if line is None:
+            continue
+        tag = _fmt_line(line, signed=True) if market == "spread" else f"{'u' if side == 'under' else 'o'}{line:.1f}"
+        cents = _cents(odds) if book in CENTS_BOOKS else None
+        price = f"({cents}¢)" if cents is not None else _fmt_odds(odds)
+        rows.append((line, odds, book, f"{_book_label(book)} {tag} {price}"))
+    # best first for the bettor: more favourable line (higher for under / spread side, lower for over), then better odds
+    rows.sort(key=lambda r: ((r[0] if side == "over" else -r[0]), -(r[1] if r[1] is not None else -1e9), r[2]))
+    return rows
+
+
+def _wrap_items(prefix: str, items: Sequence[str], limit: int = LADDER_WRAP_CHARS) -> list[str]:
+    lines: list[str] = []
+    cur = ""
+    for it in items:
+        piece = it if not cur else f"{cur} · {it}"
+        if cur and len(f"{prefix} {piece}") > limit:
+            lines.append(f"{prefix} {cur}")
+            cur = it
+        else:
+            cur = piece
+    if cur:
+        lines.append(f"{prefix} {cur}")
+    return lines
+
+
+def book_ladder(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
+    """'Books: <b>FD u38.5 −108</b> · BetOnline u38.5 −110 · Kalshi u38.0 (47¢) · ref u37.5' —
+    every book pricing the alerted market/side, best price first (bold), the consensus
+    reference last; one line, wrapped past ``LADDER_WRAP_CHARS``."""
+    market, side = str(edge.get("market") or "total"), str(edge.get("side") or "under")
+    rows = _ladder_rows(card, market, side)
+    items = [f"<b>{r[3]}</b>" if i == 0 else r[3] for i, r in enumerate(rows)]
+    cons = card.get("consensus") or {}
+    ref = _num(cons.get("total_now") if market == "total" else cons.get("spread_now"))
+    if ref is not None:
+        if market == "spread":
+            ref_line = _fmt_line(ref if side == "home" else -ref, signed=True)
+        else:
+            ref_line = f"{'u' if side == 'under' else 'o'}{ref:.1f}"
+        items.append(f"ref {ref_line}")
+    if not items:
+        return ["Books: no lines posted"]
+    return _wrap_items("Books:", items)
 
 
 # ---- formatters --------------------------------------------------------------------------
 
 def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
-    market = edge.get("market")
-    bet = (f"<b>{_side_label(edge, card)} {_fmt_line(edge.get('line'), signed=market == 'spread')} "
-           f"{_fmt_odds(edge.get('odds'))} @ {_book_label(edge.get('book'))}</b>")
-    tier = " · <b>STRONG</b>" if edge.get("tier") == "strong" else ""
-    edge_s = f"edge {_fmt_line(edge.get('edge_pts'))} pts / {_fmt_pct((_num(edge.get('edge_prob')) or 0.0) * 100)}"
-    opener = _opener_for(card, edge)
-    open_s = f" · open {_fmt_line(opener, signed=market == 'spread')}" if opener is not None else ""
+    """header · weather · impact · signal (label + driving numbers + flags) · bet line
+    (market edge as a note) · Books ladder · board link."""
     lines = [
         _header(card, _emoji_for(card)),
         _wx_line(card),
         _impact_line(card, edge),
-        f"{bet} · {edge_s}{open_s}{tier}",
+        _signal_line(card),
+        _bet_line(card, edge),
+        *book_ladder(card, edge),
+        board_link(board_url, card),
     ]
-    others = _other_books(card, edge)
-    if others:
-        lines.append("Best: " + " · ".join(others))
-    lines.append(board_link(board_url, card))
     return "\n".join(lines)
 
 
@@ -442,13 +568,30 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
 
 
 def format_gone(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
+    """The signal dropped to 'No Impact' on a game with an open EDGE record."""
     market = edge.get("market")
     signed = market == "spread"
+    was = html.escape(str(rec.get("last_signal") or "?"))
     lines = [
         _header(card, "🚫"),
-        (f"EDGE GONE: <b>{_side_label(edge, card)} {_fmt_line(edge.get('line'), signed)} @ {_book_label(edge.get('book'))}</b> "
-         f"· edge {_fmt_line(edge.get('edge_pts'))} pts (alerted at {_fmt_line(rec.get('first_line'), signed)}, "
-         f"{_fmt_line(rec.get('first_edge'))} pts)"),
+        (f"SIGNAL GONE: was {was} → {SIGNAL_NONE} · <b>{_side_label(edge, card)} {_fmt_line(edge.get('line'), signed)} "
+         f"@ {_book_label(edge.get('book'))}</b> · {_market_edge(edge, prefix='market edge now')} "
+         f"(alerted at {_fmt_line(rec.get('first_line'), signed)})"),
+        _wx_numbers(card),
+        board_link(board_url, card),
+    ]
+    return "\n".join(lines)
+
+
+def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
+                         board_url: str = DEFAULT_BOARD_URL) -> str:
+    """The signal label changed (Low → Mid …) while the game is still in a tier."""
+    old, new = html.escape(str(rec.get("last_signal") or "?")), html.escape(_signal_label(card) or "?")
+    lines = [
+        _header(card, "🌦"),
+        f"SIGNAL {old} → <b>{new}</b> · {_wx_numbers(card)}",
+        _bet_line(card, edge, opener=False),
+        *book_ladder(card, edge),
         board_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -510,33 +653,65 @@ def format_digest(title: str, items: Sequence[str]) -> list[str]:
 
 # ---- candidate collection (pure) ---------------------------------------------------------------
 
-def _alertable_edges(card: dict[str, Any]) -> list[dict[str, Any]]:
+def _model_version(card: dict[str, Any]) -> str:
     fair = card.get("fair") or {}
-    if not fair.get("weather_driven"):
-        return []
-    if (card.get("consensus") or {}).get("thin"):
-        return []
-    out = []
     for e in fair.get("edges") or []:
-        if e.get("tier") in ALERTED_TIERS and e.get("market") in ("total", "spread") and _num(e.get("edge_pts")) is not None:
-            out.append(e)
-    return out
+        if e.get("model_version"):
+            return str(e["model_version"])
+    return str((card.get("impact") or {}).get("model_version") or fair.get("model_version") or "v1")
+
+
+def consensus_entry(card: dict[str, Any]) -> dict[str, Any]:
+    """A fair.edges-shaped TOTAL UNDER entry at the ``consensus`` book: line = consensus.total_now
+    (may be None), fair_line = fair.fair_total, edge_pts = total_now − fair_total when both exist."""
+    cons = card.get("consensus") or {}
+    fair = card.get("fair") or {}
+    line, fair_t = _num(cons.get("total_now")), _num(fair.get("fair_total"))
+    return {
+        "game_id": card.get("game_id"), "market": "total", "side": "under", "book": CONSENSUS_BOOK,
+        "line": line, "odds": None, "fair_line": fair_t,
+        "edge_pts": round(line - fair_t, 2) if line is not None and fair_t is not None else None,
+        "edge_prob": None, "tier": None, "model_version": _model_version(card),
+        "confidence": fair.get("confidence"), "ref_book": cons.get("ref_book"), "n_books": cons.get("n_books"),
+    }
+
+
+def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
+    """The play for a weather signal is the TOTAL UNDER: the fair.edges under entry with the
+    largest market edge (any book), else the synthesised consensus entry."""
+    unders = [e for e in ((card.get("fair") or {}).get("edges") or [])
+              if e.get("market") == "total" and e.get("side") == "under" and _num(e.get("edge_pts")) is not None]
+    if unders:   # ties on edge_pts → the best price for an under bettor (higher line, then better odds)
+        return max(unders, key=lambda e: (_num(e.get("edge_pts")) or 0.0, _num(e.get("line")) or -1e9,
+                                          _num(e.get("odds")) or -1e9))
+    return consensus_entry(card)
+
+
+def _alertable_edges(card: dict[str, Any]) -> list[dict[str, Any]]:
+    """One entry per game in any signal tier (label present and != 'No Impact'); [] otherwise.
+    fair.weather_driven / consensus.thin / fair tiers are board-only and never gate an alert."""
+    if not _in_signal(card):
+        return []
+    return [_play_edge(card)]
 
 
 def _edge_record(card: dict[str, Any], e: dict[str, Any], run_id: Optional[str]) -> dict[str, Any]:
     wx = card.get("weather") or {}
+    label = _signal_label(card)
     return {
         "family": "edge", "game_id": card.get("game_id"), "sport": card.get("sport"), "season": card.get("season"),
         "week": card.get("week"), "market": e.get("market"), "side": e.get("side"), "book": e.get("book"),
-        "tier": e.get("tier"), "model_version": e.get("model_version") or "v1",
+        "tier": signal_slug(label), "model_version": e.get("model_version") or "v1",
         "last_line": _num(e.get("line")), "last_odds": e.get("odds"), "last_fair": _num(e.get("fair_line")),
         "last_edge": _num(e.get("edge_pts")), "status": "open", "run_id": run_id,
-        "last_wind": _num(wx.get("wind_fg")), "last_rain": _num(wx.get("rain_fg")),
+        "last_wind": _num(wx.get("wind_fg")), "last_rain": _num(wx.get("rain_fg")), "last_signal": label,
         "kickoff_utc": card.get("kickoff_utc"),
     }
 
 
 def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Optional[str] = None) -> list[Candidate]:
+    """One EDGE per game in a signal tier (legacy bet rules); the market edge is informational.
+    ``Candidate.tier`` is the signal slug (low | mid | high | very_high)."""
     out = []
     for e in _alertable_edges(card):
         key = edge_key(card.get("season"), card.get("week"), card.get("game_id"), e["market"], e["side"], e["book"],
@@ -544,15 +719,19 @@ def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Opt
         if pstate.alert_sent(alerts, key):
             continue
         out.append(Candidate(key, "edge", card.get("sport") or "", format_edge(card, e, cfg.board_url),
-                             game_id=card.get("game_id"), tier=e.get("tier"), kickoff_utc=_dt(card.get("kickoff_utc")),
-                             record=_edge_record(card, e, run_id)))
+                             game_id=card.get("game_id"), tier=signal_slug(_signal_label(card)),
+                             kickoff_utc=_dt(card.get("kickoff_utc")), record=_edge_record(card, e, run_id)))
     return out
 
 
 def _edge_for_record(card: dict[str, Any], rec: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """The card entry behind an open EDGE record; a ``consensus``-book TOTAL UNDER record is
+    re-synthesised from the card so GONE / SIGNAL CHANGE / MOVE keep evaluating."""
     for e in ((card.get("fair") or {}).get("edges") or []):
         if e.get("market") == rec.get("market") and e.get("side") == rec.get("side") and e.get("book") == rec.get("book"):
             return e
+    if rec.get("book") == CONSENSUS_BOOK and rec.get("market") == "total" and rec.get("side") == "under":
+        return consensus_entry(card)
     return None
 
 
@@ -567,30 +746,42 @@ def move_direction(market: str, side: str, line_now: float, last_line: float, fa
 
 def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: datetime,
                         run_id: Optional[str] = None) -> list[Candidate]:
-    """MOVE / GONE / WX for the open EDGE records of this game only."""
+    """MOVE / GONE / WX (forecast move + signal change) for the open EDGE records of this game only."""
     out: list[Candidate] = []
     game_id = card.get("game_id")
     kick = _dt(card.get("kickoff_utc"))
     wx = card.get("weather") or {}
+    label_now = _signal_label(card)
+    slug_now = signal_slug(label_now)
     for rec in pstate.open_edge_records(alerts, game_id):
         ekey = rec.get("alert_key") or ""
         e = _edge_for_record(card, rec)
         if e is None:
             continue
         line_now, fair_now, pts_now = _num(e.get("line")), _num(e.get("fair_line")), _num(e.get("edge_pts"))
-        if line_now is None or pts_now is None:
-            continue
         base = {"game_id": game_id, "sport": card.get("sport"), "season": card.get("season"), "week": card.get("week"),
                 "market": rec.get("market"), "side": rec.get("side"), "book": rec.get("book"), "tier": rec.get("tier"),
                 "model_version": rec.get("model_version") or "v1", "last_line": line_now, "last_odds": e.get("odds"),
-                "last_fair": fair_now, "last_edge": pts_now, "run_id": run_id, "edge_key": ekey}
-        # EDGE GONE
-        if pts_now < GONE_EDGE_PTS:
+                "last_fair": fair_now, "last_edge": pts_now, "run_id": run_id, "edge_key": ekey,
+                "last_signal": label_now}
+        # SIGNAL GONE: the dot dropped to "No Impact"
+        if not _in_signal(card):
             key = f"gone|{ekey}"
             if not pstate.alert_sent(alerts, key):
                 out.append(Candidate(key, "gone", card.get("sport") or "", format_gone(card, rec, e, cfg.board_url),
                                      game_id=game_id, tier=rec.get("tier"), kickoff_utc=kick,
                                      record={**base, "family": "gone", "status": "closed"}, status="closed"))
+            continue
+        # SIGNAL CHANGE (Low → Mid, Mid → Low …): one key per label reached
+        last_sig = rec.get("last_signal")
+        if last_sig and label_now and label_now != last_sig:
+            key = f"wx|{ekey}|sig-{slug_now}"
+            if not pstate.alert_sent(alerts, key):
+                out.append(Candidate(key, "wx", card.get("sport") or "", format_signal_change(card, rec, e, cfg.board_url),
+                                     game_id=game_id, tier=slug_now, kickoff_utc=kick,
+                                     record={**base, "family": "wx", "status": "open",
+                                             "last_wind": _num(wx.get("wind_fg")), "last_rain": _num(wx.get("rain_fg"))}))
+        if line_now is None or pts_now is None:
             continue
         # FORECAST MOVE (fair moved ≥ 1.0 vs the last fair we messaged about)
         last_fair = _num(rec.get("last_fair"))
@@ -729,7 +920,7 @@ def collect_candidates(
 
 def _priority(c: Candidate, now: datetime) -> tuple:
     hrs = ((c.kickoff_utc - now) / timedelta(hours=1)) if c.kickoff_utc else 999.0
-    return (0 if c.tier == "strong" else 1, FAMILY_PRIORITY.get(c.family, 9), hrs, c.key)
+    return (0 if c.tier in BYPASS_TIERS else 1, FAMILY_PRIORITY.get(c.family, 9), hrs, c.key)
 
 
 def _to_queue_item(c: Candidate, now: datetime) -> dict[str, Any]:
@@ -829,7 +1020,7 @@ def _mark(c: Candidate, alerts: dict, now: datetime, outcome: Outcome) -> None:
     parent_key = c.record.get("edge_key")
     parent = pstate.get_alert_record(alerts, parent_key) if parent_key else None
     if parent is not None:
-        for k in ("last_line", "last_odds", "last_fair", "last_edge"):
+        for k in ("last_line", "last_odds", "last_fair", "last_edge", "last_signal"):
             if c.record.get(k) is not None:
                 parent[k] = c.record[k]
         parent["last_sent_at"] = ts

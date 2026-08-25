@@ -29,25 +29,87 @@ def _sample_card() -> dict:
 
 def test_edge_message_matches_spec_sample():
     c = _sample_card()
+    c["signal"]["flags"] = ["NFL Wind"]
     text = A.format_edge(c, _edge(), BOARD)
     lines = text.split("\n")
     assert lines[0] == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
     assert lines[1] == "Gillette Stadium · wind 18 mph SE (gust 26 · vol 6 · cross 15) · 41°F · rain 20% / 0.8 mm"
     assert lines[2] == "Impact −6.5% (wind 6.5 · v1) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
-    assert lines[3] == "<b>UNDER 38 −110 @ BetOnline</b> · edge 3.4 pts / +4.1% · open 38"
-    assert lines[4] == "Best: Under 38.5 −108 Betcris · FD 38 · Novig 38 · Kalshi 37.5 (52¢)"
-    assert lines[5] == f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">board</a>'
-    assert len(lines) == 6
+    assert lines[3] == "<b>Mid Impact</b> · wind 18 mph · 41°F · rain 0.8 mm · NFL Wind"
+    assert lines[4] == "<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1% · open 38"
+    assert lines[5] == "Books: <b>BetOnline u38.0 −110</b> · ref u37.5"
+    assert lines[6] == f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">board</a>'
+    assert len(lines) == 7
     # unicode minus for negative odds, no ASCII hyphen-minus in the price
     assert "-110" not in text and "−110" in text
+    # no flags -> no dangling separator on the signal line
+    assert A.format_edge(_sample_card(), _edge(), BOARD).split("\n")[3] == "<b>Mid Impact</b> · wind 18 mph · 41°F · rain 0.8 mm"
 
 
-def test_edge_message_strong_tier_and_spread_sign():
-    c = card([_edge(market="spread", side="home", line=-3.0, fair_line=-4.5, edge_pts=1.5, tier="strong")])
-    c["odds"] = {"betonline": {"spread": {"home_line": -3.0, "open_line": -2.5}}}
+def test_edge_message_market_edge_is_a_note_never_a_gate():
+    c = card([_edge(edge_pts=-0.6, edge_prob=-0.012, fair_line=38.6)], signal="Low (Rain)")
     text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
-    assert "<b>NE −3 −110 @ BetOnline</b>" in text
-    assert "fair spread −4.5" in text and "open −2.5" in text and "<b>STRONG</b>" in text
+    assert "<b>UNDER 38 −110 @ BetOnline</b> · market edge −0.6 pts / −1.2% (market already there) · open 38" in text
+    zero = A.format_edge(c, dict(_edge(), edge_pts=0.0, edge_prob=0.0), BOARD)
+    assert "market edge 0.0 pts / 0.0% (market already there)" in zero
+    # consensus-synthesised entries (consensus.total_now vs fair.fair_total): line + fair, or nothing posted
+    c["fair"]["fair_total"] = 38.6
+    cons = A.consensus_entry(c)
+    assert cons["edge_pts"] == -1.1 and cons["line"] == 37.5 and cons["fair_line"] == 38.6
+    assert "<b>UNDER 37.5 (consensus)</b> · market edge −1.1 pts vs fair 38.6 (market already there)" in A.format_edge(c, cons, BOARD)
+    c["consensus"]["total_now"] = None
+    assert "<b>UNDER</b> · no line posted yet" in A.format_edge(c, A.consensus_entry(c), BOARD)
+    c["consensus"]["total_now"] = 37.5
+    c["fair"]["fair_total"] = None
+    assert "<b>UNDER 37.5 (consensus)</b> · market edge ?" in A.format_edge(c, A.consensus_entry(c), BOARD)
+
+
+def test_books_ladder_best_first_kalshi_cents_and_tie_by_odds():
+    c = card()
+    c["odds"] = {
+        "betonline": {"total": {"line": 38.5, "over": -110, "under": -110, "open_line": 38.0}},
+        "fanduel": {"total": {"line": 38.5, "over": -112, "under": -108}},
+        "betcris": {"total": {"line": 38.0, "over": -108, "under": -112}},
+        "kalshi": {"total": {"line": 38.0, "over": 105, "under": -113}},
+        "pinnacle": {"total": {"line": 37.5, "over": -115, "under": -105}},
+        "novig": {"spread": {"home_line": -3.0, "home_odds": -105, "away_odds": -105}},   # no total -> skipped
+    }
+    ladder = A.book_ladder(c, _edge())
+    assert ladder == ["Books: <b>FD u38.5 −108</b> · BetOnline u38.5 −110 · Betcris u38.0 −112 · Kalshi u38.0 (53¢) · "
+                      "Pinnacle u37.5 −105 · ref u37.5"]
+    # OVER bettor: lower line first, then better odds (Kalshi +105 beats Betcris −108 at the same line)
+    over = A.book_ladder(c, _edge(side="over"))
+    assert over[0].startswith("Books: <b>Pinnacle o37.5 −115</b> · Kalshi o38.0 (49¢) · Betcris o38.0 −108 · BetOnline o38.5 −110")
+    assert over[0].endswith("· ref o37.5")
+    # spread side: the more favourable line for that side, then odds; away = −home_line
+    c["odds"]["betonline"]["spread"] = {"home_line": -2.5, "home_odds": -115, "away_odds": -105}
+    home = A.book_ladder(c, _edge(market="spread", side="home", line=-3.0))
+    assert home == ["Books: <b>BetOnline −2.5 −115</b> · Novig −3 −105 · ref −3"]
+    away = A.book_ladder(c, _edge(market="spread", side="away", line=3.0))
+    assert away == ["Books: <b>Novig +3 −105</b> · BetOnline +2.5 −105 · ref +3"]
+    # nothing priced
+    c["odds"] = {}
+    c["consensus"]["total_now"] = None
+    assert A.book_ladder(c, _edge()) == ["Books: no lines posted"]
+    assert A._cents(-108) == 52 and A._cents(120) == 45 and A._cents(None) is None and A._cents(0) is None
+
+
+def test_books_ladder_wraps_past_limit():
+    c = card()
+    c["odds"] = {f"book{i:02d}": {"total": {"line": 38.0 + (i % 4) * 0.5, "under": -100 - i}} for i in range(14)}
+    lines = A.book_ladder(c, _edge())
+    assert len(lines) >= 2 and all(ln.startswith("Books: ") for ln in lines)
+    assert all(len(ln) <= A.LADDER_WRAP_CHARS for ln in lines)
+    assert lines[0].startswith("Books: <b>Book03 u39.5 −103</b>") and lines[-1].endswith("· ref u37.5")
+
+
+def test_edge_message_spread_side_sign():
+    c = card([_edge(market="spread", side="home", line=-3.0, fair_line=-4.5, edge_pts=1.5, tier="strong")])
+    c["odds"] = {"betonline": {"spread": {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}}}
+    text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
+    assert "<b>NE −3 −110 @ BetOnline</b> · market edge +1.5 pts / +4.1% · open −2.5" in text
+    assert "fair spread −4.5" in text and "STRONG" not in text
+    assert "Books: <b>BetOnline −3 −110</b> · ref −3" in text
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
@@ -58,8 +120,12 @@ def test_edge_message_escapes_html_and_handles_missing_fields():
     c["odds"] = {}
     text = A.format_edge(c, _edge(), BOARD)
     assert "Tom &amp; Jerry &lt;Field&gt;" in text and "A&amp;M @ NE" in text
-    assert "wind ? mph" in text and "open" not in text.split("\n")[3]
+    assert "wind ? mph" in text and "open" not in text.split("\n")[4]
+    assert text.split("\n")[3] == "<b>Mid Impact</b> · wind ? mph · ?°F · rain ? mm"
+    assert "Books: ref u37.5" in text
     assert "<script" not in text
+    c["signal"] = {"label": "Low (Rain) <x>", "flags": ["A&B"]}
+    assert "<b>Low (Rain) &lt;x&gt;</b> · wind ? mph · ?°F · rain ? mm · A&amp;B" in A.format_edge(c, _edge(), BOARD)
 
 
 def test_edge_message_roof_closed_and_emoji_by_dominant_component():
@@ -106,20 +172,35 @@ def test_move_gone_wx_messages():
     c = card([_edge(line=39.0, edge_pts=4.4)])
     e = c["fair"]["edges"][0]
     rec = {"first_line": 38.0, "first_edge": 3.4, "last_line": 38.0, "last_edge": 3.4, "last_fair": 34.6,
-           "last_wind": 18.0, "last_rain": 0.8}
+           "last_wind": 18.0, "last_rain": 0.8, "last_signal": "High Impact"}
     move = A.format_move(c, rec, e, "away from fair", BOARD)
     assert move.split("\n")[0] == "<b>↕️ NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
     assert "<b>UNDER @ BetOnline</b> moved 38 → 39 (away from fair)" in move
     assert "fair 34.6 · edge now 4.4 pts (was 3.4) · −110" in move
     assert move.endswith(f'&amp;game={GID}">board</a>')
 
-    gone = A.format_gone(c, rec, dict(e, line=35.0, edge_pts=0.4), BOARD)
-    assert "EDGE GONE: <b>UNDER 35 @ BetOnline</b> · edge 0.4 pts (alerted at 38, 3.4 pts)" in gone
+    gone_card = card([_edge(line=35.0, edge_pts=0.4)], signal="No Impact", wind=6.0, rain=0.0)
+    gone = A.format_gone(gone_card, rec, gone_card["fair"]["edges"][0], BOARD)
+    assert gone.split("\n")[0] == "<b>🚫 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
+    assert gone.split("\n")[1] == ("SIGNAL GONE: was High Impact → No Impact · <b>UNDER 35 @ BetOnline</b> · "
+                                   "market edge now +0.4 pts / +4.1% (alerted at 38)")
+    assert gone.split("\n")[2] == "wind 6 mph · 41°F · rain 0 mm"
+    neg = A.format_gone(gone_card, rec, dict(gone_card["fair"]["edges"][0], edge_pts=-0.2, edge_prob=None), BOARD)
+    assert "market edge now −0.2 pts (market already there)" in neg
 
     c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=13.0, rain=0.0)
     wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
     assert "FORECAST MOVE: wind 18 → 13 mph · rain 0.8 → 0 mm" in wx
     assert "fair total 34.6 → 36.1 · <b>UNDER 38 @ BetOnline</b> edge 1.9 pts" in wx
+
+    c3 = card(signal="Mid Impact", wind=17.0)
+    chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
+    lines = chg.split("\n")
+    assert lines[0] == "<b>🌦 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
+    assert lines[1] == "SIGNAL Low Impact → <b>Mid Impact</b> · wind 17 mph · 41°F · rain 0.8 mm"
+    assert lines[2] == "<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1%"
+    assert lines[3] == "Books: <b>BetOnline u38.0 −110</b> · ref u37.5"
+    assert lines[4].endswith(f'&amp;game={GID}">board</a>') and len(lines) == 5
 
 
 def test_openers_and_ops_and_digest_format():
@@ -145,7 +226,8 @@ def test_candidate_summary_is_one_line_without_link():
     alerts = pstate.migrate(None, "alerts")
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
     assert "\n" not in c.summary and "<a " not in c.summary
-    assert c.summary == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b> · <b>UNDER 38 −110 @ BetOnline</b> · edge 3.4 pts / +4.1% · open 38"
+    # the play is the largest under edge on the card (Betcris 3.9), the summary is header + bet line
+    assert c.summary == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b> · <b>UNDER 38.5 −108 @ Betcris</b> · market edge +3.9 pts / +5.0%"
 
 
 def test_kickoff_label_and_helpers():

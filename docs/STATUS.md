@@ -47,6 +47,8 @@ field populated by `weather/merge.py` and emitted in the GameCard weather block
 `odds_history` export, newest `SNAPSHOT_MAX=120`) — no S3 keys anywhere in the
 workflows.
 
+Alert gate change (2026-08-24): EDGE alerts now fire for every game in a signal tier (`card.signal.label` ≠ "No Impact", legacy bet rules) on the TOTAL UNDER with the market edge as a note, a `Books:` price ladder, SIGNAL GONE / SIGNAL CHANGE follow-ups and `tier` = signal slug (ARCH §10; `pipeline/alerts.py`).
+
 ## 2. What is implemented, per phase
 
 ### Phase 0 — Recover + scaffold: DONE
