@@ -93,6 +93,11 @@ th[title] { cursor: help; }
 .tierchip { display: inline-block; min-width: 40px; padding: 1px 5px; border-radius: 4px; font-size: 11px; text-align: center; margin-left: 5px; }
 .tierchip.strong { background: rgba(34,197,94,.85); color: #04210f; }
 .tierchip.edge { background: rgba(34,197,94,.35); color: #d6ffe7; }
+/* signal tiers (alerts keyed to the legacy weather signals; colors match the map) */
+.tierchip.low { background: rgba(59,130,246,.35); color: #dbeafe; }
+.tierchip.mid { background: rgba(249,115,22,.45); color: #ffedd5; }
+.tierchip.high { background: rgba(147,51,234,.55); color: #f3e8ff; }
+.tierchip.very_high { background: rgba(153,27,27,.8); color: #fee2e2; }
 .tierchip.watch { background: rgba(201,162,39,.25); color: var(--fair); }
 .tierchip.none { background: transparent; color: var(--muted); }
 .wx { color: var(--muted); }
