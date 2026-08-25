@@ -49,11 +49,9 @@ def _load_dotenv() -> None:
     if _DOTENV_LOADED:
         return
     _DOTENV_LOADED = True
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        return
-    load_dotenv(_ROOT / ".env", override=False)
+    from utils.env import load_repo_dotenv
+
+    load_repo_dotenv(_ROOT / ".env")
 
 
 class ProphetXConfigError(RuntimeError):
