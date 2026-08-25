@@ -188,7 +188,7 @@ Note: `SETUP.md` §2 lists migrations 0001–0003; `0004_v2.sql` (v2 columns on
 - `backtest.yml` D1 export does `SELECT *` on `odds_history`; add a season filter / LIMIT once the table grows. The snapshot mirror fetches only the newest `SNAPSHOT_MAX` (120) run snapshots referenced by that export, one `wrangler r2 object get` each; older weeks come from the D1 tables.
 - The build's CLV freeze only uses state `history.json` (cap 120 points per key); the D1 `odds_history` path is used by `pipeline.backtest` from the weekly export, which is authoritative for closings.
 - NFL: 0 games inside the current window today (season 2026 schedule loaded, 272 games) — expected pre-season; CFB week 1 has 63 unresolved FCS book names (aliases only cover FBS + common FCS).
-- `CFBD_API_KEY` still pending (not set locally or on GitHub) → ESPN scoreboard fallback for the CFB schedule and backtest results; neutral-site venue `3504` unknown (north-carolina@tcu) falls back to the home stadium.
+- `CFBD_API_KEY` set (.env + GitHub secret, 2026-08-25): CFBD drives the full-season FBS schedule, neutral-site venues and backtest results; ESPN scoreboard remains the fallback.
 - ProphetX sandbox credentials still pending (`PROPHETX_API_KEY` / `_SECRET_KEY` / `_ACCESS_KEY`); the book returns 0 lines until they are set.
 - FanDuel and Novig answer 403 to requests from GitHub Actions IPs; a `curl_cffi` (browser-impersonating TLS) fallback for those httpx books is in progress by another agent.
 - betonline Playwright job requires `playwright install chromium` (or `BETONLINE_CHANNEL=chrome`) and was not run in this pass.
