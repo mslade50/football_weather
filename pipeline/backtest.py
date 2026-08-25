@@ -58,6 +58,7 @@ from pipeline.model import clv as clv_mod
 from pipeline.outputs import d1_out, json_out
 from pipeline.run_context import REPO_ROOT
 from pipeline.weather.merge import compass16, mean3, vector_mean_deg
+from utils.env import load_repo_dotenv
 from utils.timeutil import ensure_utc, now_utc, parse_iso, utc_iso
 
 PathLike = Union[str, Path]
@@ -1054,6 +1055,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    load_repo_dotenv()
     args = parse_args(argv)
     now = _dt(args.now) or now_utc()
     defs = load_grid_defs(args.grid)

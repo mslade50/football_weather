@@ -84,6 +84,7 @@ from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
+from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
 logger = logging.getLogger(__name__)
@@ -1831,6 +1832,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_repo_dotenv()
     args = parse_args(argv)
     sports = list(SPORTS_ALL) if args.sport == "all" else [args.sport]
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")

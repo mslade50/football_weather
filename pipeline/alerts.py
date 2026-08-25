@@ -54,6 +54,7 @@ from typing import Any, Optional
 
 from pipeline import state as pstate
 from pipeline.model import config as model_config
+from utils.env import load_repo_dotenv
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
 
 logger = logging.getLogger(__name__)
@@ -1067,6 +1068,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    load_repo_dotenv()
     args = parse_args(argv)
     cfg = Config.from_env()
     sender = print_sender() if args.dry_run else default_sender()

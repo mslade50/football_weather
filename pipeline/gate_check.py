@@ -32,6 +32,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from utils.env import load_repo_dotenv
+
 ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
@@ -175,6 +177,7 @@ def emit(result: dict[str, str]) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_repo_dotenv()
     p = argparse.ArgumentParser(prog="python -m pipeline.gate_check")
     p.add_argument("--sport", choices=("nfl", "cfb", "all"), default="all")
     p.add_argument("--force", action="store_true")

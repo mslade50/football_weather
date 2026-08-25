@@ -67,7 +67,7 @@ def parse_cfbd_games(
     payload: list[dict[str, Any]],
     season: Optional[int] = None,
     book: Any = None,
-    fbs_only: bool = False,
+    fbs_only: bool = True,   # games with at least one FBS side (FBS-vs-FCS kept for the legacy Other sheet)
     include_final: bool = False,
 ) -> list[Game]:
     games: list[Game] = []
@@ -154,7 +154,10 @@ def fetch_cfbd_games(
     api_key: Optional[str] = None,
     raw_dir: Optional[Path] = None,
 ) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {"year": season, "seasonType": season_type, "division": division}
+    # CFBD API v2 renamed the filter ``division`` -> ``classification``; send both so the
+    # server-side FBS filter applies (v1 ignored ``classification``, v2 ignores ``division``).
+    params: dict[str, Any] = {"year": season, "seasonType": season_type, "division": division,
+                              "classification": division}
     if week is not None:
         params["week"] = week
     payload = _get("/games", params, api_key)

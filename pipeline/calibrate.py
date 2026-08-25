@@ -56,6 +56,7 @@ from typing import Any, Optional
 
 from pipeline.model import config as C
 from pipeline.model import impact as I  # noqa: N812
+from utils.env import load_repo_dotenv
 
 SCHEMA_VERSION = 1
 MIN_WEEKS = 4
@@ -577,6 +578,7 @@ def _load_json(path: Optional[Path]) -> Optional[dict[str, Any]]:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    load_repo_dotenv()
     args = parse_args(argv)
     fp_before = config_fingerprint()
     inputs = list(args.input) if args.input else [p for p in DEFAULT_INPUTS if p.is_file()][:1]

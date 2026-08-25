@@ -22,6 +22,7 @@ from typing import Optional
 import pandas as pd
 
 from pipeline.odds.base import BaseScraper, GameLine
+from utils.env import load_repo_dotenv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -150,6 +151,7 @@ async def main(books: list[str], sport: str, market: Optional[str], output: str,
 
 
 def cli() -> None:
+    load_repo_dotenv()
     parser = argparse.ArgumentParser(description="Football (NFL/CFB) odds scraper")
     parser.add_argument(
         "--book",
