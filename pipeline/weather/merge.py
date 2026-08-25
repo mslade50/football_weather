@@ -10,11 +10,28 @@ Degradation(info) says so — downstream falls back to the static wind_vol.
 
 Stitching by lead time (hours from `now` to kickoff):
   * lead <= 18 h (<= 48 h when HRRR covers the window): temp/wind/gust/precip HRRR, PoP NBM
-  * 18 h < lead <= 264 h: temp/wind/PoP/precip NBM, gusts GFS
-  * lead > 264 h: mean of GFS + ECMWF, Degradation(info, low_confidence)
+  * 18 h < lead <= 48 h: temp/wind/PoP/precip NBM, gusts GFS (unchanged legacy band)
+  * 48 h < lead <= 7 d: NBM first; anything NBM lacks (gusts, nulls) from the
+    medium-range blend below instead of a single model
+  * lead > 7 d (``forecast_blend.medium_range_start_h``): medium range = weighted mean
+    of {AIFS, IFS, GFS} (``forecast_blend.medium_range_weights``, default
+    aifs 0.4 / ifs 0.35 / gfs 0.25; members missing a field are simply left out of
+    that field's mean, so AIFS having no gusts never zeroes gust_fg);
+    Degradation(info, low_confidence); ``source`` = ``medium:aifs+ifs+gfs`` listing
+    the members that actually covered the window.
 Each field falls through the preference list to the first non-null model; NWS
 fills anything still null when lead <= 7 d. No Open-Meteo at all -> NWS-only +
-Degradation(warn).
+Degradation(warn). AIFS is a plain member of ``model_disagreement``.
+
+Climatology shrinkage (``weather/climatology_blend.py``): after the window means
+are formed, ``wind_fg`` / ``gust_fg`` / ``temp_fg`` / ``precip_prob`` and the
+ensemble P10/P50/P90 band are pulled toward the stadium × ISO-week × time-of-day
+ERA5 cell by the lead-weighted curves in ``data/calibration.json``
+``forecast_blend.weights`` (w = 1 up to 48 h). The BLENDED values are what
+``wind_fg`` etc. carry (impact / signals consume them); the raw window means ride
+along as ``wind_fg_raw`` / ``temp_fg_raw`` with ``blend_w`` (wind weight) and the
+cell's ``climo_wind`` / ``climo_temp``. Rain AMOUNT (``rain_fg_mm``) is never
+blended. No cell for the stadium -> blend_w = 1 and a Degradation(info).
 
 Legacy window: mean of the 3 hourly samples at kickoff hour, +1h, +2h
 (matching old wind_fg arithmetic); rain_fg = sum of mm over the same 3 hours.
@@ -23,12 +40,13 @@ Legacy window: mean of the 3 hourly samples at kickoff hour, +1h, +2h
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from pipeline.contracts import Degradation, WeatherForecast, WeatherPoint
+from pipeline.weather import climatology_blend as CB
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.ensemble import EnsembleLocation
 from pipeline.weather.parsers.openmeteo import ParsedLocation
@@ -37,12 +55,18 @@ HRRR = "ncep_hrrr_conus"
 NBM = "ncep_nbm_conus"
 GFS = "ncep_gfs_seamless"
 ECMWF = "ecmwf_ifs025"
+AIFS = "ecmwf_aifs025_single"
 BEST = "best_match"
 NWS = "nws"
+MEDIUM = "medium"  # pseudo-model: weighted mean of the medium-range members below
+
+# calibration alias -> Open-Meteo model id (forecast_blend.medium_range_weights keys)
+MEDIUM_MEMBERS: dict[str, str] = {"aifs": AIFS, "ifs": ECMWF, "gfs": GFS}
 
 SHORT_LEAD_H = 18.0
 HRRR_SYNOPTIC_LEAD_H = 48.0
-MID_LEAD_H = 11 * 24.0
+MEDIUM_FALLBACK_LEAD_H = 48.0
+MID_LEAD_H = CB.DEFAULT_MEDIUM_START_H
 NWS_HORIZON_H = 7 * 24.0
 WINDOW_HOURS = 3
 DISPLAY_BEFORE_H = 1
@@ -71,13 +95,13 @@ def compass16(deg: Optional[float]) -> Optional[str]:
     return COMPASS_16[idx]
 
 
-def vector_mean_deg(dirs: Sequence[Optional[float]]) -> Optional[float]:
-    """Mean direction of unit vectors (deg from north, clockwise)."""
-    xs = [d for d in dirs if d is not None]
-    if not xs:
+def vector_mean_deg(dirs: Sequence[Optional[float]], weights: Optional[Sequence[float]] = None) -> Optional[float]:
+    """Mean direction of unit vectors (deg from north, clockwise); optionally weighted."""
+    pairs = [(d, 1.0 if weights is None else weights[i]) for i, d in enumerate(dirs) if d is not None]
+    if not pairs:
         return None
-    sx = sum(math.sin(math.radians(d)) for d in xs)
-    cx = sum(math.cos(math.radians(d)) for d in xs)
+    sx = sum(w * math.sin(math.radians(d)) for d, w in pairs)
+    cx = sum(w * math.cos(math.radians(d)) for d, w in pairs)
     if abs(sx) < 1e-12 and abs(cx) < 1e-12:
         return None
     deg = math.degrees(math.atan2(sx, cx)) % 360.0
@@ -107,6 +131,7 @@ class Regime:
     label: str
     prefs: dict[str, list[str]]
     average: bool = False
+    weights: dict[str, float] = field(default_factory=dict)  # model id -> weight for MEDIUM
 
 
 def _index(rows: Sequence[HourlyRow]) -> dict[datetime, HourlyRow]:
@@ -120,21 +145,44 @@ def _hrrr_covers(om: Optional[ParsedLocation], hours: Sequence[datetime]) -> boo
     return all(h in idx and idx[h].wind is not None for h in hours)
 
 
-def choose_regime(lead_hours: float, hrrr_covers: bool) -> Regime:
+def _default_blend_cfg() -> CB.BlendConfig:
+    """``forecast_blend`` block of data/calibration.json (cached); tests stub this."""
+    return CB.load_blend_config()
+
+
+def medium_weights(cfg: Optional[CB.BlendConfig] = None) -> dict[str, float]:
+    """``forecast_blend.medium_range_weights`` mapped onto Open-Meteo model ids."""
+    cfg = cfg or _default_blend_cfg()
+    out = {MEDIUM_MEMBERS[a]: float(w) for a, w in cfg.medium_weights.items() if a in MEDIUM_MEMBERS and w > 0.0}
+    return out or {MEDIUM_MEMBERS[a]: w for a, w in CB.DEFAULT_MEDIUM_WEIGHTS.items()}
+
+
+def choose_regime(lead_hours: float, hrrr_covers: bool, cfg: Optional[CB.BlendConfig] = None) -> Regime:
+    cfg = cfg or _default_blend_cfg()
+    weights = medium_weights(cfg)
     if lead_hours <= SHORT_LEAD_H or (lead_hours <= HRRR_SYNOPTIC_LEAD_H and hrrr_covers):
-        main = [HRRR, NBM, GFS, BEST, ECMWF]
+        main = [HRRR, NBM, GFS, BEST, ECMWF, AIFS]
         return Regime(
             label="hrrr",
             prefs={"temp": main, "wind": main, "gust": main, "dir": main, "precip": main, "pop": [NBM, HRRR, GFS, BEST, ECMWF]},
+            weights=weights,
         )
-    if lead_hours <= MID_LEAD_H:
-        main = [NBM, GFS, BEST, ECMWF, HRRR]
+    if lead_hours <= MEDIUM_FALLBACK_LEAD_H:
+        main = [NBM, GFS, BEST, ECMWF, AIFS, HRRR]
         return Regime(
             label="nbm",
             prefs={"temp": main, "wind": main, "dir": main, "precip": main, "pop": main, "gust": [GFS, BEST, ECMWF, NBM, HRRR]},
+            weights=weights,
         )
-    main = [GFS, ECMWF, BEST, NBM]
-    return Regime(label="gfs_ecmwf", prefs={f: main for f in FIELDS}, average=True)
+    if lead_hours <= cfg.medium_start_h:
+        main = [NBM, MEDIUM, BEST, HRRR]
+        return Regime(
+            label="nbm",
+            prefs={"temp": main, "wind": main, "dir": main, "precip": main, "pop": main, "gust": [MEDIUM, NBM, BEST, HRRR]},
+            weights=weights,
+        )
+    main = [MEDIUM, NBM, BEST, HRRR]
+    return Regime(label=MEDIUM, prefs={f: main for f in FIELDS}, average=True, weights=weights)
 
 
 def _model_value(om: Optional[ParsedLocation], model: str, t: datetime, name: str) -> Optional[float]:
@@ -149,18 +197,37 @@ def _model_value(om: Optional[ParsedLocation], model: str, t: datetime, name: st
     return None
 
 
+def medium_value(om: Optional[ParsedLocation], t: datetime, name: str, weights: Mapping[str, float]) -> Optional[float]:
+    """Weighted mean of the medium-range members that carry ``name`` at ``t``; members
+    with a null (AIFS gusts / PoP) drop out of THIS field's mean only."""
+    pairs = [(w, _model_value(om, m, t, name)) for m, w in weights.items() if w > 0.0]
+    pairs = [(w, v) for w, v in pairs if v is not None]
+    if not pairs:
+        return None
+    if name == "dir":
+        return vector_mean_deg([v for _, v in pairs], [w for w, _ in pairs])
+    tot = sum(w for w, _ in pairs)
+    return sum(w * v for w, v in pairs) / tot
+
+
 def _pick(om: Optional[ParsedLocation], regime: Regime, t: datetime, name: str) -> Optional[float]:
-    prefs = regime.prefs[name]
-    if regime.average:
-        top = [v for v in (_model_value(om, m, t, name) for m in prefs[:2]) if v is not None]
-        if top:
-            return vector_mean_deg(top) if name == "dir" else sum(top) / len(top)
-        prefs = prefs[2:]
-    for m in prefs:
-        v = _model_value(om, m, t, name)
+    for m in regime.prefs[name]:
+        v = medium_value(om, t, name, regime.weights) if m == MEDIUM else _model_value(om, m, t, name)
         if v is not None:
             return v
     return None
+
+
+def medium_members_present(om: Optional[ParsedLocation], hours: Sequence[datetime], weights: Mapping[str, float]) -> list[str]:
+    """Calibration aliases (aifs/ifs/gfs, weight order) whose wind covers every hour."""
+    if om is None:
+        return []
+    by_id = {mid: alias for alias, mid in MEDIUM_MEMBERS.items()}
+    out = []
+    for mid in weights:
+        if all(_model_value(om, mid, h, "wind") is not None for h in hours):
+            out.append(by_id.get(mid, mid))
+    return out
 
 
 def merge_hour(
@@ -297,6 +364,11 @@ def roof_state_for(
     return None
 
 
+def _default_climo() -> Optional[CB.ClimoTable]:
+    """data/climatology.csv cells (cached); tests stub this to keep merges data-free."""
+    return CB.default_table()
+
+
 @dataclass
 class MergeResult:
     forecast: WeatherForecast
@@ -305,6 +377,8 @@ class MergeResult:
     precip_prob_ens: Optional[float] = None
     ensemble: Optional[EnsembleStats] = None
     roof_heuristic: bool = False
+    climo_cell: Optional[CB.ClimoCell] = None
+    blend_w: float = 1.0
 
 
 def build_forecast(
@@ -319,7 +393,15 @@ def build_forecast(
     ens: Optional[EnsembleLocation] = None,
     roof_type: Optional[str] = None,
     expect_ensemble: bool = False,
+    stadium_id: Optional[str] = None,
+    climo: Optional[CB.ClimoTable] = None,
+    auto_climo: bool = True,
+    blend_cfg: Optional[CB.BlendConfig] = None,
 ) -> MergeResult:
+    """``climo`` (or, when None and ``auto_climo``, the data/climatology.csv table) supplies
+    the shrinkage base rate; the cell is found by ``stadium_id`` or else by the nearest
+    stadium to the Open-Meteo / ensemble coordinates. ``blend_cfg`` defaults to the
+    ``forecast_blend`` block of data/calibration.json."""
     degradations: list[Degradation] = []
     kickoff_utc = kickoff_utc.astimezone(timezone.utc)
     now_utc = now_utc.astimezone(timezone.utc)
@@ -327,44 +409,74 @@ def build_forecast(
     h0 = hour_floor(kickoff_utc)
     window = [h0 + timedelta(hours=i) for i in range(WINDOW_HOURS)]
     display = [h0 + timedelta(hours=i) for i in range(-DISPLAY_BEFORE_H, DISPLAY_AFTER_H + 1)]
+    cfg = blend_cfg or _default_blend_cfg()
 
     om_usable = om is not None and any(om.models.values())
-    regime = choose_regime(lead_hours, _hrrr_covers(om, window))
+    regime = choose_regime(lead_hours, _hrrr_covers(om, window), cfg)
     nws_idx = _index(nws_rows or [])
     allow_nws = lead_hours <= NWS_HORIZON_H and bool(nws_idx)
 
     def _deg(reason: str, severity: str = "warn") -> None:
         degradations.append(Degradation(component="weather", reason=f"{game_id}: {reason}", severity=severity, run_id=run_id, ts=now_utc))
 
+    source = regime.label
     if not om_usable:
         om = None
+        source = NWS
         if allow_nws:
             _deg("open-meteo unavailable; NWS-only forecast", "warn")
         else:
             _deg("no weather source available", "error")
     elif regime.average:
-        _deg(f"lead {lead_hours:.0f}h > {MID_LEAD_H:.0f}h; low_confidence gfs/ecmwf blend", "info")
+        members = medium_members_present(om, window, regime.weights)
+        source = f"{MEDIUM}:{'+'.join(members)}" if members else MEDIUM
+        _deg(f"lead {lead_hours:.0f}h > {cfg.medium_start_h:.0f}h; low_confidence medium-range blend ({source})", "info")
 
     merged = {t: merge_hour(t, om, regime, nws_idx, allow_nws) for t in display}
     win = [merged[t] for t in window]
 
-    wind_fg = mean3([r.wind for r in win])
-    temp_fg = mean3([r.temp for r in win])
-    gust_fg = mean3([r.gust for r in win])
+    wind_raw = mean3([r.wind for r in win])
+    temp_raw = mean3([r.temp for r in win])
+    gust_raw = mean3([r.gust for r in win])
     precips = [r.precip for r in win if r.precip is not None]
     rain_fg = sum(precips) if precips else None
     pop_mean = mean3([r.pop for r in win])
-    precip_prob = pop_mean / 100.0 if pop_mean is not None else None
+    pop_raw = pop_mean / 100.0 if pop_mean is not None else None
     wind_dir_deg = vector_mean_deg([r.dir for r in win])
 
     if any(r.wind is None for r in win) and om is not None:
         _deg("missing wind sample(s) inside kickoff window", "warn")
 
-    source = regime.label if om is not None else NWS
     if om is not None and allow_nws and any(
         _pick(om, regime, t, "wind") is None and t in nws_idx for t in window
     ):
-        source = f"{regime.label}+nws"
+        source = f"{source}+nws"
+
+    stats = ensemble_stats(ens, window, display)
+    if stats is None and expect_ensemble:
+        _deg("ensemble missing; wind_vol falls back to static", "info")
+
+    # ---- climatology shrinkage (lead-weighted) --------------------------------------
+    table = climo if climo is not None else (_default_climo() if auto_climo else None)
+    lat, lon = _coords(om, ens)
+    cell = table.lookup(h0 + timedelta(hours=1), stadium_id=stadium_id, lat=lat, lon=lon) if table is not None else None
+    w_wind = cfg.weight(lead_hours, "wind")
+    blend_active = min(cfg.weight(lead_hours, k) for k in CB.KINDS) < 1.0
+    if cell is None:
+        w_wind = 1.0
+        if table is not None and blend_active and wind_raw is not None:
+            _deg("no climatology cell for this stadium/week; forecast used unblended (blend_w=1)", "info")
+        wind_fg, gust_fg, temp_fg, precip_prob = wind_raw, gust_raw, temp_raw, pop_raw
+        p10, p50, p90 = (stats.wind_p10, stats.wind_p50, stats.wind_p90) if stats else (None, None, None)
+    else:
+        wind_fg = CB.blend(wind_raw, cell.wind_mean, lead_hours, "wind", cfg)
+        gust_fg = CB.blend(gust_raw, cell.gust_mean, lead_hours, "gust", cfg)
+        temp_fg = CB.blend(temp_raw, cell.temp_mean, lead_hours, "temp", cfg)
+        precip_prob = CB.blend(pop_raw, cell.rain_freq, lead_hours, "rain_prob", cfg)
+        p10 = CB.blend(stats.wind_p10, cell.wind_p10, lead_hours, "wind", cfg) if stats else None
+        p50 = CB.blend(stats.wind_p50, cell.wind_p50, lead_hours, "wind", cfg) if stats else None
+        p90 = CB.blend(stats.wind_p90, cell.wind_p90, lead_hours, "wind", cfg) if stats else None
+    wind_vol_fc = (p90 - p10) if (p10 is not None and p90 is not None) else None
 
     given_roof = roof_state
     roof_state = roof_state_for(roof_state, roof_type, temp_fg, precip_prob, wind_fg)
@@ -375,10 +487,6 @@ def build_forecast(
         cross, head = 0.0, 0.0
     else:
         cross, head = wind_components(wind_fg, wind_dir_deg, orientation_deg)
-
-    stats = ensemble_stats(ens, window, display)
-    if stats is None and expect_ensemble:
-        _deg("ensemble missing; wind_vol falls back to static", "info")
 
     hourly = [
         WeatherPoint(
@@ -403,16 +511,21 @@ def build_forecast(
         wind_dir_deg=wind_dir_deg,
         rain_fg_mm=rain_fg,
         precip_prob=precip_prob,
-        wind_vol_fc=stats.wind_vol_fc if stats else None,
-        wind_p10=stats.wind_p10 if stats else None,
-        wind_p50=stats.wind_p50 if stats else None,
-        wind_p90=stats.wind_p90 if stats else None,
+        wind_vol_fc=wind_vol_fc,
+        wind_p10=p10,
+        wind_p50=p50,
+        wind_p90=p90,
         cross_mph=cross,
         head_mph=head,
         model_disagreement=model_disagreement(om, window),
         precip_prob_ens=stats.precip_prob_ens if stats else None,
         roof_state=roof_state,
         hourly=hourly,
+        wind_fg_raw=wind_raw,
+        temp_fg_raw=temp_raw,
+        blend_w=w_wind,
+        climo_wind=cell.wind_mean if cell else None,
+        climo_temp=cell.temp_mean if cell else None,
     )
     return MergeResult(
         forecast=forecast,
@@ -421,7 +534,17 @@ def build_forecast(
         precip_prob_ens=stats.precip_prob_ens if stats else None,
         ensemble=stats,
         roof_heuristic=roof_heuristic,
+        climo_cell=cell,
+        blend_w=w_wind,
     )
+
+
+def _coords(om: Optional[ParsedLocation], ens: Optional[EnsembleLocation]) -> tuple[Optional[float], Optional[float]]:
+    for loc in (om, ens):
+        lat, lon = getattr(loc, "latitude", None), getattr(loc, "longitude", None)
+        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)) and (lat, lon) != (0.0, 0.0):
+            return float(lat), float(lon)
+    return None, None
 
 
 __all__ = [
@@ -429,14 +552,20 @@ __all__ = [
     "NBM",
     "GFS",
     "ECMWF",
+    "AIFS",
     "BEST",
     "NWS",
+    "MEDIUM",
+    "MEDIUM_MEMBERS",
     "compass16",
     "vector_mean_deg",
     "mean3",
     "hour_floor",
     "wind_components",
+    "medium_weights",
     "choose_regime",
+    "medium_value",
+    "medium_members_present",
     "merge_hour",
     "model_disagreement",
     "percentile",

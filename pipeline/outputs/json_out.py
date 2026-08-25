@@ -193,6 +193,12 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "source": fc.source,
         "lead_hours": fc.lead_hours,
         "fetched_at": fc.run_time,
+        # climatology shrinkage (ARCH §6): wind_fg/temp_fg above are blended; raw + weight + base rate here
+        "wind_fg_raw": getattr(fc, "wind_fg_raw", None),
+        "temp_fg_raw": getattr(fc, "temp_fg_raw", None),
+        "blend_w": getattr(fc, "blend_w", None),
+        "climo_wind": getattr(fc, "climo_wind", None),
+        "climo_temp": getattr(fc, "climo_temp", None),
         "hourly": _hourly(fc),
     }
 

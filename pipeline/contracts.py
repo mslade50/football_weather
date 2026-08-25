@@ -169,6 +169,14 @@ class WeatherForecast(_AsDict):
     precip_prob_ens: Optional[float] = None
     roof_state: Optional[str] = None
     hourly: list[WeatherPoint] = field(default_factory=list)
+    # Climatology shrinkage (weather/climatology_blend.py): wind_fg/temp_fg/gust_fg/precip_prob
+    # above are the BLENDED values; the raw window means, the wind weight w(lead) and the
+    # stadium's climatological cell means ride along for display / fitting.
+    wind_fg_raw: Optional[float] = None
+    temp_fg_raw: Optional[float] = None
+    blend_w: Optional[float] = None
+    climo_wind: Optional[float] = None
+    climo_temp: Optional[float] = None
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:

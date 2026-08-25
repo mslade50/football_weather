@@ -18,6 +18,15 @@ from pipeline.weather.parsers.openmeteo import ParsedLocation, parse_forecast
 
 UTC = timezone.utc
 ENS_T0 = datetime(2026, 8, 25, 8, 0, tzinfo=UTC)   # fixture spans 08:00..14:00 UTC
+MW = M.CB.DEFAULT_MEDIUM_WEIGHTS   # aifs 0.4 / ifs 0.35 / gfs 0.25
+
+
+@pytest.fixture(autouse=True)
+def _data_free_merge(monkeypatch):
+    """Merges here never read data/climatology.csv or data/calibration.json: no shrinkage,
+    default medium-range weights (test_forecast_blend.py covers the blend itself)."""
+    monkeypatch.setattr(M, "_default_climo", lambda: None)
+    monkeypatch.setattr(M, "_default_blend_cfg", lambda: M.CB.DEFAULT_CONFIG)
 
 
 @pytest.fixture(scope="module")
@@ -223,13 +232,21 @@ def test_lead_bands_pick_source_and_stamp_lead_hours():
     synoptic = M.build_forecast("g", t0, t0 - timedelta(hours=40), om).forecast
     assert synoptic.source == "hrrr" and synoptic.lead_hours == pytest.approx(40.0)  # HRRR covers the window
 
+    no_hrrr = ParsedLocation(latitude=42.0, longitude=-71.0, models={k: v for k, v in om.models.items() if k != M.HRRR})
+    day1 = M.build_forecast("g", t0, t0 - timedelta(hours=30), no_hrrr).forecast   # 18 h < lead <= 48 h: legacy band
+    assert day1.source == "nbm" and day1.wind_fg == 12.0 and day1.gust_fg == 20.0  # gust from GFS alone
+
     mid = M.build_forecast("g", t0, t0 - timedelta(days=5), om).forecast
-    assert mid.source == "nbm" and mid.wind_fg == 12.0 and mid.gust_fg == 20.0  # gust from GFS
+    assert mid.source == "nbm" and mid.wind_fg == 12.0
+    # 48 h < lead <= 7 d: NBM lacks gusts -> medium-range blend of the members present (IFS + GFS, no AIFS here)
+    assert mid.gust_fg == pytest.approx((MW["ifs"] * 22.0 + MW["gfs"] * 20.0) / (MW["ifs"] + MW["gfs"]))
     assert mid.lead_hours == pytest.approx(120.0)
 
     res = M.build_forecast("g", t0, t0 - timedelta(days=14), om)
-    assert res.forecast.source == "gfs_ecmwf" and res.forecast.wind_fg == 15.0  # mean of GFS/ECMWF
+    assert res.forecast.source == "medium:ifs+gfs"
+    assert res.forecast.wind_fg == pytest.approx((MW["ifs"] * 16.0 + MW["gfs"] * 14.0) / (MW["ifs"] + MW["gfs"]))
     assert any("low_confidence" in d.reason and d.severity == "info" for d in res.degradations)
+    assert res.forecast.wind_fg_raw == res.forecast.wind_fg and res.forecast.blend_w == 1.0  # no climatology table here
 
 
 def test_hrrr_without_window_coverage_beyond_18h_falls_to_nbm():
@@ -262,7 +279,7 @@ def test_nws_fills_null_and_stamps_source_suffix():
     assert not [d for d in res.degradations if d.severity == "error"]
 
     beyond = M.build_forecast("g", t0, t0 - timedelta(days=8), om, nws).forecast
-    assert beyond.wind_fg is None and beyond.source == "nbm"
+    assert beyond.wind_fg is None and beyond.source == "medium"  # no medium-range member present, NWS past 7 d
 
 
 def test_nws_only_when_openmeteo_absent_warns():
@@ -317,3 +334,66 @@ def test_hourly_strip_covers_kickoff_minus_1_to_plus_4():
     ts = [p.t for p in fc.hourly]
     assert ts[0] == datetime(2026, 9, 6, 16, 0, tzinfo=UTC) and ts[-1] == datetime(2026, 9, 6, 21, 0, tzinfo=UTC)
     assert len(ts) == 6 and all(b - a == timedelta(hours=1) for a, b in zip(ts, ts[1:], strict=False))
+
+
+# ---------------------------------------------------------------- AIFS medium-range member
+
+
+def _with_aifs(om: ParsedLocation, t0: datetime, wind: float = 18.0, dir: float = 180.0) -> ParsedLocation:
+    hrs = [t0 + timedelta(hours=i) for i in range(-1, 5)]
+    # AIFS: temp / wind / dir / precip only (no gusts, no PoP) — as Open-Meteo serves it
+    om.models[M.AIFS] = _rows(hrs, wind, gust=None, temp=50.0, pop=None, dir=dir)
+    return om
+
+
+def test_aifs_id_is_requested_for_conus_and_intl():
+    from pipeline.weather import openmeteo as OM
+
+    assert OM.AIFS_MODEL == "ecmwf_aifs025_single" == M.AIFS
+    assert OM.CONUS_MODELS.split(",")[-1] == OM.AIFS_MODEL and OM.INTL_MODELS.split(",")[-1] == OM.AIFS_MODEL
+    assert OM.build_params([(42.0, -71.0)], forecast_days=2)["models"] == OM.CONUS_MODELS
+
+
+def test_medium_range_weighted_mean_with_aifs_and_gust_fallback():
+    t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
+    om = _with_aifs(_three_model_om(t0), t0)
+    res = M.build_forecast("g", t0, t0 - timedelta(days=10), om)
+    fc = res.forecast
+    assert fc.source == "medium:aifs+ifs+gfs" and res.regime == "medium"
+    assert fc.wind_fg == pytest.approx(MW["aifs"] * 18.0 + MW["ifs"] * 16.0 + MW["gfs"] * 14.0)
+    assert fc.temp_fg == pytest.approx(MW["aifs"] * 50.0 + MW["ifs"] * 60.0 + MW["gfs"] * 60.0)
+    # AIFS has no gusts / PoP: those fields are the IFS+GFS weighted mean, never zero or None
+    assert fc.gust_fg == pytest.approx((MW["ifs"] * 22.0 + MW["gfs"] * 20.0) / (MW["ifs"] + MW["gfs"]))
+    assert fc.precip_prob == pytest.approx((MW["ifs"] * 20.0 + MW["gfs"] * 30.0) / (MW["ifs"] + MW["gfs"]) / 100.0)
+    assert fc.model_disagreement == pytest.approx(8.0)  # AIFS 18 - HRRR 10: AIFS is a disagreement member
+    assert any("low_confidence" in d.reason and "medium" in d.reason for d in res.degradations)
+
+
+def test_medium_range_direction_is_weighted_vector_mean_and_weights_configurable():
+    t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
+    om = _with_aifs(_three_model_om(t0), t0, dir=180.0)   # others point 90
+    cfg = M.CB.parse_blend_block({"medium_range_weights": {"aifs": 1.0, "ifs": 0.0, "gfs": 0.0}})
+    fc = M.build_forecast("g", t0, t0 - timedelta(days=10), om, blend_cfg=cfg).forecast
+    assert fc.source == "medium:aifs" and fc.wind_fg == 18.0 and fc.wind_dir_deg == pytest.approx(180.0)
+    assert fc.gust_fg == 15.0  # only AIFS weighted and it has no gusts -> falls through the chain (NBM none, HRRR 15)
+    even = M.CB.parse_blend_block({"medium_range_weights": {"aifs": 1, "ifs": 1, "gfs": 1}})
+    fc2 = M.build_forecast("g", t0, t0 - timedelta(days=10), om, blend_cfg=even).forecast
+    assert fc2.wind_fg == pytest.approx(16.0) and 90.0 < fc2.wind_dir_deg < 180.0
+
+
+def test_aifs_is_only_a_fallback_inside_seven_days():
+    t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
+    om = _with_aifs(_three_model_om(t0), t0)
+    fc = M.build_forecast("g", t0, t0 - timedelta(days=5), om).forecast
+    assert fc.source == "nbm" and fc.wind_fg == 12.0 and fc.temp_fg == 60.0
+    assert fc.gust_fg == pytest.approx((MW["ifs"] * 22.0 + MW["gfs"] * 20.0) / (MW["ifs"] + MW["gfs"]))
+    short = M.build_forecast("g", t0, t0 - timedelta(hours=6), om).forecast
+    assert short.source == "hrrr" and short.wind_fg == 10.0 and short.gust_fg == 15.0
+
+
+def test_medium_start_hour_from_config():
+    t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
+    om = _three_model_om(t0)
+    cfg = M.CB.parse_blend_block({"medium_range_start_h": 96})
+    assert M.choose_regime(100, False, cfg).label == "medium" and M.choose_regime(100, False).label == "nbm"
+    assert M.build_forecast("g", t0, t0 - timedelta(hours=100), om, blend_cfg=cfg).forecast.source == "medium:ifs+gfs"

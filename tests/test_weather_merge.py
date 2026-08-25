@@ -16,6 +16,14 @@ from pipeline.weather.parsers.nws import KMH_TO_MPH, expand_field, parse_duratio
 from pipeline.weather.parsers.openmeteo import ParsedLocation, match_location, parse_forecast
 
 UTC = timezone.utc
+MW = M.CB.DEFAULT_MEDIUM_WEIGHTS
+
+
+@pytest.fixture(autouse=True)
+def _data_free_merge(monkeypatch):
+    """No data/climatology.csv shrinkage and default blend config (see test_forecast_blend.py)."""
+    monkeypatch.setattr(M, "_default_climo", lambda: None)
+    monkeypatch.setattr(M, "_default_blend_cfg", lambda: M.CB.DEFAULT_CONFIG)
 
 
 @pytest.fixture(scope="module")
@@ -144,8 +152,15 @@ def test_choose_regime():
     assert M.choose_regime(6, False).label == "hrrr"
     assert M.choose_regime(30, True).label == "hrrr"
     assert M.choose_regime(30, False).label == "nbm"
-    assert M.choose_regime(200, False).label == "nbm"
-    assert M.choose_regime(300, False).label == "gfs_ecmwf"
+    assert M.choose_regime(100, False).label == "nbm" and M.choose_regime(168, False).label == "nbm"
+    assert M.choose_regime(200, False).label == "medium"
+    assert M.choose_regime(300, False).label == "medium"
+    # inside 7 d the medium-range blend is only a fallback; beyond it is the primary source
+    assert M.choose_regime(100, False).prefs["wind"][:2] == [M.NBM, M.MEDIUM]
+    assert M.choose_regime(100, False).prefs["gust"][0] == M.MEDIUM
+    assert M.choose_regime(30, False).prefs["gust"][0] == M.GFS
+    assert M.choose_regime(200, False).prefs["wind"][0] == M.MEDIUM
+    assert M.choose_regime(200, False).weights == {M.AIFS: 0.4, M.ECMWF: 0.35, M.GFS: 0.25}
 
 
 # ---------------------------------------------------------------- merge from fixtures
@@ -188,9 +203,15 @@ def test_mid_lead_uses_nbm_and_gfs_gust(om: ParsedLocation):
     gfs = {r.t: r for r in om.models[M.GFS]}
     hrs = [kickoff + timedelta(hours=i) for i in range(3)]
     assert fc.wind_fg == sum(nbm[h].wind for h in hrs) / 3
-    assert fc.gust_fg == sum(gfs[h].gust for h in hrs) / 3
+    # 48 h < lead: gusts (absent from NBM) come from the medium-range blend of the members present (IFS + GFS; no AIFS in the fixture)
+    ec = {r.t: r for r in om.models[M.ECMWF]}
+    exp_gust = sum((MW["ifs"] * ec[h].gust + MW["gfs"] * gfs[h].gust) / (MW["ifs"] + MW["gfs"]) for h in hrs) / 3
+    assert fc.gust_fg == pytest.approx(exp_gust)
     assert fc.cross_mph is None  # no orientation given
     assert not res.degradations
+
+    day1 = M.build_forecast("cfb:2026:1:a@b", kickoff, kickoff - timedelta(hours=40), om, None).forecast
+    assert day1.source == "nbm" and day1.gust_fg == sum(gfs[h].gust for h in hrs) / 3  # <= 48 h: GFS gusts as before
 
 
 def test_long_lead_blends_gfs_ecmwf_with_info_degradation(om: ParsedLocation):
@@ -198,11 +219,11 @@ def test_long_lead_blends_gfs_ecmwf_with_info_degradation(om: ParsedLocation):
     now = kickoff - timedelta(days=14)
     res = M.build_forecast("cfb:2026:1:a@b", kickoff, now, om, None)
     fc = res.forecast
-    assert fc.source == "gfs_ecmwf"
+    assert fc.source == "medium:ifs+gfs"  # fixture predates AIFS; the blend lists the members it found
     gfs = {r.t: r for r in om.models[M.GFS]}
     ec = {r.t: r for r in om.models[M.ECMWF]}
     hrs = [kickoff + timedelta(hours=i) for i in range(3)]
-    exp = sum((gfs[h].wind + ec[h].wind) / 2 for h in hrs) / 3
+    exp = sum((MW["ifs"] * ec[h].wind + MW["gfs"] * gfs[h].wind) / (MW["ifs"] + MW["gfs"]) for h in hrs) / 3
     assert fc.wind_fg == pytest.approx(exp)
     assert [d.severity for d in res.degradations] == ["info"]
     assert "low_confidence" in res.degradations[0].reason

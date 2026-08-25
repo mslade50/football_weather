@@ -2,6 +2,13 @@
 
 Historical-forecast / previous-runs clients are Phase 6. Every raw response goes
 through the optional ``capture`` hook BEFORE parsing (ARCH §1.3).
+
+ECMWF AIFS (the data-driven medium-range model) is requested as
+``ecmwf_aifs025_single`` (verified 2026-08: the bare ``ecmwf_aifs025`` id is
+accepted but returns only nulls). It is a 6-hourly model that Open-Meteo
+interpolates to hourly; it carries temperature / wind speed / direction /
+precipitation out to 15 days but NO gusts and NO precipitation probability, so the
+stitching never lets its nulls zero those fields (see merge.py).
 """
 
 from __future__ import annotations
@@ -21,8 +28,9 @@ ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
 ENSEMBLE_MODELS = "ecmwf_ifs025,gfs_seamless"
 ENSEMBLE_HOURLY = "wind_speed_10m,wind_gusts_10m,precipitation"
 ENSEMBLE_UNIT_PARAMS = {"wind_speed_unit": "mph", "precipitation_unit": "mm", "timezone": "UTC"}
-CONUS_MODELS = "ncep_nbm_conus,ncep_hrrr_conus,ncep_gfs_seamless,ecmwf_ifs025"
-INTL_MODELS = "best_match,ecmwf_ifs025"
+AIFS_MODEL = "ecmwf_aifs025_single"
+CONUS_MODELS = f"ncep_nbm_conus,ncep_hrrr_conus,ncep_gfs_seamless,ecmwf_ifs025,{AIFS_MODEL}"
+INTL_MODELS = f"best_match,ecmwf_ifs025,{AIFS_MODEL}"
 HOURLY = "temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,wind_direction_10m"
 UNIT_PARAMS = {
     "wind_speed_unit": "mph",
@@ -199,6 +207,7 @@ def fetch_ensemble(
 __all__ = [
     "FORECAST_URL",
     "ENSEMBLE_URL",
+    "AIFS_MODEL",
     "CONUS_MODELS",
     "INTL_MODELS",
     "ENSEMBLE_MODELS",

@@ -14,5 +14,360 @@
     "alt_slope_per_m": 0.0035,
     "alt_cap": 3.5,
     "heat_away_delta_f": 12.0
+  },
+  "forecast_blend": {
+    "note": "weather/climatology_blend.py + merge.py (ARCH 6). weights: w(lead)=1 up to full_h, linear to floor at floor_h (or through points [[lead_h, w], ...]), hold beyond; wind_fg = w*forecast + (1-w)*ERA5 cell mean. medium_range_weights: AIFS/IFS/GFS member weights for leads > medium_range_start_h. Refit with scripts/fit_forecast_blend.py.",
+    "medium_range_weights": {
+      "aifs": 0.4,
+      "ifs": 0.35,
+      "gfs": 0.25
+    },
+    "medium_range_start_h": 168,
+    "weights": {
+      "wind": {
+        "full_h": 48.0,
+        "floor_h": 168.0,
+        "floor": 0.33,
+        "points": [
+          [
+            72.0,
+            0.7
+          ],
+          [
+            96.0,
+            0.63
+          ],
+          [
+            120.0,
+            0.53
+          ],
+          [
+            144.0,
+            0.43
+          ],
+          [
+            168.0,
+            0.33
+          ]
+        ]
+      },
+      "temp": {
+        "full_h": 48.0,
+        "floor_h": 168.0,
+        "floor": 0.65,
+        "points": [
+          [
+            72.0,
+            0.84
+          ],
+          [
+            96.0,
+            0.82
+          ],
+          [
+            120.0,
+            0.77
+          ],
+          [
+            144.0,
+            0.72
+          ],
+          [
+            168.0,
+            0.65
+          ]
+        ]
+      },
+      "rain_prob": {
+        "full_h": 48.0,
+        "floor_h": 168.0,
+        "floor": 0.48,
+        "points": [
+          [
+            72.0,
+            0.62
+          ],
+          [
+            96.0,
+            0.6
+          ],
+          [
+            120.0,
+            0.55
+          ],
+          [
+            144.0,
+            0.51
+          ],
+          [
+            168.0,
+            0.48
+          ]
+        ]
+      }
+    },
+    "fit": {
+      "fitted_at": "2026-08-25T12:03:31Z",
+      "seasons": [
+        2024,
+        2025
+      ],
+      "stadiums": [
+        "acrisure-stadium",
+        "allegiant-stadium",
+        "apogee-stadium",
+        "bank-of-america-stadium",
+        "benson-field-at-yulman-stadium",
+        "bobby-dodd-stadium-at-historic-grant-field",
+        "brigham-field-at-huskie-stadium",
+        "bulldog-stadium",
+        "camp-randall-stadium",
+        "centennial-bank-stadium",
+        "darrell-k-royal-texas-memorial-stadium",
+        "dix-stadium",
+        "empower-field-at-mile-high",
+        "fau-stadium",
+        "folsom-field",
+        "geha-field-at-arrowhead-stadium",
+        "glass-bowl",
+        "highmark-stadium",
+        "jack-trice-stadium",
+        "joe-aillet-stadium",
+        "jordan-hare-stadium",
+        "kidd-brewer-stadium",
+        "lane-stadium",
+        "lincoln-financial-field",
+        "m-m-roberts-stadium",
+        "martin-stadium",
+        "memorial-stadium",
+        "memorial-stadium-lincoln",
+        "mountaineer-field-at-milan-puskar-stadium",
+        "neyland-stadium",
+        "notre-dame-stadium",
+        "paulson-stadium",
+        "protective-stadium",
+        "rice-eccles-stadium",
+        "ross-ade-stadium",
+        "santiago-bernabeu-stadium",
+        "skelly-field-at-h-a-chapman-stadium",
+        "spartan-stadium",
+        "state-farm-stadium",
+        "tcf-bank-stadium",
+        "university-stadium",
+        "veterans-memorial-stadium",
+        "warren-mcguirk-alumni-stadium",
+        "yager-stadium"
+      ],
+      "n_series_ok": 73,
+      "n_series_failed": 15,
+      "models": "best_match",
+      "window_h": 3,
+      "leads_days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "by_kind": {
+        "wind": {
+          "24": {
+            "n": 71248,
+            "w": 0.76,
+            "metric": "mae",
+            "mae_fc": 1.8341,
+            "mae_blend": 1.6956,
+            "mae_climo": 2.7521
+          },
+          "48": {
+            "n": 71248,
+            "w": 0.74,
+            "metric": "mae",
+            "mae_fc": 1.9237,
+            "mae_blend": 1.7676,
+            "mae_climo": 2.7521
+          },
+          "72": {
+            "n": 71248,
+            "w": 0.7,
+            "metric": "mae",
+            "mae_fc": 2.1047,
+            "mae_blend": 1.9171,
+            "mae_climo": 2.7521
+          },
+          "96": {
+            "n": 71248,
+            "w": 0.63,
+            "metric": "mae",
+            "mae_fc": 2.3553,
+            "mae_blend": 2.1145,
+            "mae_climo": 2.7521
+          },
+          "120": {
+            "n": 71248,
+            "w": 0.53,
+            "metric": "mae",
+            "mae_fc": 2.6774,
+            "mae_blend": 2.3267,
+            "mae_climo": 2.7521
+          },
+          "144": {
+            "n": 71248,
+            "w": 0.43,
+            "metric": "mae",
+            "mae_fc": 2.9718,
+            "mae_blend": 2.4888,
+            "mae_climo": 2.7521
+          },
+          "168": {
+            "n": 71248,
+            "w": 0.33,
+            "metric": "mae",
+            "mae_fc": 3.2143,
+            "mae_blend": 2.6105,
+            "mae_climo": 2.7521
+          }
+        },
+        "temp": {
+          "24": {
+            "n": 71248,
+            "w": 0.92,
+            "metric": "mae",
+            "mae_fc": 2.2924,
+            "mae_blend": 2.2138,
+            "mae_climo": 6.7554
+          },
+          "48": {
+            "n": 71248,
+            "w": 0.86,
+            "metric": "mae",
+            "mae_fc": 2.9998,
+            "mae_blend": 2.8015,
+            "mae_climo": 6.7554
+          },
+          "72": {
+            "n": 71248,
+            "w": 0.84,
+            "metric": "mae",
+            "mae_fc": 3.2674,
+            "mae_blend": 3.0499,
+            "mae_climo": 6.7554
+          },
+          "96": {
+            "n": 71248,
+            "w": 0.82,
+            "metric": "mae",
+            "mae_fc": 3.6419,
+            "mae_blend": 3.381,
+            "mae_climo": 6.7554
+          },
+          "120": {
+            "n": 71248,
+            "w": 0.77,
+            "metric": "mae",
+            "mae_fc": 4.1871,
+            "mae_blend": 3.8315,
+            "mae_climo": 6.7554
+          },
+          "144": {
+            "n": 71248,
+            "w": 0.72,
+            "metric": "mae",
+            "mae_fc": 4.835,
+            "mae_blend": 4.3551,
+            "mae_climo": 6.7554
+          },
+          "168": {
+            "n": 71248,
+            "w": 0.65,
+            "metric": "mae",
+            "mae_fc": 5.497,
+            "mae_blend": 4.8415,
+            "mae_climo": 6.7554
+          }
+        },
+        "rain_prob": {
+          "24": {
+            "n": 62120,
+            "w": 1.0,
+            "metric": "brier",
+            "mae_fc": 0.0634,
+            "mae_blend": 0.0634,
+            "mae_climo": 0.0872,
+            "brier_fc": 0.0318,
+            "brier_blend": 0.0318,
+            "brier_climo": 0.0562
+          },
+          "48": {
+            "n": 61896,
+            "w": 0.62,
+            "metric": "brier",
+            "mae_fc": 0.1009,
+            "mae_blend": 0.0957,
+            "mae_climo": 0.0873,
+            "brier_fc": 0.0448,
+            "brier_blend": 0.0383,
+            "brier_climo": 0.0564
+          },
+          "72": {
+            "n": 61672,
+            "w": 0.62,
+            "metric": "brier",
+            "mae_fc": 0.1103,
+            "mae_blend": 0.1015,
+            "mae_climo": 0.0873,
+            "brier_fc": 0.0473,
+            "brier_blend": 0.0417,
+            "brier_climo": 0.0564
+          },
+          "96": {
+            "n": 61448,
+            "w": 0.6,
+            "metric": "brier",
+            "mae_fc": 0.1174,
+            "mae_blend": 0.1054,
+            "mae_climo": 0.0873,
+            "brier_fc": 0.0497,
+            "brier_blend": 0.0444,
+            "brier_climo": 0.0563
+          },
+          "120": {
+            "n": 61224,
+            "w": 0.55,
+            "metric": "brier",
+            "mae_fc": 0.1283,
+            "mae_blend": 0.11,
+            "mae_climo": 0.0875,
+            "brier_fc": 0.0538,
+            "brier_blend": 0.0483,
+            "brier_climo": 0.0565
+          },
+          "144": {
+            "n": 61000,
+            "w": 0.51,
+            "metric": "brier",
+            "mae_fc": 0.1359,
+            "mae_blend": 0.1122,
+            "mae_climo": 0.0876,
+            "brier_fc": 0.0562,
+            "brier_blend": 0.0508,
+            "brier_climo": 0.0566
+          },
+          "168": {
+            "n": 60776,
+            "w": 0.48,
+            "metric": "brier",
+            "mae_fc": 0.1407,
+            "mae_blend": 0.1132,
+            "mae_climo": 0.0879,
+            "brier_fc": 0.0574,
+            "brier_blend": 0.0525,
+            "brier_climo": 0.0568
+          }
+        }
+      }
+    }
   }
 }

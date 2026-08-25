@@ -9,7 +9,7 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python -m pytest tests -q -o addopts=""` | **656 passed** (17 s) |
+| Python tests | `python -m pytest tests -q -o addopts=""` | **729 passed** (19 s; 2026-08-25 after the medium-range + climatology blend pass) |
 | Lint | `ruff check .` | All checks passed |
 | Worker tests | `node --test "site/worker/test/*.mjs"` | **21 pass / 0 fail** |
 | Frontend syntax | `node --check site/web/*.js` | 8 files ok (`alerts app backtest drawer map signals status table`) |
@@ -20,12 +20,12 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 
 Per-file pytest counts: alert_format 11, alerts_rules 30, backtest_grid 15,
 backtest_workflow 18, betcris_parse 26, betonline_parse 14, build_odds 17,
-build_stadiums 27, calibrate 15, climatology 6, clv 19, contracts 9, d1_out 11,
+build_stadiums 27, calibrate 15, climatology 10, clv 19, contracts 9, d1_out 11, forecast_blend 13,
 deploy_workflow 10, fair 18, fanduel_parse 12, gate_check 17, impact_v1 26,
 impact_v2 24, json_out 18, kalshi_parse 19, legacy_columns 9, merge_aliases 57,
 novig_parse 12, pinnacle_parse 7, pipeline_workflow 23, prophetx_parse 10,
 schedule_cfb 7, schedule_nfl 6, scrape_volume 11, signals 18, site_contract 17,
-stadium_loader 16, state_migrate 21, weather_merge 20, weather_stitch 19.
+stadium_loader 16, state_migrate 21, weather_merge 20, weather_stitch 24.
 
 Integration change made in this pass: `pipeline/build.py` now runs a `clv`
 stage after `alerts` (`run_clv_stage` → `pipeline/model/clv.run_clv_stage`):
@@ -79,6 +79,7 @@ Alert gate change (2026-08-24): EDGE alerts now fire for every game in a signal 
 - Weather stitching (ARCH §6): HRRR / NBM / GFS / ensemble via Open-Meteo previous-runs + NWS gridpoint, `wind_vol` from ensemble spread, `weather_history` change rows (`test_weather_stitch` 19, `test_weather_merge` 20).
 - Stadium orientation from OSM (`build_stadiums.py`, 27 tests), head/cross-wind decomposition.
 - `compute_impact_v2` (24 tests) written next to v1; `gs_fg_v2 / away_fg_v2` in cards, D1 `games` (`0004_v2.sql`) and `weather_history`; `site/web/signals.js` Signals view, wind arrows / field axis on the map.
+- **Medium-range + climatology blend (2026-08-24, ARCH §6)**: ECMWF AIFS (`ecmwf_aifs025_single`; the bare `ecmwf_aifs025` id returns nulls) added to `CONUS_MODELS` / `INTL_MODELS` and to `model_disagreement`; leads > 7 d (`forecast_blend.medium_range_start_h`) use the weighted mean of {AIFS, IFS, GFS} (`forecast_blend.medium_range_weights`, aifs 0.4 / ifs 0.35 / gfs 0.25; a member missing a field — AIFS has no gusts/PoP — just drops out of that field), 48 h–7 d NBM keeps priority with that blend as the gust/null fallback, `source=medium:aifs+ifs+gfs`. `data/climatology.csv` now also carries stadium × ISO-week × 6-h solar-bin ERA5 cells (mean/P10/P50/P90 wind + temp, gust mean/P90, ≥1 mm rain frequency; 173 stadiums, one hourly 2015–2024 archive request each, cached in the scratch dir; legacy summary row kept, written last per stadium) and `weather/climatology_blend.py` shrinks `wind_fg / gust_fg / temp_fg / precip_prob` + the ensemble P10/P90 band toward the cell with the lead-weighted curves in `calibration.json["forecast_blend"]["weights"]` (w = 1 ≤ 48 h). Raw values ride along as `wind_fg_raw / temp_fg_raw / blend_w / climo_wind / climo_temp` (WeatherForecast, GameCard weather block). `scripts/fit_forecast_blend.py` fitted the curves from Open-Meteo previous-runs (`best_match`) day-1..7 forecasts vs ERA5 truth, 44 sampled stadiums × Sep–Dec 2024+2025 (73 of 88 series fetched, 15 lost to 429s; n ≈ 71k 3-h windows per lead): w* wind 0.70/0.63/0.53/0.43/0.33 and temp 0.84/0.82/0.77/0.72/0.65 at 72/96/120/144/168 h (MAE wind 3.21→2.61 mph, temp 5.50→4.84 °F at 168 h vs forecast-only), rain_prob 0.62→0.48 (fitted on Brier 0.0574→0.0525; wind/temp on MAE); day-1/2 forecasts are also imperfect (w* 0.76/0.74 wind) but the curve keeps w = 1 ≤ 48 h by design. Stats live in `calibration.json["forecast_blend"]["fit"]`. Tests: `test_forecast_blend` (new), `test_weather_stitch`, `test_weather_merge`, `test_climatology`. `pipeline/build.py` was not touched: the cell is found from the Open-Meteo coordinates (nearest stadium ≤ 0.3°) — pass `stadium_id=` to `build_forecast` to make it exact. Open-Meteo's archive quota (hourly request limit, 429) caps the rebuild at ~45 stadiums/hour; the fetch is resume-safe (`--cache-dir`).
 
 ### Phase 6 — Backtest + calibration + CLV: DONE (fixture-verified; no settled season yet)
 - `pipeline/model/clv.py` (19 tests): closing freeze from `history.json` / D1 `odds_history`, side-relative `clv_pts`, legacy `clv_status`, `closings.json` store, `settle_alerts`; now wired into `pipeline.build` (see §1).
