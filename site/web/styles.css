@@ -268,6 +268,18 @@ tr.bt-row.sub td:first-child { padding-left: 22px; }
 tr.bt-row.hl td { background: rgba(47,129,247,.18); }
 tr.bt-game.link { cursor: pointer; }
 .statusbar.bt-clv { border-top: none; }
+/* grid: "2026 (this season)" + "Legacy sheet" column groups (two sticky header rows) */
+table.bt-grid thead tr.bt-grp th { top: 0; text-align: center; border-bottom: none; }
+table.bt-grid thead tr.bt-grp th.grp { border-left: 1px solid var(--line); color: var(--text); }
+table.bt-grid thead tr.bt-cols th { top: 27px; }
+table.bt-grid th.lg, table.bt-grid td.lg { color: var(--muted); }
+table.bt-grid th.sorted { color: var(--text); }
+/* a rule between the bounds and each 8-column result group (cols 7 and 15) */
+table.bt-grid th[data-sort="wins"], table.bt-grid th[data-sort="l:wins"],
+table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px solid var(--line); }
+.bt-banner { padding: 7px 18px; font-size: 12px; border-bottom: 1px solid var(--line);
+  color: var(--warn); background: rgba(180,120,20,.12); }
+.bt-note { padding: 6px 18px; }
 .alertctl .al-clv { margin-left: auto; }
 .alertctl .al-clv b { color: var(--text); }
 @media (max-width: 800px) { .status-grid { grid-template-columns: 1fr; } }

@@ -31,7 +31,10 @@ Bucket definitions are the 118 legacy rows (ids = ``Signal``) read from
 bounds, ``Wind Below`` NaN→100, ``Spread_l`` NaN→0, ``Temp Above`` NaN→0, a NaN
 ``Spread_h`` / ``CLV from Open`` never matches) while the grid aggregation lets a
 NaN bound mean "unbounded" and a NaN CLV mean "all" (that is how the legacy sheet
-was built: the NFL rows and the all-CLV rows carry samples).
+was built: the NFL rows and the all-CLV rows carry samples). Every grid row carries
+the sheet's own numbers under ``legacy``; the sheet's Stadiums rows are emitted as
+``stadium_results_legacy`` and ``meta.legacy`` names the source, so the Backtest tab
+has something to show before the first 2026 game is graded.
 
 Grid metrics grade the UNDER at the closing total: ``Wins/Losses/Push``,
 ``Sample = W+L+P``, ``Margin = mean(close_total - actual_total)``,
@@ -90,6 +93,8 @@ NET_SLEEP_S = 0.3
 BATCH = 50
 
 PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv")
+LEGACY_SEASONS = "pre-2026"   # the sheet does not say which seasons it covers (AUDIT §4.3)
+LEGACY_SPORT = "cfb"          # the Stadiums sheet is CFB-only
 
 
 # ---- helpers ------------------------------------------------------------------------
@@ -175,14 +180,26 @@ def load_grid_defs(path: PathLike = GRID_FIXTURE) -> list[Bucket]:
 
 
 def load_stadium_sheet(path: PathLike = GRID_FIXTURE) -> list[dict[str, Any]]:
-    """Legacy Stadiums sheet rows (Team, Stadium, Record 'W-L-P', Percentage) for reference."""
+    """Legacy Stadiums sheet rows (Team, Stadium, Record 'W-L-P', Percentage) + ``sport``
+    = cfb, carried into ``backtest.json`` as ``stadium_results_legacy``. ``[]`` when the
+    workbook has no Stadiums sheet."""
     import pandas as pd
 
-    df = pd.read_excel(path, sheet_name="Stadiums")
+    try:
+        df = pd.read_excel(path, sheet_name="Stadiums")
+    except ValueError:   # worksheet missing
+        return []
     rows = []
     for rec in df.to_dict(orient="records"):
-        rows.append({k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in rec.items()})
+        row = {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in rec.items()}
+        row["sport"] = LEGACY_SPORT
+        rows.append(row)
     return rows
+
+
+def legacy_meta(defs: Sequence[Bucket], path: PathLike = GRID_FIXTURE) -> dict[str, Any]:
+    """``meta.legacy`` of backtest.json: where the sheet numbers on each grid row come from."""
+    return {"source": Path(path).name, "seasons": LEGACY_SEASONS, "n_buckets": len(defs)}
 
 
 def _in(lo: Optional[float], hi: Optional[float], x: float) -> bool:
@@ -935,14 +952,17 @@ class BacktestResult:
     alerts: dict[str, Any]
     games: list[dict[str, Any]]
     sources: dict[str, Any]
+    stadiums_legacy: list[dict[str, Any]] = field(default_factory=list)   # the sheet's Stadiums rows (load_stadium_sheet)
+    legacy: dict[str, Any] = field(default_factory=dict)                  # meta.legacy (legacy_meta)
 
     def payload(self, *, now: Optional[datetime] = None, run_id: Optional[str] = None, on: str = "forecast") -> dict[str, Any]:
         ts = utc_iso(now or now_utc())
         return json_out.sanitize({
             "meta": {"run_id": run_id or f"backtest-{ts}", "last_updated": ts, "generated_at": ts, "bucket_on": on,
                      "n_games": len(self.rows), "n_graded": sum(1 for r in self.rows if r.under_result is not None),
-                     "sources": self.sources},
-            "grid": self.grid, "stadium_results": self.stadiums, "alerts_clv": self.alerts, "games": self.games,
+                     "sources": self.sources, "legacy": self.legacy},
+            "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
+            "alerts_clv": self.alerts, "games": self.games,
         })
 
 
@@ -991,11 +1011,13 @@ def build_rows(
 
 
 def assemble(rows: Sequence[GameRow], defs: Sequence[Bucket], alert_records: Iterable[Mapping[str, Any]] = (),
-             sources: Optional[dict[str, Any]] = None, on: str = "forecast", now: Optional[str] = None) -> BacktestResult:
+             sources: Optional[dict[str, Any]] = None, on: str = "forecast", now: Optional[str] = None,
+             stadiums_legacy: Sequence[Mapping[str, Any]] = (), legacy: Optional[Mapping[str, Any]] = None) -> BacktestResult:
     rows = [finalize_row(r) for r in rows]
     grid = grid_stats(rows, defs, on)
     return BacktestResult(list(rows), grid, stadium_results(rows, now), alerts_clv(alert_records),
-                          matched_games(rows, defs, grid, on), sources or {})
+                          matched_games(rows, defs, grid, on), sources or {},
+                          [dict(s) for s in stadiums_legacy], dict(legacy or {}))
 
 
 def write_parquet(res: BacktestResult, out_dir: PathLike) -> dict[str, Path]:
@@ -1059,7 +1081,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     now = _dt(args.now) or now_utc()
     defs = load_grid_defs(args.grid)
-    print(f"backtest: {len(defs)} buckets from {args.grid}")
+    sheet_stadiums = load_stadium_sheet(args.grid)
+    print(f"backtest: {len(defs)} buckets, {len(sheet_stadiums)} legacy stadium rows from {args.grid}")
 
     d1 = D1Data()
     if args.export_dir:
@@ -1096,7 +1119,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     alerts_state, _ = pstate.load_alerts_rehydrated(args.state_dir)
     records = list((alerts_state.get("records") or {}).values()) + list(d1.alerts)
-    res = assemble(rows, defs, records, sources, on=args.bucket_on, now=utc_iso(now))
+    res = assemble(rows, defs, records, sources, on=args.bucket_on, now=utc_iso(now),
+                   stadiums_legacy=sheet_stadiums, legacy=legacy_meta(defs, args.grid))
     written = write_outputs(res, board_dir=args.board_dir, parquet_dir=args.parquet_dir, now=now, on=args.bucket_on)
     graded = sum(1 for r in rows if r.under_result is not None)
     print(f"  rows: {len(rows)} games ({graded} graded); buckets with samples: {sum(1 for g in res.grid if g['Sample'])}; "
@@ -1112,7 +1136,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 __all__ = [
     "GRID_FIXTURE", "LEADS", "SPORT_LABEL", "Bucket", "GameRow", "D1Data", "BacktestResult",
-    "bucket_from_row", "load_grid_defs", "load_stadium_sheet", "bucket_matches", "first_match",
+    "bucket_from_row", "load_grid_defs", "load_stadium_sheet", "legacy_meta", "bucket_matches", "first_match",
     "grade_under", "finalize_row", "load_snapshots", "row_from_snapshots", "load_export_dir", "load_sqlite",
     "rows_from_games", "apply_closings", "apply_openers", "hourly_series", "window_stats", "fetch_actuals",
     "fetch_previous_runs", "parse_cfbd_scores", "parse_espn_scores", "parse_nflverse_scores", "apply_scores",

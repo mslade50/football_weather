@@ -5,11 +5,13 @@
 // Record / ROI lookup the hover cards use (backtestHover / backtestMatch).
 //
 // /data/backtest.json (pipeline/backtest.py BacktestResult.payload -> R2 board/backtest.json):
-//   { meta {run_id, generated_at, last_updated, bucket_on, n_games, n_graded, sources},
+//   { meta {run_id, generated_at, last_updated, bucket_on, n_games, n_graded, sources,
+//           legacy {source "cfb_weather_backtest.xlsx", seasons "pre-2026", n_buckets 118}},
 //     grid: [ { id, sport "NCAAF"|"NFL", Wind Above, Wind Below, Temp Above, Temp Below, Spread_l, Spread_h,
 //               CLV from Open null|"Positive"|"Negative", Signal, Wins, Losses, Push, Sample, Margin, ROI,
-//               "+ CLV", "CLV %", n_games, legacy {..the xlsx numbers..} } ],
+//               "+ CLV", "CLV %", n_games, legacy {Wins, Losses, Push, Sample, Margin, ROI, "+ CLV", "CLV %"} } ],
 //     stadium_results: [ { stadium_id, sport, season, Team, Stadium, Record "W-L-P", Percentage, under_w, under_l, under_p, roi, n } ],
+//     stadium_results_legacy: [ { Team, Stadium, Record "W-L-P", Percentage, sport "cfb" } ]   (the xlsx Stadiums sheet),
 //     games: [ GameRow.to_dict(): game_id, sport, season, week, kickoff_utc, home_id, away_id, home_name, away_name,
 //              stadium_name, roof_state, temp_fc, wind_fc, gust_fc, rain_fc, lead_fc, gs_fg_v1, gs_fg_v2,
 //              temp_act, wind_act, rain_act, total_open, total_close, spread_open, spread_close, clv_status,
@@ -25,19 +27,46 @@
 // bounds null on an NFL row means "any spread"; the row's CLV must equal the game's CLV status
 // (the aggregate null-CLV row is used only when no status can be computed). CLV status
 // = "Positive" when the consensus total dropped from open (open > now), else "Negative".
+//
+// The grid shows two column groups: "2026 (this season)" (recomputed from graded games) and
+// "Legacy sheet" (row.legacy = the xlsx numbers), the latter behind the #bt-legacy checkbox
+// (on by default, remembered in localStorage). Until meta.n_graded > 0 a banner says the
+// legacy numbers are what is being shown; the stadium table falls back to the sheet too.
 
-const BT = { data: null, loaded: false, loading: null, sport: "", section: "grid", q: "", sort: null, dir: -1 };
+const BT_LEGACY_KEY = "fw.btLegacy";
+function loadBtLegacy() {
+  try { return localStorage.getItem(BT_LEGACY_KEY) !== "0"; } catch (_) { return true; }
+}
+function saveBtLegacy(on) {
+  try { localStorage.setItem(BT_LEGACY_KEY, on ? "1" : "0"); } catch (_) { /* private mode / blocked storage */ }
+}
+const BT_NO_GRADED_BANNER = "No graded 2026 games yet (first grading after Week 0 settles) — showing legacy sheet results.";
+
+const BT = { data: null, loaded: false, loading: null, sport: "", section: "grid", q: "", sort: null, dir: -1, legacy: loadBtLegacy() };
 
 const BT_SPORT = { nfl: "NFL", cfb: "NCAAF" };
 const btNum = (...vals) => { for (const v of vals) if (isNum(v)) return Number(v); return null; };
 const btStr = (...vals) => { for (const v of vals) if (v !== null && v !== undefined && v !== "") return String(v); return null; };
 
+// the 8 result columns of a grid row (this season) or of its `legacy` block (the sheet)
+const BT_STAT_KEYS = ["wins", "losses", "push", "sample", "margin", "roi", "pos_clv", "clv_pct"];
+function normalizeStats(r) {
+  return {
+    wins: btNum(r.wins, r.Wins), losses: btNum(r.losses, r.Losses), push: btNum(r.push, r.Push),
+    sample: btNum(r.sample, r.Sample), margin: btNum(r.margin, r.Margin), roi: btNum(r.roi, r.ROI),
+    pos_clv: btNum(r.pos_clv, r.plus_clv, r["+ CLV"]), clv_pct: btNum(r.clv_pct, r["CLV %"]),
+  };
+}
 function normalizeGridRow(raw, idx) {
   const r = raw || {};
   const clv = btStr(r.clv, r.clv_from_open, r["CLV from Open"]);
+  const legacy = r.legacy && typeof r.legacy === "object" ? normalizeStats(r.legacy) : normalizeStats({});
+  // sport code ("cfb"/"nfl") or label ("NCAAF"/"NFL") -> label; bucketMatch / the sport filter compare labels
+  const sp = (btStr(r.Sport, r.sport) || "").toUpperCase();
   return {
+    legacy,
     id: btNum(r.id, r.signal, r.Signal) ?? idx + 1,
-    sport: (btStr(r.sport, r.Sport) || "").toUpperCase(),
+    sport: BT_SPORT[sp.toLowerCase()] || sp,
     wind_lo: btNum(r.wind_lo, r.wind_above, r["Wind Above"]),
     wind_hi: btNum(r.wind_hi, r.wind_below, r["Wind Below"]),
     temp_lo: btNum(r.temp_lo, r.temp_above, r["Temp Above"]),
@@ -45,12 +74,10 @@ function normalizeGridRow(raw, idx) {
     spread_lo: btNum(r.spread_lo, r.spread_l, r.Spread_l),
     spread_hi: btNum(r.spread_hi, r.spread_h, r.Spread_h),
     clv: clv && /^(pos|neg)/i.test(clv) ? (/^pos/i.test(clv) ? "Positive" : "Negative") : null,
-    wins: btNum(r.wins, r.Wins), losses: btNum(r.losses, r.Losses), push: btNum(r.push, r.Push),
-    sample: btNum(r.sample, r.Sample), margin: btNum(r.margin, r.Margin), roi: btNum(r.roi, r.ROI),
-    pos_clv: btNum(r.pos_clv, r.plus_clv, r["+ CLV"]), clv_pct: btNum(r.clv_pct, r["CLV %"]),
+    ...normalizeStats(r),
   };
 }
-function normalizeStadiumRow(raw) {
+function normalizeStadiumRow(raw, legacy = false) {
   const r = raw || {};
   let wins = btNum(r.wins), losses = btNum(r.losses), push = btNum(r.push);
   const rec = btStr(r.record, r.Record);
@@ -63,6 +90,7 @@ function normalizeStadiumRow(raw) {
     wins, losses, push: push ?? 0,
     record: rec || (wins !== null && losses !== null ? `${wins}-${losses}-${push ?? 0}` : "—"),
     pct: btNum(r.pct, r.percentage, r.Percentage),
+    legacy,
   };
 }
 function normalizeBtGame(raw) {
@@ -110,11 +138,16 @@ function normalizeBacktest(payload) {
   const grid = (Array.isArray(d.grid) ? d.grid : Array.isArray(d.buckets) ? d.buckets : [])
     .map(normalizeGridRow).filter((row) => row.sport).sort((x, y) => x.id - y.id);
   const stadiums = (Array.isArray(d.stadium_results) ? d.stadium_results : Array.isArray(d.stadiums) ? d.stadiums : [])
-    .map(normalizeStadiumRow).filter((row) => row.stadium || row.team);
+    .map((row) => normalizeStadiumRow(row, false)).filter((row) => row.stadium || row.team);
+  const stadiums_legacy = (Array.isArray(d.stadium_results_legacy) ? d.stadium_results_legacy : [])
+    .map((row) => normalizeStadiumRow(row, true)).filter((row) => row.stadium || row.team);
   const games = (Array.isArray(d.games) ? d.games : Array.isArray(d.matched_games) ? d.matched_games : []).map(normalizeBtGame);
   const clv = normalizeClv(d);
+  const lg = meta.legacy && typeof meta.legacy === "object" ? meta.legacy : {};
+  const legacy = { source: btStr(lg.source), seasons: btStr(lg.seasons), n_buckets: btNum(lg.n_buckets) };
   return { run_id: meta.run_id || d.run_id || null, generated_at: meta.generated_at || meta.last_updated || d.generated_at || d.last_updated || null,
-    bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks), grid, stadiums, games, clv };
+    bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks),
+    grid, stadiums, stadiums_legacy, games, clv, legacy };
 }
 
 async function loadBacktest(force = false) {
@@ -163,26 +196,40 @@ function backtestMatch(g) {
     clvStatusOf(c.total_open, c.total_now));
 }
 function fmtRoi(v) { return isNum(v) ? `${Number(v) >= 0 ? "+" : ""}${(Number(v) * 100).toFixed(1)}%` : "—"; }
-function fmtRecord(row) {
-  if (!row) return "—";
-  const w = row.wins ?? 0, l = row.losses ?? 0, p = row.push ?? 0;
-  return `${w}-${l}-${p}`;
+const fmtInt = (v) => (isNum(v) ? String(Math.round(Number(v))) : "—");
+const fmtPct = (v) => (isNum(v) ? `${(Number(v) * 100).toFixed(1)}%` : "—");
+function fmtRecord(stats) {
+  if (!stats) return "—";
+  return `${fmtInt(stats.wins ?? 0)}-${fmtInt(stats.losses ?? 0)}-${fmtInt(stats.push ?? 0)}`;
+}
+// this-season numbers when the bucket has graded games, else the sheet's; `.src` says which
+function bucketStats(row) {
+  if (!row) return null;
+  if (isNum(row.sample) && Number(row.sample) > 0) return { ...normalizeStats(row), src: "2026" };
+  const lg = row.legacy || normalizeStats({});
+  return { ...lg, src: "legacy sheet" };
 }
 // [[label, value], ...] for hover cards / drawer (empty when no bucket matched or no data)
 function backtestHover(g) {
   const row = backtestMatch(g);
   if (!row) return [];
+  const stats = bucketStats(row);
   return [
-    ["Record (under)", `${fmtRecord(row)} · n=${row.sample ?? "?"}`],
-    ["ROI", `${fmtRoi(row.roi)}${isNum(row.margin) ? ` · margin ${Number(row.margin) >= 0 ? "+" : ""}${Number(row.margin).toFixed(2)}` : ""}`],
+    ["Record (under)", `${fmtRecord(stats)} · n=${fmtInt(stats.sample)} · ${stats.src}`],
+    ["ROI", `${fmtRoi(stats.roi)}${isNum(stats.margin) ? ` · margin ${Number(stats.margin) >= 0 ? "+" : ""}${Number(stats.margin).toFixed(2)}` : ""}`],
     ["Bucket", `#${row.id} ${bucketLabel(row)}`],
   ];
+}
+// this-season stadium rows when any exist, else the legacy sheet (row.legacy = true)
+function stadiumRows() {
+  const d = BT.data || { stadiums: [], stadiums_legacy: [] };
+  return d.stadiums.length ? d.stadiums : (d.stadiums_legacy || []);
 }
 function stadiumResultFor(g) {
   if (!g || !BT.data) return null;
   const name = ((g.stadium && g.stadium.name) || "").toLowerCase();
   const home = ((g.home && (g.home.name || g.home.short)) || "").toLowerCase();
-  return BT.data.stadiums.find((row) => (name && row.stadium.toLowerCase() === name) || (home && row.team.toLowerCase() === home)) || null;
+  return stadiumRows().find((row) => (name && row.stadium.toLowerCase() === name) || (home && row.team.toLowerCase() === home)) || null;
 }
 
 // ── rendering ─────────────────────────────────────────────────────────────
@@ -199,28 +246,71 @@ function bucketLabel(row) {
 }
 const roiClass = (v) => (isNum(v) ? (Number(v) > 0 ? "up" : Number(v) < 0 ? "dn" : "") : "");
 
+// grid sort keys: "wins".."clv_pct" (this season) or "l:wins".."l:clv_pct" (legacy sheet); null = sheet order (id)
+function gridSortValue(row, key) {
+  if (!key) return row.id;
+  const [grp, k] = key.startsWith("l:") ? ["legacy", key.slice(2)] : ["", key];
+  const v = grp ? (row.legacy || {})[k] : row[k];
+  return isNum(v) ? Number(v) : null;
+}
+function sortGridRows(rows) {
+  if (!BT.sort) return rows.slice().sort((x, y) => x.id - y.id);
+  return rows.slice().sort((x, y) => {
+    const a = gridSortValue(x, BT.sort), b = gridSortValue(y, BT.sort);
+    if (a === null && b === null) return x.id - y.id;
+    if (a === null) return 1;                     // nulls last regardless of direction
+    if (b === null) return -1;
+    return a === b ? x.id - y.id : (a - b) * BT.dir;
+  });
+}
+const BT_STAT_HEAD = [
+  ["wins", "W", ""], ["losses", "L", ""], ["push", "P", ""], ["sample", "n", "graded games (W+L+P)"],
+  ["margin", "Margin", "avg margin (pts) of the under: close total − actual"], ["roi", "ROI", "(W·100/110 − L) / n"],
+  ["pos_clv", "+CLV", "games whose total closed below the open"], ["clv_pct", "CLV %", "+CLV / n"],
+];
+function statHeadHtml(prefix) {
+  return BT_STAT_HEAD.map(([k, label, title]) => {
+    const key = `${prefix}${k}`;
+    const on = BT.sort === key;
+    return `<th class="sortable${on ? " sorted" : ""}" data-sort="${key}"${title ? ` title="${esc(title)}"` : ""}>${esc(label)}${on ? (BT.dir < 0 ? " ▼" : " ▲") : ""}</th>`;
+  }).join("");
+}
+function statCellsHtml(stats, cls = "") {
+  const td = (inner, extra = "") => `<td class="${cls}${extra ? ` ${extra}` : ""}">${inner}</td>`;
+  return td(fmtInt(stats.wins)) + td(fmtInt(stats.losses)) + td(fmtInt(stats.push)) + td(fmtInt(stats.sample))
+    + td(isNum(stats.margin) ? fmtNum(stats.margin, 2) : "—")
+    + td(`<b>${fmtRoi(stats.roi)}</b>`, roiClass(stats.roi))
+    + td(fmtInt(stats.pos_clv)) + td(fmtPct(stats.clv_pct));
+}
 function gridSectionHtml(rows) {
-  const head = `<tr><th>#</th><th class="left">Sport</th><th>Wind</th><th>Temp</th><th>Spread</th><th class="left">CLV</th>
-    <th>W</th><th>L</th><th>P</th><th>n</th><th title="avg margin (pts) of the under">Margin</th><th>ROI</th><th title="alerts closing better than sent">+CLV</th><th>CLV %</th></tr>`;
-  const body = rows.map((row) => `<tr class="bt-row${row.clv ? " sub" : ""}${BT.hl === row.id ? " hl" : ""}" data-id="${row.id}">`
+  const withLegacy = BT.legacy;
+  const ncols = 6 + 8 + (withLegacy ? 8 : 0);
+  const legacyTitle = BT.data && BT.data.legacy && BT.data.legacy.source
+    ? `${BT.data.legacy.source}${BT.data.legacy.seasons ? ` · ${BT.data.legacy.seasons}` : ""}` : "cfb_weather_backtest.xlsx";
+  const groups = `<tr class="bt-grp"><th colspan="6"></th><th colspan="8" class="grp" title="recomputed from this season's graded games (under at the closing total)">2026 (this season)</th>`
+    + (withLegacy ? `<th colspan="8" class="grp lg" title="${esc(legacyTitle)}">Legacy sheet</th>` : "") + `</tr>`;
+  const head = `<tr class="bt-cols"><th>#</th><th class="left">Sport</th><th>Wind</th><th>Temp</th><th>Spread</th><th class="left">CLV</th>`
+    + statHeadHtml("") + (withLegacy ? statHeadHtml("l:") : "") + `</tr>`;
+  const body = sortGridRows(rows).map((row) => `<tr class="bt-row${row.clv ? " sub" : ""}${BT.hl === row.id ? " hl" : ""}" data-id="${row.id}">`
     + `<td class="left">${row.id}</td><td class="left">${esc(row.sport)}</td>`
     + `<td>${esc(band(row.wind_lo, row.wind_hi))}</td><td>${esc(band(row.temp_lo, row.temp_hi, "°"))}</td>`
     + `<td>${row.spread_lo === null && row.spread_hi === null ? "—" : esc(band(row.spread_lo, row.spread_hi))}</td>`
     + `<td class="left">${row.clv ? `<span class="mv ${row.clv === "Positive" ? "up" : "dn"}">${esc(row.clv)}</span>` : "all"}</td>`
-    + `<td>${row.wins ?? "—"}</td><td>${row.losses ?? "—"}</td><td>${row.push ?? "—"}</td><td>${row.sample ?? "—"}</td>`
-    + `<td>${isNum(row.margin) ? fmtNum(row.margin, 2) : "—"}</td><td class="${roiClass(row.roi)}"><b>${fmtRoi(row.roi)}</b></td>`
-    + `<td>${row.pos_clv ?? "—"}</td><td>${isNum(row.clv_pct) ? `${(Number(row.clv_pct) * 100).toFixed(1)}%` : "—"}</td></tr>`).join("");
-  return `<div class="wrap bt-wrap"><table class="bt"><thead>${head}</thead><tbody>${body || `<tr><td colspan="14" class="empty">no grid rows</td></tr>`}</tbody></table></div>`;
+    + statCellsHtml(row) + (withLegacy ? statCellsHtml(row.legacy || {}, "lg") : "") + `</tr>`).join("");
+  return `<div class="wrap bt-wrap"><table class="bt bt-grid"><thead>${groups}${head}</thead><tbody>${body || `<tr><td colspan="${ncols}" class="empty">no grid rows</td></tr>`}</tbody></table></div>`;
 }
 function stadiumSectionHtml(rows) {
+  const legacy = rows.length > 0 && rows.every((row) => row.legacy);
   const sorted = rows.slice().sort((x, y) => (BT.sort === "record" ? (y.wins ?? 0) - (x.wins ?? 0) : (y.pct ?? -9) - (x.pct ?? -9)));
   const head = `<tr><th class="left">Team</th><th class="left">Stadium</th><th>Record (under)</th><th>n</th><th title="under hit rate minus 0.5238 (−110 breakeven)">Pct</th></tr>`;
   const body = sorted.map((row) => `<tr><td class="left">${esc(row.team || "—")}</td><td class="left">${esc(row.stadium)}</td>`
     + `<td>${esc(row.record)}</td><td>${(row.wins ?? 0) + (row.losses ?? 0) + (row.push ?? 0) || "—"}</td>`
     + `<td class="${roiClass(row.pct)}">${isNum(row.pct) ? fmtNum(row.pct, 3) : "—"}</td></tr>`).join("");
-  return `<div class="wrap bt-wrap"><table class="bt"><thead>${head}</thead><tbody>${body || `<tr><td colspan="5" class="empty">no stadium results</td></tr>`}</tbody></table></div>`;
+  const label = legacy ? `<div class="sub bt-note">Stadium under records (legacy sheet) — no 2026 stadium results graded yet.</div>` : "";
+  return `${label}<div class="wrap bt-wrap"><table class="bt"><thead>${head}</thead><tbody>${body || `<tr><td colspan="5" class="empty">no stadium results</td></tr>`}</tbody></table></div>`;
 }
 function gamesSectionHtml(rows) {
+  if (!rows.length && !(BT.data && BT.data.games.length)) return `<div class="empty">none graded yet</div>`;
   const head = `<tr><th class="left">Date</th><th class="left">Sport</th><th class="left">Game</th><th class="left">Stadium</th>
     <th title="forecast at alert lead → actual at kickoff">Wind fc → act</th><th>Temp fc → act</th><th>Rain</th>
     <th>Spread open → close</th><th>Total open → close</th><th title="final total points; U = under hit">Result</th>
@@ -258,9 +348,9 @@ function clvSummaryHtml(clv) {
 }
 
 function filteredBacktest() {
-  const d = BT.data || { grid: [], stadiums: [], games: [] };
+  const d = BT.data || { grid: [], stadiums: [], stadiums_legacy: [], games: [] };
   const sportLabel = BT.sport ? BT_SPORT[BT.sport] : "";
-  let grid = d.grid, stadiums = d.stadiums, games = d.games;
+  let grid = d.grid, stadiums = stadiumRows(), games = d.games;
   if (sportLabel) { grid = grid.filter((row) => row.sport === sportLabel); games = games.filter((row) => row.sport === BT.sport); }
   if (BT.sport === "nfl") stadiums = [];   // stadium sheet is CFB-only (legacy)
   if (BT.q) {
@@ -281,18 +371,22 @@ async function renderBacktest() {
   }
   const d = BT.data;
   const flt = filteredBacktest();
+  const lg = d.legacy || {};
   const meta = (d.generated_at ? `updated ${esc(fmtShortET(d.generated_at))}` : "")
-    + (d.bucket_on ? ` · buckets on ${esc(d.bucket_on)}` : "") + (isNum(d.n_graded) ? ` · ${d.n_graded} graded` : "");
+    + (d.bucket_on ? ` · buckets on ${esc(d.bucket_on)}` : "") + (isNum(d.n_graded) ? ` · ${d.n_graded} graded` : "")
+    + (lg.source ? ` · legacy: ${esc(lg.source)}${lg.seasons ? ` (${esc(lg.seasons)})` : ""}` : "");
   const controls = `<div class="controls btctl">
     <select id="bt-sport"><option value="">Sport: all</option><option value="cfb">CFB (NCAAF)</option><option value="nfl">NFL</option></select>
     <select id="bt-section"><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
     <input id="bt-q" placeholder="Filter team / stadium…" />
+    <label class="chk" title="Show the legacy sheet's Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV % next to this season's"><input type="checkbox" id="bt-legacy" /> legacy</label>
     <span class="sub" id="bt-count"></span>
     <span class="sub">${meta}${d.run_id ? ` · run ${esc(d.run_id)}` : ""}</span>
     <button class="controlbtn" id="bt-reload" type="button" title="Re-fetch backtest.json">↻</button>
   </div>`;
+  const banner = d.n_graded === 0 && d.grid.length ? `<div class="banner warn bt-banner">${esc(BT_NO_GRADED_BANNER)}</div>` : "";
   let section = "";
-  if (!d.grid.length && !d.games.length && !d.stadiums.length) {
+  if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length) {
     section = `<div class="empty">no backtest published yet (backtest.yml writes board/backtest.json every Tuesday)</div>`;
   } else if (BT.section === "stadiums") {
     section = stadiumSectionHtml(flt.stadiums);
@@ -301,16 +395,29 @@ async function renderBacktest() {
   } else {
     section = gridSectionHtml(flt.grid);
   }
-  host.innerHTML = controls + clvSummaryHtml(d.clv) + section;
+  host.innerHTML = controls + banner + clvSummaryHtml(d.clv) + section;
   const counts = { grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
   document.getElementById("bt-count").textContent = counts[BT.section] || "";
   document.getElementById("bt-sport").value = BT.sport;
   document.getElementById("bt-section").value = BT.section;
   document.getElementById("bt-q").value = BT.q;
+  document.getElementById("bt-legacy").checked = BT.legacy;
   document.getElementById("bt-sport").addEventListener("change", (ev) => { BT.sport = ev.target.value; renderBacktest(); });
   document.getElementById("bt-section").addEventListener("change", (ev) => { BT.section = ev.target.value; renderBacktest(); });
   document.getElementById("bt-q").addEventListener("input", (ev) => { BT.q = ev.target.value.toLowerCase().trim(); renderBacktest(); });
+  document.getElementById("bt-legacy").addEventListener("change", (ev) => {
+    BT.legacy = !!ev.target.checked;
+    saveBtLegacy(BT.legacy);
+    if (!BT.legacy && BT.sort && BT.sort.startsWith("l:")) BT.sort = null;   // hidden group can't stay the sort key
+    renderBacktest();
+  });
   document.getElementById("bt-reload").addEventListener("click", async () => { await loadBacktest(true); renderBacktest(); });
+  host.querySelectorAll("table.bt-grid th.sortable").forEach((th) => th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (BT.sort === key) { if (BT.dir < 0) BT.dir = 1; else { BT.sort = null; BT.dir = -1; } }   // desc → asc → sheet order
+    else { BT.sort = key; BT.dir = -1; }
+    renderBacktest();
+  }));
   host.querySelectorAll("tr.bt-game.link").forEach((tr) => tr.addEventListener("click", () => {
     const gid = tr.dataset.game;
     if (gid && findGame(gid)) { STATE.view = "table"; openAlertGame({ game: gid }); return; }

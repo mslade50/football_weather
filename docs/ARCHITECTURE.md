@@ -251,7 +251,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
 | `board/history.json` | `{"<game_id>|<market>|<side>|<book>": [[ts, line, odds], ...]}` change-only, HISTORY_CAP=120 |
 | `board/wx_history.json` | `{"<game_id>": [[ts, lead_h, wind, gust, temp, precip, pop, gs_fg], ...]}` change-only |
 | `board/alerts_feed.json` | last 200 sent alerts `{alert_key, family, tier, game_id, text_html, sent_at, clv_pts}` — shared keys with Telegram |
-| `board/backtest.json` | bucket grid + stadium results + matched games (Phase 6) |
+| `board/backtest.json` | bucket grid + stadium results + matched games (Phase 6): `{meta {run_id, generated_at, bucket_on, n_games, n_graded, sources, legacy {source, seasons, n_buckets}}, grid [118 legacy buckets: id/Sport/bounds/CLV from Open + this season's Wins/Losses/Push/Sample/Margin/ROI/+ CLV/CLV % + `legacy {same 8 keys from the xlsx}`], stadium_results [this season, per stadium], stadium_results_legacy [the xlsx Stadiums sheet: Team, Stadium, Record, Percentage, sport], games [matched games], alerts_clv {..}}`; the Backtest tab shows the `legacy` numbers until `n_graded > 0` |
 | `board/status.json` | last 20 runs (from D1 runs) + current degradations + unresolved names + counts vs baseline |
 | state: `board/openers.json`, `board/history.json`, `board/wx_history.json`, `board/archive_last.json`, `board/wx_last.json`, `board/alerts.json`, `board/scrape_baseline.json`, `board/telegram_state.json`, `board/cf_heartbeat.json`, `board/closings.json` | every state file: `{"schema_version": N, "run_id": ..., ...}` |
 | `raw/{sport}/{run_id}/{source}.json` + `raw/{sport}/{run_id}/manifest.json` | verbatim captures; manifest `{source: {sha256, bytes, fetched_at, url}}` |

@@ -45,6 +45,40 @@ def test_grid_defs_preserve_118_ids(defs, sheet):
     assert defs[0].legacy["Wins"] == 165 and defs[0].legacy_columns()["Sport"] == "NCAAF"
 
 
+LEGACY_KEYS = ("Wins", "Losses", "Push", "Sample", "Margin", "ROI", "+ CLV", "CLV %")
+
+
+def test_grid_rows_carry_the_sheet_numbers_under_legacy(defs, sheet):
+    grid = bt.grid_stats([], defs)
+    assert len(grid) == 118 and all(g["Sample"] == 0 and g["ROI"] is None for g in grid)
+    for g, rec in zip(grid, sheet.to_dict(orient="records"), strict=True):
+        assert set(g["legacy"]) == set(LEGACY_KEYS)
+        for k in LEGACY_KEYS:
+            want = rec[k]
+            if isinstance(want, float) and want != want:
+                assert g["legacy"][k] is None, (g["id"], k)
+            else:
+                assert g["legacy"][k] == pytest.approx(float(want)), (g["id"], k)
+    by = {g["id"]: g for g in grid}
+    assert (by[1]["legacy"]["Wins"], by[1]["legacy"]["Losses"], by[1]["legacy"]["Sample"]) == (165, 162, 333)
+    assert by[103]["legacy"] == {k: None for k in LEGACY_KEYS}   # separator row
+
+
+def test_stadium_sheet_and_legacy_meta(defs, tmp_path: Path):
+    sheet_st = pd.read_excel(XLSX, sheet_name="Stadiums")
+    rows = bt.load_stadium_sheet(XLSX)
+    assert len(rows) == len(sheet_st) == 129
+    assert all(set(r) == {"Team", "Stadium", "Record", "Percentage", "sport"} for r in rows)
+    assert all(r["sport"] == "cfb" for r in rows)
+    assert rows[0]["Stadium"] == "AT&T Stadium" and rows[0]["Team"] is None and rows[0]["Record"] == "3-0-0"
+    assert rows[1] == {"Team": "Pittsburgh", "Stadium": "Acrisure Stadium", "Record": "15-17-1", "Percentage": pytest.approx(-0.102), "sport": "cfb"}
+    assert bt.legacy_meta(defs, XLSX) == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}
+    # a workbook without a Stadiums sheet -> [] (the grid still loads)
+    only_bt = tmp_path / "grid_only.xlsx"
+    pd.read_excel(XLSX, sheet_name="Backtesting").to_excel(only_bt, sheet_name="Backtesting", index=False)
+    assert bt.load_stadium_sheet(only_bt) == [] and len(bt.load_grid_defs(only_bt)) == 118
+
+
 # ---- legacy oracle (pages/cfb_weather.py get_backtesting_data, verbatim semantics) ---------------
 
 def _legacy_lookup(df_bt: pd.DataFrame, temp_fg, wind_fg, spread_abs, clv_status):
@@ -292,7 +326,15 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "alerts_clv", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "games"}
+    # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
+    assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}
+    assert payload["grid"][0]["legacy"] == {"Wins": 165, "Losses": 162, "Push": 6, "Sample": 333, "Margin": -2.08, "ROI": -0.036,
+                                            "+ CLV": 163, "CLV %": pytest.approx(0.4895, abs=1e-3)}
+    assert payload["stadium_results"] == []
+    assert len(payload["stadium_results_legacy"]) == 129
+    assert payload["stadium_results_legacy"][1] == {"Team": "Pittsburgh", "Stadium": "Acrisure Stadium", "Record": "15-17-1",
+                                                    "Percentage": pytest.approx(-0.102), "sport": "cfb"}
     for name in bt.PARQUET_TABLES:
         assert (pq / f"{name}.parquet").is_file()
     assert len(pd.read_parquet(pq / "grid.parquet")) == 118

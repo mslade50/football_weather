@@ -178,6 +178,25 @@ def test_backtest_tab_wiring() -> None:
     assert "data/backtest.json" in app   # documented in EXPECTED JSON SHAPES
 
 
+def test_backtest_tab_renders_legacy_sheet_until_first_grading() -> None:
+    """Before any 2026 game is graded the grid shows the sheet's numbers (row.legacy) next to
+    this season's, the stadium table falls back to stadium_results_legacy, and a banner says so.
+    The legacy column group sits behind #bt-legacy (localStorage, try/catch); both groups sort."""
+    bt = (WEB / "backtest.js").read_text(encoding="utf-8")
+    assert "stadium_results_legacy" in bt and "meta.legacy" in bt
+    assert 'id="bt-legacy"' in bt and 'getElementById("bt-legacy")' in bt
+    assert "localStorage" in bt and "try {" in bt and "catch" in bt
+    assert "No graded 2026 games yet (first grading after Week 0 settles) — showing legacy sheet results." in bt
+    assert "2026 (this season)" in bt and "Legacy sheet" in bt and "(legacy sheet)" in bt
+    assert "none graded yet" in bt
+    for fn in ("function normalizeStats", "function bucketStats", "function sortGridRows", "function gridSortValue", "function stadiumRows"):
+        assert fn in bt, fn
+    assert 'data-sort="${key}"' in bt and 'statHeadHtml("l:")' in bt   # legacy group sortable too
+    assert 'src: "2026"' in bt and 'src: "legacy sheet"' in bt          # backtestHover says which numbers it shows
+    css = (WEB / "styles.css").read_text(encoding="utf-8")
+    assert ".bt-banner" in css and "tr.bt-grp" in css
+
+
 def test_backtest_hover_record_roi_lookup_wired() -> None:
     """Hover Record / ROI by first-match bucket on the map popup, the table total cell and the drawer."""
     for js in ("map.js", "table.js", "drawer.js"):
