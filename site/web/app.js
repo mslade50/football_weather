@@ -421,6 +421,12 @@ async function boot() {
   DATA.meta = meta || {};
   DATA.games.nfl = normalizeGames(nfl);
   DATA.games.cfb = normalizeGames(cfb);
+  // No sport in the URL and the default sport has no games on the board (NFL before its
+  // 10-day window opens, CFB in January): open on the sport that does.
+  if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length) {
+    const alt = STATE.sport === "nfl" ? "cfb" : "nfl";
+    if ((DATA.games[alt] || []).length) STATE.sport = alt;
+  }
   LAST_UPDATED = DATA.meta.last_updated || null;
   BOOKS = Object.keys(DATA.meta.books || {});
   BOOKS = booksInData();

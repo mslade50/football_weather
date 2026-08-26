@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://api-offering.betonline.ag/api/offering/Sports"
 SITE_URL = "https://www.betonline.ag"
+PAGE_SETTLE_MS = 6000   # let the Cloudflare challenge/cookies settle before in-page API fetches
 
 # Headers the browser sends on API calls
 API_HEADERS = {
@@ -108,12 +109,14 @@ class BetOnlineScraper(BaseScraper):
     async def fetch_leagues(self, page: Any, sport: str) -> dict[str, dict]:
         """{league_slug: offering-by-league payload} for every league feeding ``sport``."""
         out: dict[str, dict] = {}
+        failed = 0
         for slug in LEAGUES[sport]:
             body = {"Sport": "football", "League": slug, "filterTime": 0}
             try:
                 data = await self._fetch_api(page, "offering-by-league", body)
             except Exception as e:
                 logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch failed: {e}")
+                failed += 1
                 continue
             if data is None:
                 continue
@@ -124,6 +127,11 @@ class BetOnlineScraper(BaseScraper):
                 logger.info(f"[{self.BOOK_NAME}] {slug}: no GameOffering (league dark), skipping")
                 continue
             out[slug] = data
+        if failed and failed == len(LEAGUES[sport]):
+            # Every in-page fetch failed ("TypeError: Failed to fetch" = the Cloudflare pass
+            # did not take on this runner). Raise so scrape_with_retry re-launches the browser
+            # and navigates again instead of reporting a clean 0 lines.
+            raise RuntimeError(f"[{self.BOOK_NAME}] {sport}: all {failed} league fetches failed from the page")
         return out
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
@@ -141,7 +149,7 @@ class BetOnlineScraper(BaseScraper):
             try:
                 logger.info(f"[{self.BOOK_NAME}] navigating to BetOnline (Cloudflare pass)...")
                 await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(PAGE_SETTLE_MS)
                 payloads = await self.fetch_leagues(page, sport)
             finally:
                 await browser.close()

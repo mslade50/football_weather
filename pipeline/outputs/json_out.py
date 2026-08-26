@@ -532,6 +532,11 @@ def books_status(
     previous = previous or {}
     out: dict[str, dict[str, Any]] = {}
     for book in requested:
+        if book not in counts and book in previous:
+            # Not scraped in this run (e.g. the BetOnline-only Playwright job): keep the
+            # last run's chip instead of painting every other book red.
+            out[book] = {**previous[book], "carried": True}
+            continue
         per = counts.get(book) or {}
         n = sum(v for k, v in per.items() if "." not in k)  # per-sport totals only
         peak = 0
