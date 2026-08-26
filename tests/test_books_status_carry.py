@@ -20,6 +20,15 @@ def test_unscraped_books_carry_previous_chip():
     assert st["novig"]["status"] == "red" and st["novig"]["count"] == 0  # never seen anywhere -> red
 
 
+def test_books_absent_from_request_still_carried():
+    # Playwright job: requested == ["betonline"]; the httpx books must not vanish from meta.
+    st = json_out.books_status({"betonline": {"nfl": 198}}, ["betonline"], None, NOW, PREV)
+    assert st["betonline"]["status"] == "green"
+    assert st["pinnacle"] == {**PREV["pinnacle"], "carried": True}
+    assert st["kalshi"] == {**PREV["kalshi"], "carried": True}
+    assert list(st)[0] == "betonline"   # requested books first, carried ones after
+
+
 def test_scraped_zero_is_not_carried():
     counts = {"pinnacle": {"nfl": 0}}
     st = json_out.books_status(counts, ["pinnacle"], None, NOW, PREV)

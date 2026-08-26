@@ -90,6 +90,27 @@ def test_gamecard_keys_used_in_js_exist_in_spec(js: str) -> None:
     assert not unknown, f"{js} reads keys not in the GameCard spec: {unknown}"
 
 
+def test_table_consensus_spread_and_book_spreads_toggle() -> None:
+    """Table: consensus SPREAD column (src on hover) + per-book TOTAL columns; per-book SPREAD
+    columns sit behind the #bookspreads checkbox (localStorage, try/catch). Map popup and drawer
+    header show the consensus spread with its src."""
+    html = (WEB / "index.html").read_text(encoding="utf-8")
+    assert 'id="bookspreads"' in html and "book spreads" in html
+    table = (WEB / "table.js").read_text(encoding="utf-8")
+    assert "spread_src" in table and 'getElementById("bookspreads")' in table
+    assert "localStorage" in table and "try {" in table and "catch" in table
+    for fn in ("function setupTableControls", "function consensusSpreadCell", "function consensusTotalCell",
+               "function bookSpreadCell", "function bookTotalCell"):
+        assert fn in table, fn
+    assert "withSpreads" in table and "BOOK_SPREADS" in table
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "setupTableControls()" in app
+    for js in ("map.js", "drawer.js"):
+        assert "spread_src" in (WEB / js).read_text(encoding="utf-8"), js
+    # §5 spec carries the key the JS reads
+    assert "spread_src" in _spec_keys()
+
+
 def test_signals_view_wiring() -> None:
     """Phase 5: Signals tab + presets exist and are reachable from the shell."""
     html = (WEB / "index.html").read_text(encoding="utf-8")

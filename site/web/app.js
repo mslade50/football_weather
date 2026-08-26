@@ -460,6 +460,7 @@ async function boot() {
   });
 
   setupHover();
+  if (typeof setupTableControls === "function") setupTableControls();
   setupDrawer();
   setupRefresh(auth);
   startMetaPoll();

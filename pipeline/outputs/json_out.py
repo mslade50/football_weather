@@ -34,6 +34,7 @@ from typing import Any, Optional, Union
 
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
+from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
 from utils.timeutil import date_label, time_label, to_tz, utc_iso
 
 PathLike = Union[str, Path]
@@ -324,19 +325,42 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
     return out
 
 
+def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
+    """Consensus spread OPENER = simple average of the Betcris / BetOnline / Pinnacle
+    home-spread openers on record (an away-only opener is flipped); none on record ->
+    the stored ``book='consensus'`` opener with src ``'fallback'``. Returns ``(line, src)``."""
+    found: dict[str, float] = {}
+    for book in SPREAD_CONSENSUS_BOOKS:
+        op_home = _opener(openers, pstate.odds_key(game_id, "spread", "home", book))
+        line = op_home.get("line")
+        if line is None:
+            op_away = _opener(openers, pstate.odds_key(game_id, "spread", "away", book))
+            line = -op_away["line"] if op_away.get("line") is not None else None
+        if line is not None:
+            found[book] = float(line)
+    if found:
+        avg = round(sum(found.values()) / len(found), SPREAD_AVG_DP)
+        return avg, "+".join(SPREAD_SRC_LABELS[b] for b in SPREAD_CONSENSUS_BOOKS if b in found)
+    op_sp = _opener(openers, pstate.odds_key(game_id, "spread", "home", "consensus"))
+    return op_sp.get("line"), SPREAD_SRC_FALLBACK
+
+
 def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, Any]:
-    """``consensus`` = ``{(game_id, market): ConsensusLine}`` from ``pipeline.build``."""
+    """``consensus`` = ``{(game_id, market): ConsensusLine}`` from ``pipeline.build``.
+    ``spread_now`` / ``spread_open`` are the 3-book average (ARCH §7.3); ``spread_src``
+    names the members behind ``spread_now`` (``'fallback'`` = weighted median)."""
     sp = consensus.get((game_id, "spread"))
     to = consensus.get((game_id, "total"))
-    op_sp = _opener(openers, pstate.odds_key(game_id, "spread", "home", "consensus"))
     op_to = _opener(openers, pstate.odds_key(game_id, "total", "under", "consensus"))
     sp_now = getattr(sp, "line", None)
     to_now = getattr(to, "line", None)
-    sp_open, to_open = op_sp.get("line"), op_to.get("line")
+    sp_open, _open_src = consensus_spread_opener(game_id, openers)
+    to_open = op_to.get("line")
     n_books = max(getattr(sp, "n_books", 0) or 0, getattr(to, "n_books", 0) or 0)
     return {
         "spread_open": sp_open,
         "spread_now": sp_now,
+        "spread_src": getattr(sp, "src", None) or (SPREAD_SRC_FALLBACK if sp_now is not None else None),
         "total_open": to_open,
         "total_now": to_now,
         "move_s": (sp_now - sp_open) if sp_now is not None and sp_open is not None else None,
@@ -493,6 +517,7 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "flags": (card.get("signal") or {}).get("flags") or [],
         "spread_open": cons.get("spread_open"),
         "spread_now": cons.get("spread_now"),
+        "spread_src": cons.get("spread_src"),
         "total_open": cons.get("total_open"),
         "total_now": cons.get("total_now"),
         "ref_book": cons.get("ref_book"),
@@ -531,7 +556,10 @@ def books_status(
     ``previous`` is the last meta's ``books`` map (carries ``last_ok`` forward)."""
     previous = previous or {}
     out: dict[str, dict[str, Any]] = {}
-    for book in requested:
+    # Books the previous run knew about stay on the header even when this run only
+    # requested a subset (the BetOnline-only Playwright job requests just one book).
+    books = list(requested) + [b for b in previous if b not in requested]
+    for book in books:
         if book not in counts and book in previous:
             # Not scraped in this run (e.g. the BetOnline-only Playwright job): keep the
             # last run's chip instead of painting every other book red.
@@ -782,7 +810,7 @@ __all__ = [
     "BACKTEST_FILE",
     "REQUIRED_CARD_KEYS", "build_alerts_feed", "build_status", "status_run_row", "load_previous_status",
     "sanitize", "dump_json", "next_backstop", "next_run_eta",
-    "build_card", "odds_block", "consensus_block", "fair_block", "table_row",
+    "build_card", "odds_block", "consensus_spread_opener", "consensus_block", "fair_block", "table_row",
     "books_status", "build_meta", "slim_meta",
     "load_wx_history", "wx_point", "update_wx_history", "prune_wx_history", "save_wx_history",
     "snapshot_key", "season_week", "write_board",

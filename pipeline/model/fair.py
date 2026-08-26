@@ -5,8 +5,11 @@ Odds math helpers are copied verbatim from ``golf_scraping/board/build.py``
 ``_median``). Everything else is football-specific:
 
 * per-book devig (multiplicative two-way normalisation; exchanges use ``prob_raw``)
-* Pinnacle-weighted consensus line (weighted median of main lines) and the
-  weighted-mean vig-free probability at that line
+* consensus line: TOTAL = Pinnacle-weighted median of main lines; SPREAD = simple
+  average of the Betcris / BetOnline / Pinnacle home lines that are posted
+  (``Consensus.src`` = "cris+bol+pin" subset, or "fallback" = the weighted median
+  when none of the three has a spread); plus the weighted-mean vig-free
+  probability at that line
 * pts->prob shift tables (totals linear per point; spreads key-number aware)
 * fair lines from the v1 impact percentages, per-(book, market, side) edges,
   confidence and tiers
@@ -255,10 +258,26 @@ class Consensus:
     ref_book: str | None
     thin: bool
     books: dict[str, float] = field(default_factory=dict)  # book -> main line (home-relative)
+    src: str | None = None  # spread only: members averaged ("cris+bol+pin" subset) or "fallback"
 
     @property
     def primary_side(self) -> str:
         return _PRIMARY_SIDE[self.market]
+
+
+def spread_src_label(members: Iterable[str]) -> str:
+    """'cris+bol+pin' subset (canonical order) for the members used; '' when none."""
+    used = set(members)
+    return "+".join(C.SPREAD_SRC_LABELS[b] for b in C.SPREAD_CONSENSUS_BOOKS if b in used)
+
+
+def average_spread(books: dict[str, float]) -> tuple[float | None, str]:
+    """Simple average of the SPREAD_CONSENSUS_BOOKS home lines present in ``books``
+    -> ``(line, src)``; ``(None, "fallback")`` when none of them is posted."""
+    vals = [books[b] for b in C.SPREAD_CONSENSUS_BOOKS if b in books and books[b] is not None]
+    if not vals:
+        return None, C.SPREAD_SRC_FALLBACK
+    return round(sum(vals) / len(vals), C.SPREAD_AVG_DP), spread_src_label(b for b in C.SPREAD_CONSENSUS_BOOKS if b in books)
 
 
 def consensus(sport: str, lines: Iterable[GameLine], market: str) -> Consensus:
@@ -275,9 +294,18 @@ def consensus(sport: str, lines: Iterable[GameLine], market: str) -> Consensus:
         wts.append(book_weight(book))
     n = len(nums)
     if n == 0:
-        return Consensus(sport, market, None, None, 0, None, True, {})
-    line = weighted_median(nums, wts)
+        return Consensus(sport, market, None, None, 0, None, True, {}, C.SPREAD_SRC_FALLBACK if market == "spread" else None)
+    src: str | None = None
     ref_book = max(per_book, key=book_weight)
+    if market == "spread":
+        avg, src = average_spread(books)
+        if avg is None:
+            line = weighted_median(nums, wts)
+        else:
+            line = avg
+            ref_book = max((b for b in C.SPREAD_CONSENSUS_BOOKS if b in books), key=book_weight)
+    else:
+        line = weighted_median(nums, wts)
     # move every book's devigged primary-side prob to the consensus line
     probs: list[float] = []
     pw: list[float] = []
@@ -294,7 +322,7 @@ def consensus(sport: str, lines: Iterable[GameLine], market: str) -> Consensus:
         probs.append(_clamp(p))
         pw.append(book_weight(book))
     prob = sum(p * w for p, w in zip(probs, pw, strict=False)) / sum(pw) if pw else None
-    return Consensus(sport, market, line, prob, n, ref_book, n < 2, books)
+    return Consensus(sport, market, line, prob, n, ref_book, n < 2, books, src)
 
 
 # ---- fair lines --------------------------------------------------------------
@@ -601,6 +629,7 @@ def legacy_columns(
     derived = legacy_derived(ct.line, cs.line, now.total, gs_fg_pct, away_fg_pct)
     return {
         "Spread": cs.line,
+        "spread_src": cs.src,
         "Total_proj": ct.line,
         "ref_book": ct.ref_book or cs.ref_book,
         "n_books": max(ct.n_books, cs.n_books),
@@ -628,6 +657,8 @@ __all__ = [
     "total_shift",
     "weighted_median",
     "main_lines",
+    "spread_src_label",
+    "average_spread",
     "Consensus",
     "consensus",
     "fair_total",

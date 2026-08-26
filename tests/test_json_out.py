@@ -159,9 +159,51 @@ def test_card_odds_block_uses_openers_and_derives_home_line():
 
 def test_card_consensus_block_moves_from_openers():
     c = _card()["consensus"]
+    # spread opener = avg of the member books' openers on record (betonline -2.5 only here)
     assert c["spread_open"] == -2.5 and c["spread_now"] == -3.0 and c["move_s"] == -0.5
     assert c["total_open"] == 39.0 and c["total_now"] == 38.0 and c["move_t"] == -1.0
     assert c["ref_book"] == "betonline" and c["n_books"] == 3 and c["thin"] is False
+    assert c["spread_src"] == "fallback"   # ConsensusLine without src -> labelled fallback
+    for key in ("spread_open", "spread_now", "spread_src", "total_open", "total_now", "move_s", "move_t", "ref_book", "n_books", "thin"):
+        assert key in c, key
+    card = _card(consensus={(GID, "spread"): ConsensusLine(-2.75, -110, 3, "pinnacle", "home", src="bol+pin"),
+                            (GID, "total"): ConsensusLine(38.0, -110, 3, "betonline", "under")})
+    assert card["consensus"]["spread_src"] == "bol+pin" and card["consensus"]["spread_now"] == -2.75
+    assert json_out.table_row(card)["spread_src"] == "bol+pin"
+
+
+def test_consensus_spread_opener_averages_member_openers_with_fallback():
+    op = pstate.migrate({}, "openers")
+    pstate.record_openers(op, [{"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -4.0, "odds": -110}], "t0")
+    assert json_out.consensus_spread_opener(GID, op) == (-4.0, "fallback")       # no member opener -> stored consensus
+    pstate.record_openers(op, [_ln("pinnacle", "spread", "away", 3.0, -110),          # away-only opener flips to -3.0
+                               _ln("betcris", "spread", "home", -2.0, -110),
+                               _ln("fanduel", "spread", "home", -9.0, -110)], "t1")   # non-member ignored
+    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
+    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110)], "t2")
+    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+bol+pin")
+    assert json_out.consensus_spread_opener("nfl:2026:3:x@y", op) == (None, "fallback")
+
+
+def test_history_carries_consensus_spread_series(tmp_path: Path):
+    from pipeline import build
+
+    cons = {(GID, "spread"): ConsensusLine(-2.75, -108, 3, "pinnacle", "home", src="bol+pin"),
+            (GID, "total"): ConsensusLine(38.0, -110, 3, "betonline", "under")}
+    pseudo = build.consensus_spread_lines(cons, "nfl", KICK - timedelta(days=1), "r1")
+    assert [(p.book, p.market, p.side, p.line, p.odds, p.source_id) for p in pseudo] == [("consensus", "spread", "home", -2.75, -108, "bol+pin")]
+    hist = pstate.load_history(tmp_path)
+    key = pstate.odds_key(GID, "spread", "home", "consensus")
+    assert pstate.update_history(hist, [_ln("betonline", "spread", "home", -3.0)] + pseudo, "t1") == 2
+    assert pstate.update_history(hist, pseudo, "t2") == 0                      # change-only
+    moved = build.consensus_spread_lines({(GID, "spread"): ConsensusLine(-3.0, -108, 3, "pinnacle", "home", src="bol+pin")}, "nfl", KICK, "r2")
+    assert pstate.update_history(hist, moved, "t3") == 1
+    assert hist["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
+    ctx = RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK)
+    meta = json_out.build_meta(ctx, {"nfl": 1, "cfb": 0}, {}, season=2026, week=3, finished_at=KICK)
+    files = json_out.write_board(tmp_path / "board", {"nfl": [_card()], "cfb": []}, meta, history=hist, wx_history={"series": {}})
+    hp = json.loads(files["board/history.json"].read_text(encoding="utf-8"))
+    assert hp["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
 
 
 def test_card_fair_block_from_gamefair_and_legacy_derived():

@@ -177,6 +177,29 @@ def test_cfb_derived_columns_when_projection_present():
     assert row["Edge_s"] == pytest.approx(-0.2)
 
 
+def test_cfb_spread_column_is_three_book_consensus_average():
+    """The CFB ``Spread`` column = consensus spread (ARCH §7.3: avg of Betcris/BetOnline/Pinnacle),
+    while ``Open``/``Current`` stay the FanDuel numbers."""
+    from pipeline import build
+    from pipeline import state as pstate
+    from pipeline.contracts import GameLine
+
+    gid = "cfb:2026:1:tennessee@oklahoma"
+
+    def ln(book: str, market: str, side: str, line: float, odds: int = -110) -> GameLine:
+        return GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=odds, line=line)
+
+    lines = [ln("pinnacle", "spread", "home", -3.0), ln("betonline", "spread", "home", -2.5), ln("betcris", "spread", "home", -2.0),
+             ln("fanduel", "spread", "home", -7.0), ln("fanduel", "total", "under", 50.0), ln("pinnacle", "total", "under", 51.0)]
+    cons = build.consensus_lines("cfb", lines)
+    odds = build.legacy_odds("cfb", gid, {gid: lines}, cons, pstate.migrate(None, "openers"))
+    assert odds["spread"] == -2.5 and odds["spread_src"] == "cris+bol+pin" and odds["current"] == -7.0
+    rec = _rec("cfb", gs_fg_pct=-4.0, away_fg_pct=-2.0, odds=odds)
+    row = L.cfb_fbs_row(rec, "2024-10-01T10:00:00")
+    assert row["Spread"] == -2.5 and row["Current"] == -7.0 and row["Total_proj"] == 51.0
+    assert row["My_spread"] == pytest.approx(-2.5 * 0.98) and row["Edge_s"] == pytest.approx(-2.5 - (-2.5 * 0.98))
+
+
 def test_write_legacy_dispatch(tmp_path: Path):
     assert L.write_legacy("nfl", [_rec("nfl")], tmp_path).name == L.NFL_FILENAME
     assert L.write_legacy("cfb", [_rec("cfb")], tmp_path).name == L.CFB_FILENAME

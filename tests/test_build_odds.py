@@ -152,10 +152,16 @@ def test_consensus_is_weighted_median_with_ref_book():
     ]
     c = consensus_lines("nfl", lines)
     sp = c[(KC_BUF, "spread")]
-    assert sp.line == -2.5 and sp.n_books == 4 and sp.ref_book == "betonline" and sp.odds == -110 and sp.side == "home"
+    # spread = simple average of pinnacle/betonline/betcris (-3.0, -2.5, -2.5); kalshi is not a member
+    assert sp.line == -2.67 and sp.n_books == 4 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
+    assert sp.src == "cris+bol+pin"
     to = c[(KC_BUF, "total")]
-    assert to.line == 47.5 and to.ref_book == "pinnacle" and to.n_books == 2 and to.side == "under"
+    assert to.line == 47.5 and to.ref_book == "pinnacle" and to.n_books == 2 and to.side == "under" and to.src is None
     assert (KC_BUF, "ml") not in c
+    # only a non-member posts a spread -> weighted-median fallback
+    fb = consensus_lines("nfl", [_ln("kalshi", "spread", "home", -2.5, -102)])
+    assert fb[(KC_BUF, "spread")].line == -2.5 and fb[(KC_BUF, "spread")].src == "fallback"
+    assert fb[(KC_BUF, "spread")].ref_book == "kalshi" and fb[(KC_BUF, "spread")].odds == -102
 
 
 # ---- legacy odds columns ------------------------------------------------------------------
@@ -179,8 +185,8 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
     assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-2.5, -115, 47.0, -108)
     assert (o["spread_open"], o["odds_open"], o["total_open"], o["under_open"]) == (-1.5, -110, 48.5, -110)
     assert o["ref_book"] == "betonline"
-    assert o["spread"] == -3.0 or o["spread"] == -2.5  # weighted median of {-3 (3), -2.5 (2)} -> -3.0
-    assert o["spread"] == -3.0 and o["total_proj"] == 47.5
+    # Spread column = consensus spread = avg of pinnacle -3.0 and betonline -2.5; total = weighted median
+    assert o["spread"] == -2.75 and o["spread_src"] == "bol+pin" and o["total_proj"] == 47.5
     assert o["n_books"] == 2
 
 
@@ -301,7 +307,9 @@ def test_external_merge_and_fair_real_modules():
     cons = build._external_consensus(fair_mod, "nfl", lines, ctx)
     assert cons is not None
     sp = cons[(KC_BUF, "spread")]
-    assert sp.line == -3.0 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.n_books == 2
+    # avg of pinnacle -3.0 and betcris -2.5; the price is the devigged consensus prob at -2.75
+    assert sp.line == -2.75 and sp.ref_book == "pinnacle" and sp.n_books == 2 and sp.src == "cris+pin"
+    assert isinstance(sp.odds, int) and sp.odds != 0
     to = cons[(KC_BUF, "total")]
     assert to.line == 47.5 and to.odds == -105 and to.side == "under"
     assert not any(d.severity == "warn" for d in ctx.degradations)

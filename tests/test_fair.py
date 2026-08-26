@@ -127,6 +127,61 @@ def test_consensus_spread_away_rows_flip_to_home_relative():
     assert cons.line == -3.5 and cons.books["betcris"] == -3.5
 
 
+def test_consensus_spread_is_three_book_average():
+    lines = (
+        _pair("pinnacle", "spread", -3.0)
+        + _pair("betonline", "spread", -2.5)
+        + _pair("betcris", "spread", -2.0)
+        + _pair("fanduel", "spread", -7.0)   # not a member: ignored by the spread average
+        + _pair("kalshi", "spread", -7.0)
+    )
+    cons = F.consensus("cfb", lines, "spread")
+    assert cons.line == -2.5 and cons.src == "cris+bol+pin"
+    assert cons.n_books == 5 and not cons.thin and cons.ref_book == "pinnacle"
+    assert F.average_spread({"pinnacle": -3.0, "betonline": -2.5, "betcris": -2.0}) == (-2.5, "cris+bol+pin")
+    # weighted median would have been -3.0 (pinnacle 3 vs betonline+betcris 3.5 -> tie at -2.5? no: -7 books drag it)
+    assert F.weighted_median([-3.0, -2.5, -2.0, -7.0, -7.0], [3.0, 2.0, 1.5, 1.0, 1.0]) != cons.line
+
+
+def test_consensus_spread_partial_membership_and_rounding():
+    lines = _pair("pinnacle", "spread", -3.0) + _pair("betonline", "spread", -2.5) + _pair("fanduel", "spread", -1.0)
+    cons = F.consensus("nfl", lines, "spread")
+    assert cons.line == -2.75 and cons.src == "bol+pin"
+    only_cris = _pair("betcris", "spread", -6.5) + _pair("fanduel", "spread", -3.0) + _pair("kalshi", "spread", -3.0)
+    c2 = F.consensus("nfl", only_cris, "spread")
+    assert c2.line == -6.5 and c2.src == "cris" and c2.ref_book == "betcris" and c2.n_books == 3
+    thirds = _pair("pinnacle", "spread", -3.0) + _pair("betonline", "spread", -3.0) + _pair("betcris", "spread", -2.0)
+    assert F.consensus("nfl", thirds, "spread").line == -2.67  # rounded to SPREAD_AVG_DP
+
+
+def test_consensus_spread_fallback_when_no_member_posts():
+    lines = _pair("fanduel", "spread", -3.5) + _pair("kalshi", "spread", -3.0) + _pair("novig", "spread", -3.0)
+    cons = F.consensus("nfl", lines, "spread")
+    assert cons.src == "fallback" and cons.line == F.weighted_median([-3.5, -3.0, -3.0], [1.0, 1.0, 1.0])
+    assert cons.n_books == 3 and cons.ref_book == "fanduel"
+    empty = F.consensus("nfl", [], "spread")
+    assert empty.line is None and empty.src == "fallback"
+    # totals keep the Pinnacle-weighted median and carry no src
+    tot = F.consensus("nfl", _pair("pinnacle", "total", 44.5) + _pair("betonline", "total", 46.0) + _pair("betcris", "total", 47.0), "total")
+    assert tot.line == 46.0 and tot.src is None   # weighted median (3 / 2 / 1.5 -> betonline crosses half), not the 45.83 average
+
+
+def test_fair_spread_and_legacy_spread_use_three_book_average():
+    lines = (
+        _pair("pinnacle", "spread", -3.0) + _pair("betonline", "spread", -2.5) + _pair("betcris", "spread", -2.0)
+        + _pair("fanduel", "spread", -7.0)
+        + _pair("pinnacle", "total", 55.0) + _pair("fanduel", "total", 56.5)
+    )
+    gf = F.evaluate_game("cfb", GID, lines, gs_fg_pct=-8.16, away_fg_pct=-4.0, rain_c=0.0, wind_vol_fc=2.0, lead_hours=24.0)
+    assert gf.spread.line == -2.5 and gf.spread.src == "cris+bol+pin"
+    assert math.isclose(gf.fair_spread, -2.5 * (1 - 0.04))
+    fd = next(e for e in gf.edges if e.book == "fanduel" and e.market == "spread" and e.side == "home")
+    assert math.isclose(fd.edge_pts, F.edge_pts("spread", "home", gf.fair_spread, -7.0))
+    cols = F.legacy_columns("cfb", lines, gs_fg_pct=-8.16, away_fg_pct=-4.0)
+    assert cols["Spread"] == -2.5 and cols["spread_src"] == "cris+bol+pin"
+    assert math.isclose(cols["My_spread"], -2.5 * 0.96) and math.isclose(cols["Edge_s"], -2.5 - (-2.5 * 0.96))
+
+
 def test_main_lines_prefers_is_main():
     alt = [_gl("kalshi", "total", "over", -110, 60.5, is_main=False), _gl("kalshi", "total", "under", -110, 60.5, is_main=False)]
     main = [_gl("kalshi", "total", "over", -110, 55.5), _gl("kalshi", "total", "under", -110, 55.5)]

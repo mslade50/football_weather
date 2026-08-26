@@ -110,6 +110,38 @@ def test_odds_deltas_change_only_line_or_odds():
     assert last[pstate.odds_key(GID, "spread", "home", "pinnacle")]["odds"] == -105  # not mutated
 
 
+def test_consensus_spread_history_row_is_change_only():
+    """The consensus spread rides D1 odds_history as book='consensus' / spread / home, one row
+    per change (same archive_last change-only gate as the book lines)."""
+    cons = {(GID, "spread"): build.ConsensusLine(-2.75, -108, 3, "pinnacle", "home", src="bol+pin"),
+            (GID, "total"): build.ConsensusLine(38.0, -110, 3, "betonline", "under")}
+    pseudo = build.consensus_spread_lines(cons, "nfl", KICK - timedelta(days=1), "r1")
+    assert len(pseudo) == 1 and pseudo[0].key == pstate.odds_key(GID, "spread", "home", "consensus")   # spread only, never the total
+    last: dict[str, Any] = {}
+    lines = [_ln("betonline", "spread", "home", -3.0)] + pseudo
+    first = d1_out.odds_deltas(lines, last)
+    assert [ln.book for ln in first] == ["betonline", "consensus"]
+    for ln in lines:
+        last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": NOW}
+    assert d1_out.odds_deltas(lines, last) == []                                   # unchanged -> no row
+    moved = build.consensus_spread_lines({(GID, "spread"): build.ConsensusLine(-3.0, -108, 3, "pinnacle", "home", src="bol+pin")},
+                                         "nfl", KICK, "r2")
+    delta = d1_out.odds_deltas([_ln("betonline", "spread", "home", -3.0)] + moved, last)
+    assert [ln.book for ln in delta] == ["consensus"]
+    rows = d1_out.odds_rows(delta, NOW, "r2")
+    assert rows[0]["book"] == "consensus" and rows[0]["market"] == "spread" and rows[0]["side"] == "home"
+    assert rows[0]["line"] == -3.0 and rows[0]["is_main"] == 1 and rows[0]["scraped_at"] == "2026-09-27T17:00:00Z"
+    sql = d1_out.insert_ignore_sql("odds_history", d1_out.ODDS_COLS, rows)[0]
+    assert sql.startswith("INSERT OR IGNORE INTO odds_history") and "'consensus','spread','home',-3.0" in sql
+    # carry-forward never resurrects the pseudo book; CLV closings freeze it like any key
+    archive = {"last": {pseudo[0].key: {"line": -2.75, "odds": -108, "ts": NOW}}}
+    assert build.carry_forward_lines(archive, "nfl", {GID}, ["betonline"]) == []
+    from pipeline.model import clv
+    hist = {"series": {pseudo[0].key: [["2026-09-26T12:00:00Z", -2.75, -108], ["2026-09-27T16:00:00Z", -3.0, -108]]}}
+    frozen = clv.freeze_from_series(hist, {GID: KICK}, KICK + timedelta(hours=1))
+    assert frozen[pseudo[0].key].line == -3.0 and frozen[pseudo[0].key].book == "consensus"
+
+
 def test_opener_rows_only_for_requested_keys():
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [_ln("betonline", "total", "under", 39.0), _ln("pinnacle", "total", "under", 38.5)], NOW)

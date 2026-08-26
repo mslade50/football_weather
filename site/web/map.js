@@ -168,7 +168,7 @@ function popupHtml(g) {
     ${row("Impact", isDome(g) ? "dome" : `${fmtNum(v1.gs_fg_pct, 1)}% / away ${fmtNum(v1.away_fg_pct, 1)}%`)}
     ${v2 && !isDome(g) ? row("Impact v2", `${fmtNum(v2.gs_fg_pct, 1)}% / away ${fmtNum(v2.away_fg_pct, 1)}%`) : ""}
     ${row("Total", `${fmtTotal(c.total_open)} → ${fmtTotal(c.total_now)}`)}
-    ${row("Spread", `${fmtLine(c.spread_open)} → ${fmtLine(c.spread_now)}`)}
+    ${row("Spread", `${fmtLine(c.spread_open)} → ${fmtLine(c.spread_now)}${c.spread_src ? ` <span class="sub">(${esc(c.spread_src)})</span>` : ""}`)}
     ${row("Location", `${esc(st.name || "")}${isNum(st.orient_deg) ? ` <span class="sub">axis ${Math.round(Number(st.orient_deg))}°</span>` : ""}`)}
     ${row("Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)}` : ""}${conf != null ? ` · conf ${conf.toFixed(2)}` : ""}`)}
     ${src}

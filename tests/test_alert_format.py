@@ -222,6 +222,22 @@ def test_openers_and_ops_and_digest_format():
     assert big[1].startswith("<b>Alert digest (cont.)</b>")
 
 
+def test_context_spread_is_the_consensus_spread_not_a_book_line():
+    """Openers digest + Books-ladder ``ref`` quote ``consensus.spread_now`` (3-book average),
+    never a single book's spread; the bet line itself stays the book's number."""
+    c = card()
+    c["odds"]["betonline"]["spread"] = {"home_line": -3.5, "home_odds": -110, "away_odds": -110, "open_line": -3.0}
+    c["consensus"]["spread_now"] = -2.67
+    c["consensus"]["spread_src"] = "cris+bol+pin"
+    text = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|spread|home|betonline"])], BOARD)
+    assert text.split("\n")[1] == "SEA @ NE Sun 1:00p ET · wind 18 · −6.5% · tot 37.5 sp −2.7 · BetOnline"
+    assert "−3.5" not in text
+    e = dict(_edge(), market="spread", side="home", line=-3.5, fair_line=-2.9, edge_pts=0.6)
+    ladder = A.book_ladder(c, e)
+    assert ladder == ["Books: <b>BetOnline −3.5 −110</b> · ref −2.7"]
+    assert A._bet_line(c, e).startswith("<b>NE −3.5 −110 @ BetOnline</b>")
+
+
 def test_candidate_summary_is_one_line_without_link():
     alerts = pstate.migrate(None, "alerts")
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]

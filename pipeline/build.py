@@ -737,6 +737,16 @@ class ConsensusLine:
     n_books: int
     ref_book: str | None
     side: str  # the side whose line/odds this is (home for spread, under for total)
+    src: str | None = None  # spread: averaged members ("cris+bol+pin" subset) or "fallback"
+
+
+def _average_spread(per_book: dict[str, float]) -> tuple[float | None, str]:
+    """Built-in twin of ``model.fair.average_spread`` (used when model.fair is absent)."""
+    members = [b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book]
+    if not members:
+        return None, model_config.SPREAD_SRC_FALLBACK
+    avg = round(sum(per_book[b] for b in members) / len(members), model_config.SPREAD_AVG_DP)
+    return avg, "+".join(model_config.SPREAD_SRC_LABELS[b] for b in members)
 
 
 def weighted_median(values: Sequence[tuple[float, float]]) -> float | None:
@@ -767,15 +777,24 @@ def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, fl
         by_key.setdefault((ln.game_id, ln.market), {})[ln.book] = ln
     out: dict[tuple[str, str], ConsensusLine] = {}
     for key, per_book in by_key.items():
-        med = weighted_median([(ln.line, w.get(b, 0.5)) for b, ln in per_book.items()])
+        src: str | None = None
+        med: float | None = None
+        if key[1] == "spread":
+            med, src = _average_spread({b: float(ln.line) for b, ln in per_book.items() if ln.line is not None})
+        if med is None:
+            med = weighted_median([(ln.line, w.get(b, 0.5)) for b, ln in per_book.items()])
         if med is None:
             continue
         on_line = [(w.get(b, 0.5), b, ln) for b, ln in per_book.items() if ln.line == med]
         on_line.sort(key=lambda t: -t[0])
         ref = on_line[0] if on_line else None
+        if ref is None and src not in (None, model_config.SPREAD_SRC_FALLBACK):
+            # averaged spread sits between the books: heaviest member is the reference
+            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, 0.5))
+            ref = (w.get(heavy, 0.5), heavy, per_book[heavy])
         out[key] = ConsensusLine(
             line=med, odds=ref[2].odds if ref else None, n_books=len(per_book),
-            ref_book=ref[1] if ref else None, side=side_for[key[1]],
+            ref_book=ref[1] if ref else None, side=side_for[key[1]], src=src,
         )
     return out
 
@@ -811,7 +830,7 @@ def _external_consensus(mod: Any, sport: str, lines: Sequence[GameLine], ctx: Ru
                     odds = int(to_american(min(0.99, max(0.01, p))))
                 out[(game_id, market)] = ConsensusLine(
                     line=float(line), odds=odds, n_books=int(getattr(c, "n_books", 0) or 0),
-                    ref_book=ref_book, side=side,
+                    ref_book=ref_book, side=side, src=getattr(c, "src", None),
                 )
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("model.fair", f"{sport}: consensus failed ({type(exc).__name__}: {exc}); using built-in", "warn")
@@ -828,6 +847,20 @@ def consensus_pseudo_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
         rows.append({"sport": sport, "game_id": game_id, "market": market, "side": c.side,
                      "book": CONSENSUS_BOOK, "line": c.line, "odds": c.odds})
     return rows
+
+
+def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], sport: str, now: datetime,
+                           run_id: str | None = None) -> list[GameLine]:
+    """The consensus SPREAD as ``book='consensus'`` home GameLines so history.json,
+    D1 ``odds_history`` (change-only) and the CLV closings track it like a book."""
+    out: list[GameLine] = []
+    for (game_id, market), c in consensus.items():
+        if market != "spread" or c.line is None:
+            continue
+        out.append(GameLine(sport=sport, game_id=game_id, book=CONSENSUS_BOOK, market="spread", side="home",
+                            odds=int(c.odds) if c.odds is not None else 0, line=float(c.line), is_main=True,
+                            source_id=c.src, scraped_at=now, run_id=run_id))
+    return out
 
 
 # ---- odds: legacy columns ------------------------------------------------------------
@@ -900,6 +933,7 @@ def legacy_odds(
     out["total_proj"] = cons_to.line if cons_to else to_line
     out["ref_book"] = sp_book or to_book
     out["spread_ref_book"] = cons_sp.ref_book if cons_sp else None
+    out["spread_src"] = cons_sp.src if cons_sp else None
     out["total_ref_book"] = cons_to.ref_book if cons_to else None
     out["n_books"] = max(cons_sp.n_books if cons_sp else 0, cons_to.n_books if cons_to else 0)
     return out
@@ -916,6 +950,7 @@ class OddsResult:
     scraped: list[GameLine] = dataclasses.field(default_factory=list)   # this run's lines (no carry-forward)
     deltas: list[GameLine] = dataclasses.field(default_factory=list)    # main lines whose (line, odds) moved -> D1
     new_opener_keys: list[str] = dataclasses.field(default_factory=list)
+    pseudo: list[GameLine] = dataclasses.field(default_factory=list)    # consensus spread as book='consensus' rows
 
 
 def stage_odds(
@@ -1031,8 +1066,10 @@ def stage_odds(
         new_keys = sorted(set(openers.get("openers") or {}) - before_keys)
         pruned = pstate.prune_openers(openers, _active_for(openers.get("openers") or {}, sport, active_ids))
         last = archive.setdefault("last", {})
-        deltas = d1_out.odds_deltas(main_lines, last)  # change-only set BEFORE last is advanced
-        for ln in main_lines:
+        # consensus spread rides along as book='consensus' (history / D1 / closings), never carried forward
+        pseudo = consensus_spread_lines(consensus, sport, ctx.now_utc, ctx.run_id)
+        deltas = d1_out.odds_deltas(main_lines + pseudo, last)  # change-only set BEFORE last is advanced
+        for ln in main_lines + pseudo:
             last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": now}
         pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
@@ -1046,7 +1083,7 @@ def stage_odds(
         by_game.setdefault(ln.game_id, []).append(ln)
     ctx.count("odds", sport, len(lines))
     return OddsResult(board_lines, consensus, openers, by_game, unresolved, per_book_n,
-                      scraped=list(lines), deltas=deltas, new_opener_keys=new_keys)
+                      scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo)
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1338,7 +1375,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
     odds_active = active | {g.game_id for g in res.odds_games}
     with ctx.stage(f"{sport}.history"):
         hist = pstate.load_history(state_dir)
-        n_pts = pstate.update_history(hist, [ln for ln in res.odds.scraped if ln.is_main], now)
+        # book lines + the consensus spread series (book='consensus'), the drawer chart / CLV source
+        n_pts = pstate.update_history(hist, [ln for ln in res.odds.scraped if ln.is_main] + list(res.odds.pseudo), now)
         fairs: dict[str, float] = {}
         for gid, gf in res.fairs.items():
             for market, side in (("total", "over"), ("spread", "home")):
@@ -1478,6 +1516,7 @@ def run_sport(
                 "signal": sig.label,
                 "flags": flags,
                 "spread": game_odds.get("spread"),
+                "spread_src": game_odds.get("spread_src"),
                 "total": game_odds.get("total_proj"),
                 "ref_book": game_odds.get("ref_book"),
             })
@@ -1547,7 +1586,7 @@ def _print_cards(cards: list[dict[str, Any]]) -> None:
     for c in cards:
         odds = ""
         if c.get("total") is not None or c.get("spread") is not None:
-            odds = f" sp={c.get('spread')!s:>5} tot={c.get('total')!s:>5} [{c.get('ref_book') or '-'}]"
+            odds = f" sp={c.get('spread')!s:>6} ({c.get('spread_src') or '-'}) tot={c.get('total')!s:>5} [{c.get('ref_book') or '-'}]"
         print(
             f"  {c['game']:<45} {c['kickoff']:<25} temp={c['temp_fg']!s:>6} wind={c['wind_fg']!s:>6} "
             f"rain={c['rain_fg']!s:>5} gs={c['gs_fg_pct']:+.2f} away={c['away_fg_pct']:+.2f} {c['signal']} {' '.join(c['flags'])}{odds}"

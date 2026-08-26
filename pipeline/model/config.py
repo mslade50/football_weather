@@ -124,6 +124,13 @@ BOOK_WEIGHTS: dict[str, float] = {
     "novig": 1.0,
     "prophetx": 0.75,
 }
+# Consensus SPREAD = simple average of these books' home main lines (whichever are
+# posted); none posted -> the weighted-median fallback. ``consensus.spread_src`` labels
+# the members actually used ("cris+bol+pin", "bol+pin", ...) or "fallback".
+SPREAD_CONSENSUS_BOOKS: tuple[str, ...] = ("betcris", "betonline", "pinnacle")
+SPREAD_SRC_LABELS: dict[str, str] = {"betcris": "cris", "betonline": "bol", "pinnacle": "pin"}
+SPREAD_SRC_FALLBACK = "fallback"
+SPREAD_AVG_DP = 2  # rounding of the averaged spread (keeps change-only history stable)
 PTS_PROB_TOTAL: dict[str, float] = {"nfl": 0.026, "cfb": 0.020}
 EDGE_THRESH: dict[str, dict[str, float]] = {
     "nfl": {"total": 1.5, "spread": 1.0},

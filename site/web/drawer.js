@@ -64,7 +64,7 @@ function oddsTable(g) {
   const body = books.map((bk) => {
     if (bk === "consensus") {
       return `<tr><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)}, n=${c.n_books ?? "?"})</span>` : ""}</td>`
-        + `<td>${fmtLine(c.spread_open)}</td><td>${fmtLine(c.spread_now)}${moveTag(c.spread_open, c.spread_now)}</td>`
+        + `<td>${fmtLine(c.spread_open)}</td><td title="spread = avg of ${esc(c.spread_src || "?")}">${fmtLine(c.spread_now)}${c.spread_src ? ` <span class="sub">${esc(c.spread_src)}</span>` : ""}${moveTag(c.spread_open, c.spread_now)}</td>`
         + `<td>${fmtTotal(c.total_open)}</td><td>${fmtTotal(c.total_now)}${moveTag(c.total_open, c.total_now)}</td><td></td></tr>`;
     }
     const o = g.odds[bk] || {}, s = o.spread || {}, t = o.total || {};
@@ -336,8 +336,12 @@ function openDrawer(gameId) {
   STATE.game = gameId;
   writeHash();
   const d = document.getElementById("drawer");
+  const c = g.consensus || {};
+  const spreadHead = isNum(c.spread_now)
+    ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
+    : "";
   document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
-    + `<span class="sub">${esc(kickoffLabel(g))} ET · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}</span>`;
+    + `<span class="sub">${esc(kickoffLabel(g))} ET · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
   const books = BOOKS.filter((b) => (g.odds || {})[b]);
   if (!books.includes(DRAWER.book)) DRAWER.book = "";
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }

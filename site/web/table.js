@@ -1,9 +1,32 @@
 "use strict";
-// Table view: one row per GameCard. Columns: kickoff (ET), matchup, stadium, temp/wind/gust/rain,
-// gs/away impact, signal, consensus spread/total open→now, per-book spread + total open→now
-// with edge chips, best edge, tier.
+// Table view: one row per GameCard. Columns: GAME (kickoff ET), STADIUM, TEMP, WIND, GUST, RAIN,
+// GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
+// TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (open → now, under price
+// + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
+// (#bookspreads, remembered in localStorage). The Book filter narrows the per-book columns.
 
 const MOVE_EPS = 0.05;
+const BOOK_SPREADS_KEY = "fw.bookSpreads";
+let BOOK_SPREADS = loadBookSpreads();
+
+function loadBookSpreads() {
+  try { return localStorage.getItem(BOOK_SPREADS_KEY) === "1"; } catch (_) { return false; }
+}
+function saveBookSpreads(on) {
+  try { localStorage.setItem(BOOK_SPREADS_KEY, on ? "1" : "0"); } catch (_) { /* private mode / blocked storage */ }
+}
+// wired from app.js init: the header checkbox toggles the per-book SPREAD columns
+function setupTableControls() {
+  const el = document.getElementById("bookspreads");
+  if (!el) return;
+  el.checked = BOOK_SPREADS;
+  el.addEventListener("change", (e) => {
+    BOOK_SPREADS = !!e.target.checked;
+    saveBookSpreads(BOOK_SPREADS);
+    STATE.sort = null;   // column indexes shift when the spread columns appear
+    render();
+  });
+}
 
 function moveTag(open, now, invert = false) {
   if (!isNum(open) || !isNum(now)) return "";
@@ -30,6 +53,44 @@ function signalPill(sig) {
   const label = signalLabel(sig);
   const flags = (sig && sig.flags && sig.flags.length) ? ` · ${sig.flags.join(", ")}` : "";
   return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+}
+function spreadSrcLabel(src) {
+  if (!src) return "?";
+  return src === "fallback" ? "fallback (weighted median)" : `avg of ${src}`;
+}
+function consensusSpreadCell(g) {
+  const c = g.consensus || {};
+  if (!isNum(c.spread_now) && !isNum(c.spread_open)) return `<td class="muted">—</td>`;
+  const hk = ++HK;
+  const f = g.fair || {};
+  HOVER[hk] = {
+    label: `Consensus spread (home) · ${gameLabel(g)}`,
+    lines: [
+      ["src", spreadSrcLabel(c.spread_src)],
+      ["open", fmtLine(c.spread_open)],
+      ["now", fmtLine(c.spread_now)],
+      ["books", `n=${c.n_books ?? "?"}${c.thin ? " (thin)" : ""}`],
+      ...(isNum(f.fair_spread) ? [["fair", fmtLine(f.fair_spread)]] : []),
+    ],
+  };
+  return `<td data-hk="${hk}" title="${esc(spreadSrcLabel(c.spread_src))}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
+    + `${c.thin ? ' <span class="sub" title="thin consensus">thin</span>' : ""}</td>`;
+}
+function consensusTotalCell(g) {
+  const c = g.consensus || {};
+  if (!isNum(c.total_now) && !isNum(c.total_open)) return `<td class="muted">—</td>`;
+  const hk = ++HK;
+  const f = g.fair || {};
+  HOVER[hk] = {
+    label: `Consensus total · ${gameLabel(g)}`,
+    lines: [
+      ["ref", `${c.ref_book || "?"} (n=${c.n_books ?? "?"})`],
+      ["open", fmtTotal(c.total_open)],
+      ["now", fmtTotal(c.total_now)],
+      ...(isNum(f.fair_total) ? [["fair", fmtTotal(f.fair_total)]] : []),
+    ],
+  };
+  return `<td data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
 }
 function bookSpreadCell(g, bk) {
   const o = (g.odds || {})[bk];
@@ -67,8 +128,8 @@ function bookTotalCell(g, bk) {
   return `<td class="book" data-hk="${hk}">${openNow(t.open_line, t.line, fmtTotal)}${moveTag(t.open_line, t.line)}${tierChip(e)}</td>`;
 }
 
-// column spec: [label, title, sortKey(g) or null]
-function tableColumns(books) {
+// column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
+function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
@@ -81,17 +142,19 @@ function tableColumns(books) {
     ["GS %", "v1 game-score impact % (negative = under lean)", (g) => impactPct(g, "gs_fg_pct")],
     ["Away %", "v1 away-team impact %", (g) => impactPct(g, "away_fg_pct")],
     ["Signal", "Impact tier + combined flags", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
-    ["Spread", "Consensus spread (home) open → now", cons("spread_now")],
-    ["Total", "Consensus total open → now", cons("total_now")],
+    ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
+    ["Total", "Consensus total open → now (Pinnacle-weighted)", cons("total_now")],
   ];
   for (const bk of books) {
-    cols.push([`${bookLabel(bk)} S`, `${bookLabel(bk)} spread open → now; chip = edge pts vs fair`,
-      (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; }]);
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total open → now; chip = edge pts vs fair`,
-      (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; }]);
+    if (withSpreads) {
+      cols.push([`${bookLabel(bk)} S`, `${bookLabel(bk)} spread open → now; chip = edge pts vs fair`,
+        (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
+        (g) => bookSpreadCell(g, bk)]);
+    }
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total open → now; hover = under price, edge chip = pts vs fair`,
+      (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
+      (g) => bookTotalCell(g, bk)]);
   }
-  cols.push(["Best edge", "Largest |edge_pts| across books/markets", (g) => { const e = bestEdge(g); return e ? Math.abs(e.edge_pts) : -Infinity; }]);
-  cols.push(["Tier", "Tier of the best edge", (g) => { const e = bestEdge(g); return ["none", "watch", "edge", "strong"].indexOf(e ? e.tier : "none"); }]);
   return cols;
 }
 function impactPct(g, key) {
@@ -104,7 +167,7 @@ function renderTable(rows, opts = {}) {
   const thead = document.querySelector("#table thead");
   const tbody = document.querySelector("#table tbody");
   const books = STATE.book ? [STATE.book] : BOOKS;
-  const cols = tableColumns(books);
+  const cols = tableColumns(books, BOOK_SPREADS);
   thead.innerHTML = "<tr>" + cols.map(([label, title], i) => {
     const arrow = STATE.sort === i ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
     return `<th data-col="${i}" class="sortable" title="${esc(title)}">${esc(label)}${arrow}</th>`;
@@ -133,8 +196,6 @@ function renderTable(rows, opts = {}) {
     const st = g.stadium || {};
     const dome = isDome(g);
     const v1 = (g.impact && g.impact.v1) || {};
-    const c = g.consensus || {};
-    const be = bestEdge(g);
     const roof = st.roof_state || st.roof_type || "";
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
@@ -146,12 +207,10 @@ function renderTable(rows, opts = {}) {
       `<td>${dome ? '<span class="muted">dome</span>' : fmtNum(v1.gs_fg_pct, 1)}</td>`,
       `<td>${dome ? '<span class="muted">—</span>' : fmtNum(v1.away_fg_pct, 1)}</td>`,
       `<td>${signalPill(g.signal)}</td>`,
-      `<td>${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}${c.thin ? ' <span class="sub" title="thin consensus">thin</span>' : ""}</td>`,
-      `<td>${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`,
+      consensusSpreadCell(g),
+      consensusTotalCell(g),
     ];
-    for (const bk of books) { tds.push(bookSpreadCell(g, bk)); tds.push(bookTotalCell(g, bk)); }
-    tds.push(`<td>${be ? `${esc(bookLabel(be.book))} ${esc(be.market)} ${esc(be.side || "")} ${be.market === "total" ? fmtTotal(be.line) : fmtLine(be.line)}${tierChip(be)}` : '<span class="muted">—</span>'}</td>`);
-    tds.push(`<td>${be ? `<span class="tierchip ${esc(be.tier)}">${esc(be.tier)}</span>` : '<span class="muted">—</span>'}</td>`);
+    for (const col of cols) { if (typeof col[3] === "function") tds.push(col[3](g)); }
     return `<tr class="${dome ? "dome" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
   }).join("");
   tbody.querySelectorAll("td.game").forEach((td) => td.addEventListener("click", () => openDrawer(td.dataset.game)));

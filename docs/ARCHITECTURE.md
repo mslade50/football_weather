@@ -275,8 +275,9 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  odds {<book>: {spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
                 total  {line, over, under, open_line, open_under, updated_at},
                 ml     {home, away, open_home, open_away}}},
- consensus {spread_open, spread_now, total_open, total_now, move_s, move_t, ref_book, n_books, thin},
- fair {my_total, my_spread, fair_total_v2, fair_spread_v2, edges [Edge...], best_total, best_spread},
+ consensus {spread_open, spread_now, spread_src, total_open, total_now, move_s, move_t, ref_book, n_books, thin},
+ fair {my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
+       edges [Edge...], best_total, best_spread},
  alerts [alert_key...], run_id}
 ```
 
@@ -334,7 +335,8 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 
 ### 7.3 Consensus / fair / edges (improvement)
 - Devig per book per market via multiplicative normalization of the two sides (`american_to_prob`, copied from golf). Exchanges (Kalshi/Novig/ProphetX) use `prob_raw` directly.
-- **Consensus line** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, betcris:1.5, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}`; `n_books<2 ⇒ thin=True` (no edges, no alerts). Consensus prob at that line = weighted mean of devigged probs after moving each book to the consensus line via pts→prob.
+- **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, betcris:1.5, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}`; `n_books<2 ⇒ thin=True` (no edges, no alerts). Consensus prob at that line = weighted mean of devigged probs after moving each book to the consensus line via pts→prob.
+- **Consensus SPREAD** = simple average of the Betcris, BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the three are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"cris+bol+pin"`, `"bol+pin"`, …). When none of the three has a spread the weighted-median rule above applies and `spread_src="fallback"`. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, the legacy CFB `Spread` column, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are still computed over every book posting a spread.
 - **pts→prob**: totals `PTS_PROB_TOTAL = {"nfl": 0.026, "cfb": 0.020}` per point; spreads key-number-aware table `SPREAD_KEY_PROB["nfl"] = {0.5:.02,1:.015,1.5:.02,2:.02,2.5:.03,3:.095,3.5:.03,4:.02,...,6:.04,7:.075,...,10:.045,14:.04}` (cumulative half-point values from `data/calibration.json`, defaults shipped); CFB flatter table.
 - **Fair line** v1: `fair_total = consensus_total * (1 + gs_fg/100)`; `fair_spread = consensus_spread * (1 + away_fg/100)` (sign: home-relative). v2 uses v2 components (§7.5).
 - **Per (game, book, market, side)**: `edge_pts = signed(fair_line − book_line)` (positive means the side is favorable: under when book total > fair, over when book total < fair, home when book gives home more points than fair, etc.); `edge_prob = fair_prob(side at book line) − vigfree_prob(side)`; `best_book` per market/side.
