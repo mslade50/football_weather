@@ -6,7 +6,7 @@ Legacy formats (AUDIT §4): Date 'SUN 11/09', Time '01:00 PM', Timestamp
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional, Union
 from zoneinfo import ZoneInfo
 
@@ -94,6 +94,26 @@ def et_weekday(dt: Optional[datetime] = None) -> int:
     return d.weekday()
 
 
+def bet_week_open(kickoff: datetime) -> datetime:
+    """Monday 00:00 ET of the kickoff's own week, as UTC — the earliest a bet on that game is
+    allowed (never bet into next week's lines; the week opens Monday).
+
+    Per GAME, not per (season, week): CFBD files the whole postseason as one week, so a
+    week-keyed rule would make a January bowl bettable in mid-December. A Monday-nighter
+    correctly gets a Monday-only window.
+    """
+    d = to_et(kickoff)
+    monday = (d - timedelta(days=d.weekday())).date()
+    return datetime.combine(monday, time(0, 0), tzinfo=ET).astimezone(UTC)
+
+
+def in_bet_week(kickoff: Optional[datetime], now: Optional[datetime] = None) -> bool:
+    """Has the game's betting week opened? Unknown kickoff -> False (never alert blind)."""
+    if kickoff is None:
+        return False
+    return ensure_utc(now if now is not None else now_utc()) >= bet_week_open(kickoff)
+
+
 __all__ = [
     "UTC",
     "ET",
@@ -111,4 +131,6 @@ __all__ = [
     "run_id_for",
     "hours_until",
     "et_weekday",
+    "bet_week_open",
+    "in_bet_week",
 ]

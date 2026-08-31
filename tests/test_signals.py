@@ -35,7 +35,22 @@ def test_nfl_purple_beats_rain() -> None:
 
 def test_nfl_low_rain() -> None:
     s = nfl_signal(wind_fg=3.0, temp_fg=75.0, rain_fg=2.1)
-    assert (s.level, s.color, s.size) == (LOW, "blue", 15)
+    assert (s.level, s.color, s.size, s.label) == (LOW, "black", 15, "Low (Rain)")
+
+
+def test_nfl_low_labels_name_the_cause_like_cfb() -> None:
+    """The two Low conditions are unrelated bets; the label says which fired (rain wins both)."""
+    wind = nfl_signal(wind_fg=9.0, temp_fg=55.0, rain_fg=0.0)
+    assert (wind.level, wind.color, wind.label) == (LOW, "blue", "Low (Wind)")
+    both = nfl_signal(wind_fg=9.0, temp_fg=55.0, rain_fg=3.0)
+    assert both.label == "Low (Rain)"
+    # level is untouched, so alert keys / tiers / the promotion gate are unaffected
+    assert wind.level == both.level == LOW
+    from pipeline.alerts import signal_slug
+
+    assert signal_slug(wind.label) == signal_slug(both.label) == "low"
+    # the tiers above Low have no sub-label
+    assert nfl_signal(18.0, 40.0, 0.0).label == HIGH and nfl_signal(16.0, 50.0, 0.0).label == MID
 
 
 def test_nfl_low_wind_band() -> None:

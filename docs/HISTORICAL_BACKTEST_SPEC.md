@@ -195,3 +195,185 @@ historical groups by **merging** the previous `backtest.json` (`by_season`, `tie
   with the key, nflverse for NFL.
 - `TELEGRAM_DISABLED=1` is set in `.env`; the backtest never sends anyway. Do not touch
   `tests/conftest.py`.
+
+## 7. Implementation notes (built 2026-08-26)
+
+`pipeline/backtest_git.py` (orchestrated from `pipeline/backtest.py --from-git`), board wiring in
+`site/web/backtest.js`, tests in `tests/test_backtest_git.py` off `tests/fixtures/git_archive/`
+(rebuild with `python scripts/make_backtest_git_fixtures.py`). Design summary: ARCH §7.6.
+
+### 7.1 What the archive actually holds
+
+`python -m pipeline.backtest --from-git --seasons 2024,2025 --no-network` — 9 s from the caches.
+
+| | games | priced | alerted | graded (close) | alert bets | ERA5 actuals | weeks |
+|---|---|---|---|---|---|---|---|
+| CFB 2024 | 625 | 597 | 176 | 596 | 175 | 603 | 4–16 |
+| CFB 2025 | 770 | 674 | 172 | 674 | 172 | 747 | 2–16 |
+| NFL 2024 | 176 | 173 | 82 | 173 | 82 | 176 | 3–19 |
+| NFL 2025 | 211 | 171 | 91 | 171 | 91 | 211 | 1–22 |
+
+53,312 snapshot rows from 1,427 distinct blobs → 1,782 games, 1,614 graded, 521 alerted.
+v1 replay matches the archived `gs_fg` on **99.73 %** of snapshots (NFL 100 %). Unresolved team
+names: **0**. FBS/NFL rows that found no schedule game: 5 of 32,955 (0.02 %).
+
+Two acceptance numbers in §5.1 are not reachable from this archive and are reported rather than
+tuned to: **NFL 2025 has 211 games in the archive, not ≥250** (the generator listed only the games
+inside its forecast horizon, so a slate appears partially), and the 2024 seasons start at CFB week
+4 / NFL week 3 (the archive begins 2024-09-17). CFB 2025 clears the ≥600 bar (674).
+
+### 7.2 Deviations from §3, and why
+
+- **The workbook's `Other` sheet is FCS-vs-FCS, not FBS-vs-FCS, and carries no lines** (no
+  `Fd_open`/`FD_now`/`Odds_*`, and no `Timestamp` — its run time falls back to the commit). The
+  1,795 rows that do match an FBS-classification schedule game are kept and replayed; the other
+  18,562 have no schedule row and no total, so they can never be graded. They are counted per
+  sheet in `meta.hist.rows_by_sheet` instead of being reported as failures.
+- **`Date` resolves to the nearest MM/DD, not the next one.** The generator kept a game listed for
+  a day or two after kickoff; a strictly forward rule pushed those rows a full year forward (it
+  cost ~350 NFL rows and 15 phantom matchups before the fix).
+- **Bucket inputs are the closing forecast for every game, not the alert forecast.** §3.1.11 says
+  "forecast (at alert)", but unalerted games have no alert forecast, so that basis would mix two
+  different measurements inside the close-bet column group and make it incomparable with the
+  alert-bet one. The closing forecast is also what `row_from_snapshots` feeds the 2026 columns.
+  The alert-time forecast rides along as `wind_alert` / `temp_alert` and is what the tier
+  scorecard's wind error and `wind_err_alert` are computed from.
+- **The two graded bets are two sibling maps, not one prefixed block**: `by_season` (UNDER at the
+  alert total) and `by_season_close` (UNDER at the closing total), each `{"2024", "2025",
+  "all_hist"} → the 8 legacy keys`. The board renders one of them as the primary column group
+  (`#bt-season` picks the season, `#bt-bet` picks the bet). Per-lead forecast error is a long
+  table (`data/backtest/hist_leads.parquet`) rather than 10 more `GameRow` columns.
+- **Per-stadium records grade the closing bet** (`stadium_results` rows with a `season`), which is
+  what the legacy Stadiums sheet measures; grading them at the alert would shrink them to the
+  alerted subset.
+- **CI restores `backtest/era5/windows.parquet`, not `backtest/era5/`.** The hourly ERA5 cache is
+  ~670 MB across 437 files; `fill_actuals` reduces it to one mean per kickoff window (1,082 rows,
+  29 KB) and reads that first, so the workflow only needs the reduction. Upload command in
+  `site/worker/SETUP.md` §10. `wind_dir_act` stays null: the climatology cache does not fetch
+  `wind_direction_10m`.
+- `--era5-max-fetch N` bounds the archive pull per run (windows are half-years per stadium, named
+  exactly like the climatology cache so a partial pull resumes). The 147 windows missing for
+  2025/26 fetched cleanly at the 1.5 s throttle with no 429.
+
+### 7.3 Sanity (§5.3)
+
+Bucket 1 (NCAAF wind 8–15, temp 75–100, spread 10–20), UNDER at the close: **10-14-0, ROI −0.205
+on n=24** against the sheet's 165-162-6, ROI −0.036 on n=333. Same sign, and the gap is inside one
+standard error at n=24 (±0.20). The sheet is not restricted to 2024–25 — 333 samples in one narrow
+bucket implies roughly 6–10 seasons — so the two lines are not expected to agree in magnitude.
+
+### 7.4 Follow-up pass (2026-08-31): what the replay changed about the live system
+
+Reading the replay produced four changes to the shipped pipeline, plus one decision to leave a
+rule alone. Numbers below are 2024–25, under the rules as they now stand.
+
+**Betting week gate.** `utils.timeutil.bet_week_open` / `in_bet_week`: no EDGE alert before Monday
+00:00 ET of the game's own week (`alerts.py::edge_candidates` takes the run clock;
+`collect_candidates` always passes it). The weather window still runs 10 days so the board carries
+next week's forecast — only the alert waits. Per GAME, not per (season, week): CFBD files the
+whole postseason as one week, which would make a January bowl bettable in mid-December. The replay
+applies the same gate, so the board's history is the rule that is actually bet. Cost: 28 of 521
+alerts; every bucket improved slightly (any tier −2.3% → −0.7%, ≥Mid +23.2% → +26.9%).
+
+**NFL Low names its cause.** `nfl_signal` now returns `Low (Rain)` / `Low (Wind)` like CFB
+(`level` unchanged, so keys/tiers/`signal_slug` are untouched). The bare label hid a real split:
+NFL wind −15.6% (n=103) and NFL rain −18.7% (n=28) are 79/21 of a bucket that read as one thing.
+
+**The scorecard keys on the peak tier.** `alert_tier` is the first tier of *any* kind, so a game
+that opened Low and became Very High was filed under Low. Rows now carry `peak_tier` and the
+escalation bet taken at that snapshot, and `tier_scorecard` groups on it. The undercount was
+roughly 4x: Very High 4 → 16, High 6 → 25.
+
+**`evaporated` rides with every signal.** `tier_for()` re-scores a game through the same signal
+functions with the ERA5 actuals substituted for wind/temp/rain, so "would this have fired if we
+had known the weather?" is one call. `tier_scorecard` carries the share that would not have fired
+(65.8% overall; CFB `Low (Wind)` at 48–120 h is 86%), and `backtestHover` puts the tier's own
+record and `1 − evaporated` on every hover card and drawer. The caveat travels with the signal
+instead of living in this document.
+
+**Low stays on, deliberately.** The evidence does not support removing it: CFB Low is a push
+(wind +1.7% ± 6.8%, rain +0.8% ± 11.2%), not a loser, and two seasons cannot separate "no edge"
+from "small edge". Conditional on the weather being real, Low is +4.5% ± 9.3%. Betting it later in
+the week does not help — evaporation falls 66% → 44% between Monday and the day before, and ROI
+does not improve, because the market sharpens at the same rate the forecast does. Raising the NFL
+wind floor does not help either (8 → 13 moves ROI −16.2% → −9.3%, every value inside every other's
+error bar; the worst single band is 10–11 mph, *above* the obvious cut). 2026 is the first season
+with real `lead_hours` and ensemble spread rather than the legacy day-of-week proxy, so the
+question gets a better answer next year than this data can give.
+
+**Not adopted:** gating alerts to ≥ Mid. It is the only cut with a signal (+26.9% ± 10.6%, n=74,
+positive in both seasons, both sports and every lead cap), but it costs 84% of the volume — ~1.7
+bets a week — and the threshold was chosen by testing against this same data. Recorded here as a
+hypothesis to track forward, not a validated edge.
+
+## 8. Stadium weather records (`pipeline/stadium_wx.py`, built 2026-08-31)
+
+Rebuild of the hand-built CFB "Stadiums" sheet for both sports, over ten seasons, out of data the
+repo already holds. `python -m pipeline.stadium_wx --seasons 2015-2024` → 11,667 graded outdoor
+games (1,980 NFL + 9,687 CFB), 9,452 with an ERA5 kickoff wind, 183 venue rows.
+
+| input | source | note |
+|---|---|---|
+| weather | ERA5 hourly 2015–2024, 173 stadiums | already local (`data/backtest/era5`); no fetching |
+| NFL lines + results | nflverse `total_line` / `under_odds` / `total` | complete back to 1999 |
+| CFB lines + results | CFBD `/games` (venue) joined by id to `/lines` (totals) | one request per season, cached |
+
+Keyed on **ERA5 wind at kickoff**, not forecast wind, so the forecast error measured in §7 stays
+out of the venue numbers. `stadium_wx.fill_actuals` indexes each hourly file by hour first —
+`backtest.window_stats` rescans every timestamp per game, which is fine for the 1.8 k games of the
+git replay and ~10⁹ parses here.
+
+### 8.1 The result that holds up: absolute wind
+
+Under at the closing total, by ERA5 wind over the kickoff window:
+
+| sport | band | record | n | win % | ROI |
+|---|---|---|---|---|---|
+| **NFL** | < 10 mph | 649-670-17 | 1336 | 49.2 % | −4.3 % |
+| **NFL** | ≥ 10 | 335-227-3 | 565 | **59.6 %** | **+15.7 % ± 4.0** |
+| **NFL** | ≥ 12 | 193-134-2 | 329 | 59.0 % | +14.5 % |
+| **NFL** | ≥ 15 | 81-58-1 | 140 | 58.3 % | +13.2 % |
+| **CFB** | < 10 | 2958-3001-63 | 6022 | 49.6 % | −5.2 % |
+| **CFB** | ≥ 10 | 808-704-17 | 1529 | 53.4 % | +2.0 % |
+| **CFB** | ≥ 15 | 163-132-6 | 301 | 55.2 % | +5.4 % |
+| **all** | ≥ 10 | 1143-931-20 | 2094 | 55.1 % | +5.7 % ± 2.1 |
+
+Monotonic in wind, ~4 SE on the NFL side, unchanged by restricting to `roof == outdoors`
+(+14.9 %), and positive in **8 of 10 seasons** (2016 −13 % and 2024 −21 % the exceptions, n≈45
+each). The market does not fully price wind into totals, and it under-prices it most in the NFL.
+
+This is a **measurement, not a strategy**: nobody can bet ERA5 actuals. It establishes the physics
+the signal is trying to catch, and it reconciles §7 — the effect is real and large, the forecast is
+the bottleneck (65 % of firings evaporate), which is why a stricter forecast bar (≥ Mid) showed an
+edge and Low did not.
+
+### 8.2 The result that does not: per-venue splits
+
+The venue table was the thing asked for, and it does not survive its own test.
+
+* Per-venue top-quartile ROI across the 146 venues with a sample ≥ 8: **sd 0.244** against
+  **0.247** expected from pure coin flips at the same sample sizes — a ratio of **0.99**. There is
+  no detectable venue-to-venue variation beyond sampling noise. Lincoln Financial's 18-4 is the top
+  of 146 noisy draws, not evidence about Lincoln Financial.
+* A venue's first half does not predict its second: **corr(early ROI, late ROI) = +0.05** over the
+  151 venues with ≥ 10 graded games in each half.
+
+`venue_noise_check` computes both and puts the verdict in `meta.venue_noise`; the board labels the
+venue row **"descriptive only"** so it cannot read as an edge. The pooled band (§8.1) is what the
+hover shows as actionable, tagged *"if the wind shows up"* next to the tier's evaporation rate.
+
+The honest summary: **wind matters, venues don't** — or at least, ten seasons cannot show that they
+do. Any venue effect is smaller than the noise floor of ~60 games per stadium, so a venue prior
+would need either far more history or a hierarchical model that shrinks each venue toward the
+pooled band rather than reporting its raw record.
+
+### 8.3 Caveats
+
+* ERA5 10 m wind is a 3-hour grid-cell mean and reads *below* a stadium anemometer; the bands are
+  in that vocabulary, not the signal's forecast vocabulary (`actual ≈ 0.824 × forecast + 0.74`).
+* 2,215 of 11,667 games have no ERA5: venues outside the 173-stadium cache (FCS, neutral sites) and
+  January games past the 2024-12-31 window. Fetch those before extending the seasons.
+* CFB totals are the median across whatever providers CFBD carries that year (1 book pre-2022, 2–3
+  after), so the CFB closing number is noisier than the NFL one.
+* Retractable roofs: only `dome` / `closed` are excluded. A roof that was closed but filed as
+  `retractable` stays in, which dilutes rather than inflates the wind effect.

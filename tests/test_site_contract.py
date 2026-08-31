@@ -197,6 +197,44 @@ def test_backtest_tab_renders_legacy_sheet_until_first_grading() -> None:
     assert ".bt-banner" in css and "tr.bt-grp" in css
 
 
+def test_backtest_tab_renders_the_historical_seasons() -> None:
+    """docs/HISTORICAL_BACKTEST_SPEC.md §3.4: a season selector picks the column group
+    (this season / 2024 / 2025 / 2024–25 / the sheet), the tier scorecard sits above the grid and
+    the graded games behind an expander; hover falls back this season → 2024–25 → the sheet."""
+    bt = (WEB / "backtest.js").read_text(encoding="utf-8")
+    for key in ("by_season", "by_season_close", "tier_scorecard", "hist_games", "meta.hist"):
+        assert key in bt, key
+    assert 'id="bt-season"' in bt and 'getElementById("bt-season")' in bt
+    assert 'id="bt-bet"' in bt and 'getElementById("bt-bet")' in bt          # alert bet vs closing bet
+    assert "BT_SEASON_KEY" in bt and "saveBtSeason" in bt                     # remembered like #bt-legacy
+    for fn in ("function seasonLabel", "function seasonKeys", "function statsFor", "function normalizeSeasonMap",
+               "function scorecardSectionHtml", "function histGamesHtml", "function sortHistGames"):
+        assert fn in bt, fn
+    assert 'src: "2024–25"' in bt and 'src: "2026"' in bt and 'src: "legacy sheet"' in bt
+    assert "BT_HIST_MAX = 200" in bt and 'data-hsort="${k}"' in bt            # 200-row cap, sortable
+    assert "Tier scorecard" in bt and "graded games" in bt
+    for col in ("lead_band", "win_pct", "clv_pct", "wind_err", "persistence", "alert_tier", "tier_at_kick",
+                "alert_lead_h", "alert_total", "close_total", "evaporated", "n_actual"):
+        assert col in bt, col
+    css = (WEB / "styles.css").read_text(encoding="utf-8")
+    assert "details.bt-card" in css and "table.bt-score" in css and "table.bt-histgames" in css
+
+
+def test_hover_carries_the_stadium_and_wind_band_records() -> None:
+    """pipeline/stadium_wx.py rides on the hover: the venue's ~10-season under record (descriptive
+    only — per-venue ROI spread is sampling noise) and the absolute ERA5 wind band, which holds up."""
+    bt = (WEB / "backtest.js").read_text(encoding="utf-8")
+    for fn in ("function stadiumWxFor", "function stadiumWxRow", "function windBandRow",
+               "function normalizeStadiumWxRow", "function normalizeWindBandRow"):
+        assert fn in bt, fn
+    assert "stadium_wx" in bt and "stadium_wx_bands" in bt
+    for key in ("all_record", "all_roi", "top25_record", "top25_roi", "wind_p75", "wind_min", "seasons"):
+        assert key in bt, key
+    assert "descriptive only" in bt                 # the venue row must not read as an edge
+    assert "if the wind shows up" in bt             # the band is conditional on the forecast landing
+    assert "r.n >= 100" in bt                       # thin bands never render
+
+
 def test_backtest_hover_record_roi_lookup_wired() -> None:
     """Hover Record / ROI by first-match bucket on the map popup, the table total cell and the drawer."""
     for js in ("map.js", "table.js", "drawer.js"):
@@ -206,6 +244,17 @@ def test_backtest_hover_record_roi_lookup_wired() -> None:
     assert "function backtestRows" in drawer and "stadiumResultFor" in drawer
     bt = (WEB / "backtest.js").read_text(encoding="utf-8")
     assert '"Record (under)"' in bt and '"ROI"' in bt and "function stadiumResultFor" in bt
+
+
+def test_hover_carries_the_tier_record_and_evaporation_rate() -> None:
+    """The signal's own 2024-25 record and how often that tier's weather actually showed up ride
+    on every hover card / drawer, so the skepticism travels with the alert."""
+    bt = (WEB / "backtest.js").read_text(encoding="utf-8")
+    assert "function tierRecord" in bt
+    assert '"Tier 2024–25"' in bt and '"Forecast held"' in bt
+    assert "evaporated" in bt and "n_actual" in bt
+    assert 'tierLabel === "No Impact"' in bt          # a quiet game gets no tier row
+    assert "g.signal || {}).label" in bt or "(g || {}).signal || {}).label" in bt
 
 
 def test_alerts_tab_clv_columns_and_drawer_clv_timeline() -> None:

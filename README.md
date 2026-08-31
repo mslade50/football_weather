@@ -77,6 +77,7 @@ cd site/worker && npx wrangler dev
 | `pipeline/state.py` | R2-round-tripped state: openers, history, alerts dedup, baseline (`schema_version` + `migrate()`) |
 | `pipeline/alerts.py` | Telegram alert families, keys, quiet hours, digest |
 | `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
+| `pipeline/backtest.py`, `backtest_git.py` | bucket grid + CLV; `--from-git` replays the legacy csv/xlsx git archive to grade 2024/2025 (`docs/HISTORICAL_BACKTEST_SPEC.md`) |
 | `utils/` | `telegram.py`, `state.py`, `timeutil.py` |
 | `scripts/` | `recon_book.py`, `recover_static.py`, `extract_golden.py` |
 | `site/worker/` | Cloudflare Worker (`index.js`, `wrangler.toml`, `migrations/`, `SETUP.md`) |

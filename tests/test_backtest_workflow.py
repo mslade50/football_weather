@@ -147,8 +147,38 @@ def test_backtest_sends_clv_digest_via_alerts_module(bt: str):
     assert 'const="clv"' in src and 'DIGEST_KINDS = ("clv",)' in src and 'args.digest == "clv"' in src
 
 
+def test_backtest_from_git_dispatch_replays_the_archive(bt: str):
+    """docs/HISTORICAL_BACKTEST_SPEC.md §3.5: a manual `from_git` run needs the whole history,
+    the CFBD key and the ERA5 window cache; every other run carries the published historical
+    groups forward instead of recomputing them."""
+    assert "from_git:" in bt and "seasons:" in bt
+    assert "FROM_GIT: ${{ inputs.from_git == true && '1' || '' }}" in bt
+    assert "SEASONS: ${{ inputs.seasons || '2024,2025' }}" in bt
+    assert "fetch-depth: ${{ inputs.from_git == true && 0 || 1 }}" in bt
+    run = _step(bt, "Run backtest")
+    assert '${FROM_GIT:+--from-git --seasons "$SEASONS"}' in run
+    assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in run
+    era5 = _step(bt, "Fetch the ERA5 window cache from R2 (read-only)")
+    assert "ERA5_WINDOWS: backtest/era5/windows.parquet" in bt
+    assert "if: env.FROM_GIT != ''" in era5
+    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/$ERA5_WINDOWS" --file=data/backtest/era5/windows.parquet --remote 2>&1' in era5
+    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in era5 and "exit 1" in era5
+    carry = _step(bt, "Fetch the published backtest.json from R2 (read-only)")
+    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/board/backtest.json --remote 2>&1' in carry
+    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in carry and "exit 1" in carry
+    # the merge that keeps the historical groups lives in pipeline.backtest
+    src = (WF_DIR.parents[1] / "pipeline" / "backtest.py").read_text(encoding="utf-8")
+    assert "def hist_from_previous" in src and '"--from-git"' in src and '"--seasons"' in src
+    assert '"--git-cache"' in src and '"--era5-cache"' in src
+    # the upload the ERA5 step depends on is documented for the operator
+    setup = (WF_DIR.parents[1] / "site" / "worker" / "SETUP.md").read_text(encoding="utf-8")
+    assert "backtest/era5/windows.parquet" in setup and "r2 object put" in setup
+
+
 def test_backtest_step_order_and_failure_ping(bt: str):
-    order = ["Fetch board state from R2 (read-only)", "Export D1 tables", "Mirror snapshots from R2 (wrangler, read-only)",
+    order = ["Fetch board state from R2 (read-only)", "Fetch the published backtest.json from R2 (read-only)",
+             "Fetch the ERA5 window cache from R2 (read-only)", "Export D1 tables",
+             "Mirror snapshots from R2 (wrangler, read-only)",
              "Run backtest", "Push backtest to R2", "Archive backtest rows to D1 (closings / stadium_results)",
              "Weekly CLV digest", "Upload backtest artifacts", "Telegram on failure"]
     idx = [bt.index(f"- name: {n}\n") for n in order]

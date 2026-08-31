@@ -55,12 +55,21 @@ def _between(a: Optional[float], lo: float, hi: float) -> bool:
 # ---- NFL ---------------------------------------------------------------------
 
 def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Optional[float]) -> Signal:
-    """Evaluated purple-first so High is reachable (legacy ordering made it dead code)."""
+    """Evaluated purple-first so High is reachable (legacy ordering made it dead code).
+
+    Low carries the cause in its ``label`` the way CFB always has ("Low (Rain)" / "Low (Wind)"):
+    the two conditions are unrelated bets and the bare "Low Impact" label made them
+    indistinguishable on the board and in the backtest. ``level`` stays ``LOW`` and
+    ``alerts.signal_slug`` still maps both to "low", so keys and tiers are unchanged."""
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     if _gt(w, 15) and _between(t, 32, 45):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH])
-    if _gt(r, 2) or (w is not None and 8 < w < 15 and _lt(t, 60)):
-        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW])
+    rain_cond = _gt(r, 2)
+    wind_cond = w is not None and 8 < w < 15 and _lt(t, 60)
+    if rain_cond or wind_cond:
+        if rain_cond:   # rain wins the label when both fire, as in cfb_signal
+            return Signal(LOW, "black", C.SIGNAL_SIZES[LOW], "Low (Rain)")
+        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], "Low (Wind)")
     if _gt(w, 15) and _lt(t, 60):
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID])
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])

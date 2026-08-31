@@ -62,7 +62,7 @@ from typing import Any, Optional
 from pipeline import state as pstate
 from pipeline.model import config as model_config
 from utils.env import load_repo_dotenv
-from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
+from utils.timeutil import ET, ensure_utc, in_bet_week, now_utc, parse_iso, to_et, utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -709,9 +709,18 @@ def _edge_record(card: dict[str, Any], e: dict[str, Any], run_id: Optional[str])
     }
 
 
-def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Optional[str] = None) -> list[Candidate]:
+def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Optional[str] = None,
+                    now: Optional[datetime] = None) -> list[Candidate]:
     """One EDGE per game in a signal tier (legacy bet rules); the market edge is informational.
-    ``Candidate.tier`` is the signal slug (low | mid | high | very_high)."""
+    ``Candidate.tier`` is the signal slug (low | mid | high | very_high).
+
+    ``now`` gates on the betting week: no EDGE before Monday 00:00 ET of the game's own week, so
+    the board can show next week's weather without the alerts ever offering next week's line.
+    ``None`` skips the gate (unit tests that drive this directly); ``collect_candidates`` always
+    passes the run clock. MOVE / GONE follow-ups are unaffected — they only fire on a key that
+    already went out, which by then is in its week."""
+    if now is not None and not in_bet_week(_dt(card.get("kickoff_utc")), now):
+        return []
     out = []
     for e in _alertable_edges(card):
         key = edge_key(card.get("season"), card.get("week"), card.get("game_id"), e["market"], e["side"], e["book"],
@@ -909,7 +918,7 @@ def collect_candidates(
     for sport, cards in cards_by_sport.items():
         for card in cards:
             out += followup_candidates(card, alerts, cfg, now, run_id)   # before new EDGEs: a key gone this run never MOVEs
-            out += edge_candidates(card, alerts, cfg, run_id)
+            out += edge_candidates(card, alerts, cfg, run_id, now)
         out += opener_candidates(sport, cards, (new_keys_by_sport or {}).get(sport) or [], alerts, cfg, now, run_id)
     if include_ops:
         out += ops_candidates(ctx, cards_by_sport, alerts, now, heartbeat_ts=heartbeat_ts, prev_meta_ts=prev_meta_ts)

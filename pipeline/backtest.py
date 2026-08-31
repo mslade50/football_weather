@@ -311,6 +311,44 @@ class GameRow:
     src_forecast: Optional[str] = None
     src_actual: Optional[str] = None
     src_result: Optional[str] = None
+    # historical replay of the git archive (pipeline/backtest_git.py); ``hist`` freezes
+    # ``finalize_row`` so the alert grading below is not overwritten by the closing one.
+    hist: bool = False
+    sheet: Optional[str] = None
+    line_book: Optional[str] = None
+    n_snapshots: Optional[int] = None
+    alert_tier: Optional[str] = None
+    alert_lead_h: Optional[float] = None
+    alert_total: Optional[float] = None
+    alert_under_odds: Optional[float] = None
+    alert_spread: Optional[float] = None
+    temp_alert: Optional[float] = None    # the forecast the alert saw (temp_fc is the close)
+    wind_alert: Optional[float] = None
+    rain_alert: Optional[float] = None
+    tier_at_kick: Optional[str] = None
+    tier_on_actual: Optional[str] = None  # the tier the ERA5 actuals would have produced
+    # the escalation bet: the first snapshot at the worst tier this game ever reached. alert_* is
+    # the FIRST tier of any kind, so a game that opens Low and becomes Very High is an alert-Low
+    # and a peak-Very-High; the tier scorecard keys on the peak so severe games are not undercounted.
+    peak_tier: Optional[str] = None
+    peak_lead_h: Optional[float] = None
+    peak_total: Optional[float] = None
+    peak_under_odds: Optional[float] = None
+    peak_result: Optional[str] = None
+    peak_margin: Optional[float] = None
+    roi_peak: Optional[float] = None
+    close_lead_h: Optional[float] = None
+    close_under_odds: Optional[float] = None
+    close_result: Optional[str] = None    # W | L | P of the under at the CLOSING total
+    close_margin: Optional[float] = None
+    roi_alert: Optional[float] = None
+    roi_close: Optional[float] = None
+    clv_pts: Optional[float] = None       # alert_total - close_total (positive = our way)
+    wind_l48: Optional[float] = None      # lead-1/3/5 live in wind_lead1/3/5
+    wind_l168: Optional[float] = None
+    wind_err_alert: Optional[float] = None
+    gs_fg_archived: Optional[float] = None
+    model_match_rate: Optional[float] = None
 
     @property
     def spread_abs(self) -> Optional[float]:
@@ -337,7 +375,10 @@ def grade_under(close_total: Optional[float], actual_total: Optional[float]) -> 
 
 
 def finalize_row(r: GameRow) -> GameRow:
-    """Derived columns once market + result are known."""
+    """Derived columns once market + result are known. Historical rows are already graded
+    at their alert total by ``backtest_git.finalize_hist_row`` and are left alone."""
+    if r.hist:
+        return r
     if r.home_score is not None and r.away_score is not None:
         r.actual_total = float(r.home_score + r.away_score)
         r.result = float(r.home_score - r.away_score)
@@ -843,13 +884,16 @@ def fetch_results(rows: Sequence[GameRow], book: Any = None, *, get: Callable[[s
 
 # ---- aggregation -------------------------------------------------------------------------------
 
-def _stats(rows: Sequence[GameRow]) -> dict[str, Any]:
-    graded = [r for r in rows if r.under_result is not None]
-    w = sum(1 for r in graded if r.under_result == "W")
-    losses = sum(1 for r in graded if r.under_result == "L")
-    p = sum(1 for r in graded if r.under_result == "P")
+def _stats(rows: Sequence[GameRow], *, result_field: str = "under_result", margin_field: str = "margin") -> dict[str, Any]:
+    """The 8 legacy grid columns. ``result_field`` / ``margin_field`` pick which graded bet is
+    summarised: the default under-at-close, or the historical ``close_result`` / ``close_margin``
+    when the alert bet already owns ``under_result`` (backtest_git)."""
+    graded = [r for r in rows if getattr(r, result_field) is not None]
+    w = sum(1 for r in graded if getattr(r, result_field) == "W")
+    losses = sum(1 for r in graded if getattr(r, result_field) == "L")
+    p = sum(1 for r in graded if getattr(r, result_field) == "P")
     n = len(graded)
-    margins = [r.margin for r in graded if r.margin is not None]
+    margins = [getattr(r, margin_field) for r in graded if getattr(r, margin_field) is not None]
     pos = sum(1 for r in graded if r.clv_status == clv_mod.POSITIVE)
     return {
         "Wins": w, "Losses": losses, "Push": p, "Sample": n,
@@ -880,16 +924,18 @@ def grid_stats(rows: Sequence[GameRow], defs: Sequence[Bucket], on: str = "forec
     return out
 
 
-def stadium_results(rows: Sequence[GameRow], now: Optional[str] = None) -> list[dict[str, Any]]:
+def stadium_results(rows: Sequence[GameRow], now: Optional[str] = None, *,
+                    result_field: str = "under_result", margin_field: str = "margin") -> list[dict[str, Any]]:
     """Legacy Stadiums sheet (Team / Stadium / Record 'W-L-P' / Percentage) per
-    (stadium, sport, season) → also the D1 ``stadium_results`` rows."""
+    (stadium, sport, season) → also the D1 ``stadium_results`` rows. ``result_field`` picks the
+    graded bet (``close_result`` for the historical rows, whose ``under_result`` is the alert bet)."""
     groups: dict[tuple[str, str, Optional[int]], list[GameRow]] = defaultdict(list)
     for r in rows:
-        if r.stadium_id and r.under_result is not None:
+        if r.stadium_id and getattr(r, result_field) is not None:
             groups[(r.stadium_id, r.sport, r.season)].append(r)
     out = []
     for (sid, sport, season), members in sorted(groups.items(), key=lambda kv: (kv[0][1], kv[0][0], kv[0][2] or 0)):
-        st = _stats(members)
+        st = _stats(members, result_field=result_field, margin_field=margin_field)
         home_teams = sorted({r.home_name or r.home_id or "" for r in members if not r.neutral})
         out.append({
             "stadium_id": sid, "sport": sport, "season": season, "Team": ", ".join(t for t in home_teams if t) or None,
@@ -954,15 +1000,31 @@ class BacktestResult:
     sources: dict[str, Any]
     stadiums_legacy: list[dict[str, Any]] = field(default_factory=list)   # the sheet's Stadiums rows (load_stadium_sheet)
     legacy: dict[str, Any] = field(default_factory=dict)                  # meta.legacy (legacy_meta)
+    hist: dict[str, Any] = field(default_factory=dict)                    # backtest_git.HistResult.block()
+    stadium_wx: list[dict[str, Any]] = field(default_factory=list)        # stadium_wx.load_records()
+    stadium_wx_bands: list[dict[str, Any]] = field(default_factory=list)  # stadium_wx.load_bands()
 
     def payload(self, *, now: Optional[datetime] = None, run_id: Optional[str] = None, on: str = "forecast") -> dict[str, Any]:
         ts = utc_iso(now or now_utc())
+        hist = self.hist or {}
+        by_season = hist.get("by_season") or {}
+        by_season_close = hist.get("by_season_close") or {}
+        grid = [{**g, "by_season": by_season.get(str(g["id"])) or {}, "by_season_close": by_season_close.get(str(g["id"])) or {}}
+                for g in self.grid]
+        meta: dict[str, Any] = {
+            "run_id": run_id or f"backtest-{ts}", "last_updated": ts, "generated_at": ts, "bucket_on": on,
+            "n_games": len(self.rows), "n_graded": sum(1 for r in self.rows if r.under_result is not None),
+            "sources": self.sources, "legacy": self.legacy,
+        }
+        if hist.get("meta"):
+            meta["hist"] = hist["meta"]
         return json_out.sanitize({
-            "meta": {"run_id": run_id or f"backtest-{ts}", "last_updated": ts, "generated_at": ts, "bucket_on": on,
-                     "n_games": len(self.rows), "n_graded": sum(1 for r in self.rows if r.under_result is not None),
-                     "sources": self.sources, "legacy": self.legacy},
-            "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
+            "meta": meta, "grid": grid,
+            "stadium_results": [*self.stadiums, *(hist.get("stadium_results") or [])],
+            "stadium_results_legacy": self.stadiums_legacy,
             "alerts_clv": self.alerts, "games": self.games,
+            "tier_scorecard": hist.get("tier_scorecard") or [], "hist_games": hist.get("hist_games") or [],
+            "stadium_wx": self.stadium_wx, "stadium_wx_bands": self.stadium_wx_bands,
         })
 
 
@@ -1031,12 +1093,52 @@ def write_parquet(res: BacktestResult, out_dir: PathLike) -> dict[str, Path]:
         "stadium_results": pd.DataFrame(res.stadiums),
         "alerts_clv": pd.DataFrame(res.alerts.get("alerts") or []),
     }
+    hist = res.hist or {}
+    if hist:
+        tables["hist_games"] = pd.DataFrame(hist.get("hist_games") or [])
+        tables["hist_grid"] = pd.DataFrame(hist_grid_rows(hist))
+        tables["hist_stadiums"] = pd.DataFrame(hist.get("stadium_results") or [])
+        tables["hist_leads"] = pd.DataFrame(hist.get("leads") or [])
+        tables["hist_scorecard"] = pd.DataFrame(hist.get("tier_scorecard") or [])
     written = {}
     for name, df in tables.items():
         p = out / f"{name}.parquet"
         df.to_parquet(p, index=False)
         written[name] = p
     return written
+
+
+def hist_grid_rows(hist: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """``by_season`` / ``by_season_close`` flattened to one row per (bucket, season, bet)."""
+    rows = []
+    for bet, key in (("alert", "by_season"), ("close", "by_season_close")):
+        for bucket_id, seasons in (hist.get(key) or {}).items():
+            for season, stats in (seasons or {}).items():
+                rows.append({"id": int(bucket_id), "season": season, "bet": bet, **stats})
+    return rows
+
+
+def hist_from_previous(path: PathLike) -> dict[str, Any]:
+    """Rebuild the ``hist`` block from a previously published backtest.json so a weekly run
+    that does not replay the archive never drops the historical column groups (spec §3.5)."""
+    p = Path(path)
+    if not p.is_file():
+        return {}
+    try:
+        prev = pstate._load_any(p)
+    except Exception:  # noqa: BLE001 - a corrupt previous payload must not fail the run
+        return {}
+    if not isinstance(prev, dict):
+        return {}
+    by_season = {str(g.get("id")): g.get("by_season") for g in (prev.get("grid") or []) if g.get("by_season")}
+    by_close = {str(g.get("id")): g.get("by_season_close") for g in (prev.get("grid") or []) if g.get("by_season_close")}
+    hist_meta = (prev.get("meta") or {}).get("hist") or {}
+    seasons = {str(s) for s in (hist_meta.get("seasons") or [])}
+    stadiums = [s for s in (prev.get("stadium_results") or []) if str(s.get("season")) in seasons]
+    block = {"by_season": by_season, "by_season_close": by_close, "stadium_results": stadiums,
+             "tier_scorecard": prev.get("tier_scorecard") or [], "hist_games": prev.get("hist_games") or [],
+             "meta": hist_meta}
+    return block if any(block[k] for k in ("by_season", "tier_scorecard", "hist_games")) else {}
 
 
 def write_outputs(res: BacktestResult, *, board_dir: PathLike, parquet_dir: Optional[PathLike] = None,
@@ -1073,6 +1175,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--no-network", action="store_true", help="skip Open-Meteo / results fetches")
     p.add_argument("--freeze", action="store_true", help="freeze closings from state history.json first (model/clv.py)")
     p.add_argument("--now", default=None, help="ISO override of the clock (tests)")
+    g = p.add_argument_group("historical replay (docs/HISTORICAL_BACKTEST_SPEC.md)")
+    g.add_argument("--from-git", action="store_true", help="also grade past seasons from the git line/forecast archive")
+    g.add_argument("--seasons", default="2024,2025", help="seasons to replay with --from-git")
+    g.add_argument("--git-cache", type=Path, default=None, help="parsed archive snapshots + schedule cache")
+    g.add_argument("--era5-cache", type=Path, default=None, help="ERA5 hourly cache (pipeline.stadiums.climatology layout)")
+    g.add_argument("--refresh-git", action="store_true", help="re-walk the git history instead of the parquet cache")
+    g.add_argument("--era5-max-fetch", type=int, default=0, help="max ERA5 windows to fetch this run (0 = none)")
+    g.add_argument("--stadium-wx", type=Path, default=None,
+                   help="stadium_wx.parquet from pipeline.stadium_wx (default data/backtest/stadium_wx.parquet)")
     return p.parse_args(argv)
 
 
@@ -1121,6 +1232,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     records = list((alerts_state.get("records") or {}).values()) + list(d1.alerts)
     res = assemble(rows, defs, records, sources, on=args.bucket_on, now=utc_iso(now),
                    stadiums_legacy=sheet_stadiums, legacy=legacy_meta(defs, args.grid))
+    if args.from_git:
+        from pipeline import backtest_git
+
+        seasons = [int(s) for s in str(args.seasons).replace(" ", "").split(",") if s]
+        hist = backtest_git.run(
+            seasons=seasons, defs=defs, sport=args.sport,
+            git_cache=args.git_cache or backtest_git.DEFAULT_GIT_CACHE,
+            era5_cache=args.era5_cache or backtest_git.DEFAULT_ERA5_CACHE,
+            no_network=args.no_network, refresh_git=args.refresh_git, era5_max_fetch=args.era5_max_fetch,
+            bucket_on=args.bucket_on, now=now,
+        )
+        backtest_git.print_report(hist)
+        res.hist = hist.block()
+        sources["from_git"] = hist.meta
+    else:
+        # a weekly run must never drop the historical column groups a --from-git run published
+        res.hist = hist_from_previous(Path(args.board_dir) / json_out.BACKTEST_FILE)
+        if res.hist:
+            print(f"  hist: carried {len(res.hist.get('hist_games') or [])} graded historical game(s) "
+                  f"from the previous {json_out.BACKTEST_FILE}")
+    from pipeline import stadium_wx
+
+    wx_path = args.stadium_wx or (stadium_wx.DEFAULT_OUT / "stadium_wx.parquet")
+    res.stadium_wx = stadium_wx.load_records(wx_path)
+    res.stadium_wx_bands = stadium_wx.load_bands(wx_path.with_name("stadium_wx_bands.parquet"))
+    if res.stadium_wx:
+        print(f"  stadium_wx: {len(res.stadium_wx)} stadium record(s), {len(res.stadium_wx_bands)} "
+              f"wind band(s) from {wx_path.parent}")
     written = write_outputs(res, board_dir=args.board_dir, parquet_dir=args.parquet_dir, now=now, on=args.bucket_on)
     graded = sum(1 for r in rows if r.under_result is not None)
     print(f"  rows: {len(rows)} games ({graded} graded); buckets with samples: {sum(1 for g in res.grid if g['Sample'])}; "
@@ -1141,7 +1280,7 @@ __all__ = [
     "rows_from_games", "apply_closings", "apply_openers", "hourly_series", "window_stats", "fetch_actuals",
     "fetch_previous_runs", "parse_cfbd_scores", "parse_espn_scores", "parse_nflverse_scores", "apply_scores",
     "fetch_results", "grid_stats", "stadium_results", "alerts_clv", "matched_games", "build_rows", "assemble",
-    "write_parquet", "write_outputs", "d1_statements", "parse_args", "main",
+    "write_parquet", "write_outputs", "hist_grid_rows", "hist_from_previous", "d1_statements", "parse_args", "main",
 ]
 
 

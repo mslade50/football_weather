@@ -280,6 +280,14 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .bt-banner { padding: 7px 18px; font-size: 12px; border-bottom: 1px solid var(--line);
   color: var(--warn); background: rgba(180,120,20,.12); }
 .bt-note { padding: 6px 18px; }
+/* historical replay (pipeline/backtest_git.py): tier scorecard + graded-games expanders */
+details.bt-card { border-bottom: 1px solid var(--line); }
+details.bt-card > summary { padding: 7px 18px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+details.bt-card > summary:hover { color: var(--text); }
+details.bt-card[open] > summary { color: var(--text); }
+details.bt-card .bt-wrap { max-height: 42vh; }
+table.bt-score th.left, table.bt-score td.left { white-space: nowrap; }
+table.bt-histgames th.sorted { color: var(--text); }
 .alertctl .al-clv { margin-left: auto; }
 .alertctl .al-clv b { color: var(--text); }
 @media (max-width: 800px) { .status-grid { grid-template-columns: 1fr; } }

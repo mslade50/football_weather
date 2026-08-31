@@ -14,6 +14,12 @@ name: backtest
 #   * Monday 08:17 ET-ish (12:17 UTC): same job, plus the weekly CLV digest
 #     (`python -m pipeline.alerts --digest clv`) — CLV by tier/league/book, v1 vs v2
 #     and the promotion gate, from alerts.json records + the fresh backtest.json.
+#   * `from_git: true` (dispatch only) additionally replays the 2024/2025 seasons out of the
+#     legacy line/forecast archive in this repo's own git history
+#     (docs/HISTORICAL_BACKTEST_SPEC.md): needs `fetch-depth: 0`, CFBD_API_KEY for the CFB
+#     schedule/scores, and the ERA5 window cache from R2. Runs without it carry the historical
+#     column groups forward by merging the published backtest.json (pipeline.backtest
+#     `hist_from_previous`), so the tab never loses them.
 #   * State is read-only here: nothing under board/ except backtest.json is written,
 #     so this job can never clobber openers or alert markers. A failed R2 state fetch
 #     (anything but NoSuchKey) still fails the job — a backtest on blank state would
@@ -38,6 +44,16 @@ on:
         type: boolean
         required: false
         default: false
+      from_git:
+        description: 'Also replay past seasons from the git line/forecast archive (slow: full clone)'
+        type: boolean
+        required: false
+        default: false
+      seasons:
+        description: 'Seasons to replay with from_git'
+        type: string
+        required: false
+        default: '2024,2025'
 
 # Same group as pipeline.yml: never race the board's R2 put loop.
 concurrency:
@@ -53,6 +69,8 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
   DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+  FROM_GIT: ${{ inputs.from_git == true && '1' || '' }}
+  SEASONS: ${{ inputs.seasons || '2024,2025' }}
   # Monday schedule or explicit dispatch input -> send the CLV digest.
   SEND_DIGEST: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 12 * * 1') || inputs.digest == true }}
   # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
@@ -60,6 +78,8 @@ env:
   D1_TABLES: games odds_history closings alerts stadiums teams weather_history
   # newest snapshot objects mirrored per run (one `wrangler r2 object get` each)
   SNAPSHOT_MAX: "120"
+  # per-kickoff ERA5 means for the historical replay (site/worker/SETUP.md uploads it)
+  ERA5_WINDOWS: backtest/era5/windows.parquet
 
 jobs:
   backtest:
@@ -67,6 +87,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the historical replay walks the legacy nfl_weather.csv / cfb_weather.xlsx history
+          fetch-depth: ${{ inputs.from_git == true && 0 || 1 }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -101,6 +124,39 @@ jobs:
               exit 1
             fi
           done
+      - name: Fetch the published backtest.json from R2 (read-only)
+        # pipeline.backtest merges the previous payload's by_season / tier_scorecard / hist_games
+        # when it is not replaying the archive itself, so a weekly run never drops them.
+        run: |
+          mkdir -p data/board
+          if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/board/backtest.json --remote 2>&1)"; then
+            echo "board/backtest.json fetched"
+          elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+            echo "::notice::board/backtest.json absent - nothing to carry forward"
+            rm -f data/board/backtest.json
+          else
+            echo "$OUT"
+            echo "::error::R2 fetch failed for board/backtest.json (not NoSuchKey)"
+            exit 1
+          fi
+      - name: Fetch the ERA5 window cache from R2 (read-only)
+        # The historical replay needs the ERA5 mean over each kickoff window, not the 600+ MB of
+        # hourly archive files it was reduced from: backtest_git.fill_actuals reads
+        # windows.parquet first and only opens an hourly file on a miss. Upload it after a local
+        # --from-git run with the command in site/worker/SETUP.md.
+        if: env.FROM_GIT != ''
+        run: |
+          mkdir -p data/backtest/era5
+          if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/$ERA5_WINDOWS" --file=data/backtest/era5/windows.parquet --remote 2>&1)"; then
+            echo "era5 window cache fetched"
+          elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+            echo "::warning::$ERA5_WINDOWS absent - the historical rows will have no actuals"
+            rm -f data/backtest/era5/windows.parquet
+          else
+            echo "$OUT"
+            echo "::error::R2 fetch failed for $ERA5_WINDOWS (not NoSuchKey)"
+            exit 1
+          fi
       - name: Export D1 tables
         # {table}.json per table in the `d1 execute --json` shape ([{results: [...]}]),
         # which pipeline.backtest.load_export_dir reads. A missing table on a fresh
@@ -168,11 +224,15 @@ jobs:
         run: |
           mkdir -p data/board data/backtest
           python -m pipeline.backtest --state-dir data/state --snapshot-dir data/snapshots --export-dir data/d1_export \
-            --board-dir data/board --parquet-dir data/backtest --d1-sql data/d1_backtest.sql
+            --board-dir data/board --parquet-dir data/backtest --d1-sql data/d1_backtest.sql \
+            ${FROM_GIT:+--from-git --seasons "$SEASONS"}
           python - <<'PY'
           import json
           d = json.load(open("data/board/backtest.json"))
+          hist = (d.get("meta") or {}).get("hist") or {}
           print(f"grid rows: {len(d.get('grid') or [])}  stadiums: {len(d.get('stadium_results') or [])}  games: {len(d.get('games') or [])}")
+          print(f"historical: {hist.get('n_games', 0)} games, {hist.get('n_graded', 0)} graded, "
+                f"{len(d.get('hist_games') or [])} listed, {len(d.get('tier_scorecard') or [])} scorecard rows")
           PY
       - name: Push backtest to R2
         # board/backtest.json (served as /data/backtest.json) + parquet under backtest/.

@@ -85,6 +85,7 @@ football_weather/
       raw_out.py             # raw/{sport}/{run_id}/... + manifest.json
       r2.py                  # boto3 push (alternative to wrangler in CI); self-check
     backtest.py              # weekly: closings + HRRR actuals + previous-runs -> data/backtest/*.parquet + board/backtest.json
+    backtest_git.py          # --from-git: replay the legacy csv/xlsx git archive to grade past seasons (§7.6)
     calibrate.py             # weekly: refit v2 coefficients -> data/calibration.json (PR)
   utils/
     __init__.py
@@ -113,6 +114,8 @@ football_weather/
     recon_book.py            # generic Playwright response logger (copied recon_betcris.py)
     recover_static.py        # git history -> data/raw/*_curated.csv
     extract_golden.py        # git history -> tests/fixtures/golden_v1.parquet (~3000 rows)
+    _git_history.py          # shared git log/blob walker (dedupes blobs, materialises them once)
+    make_backtest_git_fixtures.py  # git history + caches -> tests/fixtures/git_archive/ (§7.6)
     fixtures_scrub.py        # raw capture -> scrubbed test fixture
   tests/
     fixtures/raw/{betonline,betcris,fanduel,kalshi,novig,prophetx,pinnacle,openmeteo,nws,nflverse,cfbd}/
@@ -251,7 +254,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
 | `board/history.json` | `{"<game_id>|<market>|<side>|<book>": [[ts, line, odds], ...]}` change-only, HISTORY_CAP=120 |
 | `board/wx_history.json` | `{"<game_id>": [[ts, lead_h, wind, gust, temp, precip, pop, gs_fg], ...]}` change-only |
 | `board/alerts_feed.json` | last 200 sent alerts `{alert_key, family, tier, game_id, text_html, sent_at, clv_pts}` — shared keys with Telegram |
-| `board/backtest.json` | bucket grid + stadium results + matched games (Phase 6): `{meta {run_id, generated_at, bucket_on, n_games, n_graded, sources, legacy {source, seasons, n_buckets}}, grid [118 legacy buckets: id/Sport/bounds/CLV from Open + this season's Wins/Losses/Push/Sample/Margin/ROI/+ CLV/CLV % + `legacy {same 8 keys from the xlsx}`], stadium_results [this season, per stadium], stadium_results_legacy [the xlsx Stadiums sheet: Team, Stadium, Record, Percentage, sport], games [matched games], alerts_clv {..}}`; the Backtest tab shows the `legacy` numbers until `n_graded > 0` |
+| `board/backtest.json` | bucket grid + stadium results + matched games (Phase 6): `{meta {run_id, generated_at, bucket_on, n_games, n_graded, sources, legacy {source, seasons, n_buckets}, hist {seasons, n_games, n_graded, n_alerted, model_match_rate, coverage[], unresolved[]}}, grid [118 legacy buckets: id/Sport/bounds/CLV from Open + this season's Wins/Losses/Push/Sample/Margin/ROI/+ CLV/CLV % + `legacy {same 8 keys from the xlsx}` + `by_season` / `by_season_close` {"2024"|"2025"|all_hist: the same 8 keys}], stadium_results [per stadium per season, 2026 + the replayed seasons], stadium_results_legacy [the xlsx Stadiums sheet: Team, Stadium, Record, Percentage, sport], games [matched games], alerts_clv {..}, tier_scorecard [sport × tier × lead band], hist_games [one slim row per graded historical game]}`; the Backtest tab shows the `legacy` numbers until `n_graded > 0` and picks a column group with `#bt-season` (§7.6) |
 | `board/status.json` | last 20 runs (from D1 runs) + current degradations + unresolved names + counts vs baseline |
 | state: `board/openers.json`, `board/history.json`, `board/wx_history.json`, `board/archive_last.json`, `board/wx_last.json`, `board/alerts.json`, `board/scrape_baseline.json`, `board/telegram_state.json`, `board/cf_heartbeat.json`, `board/closings.json` | every state file: `{"schema_version": N, "run_id": ..., ...}` |
 | `raw/{sport}/{run_id}/{source}.json` + `raw/{sport}/{run_id}/manifest.json` | verbatim captures; manifest `{source: {sha256, bytes, fetched_at, url}}` |
@@ -345,7 +348,7 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 - **CLV** (`model/clv.py`): at first run after kickoff, freeze `closings` = last `odds_history` row before `kickoff_utc` per key; `clv_pts = signed(closing_line − alert.first_line)` in the alerted side's favor; written to `alerts.clv_pts`; weekly Monday digest by tier/league/book and v1 vs v2.
 
 ### 7.4 Signals (`model/signals.py`, ported from pages/*)
-- NFL (evaluate in this order so purple renders): `wind_fg>15 and 32≤temp_fg≤45` → High/purple/40; `(rain_fg>2) or (8<wind_fg<15 and temp_fg<60)` → Low/blue/15; `wind_fg>15 and temp_fg<60` → Mid/orange/25; else No/green/7. `wind_vol` forced 'Low' when wind_fg<11.99. `wind_diff = wind_fg − avg_wind`.
+- NFL (evaluate in this order so purple renders): `wind_fg>15 and 32≤temp_fg≤45` → High/purple/40; `(rain_fg>2) or (8<wind_fg<15 and temp_fg<60)` → Low/15; `wind_fg>15 and temp_fg<60` → Mid/orange/25; else No/green/7. Low names its cause the way CFB always has — black `'Low (Rain)'` when `rain_fg>2` (it wins when both fire), else blue `'Low (Wind)'`; `level` stays `Low Impact` so alert keys, tiers and `signal_slug` are unchanged. The two conditions are unrelated bets (2024–25: NFL wind −15.6%, NFL rain −18.7%) and the bare label made them indistinguishable on the board and in the backtest. `wind_vol` forced 'Low' when wind_fg<11.99. `wind_diff = wind_fg − avg_wind`.
 - CFB: DOW base `{Mon:11.14,Tue:11.14,Wed:10.10,Thu:10.10,Fri:9.31,Sat:8.79,Sun:11.93}` (DOW of run, ET); `hi = base+7.5`; `sp=|Open|`: Very High (darkred,50): wind>hi & temp<50 & sp≤10.5; High (purple,40): wind>hi & temp<65 & sp≤10.5; Mid (orange,25): ((wind>hi & temp<65) or (travel_alt>800 & temp>75)) & sp≤20.5; Low: ((wind>base & temp<65) or rain_fg>2 or (temp>80 & home_temp<57 & away_temp<57)) & sp≤20.5 → colors black 'Low (Rain)' if rain>2, red 'Low (Temp)' if heat cond, else blue 'Low (Wind)', size 15; No (green,7).
 - Combined flags: `CFB Wind`: |Open|<10.5 & temp<70 & wind>14; `NFL Wind`: wind>15 & temp<60; `Heat`: home_temp<57 & away_temp<57 & temp>80; `Alt+Heat` (CFB): travel_alt>800 & −10≤Open≤10 & temp>75. Colors purple/blue/red/saddlebrown; `dot_size = |gs_fg_pct|*4+7` (NOTE: old NFL used fraction → ≈7; new uses percent for both, marked improvement).
 - Backtest bucket lookup reproduces `pages/cfb_weather.py` first-match semantics against `backtest.json`.
@@ -358,6 +361,66 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 - `heat_away2 = heat_c if temp_fg>80 and (home_temp − away_temp) ≥ 12`.
 - cold/heat unchanged. `gs_fg_v2 = −(wind_c2+cold_c+heat_c+rain_c2)`; `away_fg_v2 = −max(heat_away2+cold_away, alt_c2)`.
 - Coefficients (0.7/0.3, 0.55, 1.15, cap 12, 0.0035, cutoffs) live in `data/calibration.json`, refit weekly by `calibrate.yml` against CLV/closing totals; v1 constants never refit.
+
+### 7.6 Historical replay of the git archive (`pipeline/backtest_git.py`)
+
+Grades 2024 + 2025 without waiting for 2026 to accrue, out of this repo's own git history: the
+legacy generator committed `nfl_weather.csv` / `cfb_weather.xlsx` ~3×/day from 2024-09 to
+2026-04, and every commit is a snapshot of every upcoming game — the forecast at that lead, the
+impact numbers and the book's line. Spec + coverage: `docs/HISTORICAL_BACKTEST_SPEC.md`.
+
+`python -m pipeline.backtest --from-git --seasons 2024,2025 [--sport …] [--no-network]`:
+
+1. `extract_git_snapshots` walks `git log` per file with `scripts/_git_history.py` (blob-hash
+   dedupe), parses each distinct blob into one row per game → `data/backtest/git/{sport}_snapshots.parquet`.
+2. Rows join to nflverse `games.csv` (NFL) / CFBD `/games` (CFB) for the canonical `game_id`
+   (§4.1), kickoff, week and final score. Team strings resolve through `odds/teams.py`; the
+   year-less legacy `Date` is read as the MM/DD **nearest** the run's ET date (the generator kept
+   a game listed for a day or two after kickoff). `Timestamp` is naive ET.
+3. Per game the snapshots are re-scored with `compute_impact_v1` (era-aware, `era_date` = the
+   commit) and the legacy tiers (§7.4): the **alert** snapshot is the first tier ≠ "No Impact"
+   within 240 h with a price; the **closing** snapshot is the last one within 6 h of kickoff.
+3b. The replay applies the same Monday gate (`week_gate`), so the board's historical numbers are
+   the rule that is actually bet. Rows also carry the **peak** tier — the worst tier the game ever
+   reached — and the escalation bet taken at that snapshot: `alert_tier` is the FIRST tier of any
+   kind, so a game that opens Low and becomes Very High is an alert-Low, which undercounted the
+   severe tiers ~4x. `tier_scorecard` keys on `peak_tier`.
+4. Actuals are the ERA5 hourly mean over `[kick, kick+2h]` from `data/backtest/era5/` (the
+   `stadiums/climatology.py` cache layout, so a throttled pull resumes); `windows.parquet`
+   memoises one mean per kickoff so re-runs never re-read the hourly files.
+5. The UNDER is graded twice — at the alert total (`under_result` / `roi_alert`, `clv_pts =
+   alert_total − close_total`) and at the closing total (`close_result` / `roi_close`) — then
+   aggregated into `by_season` / `by_season_close` on every legacy bucket, a tier scorecard
+   (sport × peak tier × lead band: win %, ROI, CLV %, mean |wind error|, persistence and
+   **`evaporated`** — the share whose ERA5 actuals would not have fired any tier, i.e. the bet was
+   on weather that never showed up), per-stadium records and one slim row per graded game.
+   `tier_for()` scores forecast and actual through the same signal functions, so "would this have
+   fired if we had known the weather?" is one call. The board puts the tier's record and
+   `1 − evaporated` on every hover card (`backtestHover`), so the caveat travels with the signal.
+
+Bucket inputs are the **closing** forecast for every game, the same basis `row_from_snapshots`
+uses for the 2026 columns, so the alert-bet and close-bet groups describe the same set of games;
+the forecast the alert saw is kept beside it as `wind_alert` / `temp_alert`. Lines are one book
+per sport (`line_book`: BetOnline NFL, FanDuel CFB), not the 3-book consensus the live board
+tracks. A run **without** `--from-git` merges the historical blocks out of the published
+`backtest.json` (`hist_from_previous`), so the weekly job never drops them.
+
+### 7.7 Stadium weather records (`pipeline/stadium_wx.py`)
+
+`python -m pipeline.stadium_wx --seasons 2015-2024` → `data/backtest/stadium_wx{,_bands,_games}.parquet`,
+merged into `board/backtest.json` by `pipeline.backtest` as `stadium_wx` / `stadium_wx_bands`. Rebuilds
+the legacy CFB Stadiums sheet for both sports out of the local ERA5 cache + nflverse `total_line` +
+CFBD `/lines`, keyed on **ERA5 wind at kickoff** rather than forecast wind. Spec + numbers:
+`docs/HISTORICAL_BACKTEST_SPEC.md` §8.
+
+Two outputs, and only one of them is actionable:
+- `stadium_wx_bands` — the under record by absolute ERA5 wind, pooled. NFL ≥ 10 mph is 335-227-3
+  (59.6 %, +15.7 % ± 4.0) against 49.2 % below 10, monotonic and positive in 8 of 10 seasons. This
+  is a measurement of what wind does to totals, not a bet: nobody can bet ERA5 actuals.
+- `stadium_wx` — the per-venue record. `venue_noise_check` compares the spread of per-venue ROI
+  against coin flips of the same sample sizes; at 0.99× the noise floor (and early/late
+  correlation +0.05) there is no venue effect to see in ten seasons. The board labels these rows
+  **descriptive only** so the hover cannot read them as an edge.
 
 ## 8. Odds scrapers (`pipeline/odds/`) — per-book contract
 
@@ -423,7 +486,7 @@ Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minu
 - `deploy.yml`: on push paths `site/**` → `wrangler d1 migrations apply football-odds --remote` then `cloudflare/wrangler-action@v3` deploy from `site/worker`.
 - `ci.yml`: on PR/push → ruff, pytest (with sys.modules stubs), workflow-contract tests, `node --test site/worker/test`.
 - `build-stadiums.yml`: workflow_dispatch → `python -m pipeline.stadiums.build_stadiums` → opens PR (peter-evans/create-pull-request) with diff; never commits to main.
-- `backtest.yml`: schedule `'0 11 * * 2'` (Tue 06:00 ET-ish) + dispatch → `python -m pipeline.backtest` → R2 `board/backtest.json` + `data/backtest/*.parquet` to R2; Telegram Monday CLV digest is sent by `pipeline.alerts --digest` inside this job.
+- `backtest.yml`: schedule `'17 10 * * 2'` (Tue 06:17 ET-ish) + Monday digest + dispatch → `python -m pipeline.backtest` → R2 `board/backtest.json` + `data/backtest/*.parquet` to R2; Telegram Monday CLV digest is sent by `pipeline.alerts --digest` inside this job. The dispatch input `from_git: true` additionally replays past seasons (§7.6): `fetch-depth: 0`, `CFBD_API_KEY`, and the ERA5 window cache from R2 `backtest/era5/windows.parquet` (uploaded once from local, `site/worker/SETUP.md` §10).
 - `calibrate.yml`: schedule weekly Tue after backtest → `python -m pipeline.calibrate` → PR updating `data/calibration.json`.
 - Season gating: `gate_check.py` skips when no kickoff within `HORIZON_DAYS` = 45 days for the requested sport (CFB dark Jan–Jul after bowls; NFL skip Mar–Jul); `--force` bypasses.
 - Two horizons in `pipeline/build.py`: the **weather window** `[now−6h, now+10d]` (`WINDOW_AFTER_D`) bounds forecasts, impact, cards, legacy files and alerts; the **odds horizon** `[now−6h, now+45d]` (`ODDS_WINDOW_AFTER_D` == `gate_check.HORIZON_DAYS`, pinned by test) bounds which schedule games scraped lines are matched against, so openers, `history.json` series, `archive_last` and D1 `odds_history` / `openers` / `games` rows (impact columns NULL until the game has a card) start when a book first posts the line. The OPENERS digest keys on openers new *to the board* (game entered the window since the previous run) rather than new to state.
@@ -433,7 +496,7 @@ Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minu
 Transport: `utils/telegram.py` `send_message` (HTML). Dedup: `alerts.json` `{sent:{key:ts}}` copied from golf `board/state.py`, ALERTS_CAP 500, mark ONLY after successful send, R2 round-trip, mirrored to D1 `alerts`; rehydrate from D1 if R2 missing. Every sent alert also appended to `alerts_feed.json`.
 
 Families and keys:
-1. **EDGE** `edge|{season}|{week}|{game_id}|total|under|{book}|{model_version}` — fires for **every game in a signal tier** (legacy bet rules, §7.4: `card.signal.label` ≠ "No Impact", Low through Very High, both sports). The play is the TOTAL UNDER: the `fair.edges` under entry with the largest `edge_pts` (any book), else a `consensus`-book entry synthesised from `consensus.total_now` vs `fair.fair_total`. The market edge is a NOTE (shown even when ≤ 0), never a gate — `fair.weather_driven`, `consensus.thin` and the §7.3 tiers are board-only. Record/Candidate `tier` = signal slug `low|mid|high|very_high`; record carries `last_signal`. One send per key. Message:
+1. **EDGE** `edge|{season}|{week}|{game_id}|total|under|{book}|{model_version}` — fires for **every game in a signal tier** (legacy bet rules, §7.4: `card.signal.label` ≠ "No Impact", Low through Very High, both sports) **whose betting week has opened**: no EDGE before Monday 00:00 ET of the game's own week (`utils.timeutil.bet_week_open`, per GAME so bowls and Monday-nighters land right). The weather window still runs 10 days, so the board carries next week's forecast — only the alert waits. MOVE / GONE follow-ups are unaffected (they only fire on a key that already went out). The play is the TOTAL UNDER: the `fair.edges` under entry with the largest `edge_pts` (any book), else a `consensus`-book entry synthesised from `consensus.total_now` vs `fair.fair_total`. The market edge is a NOTE (shown even when ≤ 0), never a gate — `fair.weather_driven`, `consensus.thin` and the §7.3 tiers are board-only. Record/Candidate `tier` = signal slug `low|mid|high|very_high`; record carries `last_signal`. One send per key. Message:
 ```
 <b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>
 Gillette · wind 18 mph SE (gust 26 · vol 6 · cross 15) · 41°F · rain 20% / 0.8 mm

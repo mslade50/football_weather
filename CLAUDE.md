@@ -53,11 +53,14 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 ## Layout (abridged; full tree in ARCH §3)
 ```
 pipeline/   build.py contracts.py state.py gate_check.py run_context.py alerts.py
+            backtest.py backtest_git.py (--from-git: replay the legacy git archive)
+            stadium_wx.py (ERA5-keyed venue + wind-band under records)
             schedule/ stadiums/ weather/ model/ odds/ outputs/
 utils/      telegram.py state.py timeutil.py
 scripts/    recon_book.py recover_static.py extract_golden.py fixtures_scrub.py
+            _git_history.py make_backtest_git_fixtures.py
 site/       worker/ (wrangler.toml index.js migrations/ SETUP.md test/)
             web/ (index.html app.js table.js map.js drawer.js alerts.js status.js vendor/)
-tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test` for the Worker)
+tests/      fixtures/ (raw/ legacy/ git_archive/ golden parquet)  test_*.py   (`node --test site/worker/test` for the Worker)
 main.py     on-demand scraper CLI: --book --sport --market --output --headed
 ```

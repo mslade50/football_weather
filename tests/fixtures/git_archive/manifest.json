@@ -1,0 +1,86 @@
+[
+ {
+  "sport": "nfl",
+  "sha": "7ba94ed",
+  "commit_date": "2025-11-16T15:02:01+00:00",
+  "file": "nfl/7ba94ed.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "48f79c5",
+  "commit_date": "2025-11-18T10:15:15+00:00",
+  "file": "nfl/48f79c5.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "65bf990",
+  "commit_date": "2025-11-20T15:00:57+00:00",
+  "file": "nfl/65bf990.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "31cf8ad",
+  "commit_date": "2025-11-21T15:02:21+00:00",
+  "file": "nfl/31cf8ad.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "b2d1c0a",
+  "commit_date": "2025-11-22T15:00:56+00:00",
+  "file": "nfl/b2d1c0a.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "6144534",
+  "commit_date": "2025-11-22T21:21:02+00:00",
+  "file": "nfl/6144534.csv"
+ },
+ {
+  "sport": "nfl",
+  "sha": "1762a33",
+  "commit_date": "2025-11-23T15:00:42+00:00",
+  "file": "nfl/1762a33.csv"
+ },
+ {
+  "sport": "cfb",
+  "sha": "13e0e81",
+  "commit_date": "2025-11-08T15:02:04+00:00",
+  "file": "cfb/13e0e81.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "9e84cf1",
+  "commit_date": "2025-11-10T15:41:40+00:00",
+  "file": "cfb/9e84cf1.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "97b55cb",
+  "commit_date": "2025-11-12T15:02:09+00:00",
+  "file": "cfb/97b55cb.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "a5cd592",
+  "commit_date": "2025-11-13T15:01:58+00:00",
+  "file": "cfb/a5cd592.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "d5e2f9a",
+  "commit_date": "2025-11-14T15:02:01+00:00",
+  "file": "cfb/d5e2f9a.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "392c90a",
+  "commit_date": "2025-11-15T10:16:18+00:00",
+  "file": "cfb/392c90a.xlsx"
+ },
+ {
+  "sport": "cfb",
+  "sha": "68b2eb6",
+  "commit_date": "2025-11-15T15:03:32+00:00",
+  "file": "cfb/68b2eb6.xlsx"
+ }
+]

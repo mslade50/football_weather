@@ -203,7 +203,36 @@ the `Cf-Access-Authenticated-User-Email` header instead. Needs an API token
 with **Access: Apps and Policies: Edit** if done via API. Access gates the
 whole route (UI + data + api).
 
-## 10. Frontend vendor files (`site/web/vendor/`)
+## 10. Historical backtest inputs (`backtest/era5/windows.parquet`)
+
+`backtest.yml` with the `from_git: true` dispatch input replays the 2024/2025
+seasons out of the legacy `nfl_weather.csv` / `cfb_weather.xlsx` git history
+(`docs/HISTORICAL_BACKTEST_SPEC.md`). Everything it needs is fetched at run time
+except the **actual** game-time weather: that comes from a local ERA5 pull
+(`data/backtest/era5/`, ~670 MB of hourly archive JSON — never committed, never
+uploaded). `pipeline.backtest_git` reduces it to one mean per kickoff window in
+`data/backtest/era5/windows.parquet` (tens of KB); the workflow restores only
+that, and `fill_actuals` reads it before it would ever open an hourly file.
+
+Build it once locally, then upload it:
+
+```bash
+# fills data/backtest/{git,era5} and writes the window cache as a side effect
+# (--era5-max-fetch N bounds how many missing half-year windows it pulls per run;
+#  the Open-Meteo archive is throttled to 1.5 s/request and resumes on the next run)
+python -m pipeline.backtest --from-git --seasons 2024,2025 --era5-max-fetch 200
+
+npx wrangler r2 object put "football-board/backtest/era5/windows.parquet" \
+  --file="../../data/backtest/era5/windows.parquet" \
+  --content-type=application/octet-stream --remote
+```
+
+Re-upload after replaying a new season (new kickoffs = new windows). A run
+without `from_git` needs nothing here: it merges the historical column groups
+out of the published `board/backtest.json` (`hist_from_previous`), which the
+workflow fetches read-only before the run.
+
+## 11. Frontend vendor files (`site/web/vendor/`)
 
 MapLibre GL JS + CSS and uPlot are vendored (no CDN at runtime);
 `site/web/vendor/VENDOR.md` records the versions and the exact re-download

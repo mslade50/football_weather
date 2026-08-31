@@ -114,6 +114,37 @@ def test_signal_tier_is_the_only_gate():
     assert c[0].record["tier"] == "mid" and c[0].record["last_signal"] == "Mid Impact"
 
 
+def test_no_edge_before_the_betting_week_opens():
+    """Never bet into next week's line: no EDGE before Monday 00:00 ET of the game's own week.
+    The board still carries the card (the weather window runs 10 days) — only the alert waits."""
+    from utils.timeutil import bet_week_open
+
+    alerts, _ = _fresh()
+    monday = bet_week_open(KICK)                                  # Mon 2026-09-14 04:00Z
+    assert A.edge_candidates(card(), alerts, CFG, None, monday - timedelta(seconds=1)) == []
+    assert A.edge_candidates(card(), alerts, CFG, None, monday - timedelta(days=2)) == []   # prev Saturday
+    assert len(A.edge_candidates(card(), alerts, CFG, None, monday)) == 1                   # opens on the dot
+    assert len(A.edge_candidates(card(), alerts, CFG, None, NOW)) == 1                      # Fri of that week
+    # a Monday-nighter gets a Monday-only window, not the previous Monday's
+    mnf = datetime(2026, 9, 22, 0, 15, tzinfo=timezone.utc)
+    assert bet_week_open(mnf) == datetime(2026, 9, 21, 4, 0, tzinfo=timezone.utc)
+    assert A.edge_candidates(card(kickoff=mnf), alerts, CFG, None, NOW) == []
+    # no clock passed -> no gate (direct callers/tests); an unknown kickoff never alerts
+    assert len(A.edge_candidates(card(), alerts, CFG)) == 1
+    blind = card()
+    blind["kickoff_utc"] = None
+    assert A.edge_candidates(blind, alerts, CFG, None, NOW) == []
+
+
+def test_collect_candidates_applies_the_week_gate():
+    alerts, _ = _fresh()
+    cards = {"nfl": [card()]}
+    early = A.collect_candidates(_ctx(), cards, alerts, CFG, KICK - timedelta(days=9), include_ops=False)
+    assert [c.family for c in early] == []
+    inweek = A.collect_candidates(_ctx(), cards, alerts, CFG, NOW, include_ops=False)
+    assert "edge" in {c.family for c in inweek}
+
+
 def test_no_impact_never_alerts():
     alerts, _ = _fresh()
     assert A.edge_candidates(card(signal="No Impact"), alerts, CFG) == []

@@ -326,7 +326,13 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "games",
+                            "tier_scorecard", "hist_games", "stadium_wx", "stadium_wx_bands"}
+    # the historical (--from-git) blocks are always present and empty without a replay
+    assert payload["tier_scorecard"] == [] and payload["hist_games"] == [] and "hist" not in payload["meta"]
+    # stadium_wx is built by its own CLI; absent parquet -> empty, never a failure
+    assert isinstance(payload["stadium_wx"], list) and isinstance(payload["stadium_wx_bands"], list)
+    assert all(g["by_season"] == {} and g["by_season_close"] == {} for g in payload["grid"])
     # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
     assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}
     assert payload["grid"][0]["legacy"] == {"Wins": 165, "Losses": 162, "Push": 6, "Sample": 333, "Margin": -2.08, "ROI": -0.036,
