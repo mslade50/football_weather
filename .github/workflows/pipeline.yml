@@ -93,6 +93,12 @@ env:
   # Model driving edges/alerts (ARCH §7.5). Stays v1 until the calibrate promotion rule is met;
   # pipeline/model/config.py falls back to v1 on any unknown value.
   ALERT_MODEL: ${{ vars.ALERT_MODEL || 'v1' }}
+  # Telegram is an action channel. These repo variables can relax/tighten the
+  # defaults without a code deploy.
+  TELEGRAM_MIN_TIER: ${{ vars.TELEGRAM_MIN_TIER || 'mid' }}
+  TELEGRAM_MIN_EDGE_PTS: ${{ vars.TELEGRAM_MIN_EDGE_PTS || '1.0' }}
+  TELEGRAM_MAX_PER_RUN: ${{ vars.TELEGRAM_MAX_PER_RUN || '4' }}
+  TELEGRAM_INCLUDE_OPENERS: ${{ vars.TELEGRAM_INCLUDE_OPENERS || '0' }}
   R2_BUCKET: football-board
   D1_DATABASE: football-odds
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -264,11 +270,11 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && curl -s --max-time 15 \
+          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJob: light · Trigger: %s · Sport: %s\nOpen run: %s' \
+            '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
+          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="FAILED pipeline.yml light job (${{ github.event_name }} sport=$SPORT): ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            >/dev/null || true
+            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true
 
   playwright:
     # BetOnline needs Chromium (Cloudflare pass). Runs AFTER light so it re-scrapes
@@ -385,8 +391,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && curl -s --max-time 15 \
+          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJob: BetOnline · Trigger: %s · Sport: %s\nOpen run: %s' \
+            '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
+          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="FAILED pipeline.yml playwright job (${{ github.event_name }} sport=$SPORT): ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            >/dev/null || true
+            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true

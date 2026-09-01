@@ -47,7 +47,7 @@ field populated by `weather/merge.py` and emitted in the GameCard weather block
 `odds_history` export, newest `SNAPSHOT_MAX=120`) — no S3 keys anywhere in the
 workflows.
 
-Alert gate change (2026-08-24): EDGE alerts now fire for every game in a signal tier (`card.signal.label` ≠ "No Impact", legacy bet rules) on the TOTAL UNDER with the market edge as a note, a `Books:` price ladder, SIGNAL GONE / SIGNAL CHANGE follow-ups and `tier` = signal slug (ARCH §10; `pipeline/alerts.py`).
+Telegram cleanup (2026-08-31): PLAY alerts now default to Mid+ signals with a real posted price and `edge_pts >= 1.0`; one game-level identity survives best-book churn and model promotion, concurrent signal/fair/line changes collapse to one UPDATE, and notifications stop at kickoff. Quiet-hour messages are rebuilt from current prices, openers are opt-in, and three individual alerts are followed by one bounded SUMMARY. Scrape-volume incidents use one immediate sport-scoped SYSTEM path, NFL/CFB baseline scopes no longer reset each other, and fatal workflow errors have one notification owner (ARCH §10; `pipeline/alerts.py`).
 
 ## 2. What is implemented, per phase
 
@@ -67,13 +67,13 @@ Alert gate change (2026-08-24): EDGE alerts now fire for every game in a signal 
 - `pipeline/odds/oddsapi.py` (Phase 6 add-on): optional The Odds API historical opener seeding, off unless `ODDS_API_KEY` set.
 
 ### Phase 3 — Cloudflare Worker + R2 + D1 + JSON board: CODE DONE, NOT DEPLOYED
-- `site/worker/index.js` (Basic-Auth gate, `/data/*.json` from R2, `/api/{history,wx,alerts,runs,status}` from D1, `/auth/me`, admin `POST /refresh` → workflow_dispatch, `scheduled()` heartbeat + cron→dispatch with ET trimming), `wrangler.toml` (free plan: 2 crons), migrations `0001_init 0002_alerts 0003_runs 0004_v2`, 21 node tests, `SETUP.md`.
+- `site/worker/index.js` (Basic-Auth gate, `/data/*.json` from R2, `/api/{history,wx,alerts,runs,status}` from D1, `/auth/me`, admin `POST /refresh` → workflow_dispatch, `scheduled()` heartbeat + cron→dispatch with ET trimming), `wrangler.toml` (free plan: 2 crons), migrations `0001_init 0002_alerts 0003_runs 0004_v2`, 22 node tests, `SETUP.md`.
 - `pipeline/outputs/{json_out,d1_out,r2,raw_out}.py`: board JSONs (`meta.json` written last), per-run snapshots, `d1_inserts.sql`, boto3 R2 publish/merge with content floor + self-check, raw-first archive.
 - `site/web/{index.html,app.js,map.js,table.js,drawer.js,styles.css}` + vendored MapLibre / uPlot (`site/web/vendor`, no CDN); `deploy.yml` (tests → `d1 migrations apply --remote` → wrangler deploy on push to `main` touching `site/**`).
 
 ### Phase 4 — Telegram alerts, Alerts + Status tabs: DONE (Telegram sends fixture-tested only)
-- `pipeline/alerts.py`: EDGE / MOVE / GONE / WX / OPENERS / OPS rules (30 rule + 10 format tests), dedup in `state/alerts.json` (cap 500), chat routing `TELEGRAM_CHAT_ID_NFL` / `_CFB` → `TELEGRAM_CHAT_ID`, `--alerts-stdout` / `--no-alerts`, `--digest clv`.
-- `board/alerts_feed.json`, `board/status.json`, `site/web/{alerts,status}.js`; D1 `alerts` + `runs` tables; alerts keyed to v1 unless `ALERT_MODEL=v2`.
+- `pipeline/alerts.py`: PLAY / UPDATE / CLOSED / SYSTEM UX over the EDGE / MOVE / GONE / WX records, stable dedup in `state/alerts.json` (cap 500), chat routing `TELEGRAM_CHAT_ID_NFL` / `_CFB` → `TELEGRAM_CHAT_ID`, `--alerts-stdout` / `--no-alerts`, `--digest clv`.
+- `board/alerts_feed.json`, `board/status.json`, `site/web/{alerts,status}.js`; D1 `alerts` + `runs` tables; records retain the originating `ALERT_MODEL`, while a model promotion does not re-page the same play.
 
 ### Phase 5 — Better weather + stadiums, v2 model side by side: DONE
 - Weather stitching (ARCH §6): HRRR / NBM / GFS / ensemble via Open-Meteo previous-runs + NWS gridpoint, `wind_vol` from ensemble spread, `weather_history` change rows (`test_weather_stitch` 19, `test_weather_merge` 20).
@@ -116,11 +116,12 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `BOOK_PINNACLE_ENABLED`, `BOOK_BETCRIS_ENABLED`, `BOOK_FANDUEL_ENABLED`, `BOOK_KALSHI_ENABLED`, `BOOK_NOVIG_ENABLED`, `BOOK_PROPHETX_ENABLED`, `BOOK_BETONLINE_ENABLED` | each `pipeline/odds/<book>.py` (`"0"` disables the book); `BOOK_BETONLINE_ENABLED` also read as a GH **variable** by `pipeline.yml` to skip the Playwright job | .env, GH variable | optional (default enabled) |
 | `BETONLINE_CHANNEL` | `pipeline/odds/betonline.py` Playwright channel (e.g. `chrome`) | .env | optional |
 | `ODDS_API_KEY`, `ODDS_API_ENABLED` | `pipeline/odds/oddsapi.py` opener seeding (`ODDS_API_ENABLED=0` disables) | .env, GH (not yet referenced by any workflow) | optional |
-| `ALERT_MODEL` | `pipeline/model/config.py` — `v1` (default) or `v2` picks which impact drives alerts | .env; not yet exported by `pipeline.yml` (add to its `env:` block to promote v2 in CI) | optional |
+| `ALERT_MODEL` | `pipeline/model/config.py` — `v1` (default) or `v2` picks which impact drives alerts | .env / workflow env | optional |
 | `PIPELINE_FORCE` | `pipeline/gate_check.py` (`1` bypasses the off-season gate) | GH dispatch input / .env | optional |
 | `GITHUB_SHA`, `GITHUB_OUTPUT` | `run_context.py` meta sha, `gate_check.py` outputs | provided by Actions | — |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `utils/telegram.py`, `pipeline/alerts.py`, every workflow `if: failure()`, Worker cron/dispatch failure pings | .env, GH, wrangler | required for alerts / failure pings |
 | `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB` | `pipeline/alerts.py` per-sport routing (fallback `TELEGRAM_CHAT_ID`) | .env, GH (pipeline.yml) | optional |
+| `TELEGRAM_MIN_TIER`, `TELEGRAM_MIN_EDGE_PTS`, `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | Telegram policy; defaults `mid`, `1.0`, `4`, `0` | .env / workflow env | optional |
 | `CLOUDFLARE_API_TOKEN` | `pipeline.yml`, `deploy.yml`, `backtest.yml`, `calibrate.yml`, `build-stadiums.yml` (wrangler r2/d1/deploy) — needs Workers Scripts: Edit, R2 Storage: Edit, D1: Edit | GH | required for any Cloudflare workflow |
 | `CF_ACCOUNT_ID` | same workflows (exported as `CLOUDFLARE_ACCOUNT_ID`); `pipeline/outputs/r2.py` boto3 endpoint | GH, .env | required; value `ba4875f01f2bc46dd48e1e26d2ec9080` |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional `R2_BUCKET`, `R2_ENDPOINT`) | `pipeline/outputs/r2.py` boto3 path (`--publish`, `--merge-into-r2`) | .env | optional, local only — no workflow references them (pipeline / backtest / calibrate use wrangler get/put); the secrets do not exist on GitHub |

@@ -115,7 +115,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then exit 0; fi
+          MSG=$(printf '🚨 SYSTEM · Stadium build failed\nOpen run: %s' \
+            '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
           curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="build-stadiums failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+            --data-urlencode text="$MSG" >/dev/null || true

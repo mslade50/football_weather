@@ -116,7 +116,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 ## Phase 4 — Telegram edge + line-move alerts; retire Streamlit (ship: alerts live, Alerts tab, Status tab)
 
 ### Files to create
-- `pipeline/alerts.py` (ARCH §10: EDGE/MOVE/GONE/WX/OPENERS/OPS families, keys, quiet hours + `telegram_state.json` queue, 25-per-run cap + digest, per-sport chat routing, HTML formatters, `--digest`), `_alert_once` closure from `golf_scraping/board/build.py` L2494-2502.
+- `pipeline/alerts.py` (ARCH §10: PLAY/UPDATE/CLOSED/SYSTEM UX over the persisted alert families, keys, quiet hours + `telegram_state.json` queue, three individual messages + one bounded summary by default, per-sport chat routing, HTML formatters, `--digest`), `_alert_once` closure from `golf_scraping/board/build.py` L2494-2502.
 - `site/worker/migrations/0002_alerts.sql`; `d1_out.py` alerts upsert; `json_out.py` `alerts_feed.json`, `status.json`.
 - `pipeline/state.py`: alerts rehydrate from D1 export when R2 `alerts.json` missing (wrangler `d1 export --table alerts` step in workflow, or `/api/alerts` fetch).
 - `site/web/`: Alerts tab, Status tab, degradation banners, deep links from alert messages, uPlot alert markers on line history.
@@ -124,7 +124,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - Tests: `tests/test_alerts_rules.py` (thresholds per sport/market, weather-driven gate, confidence/lead bypass, move buckets, edge-gone, quiet-hours queue/flush, cap/digest, mark-only-after-send), `tests/test_alert_format.py` (HTML sample matches spec), workflow contract: no `git commit` step remains.
 
 ### Acceptance
-- Dry-run (`--no-alerts --print`) lists candidate alerts with keys; live run sends ≤25 messages; re-run sends none (dedup); moving a fixture line by 1.0 total triggers exactly one MOVE.
+- Dry-run (`--no-alerts --print`) lists candidate alerts with keys; a live run defaults to no more than four messages per destination chat; re-run sends none (dedup); a material total move of 1.5 points triggers one UPDATE before kickoff.
 - Alerts tab shows the same keys as Telegram; `/api/alerts` returns D1 rows with status.
 - Repo has no generated data files tracked (`git ls-files data/*.csv data/*.xlsx` empty except `data/stadiums*.csv`, `teams.csv`, `raw/`).
 

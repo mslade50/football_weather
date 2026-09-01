@@ -214,6 +214,37 @@ test("dispatchBoard posts to pipeline.yml on main with sport/scope/force inputs"
   assert.match(fail.detail, /boom/);
 });
 
+test("scheduled failure notices use concise SYSTEM language", async () => {
+  const origFetch = globalThis.fetch;
+  const sent = [];
+  try {
+    globalThis.fetch = async (url, init) => {
+      sent.push({ url: String(url), body: JSON.parse(init.body) });
+      return new Response(null, { status: 200 });
+    };
+    const blockedEnv = fakeEnv({ TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, blockedEnv);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.chat_id, "chat");
+    assert.match(sent[0].body.text,
+      /^🚨 SYSTEM · Scheduled refresh blocked\nCause: GitHub dispatch token is missing\.\nAction:/);
+
+    sent.length = 0;
+    globalThis.fetch = async (url, init) => {
+      if (String(url).includes("api.github.com")) return new Response("denied", { status: 500 });
+      sent.push({ url: String(url), body: JSON.parse(init.body) });
+      return new Response(null, { status: 200 });
+    };
+    const failedEnv = fakeEnv({ GH_DISPATCH_TOKEN: "tok", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, failedEnv);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].body.text,
+      /^🚨 SYSTEM · Scheduled refresh failed\nRequest: all\/full\nResult: 500 · denied$/);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
 // ── cron plan / ET trimming / Quartz DOW ─────────────────────────────────────
 test("sportForMonth season windows", () => {
   assert.equal(sportForMonth(9), "all");

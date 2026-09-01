@@ -49,6 +49,35 @@ def test_real_degradations_still_page():
     assert len(_ops_keys(ctx)) == 2
 
 
+def test_fatal_degradations_are_owned_by_the_workflow_failure_ping():
+    ctx = _ctx()
+    ctx.degrade("weather", "provider failed", "error")
+    assert _ops_keys(ctx) == []
+
+
+def test_volume_drop_is_scoped_and_bypasses_quiet_hours():
+    nfl, cfb = _ctx(), _ctx()
+    nfl.degrade("odds.volume", "nfl:2026:3: betcris total: 5 (usual ~30)", "warn")
+    cfb.degrade("odds.volume", "cfb:2026:3: betcris total: 5 (usual ~30)", "warn")
+    alerts, tg = _fresh()
+    nfl_c = A.ops_candidates(nfl, {}, alerts, NOW)[0]
+    cfb_c = A.ops_candidates(cfb, {}, alerts, NOW)[0]
+    assert nfl_c.key != cfb_c.key and nfl_c.bypass_quiet and cfb_c.bypass_quiet
+
+    quiet_plan = A.plan([nfl_c], alerts, tg, NOW.replace(hour=6), CFG)  # 02:00 ET
+    assert quiet_plan.queued == [] and quiet_plan.ops == [nfl_c]
+
+    # Failed transport leaves alerts.json unmarked, so the still-active incident
+    # retries. A successful retry marks it and subsequent runs are silent.
+    failed = A.dispatch(quiet_plan, alerts, lambda text, chat: False, NOW, CFG)
+    assert failed.failed == [nfl_c] and not pstate.alert_sent(alerts, nfl_c.key)
+    retry = A.ops_candidates(nfl, {}, alerts, NOW)
+    assert len(retry) == 1 and retry[0].key == nfl_c.key
+    sent = A.dispatch(A.plan(retry, alerts, tg, NOW, CFG), alerts, lambda text, chat: True, NOW, CFG)
+    assert sent.n_messages == 1 and pstate.alert_sent(alerts, nfl_c.key)
+    assert A.ops_candidates(nfl, {}, alerts, NOW) == []
+
+
 def test_no_schedule_match_names_are_not_unresolved():
     ctx = _ctx()
     ctx.unresolved_names.extend(["fanduel:Bryant@Stonehill:no-schedule-match", "kalshi:Lehigh@Holy Cross:no-schedule-match"])
@@ -68,7 +97,8 @@ def test_ops_candidates_are_one_grouped_message():
     assert plan.send == [] and len(plan.ops) == 6
     sent: list[str] = []
     out = A.dispatch(plan, alerts, lambda text, chat: sent.append(text) or True, NOW, CFG)
-    assert out.n_messages == 1 and "Ops notices" in sent[0]
+    assert out.n_messages == 1 and "SYSTEM" in sent[0]
+    assert "thing 0 broke badly" in sent[0] and "thing 5 broke badly" in sent[0]
     assert all(pstate.alert_sent(alerts, c.key) for c in cands)          # all six keys marked
     again = A.ops_candidates(ctx, {}, alerts, NOW + timedelta(hours=2))
     assert again == []                                                    # same ET day → dedup

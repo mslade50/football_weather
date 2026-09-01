@@ -13,8 +13,9 @@ Scopes:
 Odds stage: scrapers run concurrently with ``asyncio.gather(return_exceptions=True)``
 (one failing/hanging book never blocks the others), per-book/market counts are
 recorded on the RunContext, ``check_scrape_volume`` (adapted from
-golf_scraping/board/build.py ``_check_scrape_volume``) pages Telegram when a book
-goes dark or a (book|market) count collapses, provisional book game ids are mapped
+golf_scraping/board/build.py ``_check_scrape_volume``) records a data issue when a
+book goes dark or a (book|market) count collapses; the unified alert stage decides
+whether and how to notify. Provisional book game ids are mapped
 onto schedule ``game_id``s (``pipeline.odds.merge`` when present, else the built-in
 matcher), a weighted-median consensus is computed (``pipeline.model.fair`` when
 present, else built-in) and openers/archive_last/scrape_baseline are persisted under
@@ -41,10 +42,11 @@ pushes the manifest to R2 through boto3 when ``CF_ACCOUNT_ID`` /
 Without the R2 env the workflow's wrangler loops do the upload.
 
 Phase 4 alerts (``pipeline/alerts.py``, any odds scope): after every sport is built,
-EDGE / MOVE / GONE / FORECAST-MOVE / OPENERS / OPS candidates are collected from the
-GameCards, deduped against ``alerts.json`` (rehydrated from ``alerts_export.json``
-when missing), queued in ``telegram_state.json`` during quiet hours, capped at 25
-messages per run and sent; markers are written ONLY after a successful send.
+PLAY / UPDATE / CLOSED / SYSTEM candidates are collected from the GameCards,
+deduped against ``alerts.json`` (rehydrated from ``alerts_export.json`` when
+missing), queued in ``telegram_state.json`` during quiet hours, consolidated to
+three individual messages plus one summary by default, and sent; markers are
+written ONLY after a successful send.
 ``--no-alerts`` / ``--dry-run`` print the candidates with their keys instead;
 ``--alerts-stdout`` runs the stage for real (markers written) but prints the messages. Sent
 alerts are mirrored to D1 ``alerts`` (``d1_inserts.sql``), ``board/alerts_feed.json``
@@ -470,11 +472,13 @@ def check_scrape_volume(
     drop_frac: float = VOLUME_DROP_FRAC,
     min_peak: int = VOLUME_MIN_PEAK,
 ) -> list[tuple[str, int, int | None]]:
-    """Edge-triggered volume-drop detector. Mutates ``baseline`` (peaks/alerted/seen_books)
-    and returns ``[(key, current, peak)]`` to alert; ``peak=None`` marks a fully-dark book.
+    """Active volume-drop detector. Mutates ``baseline`` (peaks/alerted/seen_books)
+    and returns current ``[(key, current, peak)]`` incidents; ``peak=None`` marks
+    a fully-dark book. ``alerts.json`` owns delivery deduplication, so an active
+    incident is returned again after a failed Telegram send.
 
     * peaks only ratchet up; a (book|market) below ``drop_frac``·peak (peak ≥ ``min_peak``)
-      alerts once and re-arms on recovery
+      remains active until recovery
     * DARK: 0 rows for a critical book while ≥2 critical peers report ≥10 rows, or any
       book that ever reported ≥10 rows in ``seen_books`` and is now at 0
     * a dark book's per-market drops are subsumed by its DARK line
@@ -519,18 +523,16 @@ def check_scrape_volume(
             continue  # covered by the DARK line
         peak = peaks[key]
         if peak >= min_peak and cur < drop_frac * peak:
-            if key not in alerted:
-                drops.append((key, cur, peak))
-                alerted.add(key)
+            drops.append((key, cur, peak))
+            alerted.add(key)
         else:
             alerted.discard(key)  # recovered (or never dropped) -> re-arm
 
     for b in books:
         dkey = f"DARK|{b}"
         if b in dark:
-            if dkey not in alerted:
-                drops.append((dkey, 0, None))
-                alerted.add(dkey)
+            drops.append((dkey, 0, None))
+            alerted.add(dkey)
         else:
             alerted.discard(dkey)
 
@@ -565,17 +567,6 @@ def baseline_scope(sport: str, games: Sequence[Game], odds_games: Sequence[Game]
     if season is None and odds_games:
         season = min(odds_games, key=lambda x: x.kickoff_utc).season
     return f"{sport}:{season or '?'}:?"
-
-
-def _send_alert(text: str) -> bool:
-    tg = _import("utils.telegram")
-    if tg is None:
-        return False
-    try:
-        return bool(_run_async(tg.send_message(text)))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(f"telegram send failed (non-fatal): {exc}")
-        return False
 
 
 # ---- odds: provisional id -> schedule game_id (fallback when odds.merge is absent) -----
@@ -963,7 +954,6 @@ def stage_odds(
     state_dir: Path,
     season: int | None,
     dry_run: bool = False,
-    alerts: bool = True,
 ) -> OddsResult:
     """``games`` is the odds-horizon schedule (``split_schedule``): every game in it
     is matched and gets openers / archive_last / deltas / consensus, card or not."""
@@ -990,7 +980,8 @@ def stage_odds(
         if not lines:
             ctx.degrade("odds", f"{sport}: {name} returned 0 lines", "warn")
 
-    # volume alert (edge-triggered; state persisted so a sustained drop pings once)
+    # Active volume health incident; alerts.json owns successful-delivery dedup
+    # so transport failures retry without NFL/CFB scope switches re-arming it.
     with ctx.stage(f"{sport}.volume"):
         try:
             scope = baseline_scope(sport, [g for g in games if in_window(g.kickoff_utc, ctx.now_utc)], games, season)
@@ -1000,9 +991,8 @@ def stage_odds(
                 pstate.save_baseline(state_dir, baseline)
             if drops:
                 text = format_volume_alert(drops, scope)
-                ctx.degrade("odds.volume", "; ".join(text.splitlines()[1:]), "warn")
-                if alerts and not dry_run:
-                    _send_alert(text)
+                detail = "; ".join(text.splitlines()[1:])
+                ctx.degrade("odds.volume", f"{scope}: {detail}", "warn")
         except Exception as exc:  # noqa: BLE001
             ctx.degrade("odds.volume", f"{sport}: volume check failed (non-fatal): {exc}", "warn")
 
@@ -1408,7 +1398,6 @@ def run_sport(
     season: int | None,
     books: Sequence[str] = (),
     state_dir: Path = DEFAULT_STATE_DIR,
-    alerts: bool = True,
 ) -> SportResult:
     with ctx.stage(f"{sport}.stadiums"):
         book = stage_stadiums(ctx, sport)
@@ -1437,7 +1426,7 @@ def run_sport(
     with ctx.stage(f"{sport}.weather"):
         forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras)
 
-    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run, alerts=alerts)
+    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
     if books:
         carded_ids = {g.game_id for g in games}
         n_priced = len(odds.by_game)
@@ -1541,9 +1530,9 @@ def run_sport(
 
 def run_alert_stage(ctx: RunContext, results: Sequence[SportResult], state_dir: Path, *, enabled: bool, dry_run: bool,
                     stdout: bool = False, now: datetime | None = None) -> alerts_mod.AlertsRun | None:
-    """EDGE / MOVE / GONE / WX / OPENERS / OPS alerts (pipeline/alerts.py) over this
-    run's GameCards; stamps ``card["alerts"]`` with the open keys per game. Never
-    fatal: a failure is a warn Degradation and the board still publishes."""
+    """Clarity-first PLAY / UPDATE / CLOSED / SYSTEM notifications over this
+    run's GameCards; stamps ``card["alerts"]`` with the open record keys per game.
+    Never fatal: a failure is a warn Degradation and the board still publishes."""
     with ctx.stage("alerts"):
         try:
             run = alerts_mod.run_alerts(
@@ -1799,7 +1788,7 @@ def build(
     raw_files: dict[str, Path] = {}
     for sport in sports:
         raw: RawStore = NullRawStore(sport, ctx.run_id) if dry_run else RawStore(sport, ctx.run_id, raw_dir, mirror=mirror)
-        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir, alerts=alerts)
+        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir)
         results.append(res)
         if print_rows:
             print(f"== {sport} ({len(res.records)} games)")
