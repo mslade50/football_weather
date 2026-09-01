@@ -44,7 +44,7 @@ def test_peaks_ratchet_and_first_healthy_run_is_silent():
     assert bl["seen_books"]["pinnacle"] == 90
 
 
-def test_drop_alerts_once_then_rearms_on_recovery():
+def test_drop_stays_active_then_rearms_on_recovery():
     bl = _fresh()
     check_scrape_volume(_healthy(30), bl, BOOKS)
     counts = _healthy(30)
@@ -52,8 +52,9 @@ def test_drop_alerts_once_then_rearms_on_recovery():
     drops = check_scrape_volume(counts, bl, BOOKS)
     assert drops == [("betcris|total", 5, 30)]
     assert "betcris|total" in bl["alerted"]
-    # sustained drop: no second ping
-    assert check_scrape_volume(counts, bl, BOOKS) == []
+    # A sustained drop remains active; alerts.json, not this health detector,
+    # suppresses it after successful Telegram delivery.
+    assert check_scrape_volume(counts, bl, BOOKS) == [("betcris|total", 5, 30)]
     # recovery re-arms
     assert check_scrape_volume(_healthy(30), bl, BOOKS) == []
     assert "betcris|total" not in bl["alerted"]
@@ -79,8 +80,8 @@ def test_dark_critical_book_from_cold_start_when_two_peers_report():
     drops = check_scrape_volume(counts, bl, BOOKS)
     assert drops == [("DARK|betonline", 0, None)]
     assert "DARK|betonline" in bl["alerted"]
-    # once
-    assert check_scrape_volume(counts, bl, BOOKS) == []
+    # It remains active so a failed notification can retry.
+    assert check_scrape_volume(counts, bl, BOOKS) == [("DARK|betonline", 0, None)]
     # back: re-arm
     check_scrape_volume(_healthy(30), bl, BOOKS)
     assert "DARK|betonline" not in bl["alerted"]
@@ -121,6 +122,26 @@ def test_seen_books_survives_scope_reset(tmp_path: Path):
     for m in ("spread", "total", "ml"):
         counts[f"betonline|{m}"] = 0
     assert check_scrape_volume(counts, nxt, BOOKS) == [("DARK|betonline", 0, None)]
+
+
+def test_sport_scope_alternation_preserves_alerted_marker(tmp_path: Path):
+    nfl = pstate.load_baseline(tmp_path, "nfl:2026:1")
+    check_scrape_volume(_healthy(30), nfl, BOOKS)
+    dropped = _healthy(30)
+    dropped["betcris|total"] = 5
+    assert check_scrape_volume(dropped, nfl, BOOKS) == [("betcris|total", 5, 30)]
+    pstate.save_baseline(tmp_path, nfl)
+
+    # A CFB pass owns a separate baseline block in the shared state file.
+    cfb = pstate.load_baseline(tmp_path, "cfb:2026:1")
+    check_scrape_volume(_healthy(30), cfb, BOOKS)
+    pstate.save_baseline(tmp_path, cfb)
+
+    # Returning to NFL retains the same active incident instead of treating it
+    # as a new transition after the intervening CFB run.
+    nfl_again = pstate.load_baseline(tmp_path, "nfl:2026:1")
+    assert "betcris|total" in nfl_again["alerted"]
+    assert check_scrape_volume(dropped, nfl_again, BOOKS) == [("betcris|total", 5, 30)]
 
 
 def test_unrequested_books_are_never_judged():

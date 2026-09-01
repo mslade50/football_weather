@@ -35,9 +35,12 @@ GitHub Actions pipeline.yml            Cloudflare
   SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), `legacy.py`
   column-exact `nfl_weather.csv` / `cfb_weather.xlsx` (now uploaded to R2
   `legacy/`, no longer committed), `r2.py` publisher + self-check.
-* **Alerts** (`pipeline/alerts.py`): EDGE / MOVE / GONE / WX / OPENERS / OPS
-  families, dedup keys in `alerts.json` (marked only after a successful send),
-  quiet hours, 25-per-run cap. The same keys feed the board's Alerts tab.
+* **Alerts** (`pipeline/alerts.py`): concise PLAY / UPDATE / CLOSED / SYSTEM
+  messages. Telegram defaults to actionable Mid+ plays with a posted price and
+  at least a 1-point edge; lower tiers stay on the board. Stable game-level keys,
+  one update per game/run, no post-kickoff betting alerts, current-price morning
+  summaries, and a four-message default cap keep the channel readable. Keys are
+  marked only after a successful send.
 * **Site** (`site/web/`, vanilla JS, no build step): NFL/CFB maps (MapLibre +
   OpenFreeMap), Table, Alerts, Status tabs; game drawer with weather / odds by
   book / line-history uPlot (fair overlay + alert markers). `site/worker/` is
@@ -93,6 +96,8 @@ Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:
 |---|---|
 | `CFBD_API_KEY` | CFB schedule (`pipeline/schedule/cfb.py`, gate) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | alerts + workflow failure pings; optional `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` routing |
+| `TELEGRAM_MIN_TIER`, `TELEGRAM_MIN_EDGE_PTS` | alert gate (defaults: `mid`, `1.0`) |
+| `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | volume controls (defaults: `4`, `0`) |
 | `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID` | wrangler R2 / D1 / deploy in the workflows |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | optional: `pipeline.outputs.r2 --publish` locally (boto3) |
 | `PROPHETX_API_KEY`, `PROPHETX_ACCESS_KEY`, `PROPHETX_SECRET_KEY` | optional ProphetX book |

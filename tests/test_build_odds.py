@@ -239,7 +239,6 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
                 "pinnacle": [_ln("pinnacle", "spread", "home", -3.0, game_id=prov)]}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_send_alert", lambda text: True)
     # concurrent modules may or may not exist: force the built-in paths for determinism
     monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else __import__(name, fromlist=["_"]))
     from pipeline.outputs.raw_out import NullRawStore
@@ -362,7 +361,6 @@ def test_playwright_style_run_keeps_fanduel_now_via_archive(tmp_path: Path, monk
         return next(runs), {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_send_alert", lambda text: True)
     from pipeline.outputs.raw_out import NullRawStore
     from pipeline.run_context import RunContext
 
@@ -455,7 +453,6 @@ def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp
                 "pinnacle": [_ln("pinnacle", "total", "under", 47.5, game_id=prov_near), _ln("pinnacle", "total", "under", 41.0, game_id=prov_far)]}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_send_alert", lambda text: True)
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [near, far])
     monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
@@ -463,7 +460,7 @@ def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp
     monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
 
     ctx = RunContext(sport="nfl", scope="light", git_sha="t")
-    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline", "pinnacle"], state_dir=tmp_path, alerts=False)
+    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline", "pinnacle"], state_dir=tmp_path)
 
     assert [g.game_id for g in res.games] == [near.game_id]
     assert {g.game_id for g in res.odds_games} == {near.game_id, far.game_id}
@@ -510,7 +507,6 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
         return {"betonline": [_ln("betonline", "total", "under", 47.0, game_id=prov)]}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_send_alert", lambda text: True)
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [far])
     monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
@@ -518,7 +514,7 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
     monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
 
     ctx = RunContext(sport="nfl", scope="light", git_sha="t")
-    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path, alerts=False)
+    res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path)
     assert res.games == [] and res.cards == [] and [g.game_id for g in res.odds_games] == [far.game_id]
     assert f"{far.game_id}|total|under|betonline" in res.odds.openers["openers"]
     assert comp_sev(ctx, "schedule") == "info"
@@ -530,7 +526,7 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
     # nothing scheduled anywhere -> warn, as before
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [])
     ctx2 = RunContext(sport="nfl", scope="light", git_sha="t")
-    build.run_sport(ctx2, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path, alerts=False)
+    build.run_sport(ctx2, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path)
     assert comp_sev(ctx2, "schedule") == "warn"
 
 

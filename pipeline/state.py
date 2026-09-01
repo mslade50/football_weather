@@ -40,7 +40,7 @@ _KEY_SEP = "|"
 _DEFAULTS: dict[str, dict[str, Any]] = {
     "openers": {"openers": {}},
     "archive_last": {"last": {}},
-    "baseline": {"scope": None, "peaks": {}, "alerted": [], "seen_books": {}},
+    "baseline": {"scope": None, "peaks": {}, "alerted": [], "seen_books": {}, "scopes": {}},
     "alerts": {"sent": {}},   # + "records" / "feed" added lazily by the alert helpers below
     "telegram_state": {"queue": []},
     "history": {"series": {}, "fair_series": {}},
@@ -206,22 +206,38 @@ def save_archive_last(data_dir: PathLike, d: dict) -> None:
 # ── scrape-volume baseline (per book|market peaks) ─────────────────────────────
 
 def load_baseline(data_dir: PathLike, scope: str) -> dict:
-    """Per-(book|market) peak scrape counts, for volume-drop alerts. Reset when
-    ``scope`` (``sport:season:week``) changes — counts legitimately shift week to
-    week (bye weeks, bowl season). ``alerted`` tracks keys already alerted so a
-    sustained drop pings once. ``seen_books`` is a per-BOOK high-water total kept
-    across scope resets: a book that ever reported >=10 rows and is now at 0 is
-    dark regardless of week."""
+    """Per-(book|market) peaks for one ``sport:season:week`` scope.
+
+    All scopes share one R2 file but retain independent ``peaks`` / ``alerted``
+    blocks. Previously, alternating NFL and CFB runs reset each other's active
+    scope and re-armed sustained DARK alerts on every pass.
+    """
     d = _load_kind(data_dir, BASELINE_FILE, "baseline")
-    if str(d.get("scope")) != str(scope):
-        fresh = _fresh("baseline")
-        fresh["scope"] = scope
-        fresh["seen_books"] = d.get("seen_books") or {}
-        return fresh
+    scopes = d.setdefault("scopes", {})
+    # Upgrade the active legacy top-level block lazily without a schema bump.
+    legacy_scope = d.get("scope")
+    if legacy_scope and str(legacy_scope) not in scopes:
+        scopes[str(legacy_scope)] = {
+            "peaks": d.get("peaks") or {},
+            "alerted": d.get("alerted") or [],
+        }
+    active = scopes.get(str(scope))
+    if not isinstance(active, dict):
+        active = {"peaks": {}, "alerted": []}
+        scopes[str(scope)] = active
+    d["scope"] = scope
+    d["peaks"] = active.get("peaks") if isinstance(active.get("peaks"), dict) else {}
+    d["alerted"] = active.get("alerted") if isinstance(active.get("alerted"), list) else []
     return d
 
 
 def save_baseline(data_dir: PathLike, d: dict) -> None:
+    scope = str(d.get("scope") or "")
+    if scope:
+        d.setdefault("scopes", {})[scope] = {
+            "peaks": d.get("peaks") or {},
+            "alerted": d.get("alerted") or [],
+        }
     _save(Path(data_dir) / BASELINE_FILE, d)
 
 

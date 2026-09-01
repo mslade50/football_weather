@@ -152,7 +152,7 @@ def test_alert_mark_after_send_and_cap(tmp_path: Path):
 
 # ── baseline / archive_last ────────────────────────────────────────────────────
 
-def test_baseline_resets_on_scope_but_keeps_seen_books(tmp_path: Path):
+def test_baseline_scopes_are_independent_and_keep_seen_books(tmp_path: Path):
     b = state.load_baseline(tmp_path, "nfl:2026:1")
     b["peaks"]["betcris|total"] = 16
     b["alerted"].append("betcris|total")
@@ -166,6 +166,14 @@ def test_baseline_resets_on_scope_but_keeps_seen_books(tmp_path: Path):
     assert nxt["scope"] == "nfl:2026:2"
     assert nxt["peaks"] == {} and nxt["alerted"] == []
     assert nxt["seen_books"] == {"betcris": 48}
+    nxt["peaks"]["fanduel|spread"] = 24
+    state.save_baseline(tmp_path, nxt)
+
+    # Switching scopes does not erase the earlier scope's peaks or dedup markers.
+    prior = state.load_baseline(tmp_path, "nfl:2026:1")
+    assert prior["peaks"] == {"betcris|total": 16}
+    assert prior["alerted"] == ["betcris|total"]
+    assert prior["seen_books"] == {"betcris": 48}
 
 
 def test_archive_last_roundtrip_and_prune(tmp_path: Path):

@@ -1,8 +1,7 @@
-"""HTML formatters in pipeline/alerts.py match the ARCH §10 sample."""
+"""Compact, scan-first Telegram formatters in :mod:`pipeline.alerts`."""
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timedelta, timezone
 
 from pipeline import alerts as A
@@ -27,41 +26,41 @@ def _sample_card() -> dict:
     return c
 
 
-def test_edge_message_matches_spec_sample():
+def test_edge_message_is_a_compact_scan_first_play():
     c = _sample_card()
     c["signal"]["flags"] = ["NFL Wind"]
     text = A.format_edge(c, _edge(), BOARD)
     lines = text.split("\n")
-    assert lines[0] == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
-    assert lines[1] == "Gillette Stadium · wind 18 mph SE (gust 26 · vol 6 · cross 15) · 41°F · rain 20% / 0.8 mm"
-    assert lines[2] == "Impact −6.5% (wind 6.5 · v1) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
-    assert lines[3] == "<b>Mid Impact</b> · wind 18 mph · 41°F · rain 0.8 mm · NFL Wind"
-    assert lines[4] == "<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1% · open 38"
-    assert lines[5] == "Books: <b>BetOnline u38.0 −110</b> · ref u37.5"
-    assert lines[6] == f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">board</a>'
-    assert len(lines) == 7
+    assert lines == [
+        "🎯 <b>PLAY · MID · NFL W3</b>",
+        "<b>SEA @ NE</b> · Sun 1:00p ET",
+        "<b>Under 38 (−110) · BetOnline</b>",
+        "Why: +3.4 pts above fair 34.6 · 18 mph wind",
+        f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
+    ]
     # unicode minus for negative odds, no ASCII hyphen-minus in the price
     assert "-110" not in text and "−110" in text
-    # no flags -> no dangling separator on the signal line
-    assert A.format_edge(_sample_card(), _edge(), BOARD).split("\n")[3] == "<b>Mid Impact</b> · wind 18 mph · 41°F · rain 0.8 mm"
+    assert "Books:" not in text and "Gillette Stadium" not in text
 
 
-def test_edge_message_market_edge_is_a_note_never_a_gate():
+def test_edge_message_keeps_value_honest_and_handles_missing_lines():
     c = card([_edge(edge_pts=-0.6, edge_prob=-0.012, fair_line=38.6)], signal="Low (Rain)")
     text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
-    assert "<b>UNDER 38 −110 @ BetOnline</b> · market edge −0.6 pts / −1.2% (market already there) · open 38" in text
+    assert text.splitlines()[0] == "🎯 <b>PLAY · LOW · NFL W3</b>"
+    assert "Why: −0.6 pts above fair 38.6 · 18 mph wind" in text
     zero = A.format_edge(c, dict(_edge(), edge_pts=0.0, edge_prob=0.0), BOARD)
-    assert "market edge 0.0 pts / 0.0% (market already there)" in zero
+    assert "Why: 0.0 pts above fair 34.6 · 18 mph wind" in zero
     # consensus-synthesised entries (consensus.total_now vs fair.fair_total): line + fair, or nothing posted
     c["fair"]["fair_total"] = 38.6
     cons = A.consensus_entry(c)
     assert cons["edge_pts"] == -1.1 and cons["line"] == 37.5 and cons["fair_line"] == 38.6
-    assert "<b>UNDER 37.5 (consensus)</b> · market edge −1.1 pts vs fair 38.6 (market already there)" in A.format_edge(c, cons, BOARD)
+    assert "<b>Under 37.5 (?) · Consensus</b>" in A.format_edge(c, cons, BOARD)
+    assert "Why: −1.1 pts above fair 38.6" in A.format_edge(c, cons, BOARD)
     c["consensus"]["total_now"] = None
-    assert "<b>UNDER</b> · no line posted yet" in A.format_edge(c, A.consensus_entry(c), BOARD)
+    assert "<b>Under · no line available</b>" in A.format_edge(c, A.consensus_entry(c), BOARD)
     c["consensus"]["total_now"] = 37.5
     c["fair"]["fair_total"] = None
-    assert "<b>UNDER 37.5 (consensus)</b> · market edge ?" in A.format_edge(c, A.consensus_entry(c), BOARD)
+    assert "Why: ? pts above fair ?" in A.format_edge(c, A.consensus_entry(c), BOARD)
 
 
 def test_books_ladder_best_first_kalshi_cents_and_tie_by_odds():
@@ -106,101 +105,102 @@ def test_books_ladder_wraps_past_limit():
 def test_edge_message_spread_side_sign():
     c = card([_edge(market="spread", side="home", line=-3.0, fair_line=-4.5, edge_pts=1.5, tier="strong")])
     c["odds"] = {"betonline": {"spread": {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}}}
-    text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
-    assert "<b>NE −3 −110 @ BetOnline</b> · market edge +1.5 pts / +4.1% · open −2.5" in text
-    assert "fair spread −4.5" in text and "STRONG" not in text
-    assert "Books: <b>BetOnline −3 −110</b> · ref −3" in text
+    lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
+    assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
+    assert lines[3] == "Why: +1.5 pts above fair −4.5 · 18 mph wind"
+    assert len(lines) == 5
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
     c = card()
     c["stadium"] = {"name": "Tom & Jerry <Field>", "roof_state": "outdoors"}
-    c["away"]["short"] = "A&M"
+    c["away"]["short"] = "A&M <script>"
     c["weather"] = {"wind_fg": None}
     c["odds"] = {}
-    text = A.format_edge(c, _edge(), BOARD)
-    assert "Tom &amp; Jerry &lt;Field&gt;" in text and "A&amp;M @ NE" in text
-    assert "wind ? mph" in text and "open" not in text.split("\n")[4]
-    assert text.split("\n")[3] == "<b>Mid Impact</b> · wind ? mph · ?°F · rain ? mm"
-    assert "Books: ref u37.5" in text
+    text = A.format_edge(c, dict(_edge(), book="book <x>&"), BOARD)
+    assert "<b>A&amp;M &lt;script&gt; @ NE</b>" in text
+    assert "Book &lt;X&gt;&amp;" in text
+    assert "Why: +3.4 pts above fair 34.6 · ? mph wind" in text
     assert "<script" not in text
-    c["signal"] = {"label": "Low (Rain) <x>", "flags": ["A&B"]}
-    assert "<b>Low (Rain) &lt;x&gt;</b> · wind ? mph · ?°F · rain ? mm · A&amp;B" in A.format_edge(c, _edge(), BOARD)
+    assert f"week=3&amp;game={GID}" in text
 
 
-def test_edge_message_roof_closed_and_emoji_by_dominant_component():
-    c = card()
-    c["stadium"]["roof_state"] = "closed"
-    assert "Gillette Stadium · roof closed" in A.format_edge(c, _edge(), BOARD)
+def test_edge_message_driver_uses_the_dominant_component():
     c2 = card()
     c2["impact"]["v1"]["components"] = {"rain": 3.0, "wind": 2.0}
-    assert A.format_edge(c2, _edge(), BOARD).startswith("<b>🌧 ")
+    assert "Why: +3.4 pts above fair 34.6 · 0.8 mm rain" in A.format_edge(c2, _edge(), BOARD)
     c3 = card()
     c3["impact"]["v1"]["components"] = {"cold": 1.0}
-    assert A.format_edge(c3, _edge(), BOARD).startswith("<b>🥶 ")
+    assert "Why: +3.4 pts above fair 34.6 · 41°F" in A.format_edge(c3, _edge(), BOARD)
 
 
 def test_edge_message_uses_active_alert_model_block(monkeypatch):
-    """ALERT_MODEL=v2 -> impact numbers, components, emoji and the label come from impact.v2;
-    a card without a v2 block falls back to v1 and says so."""
+    """The one-line reason follows the selected model and falls back to v1."""
     c = _sample_card()
     c["impact"]["v2"] = {"gs_fg_pct": -8.2, "away_fg_pct": 0.0, "components": {"wind": 5.2, "rain": 3.0, "cold": 0.0}}
     c["fair"]["fair_total_v2"] = 33.9
     monkeypatch.setattr(C, "ALERT_MODEL", "v2")
     text = A.format_edge(c, _edge(), BOARD)
-    assert text.split("\n")[2] == "Impact −8.2% (wind 5.2 rain 3.0 · v2) · conf 0.72 · fair total 34.6 (ref pinnacle, 6 books)"
-    assert text.startswith("<b>🌬 ")
+    assert text.splitlines()[3] == "Why: +3.4 pts above fair 34.6 · 18 mph wind"
     c["impact"]["v2"]["components"] = {"rain": 4.0, "wind": 1.0}
-    assert A.format_edge(c, _edge(), BOARD).startswith("<b>🌧 ")
-    # no edge fair_line -> the v2 fair line from the card, not v1's
-    e = dict(_edge(), fair_line=None)
-    assert "fair total 33.9" in A.format_edge(c, e, BOARD)
+    assert A.format_edge(c, _edge(), BOARD).splitlines()[3].endswith("· 0.8 mm rain")
     # openers digest reads the same block
     op = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|total|over|betcris"])], BOARD)
     assert "−8.2%" in op and "−6.5%" not in op
-    # fallback: v2 requested, card only carries v1 -> v1 numbers, labelled v1
+    # A card without v2 falls back to the v1 driver.
     c1 = _sample_card()
-    assert "Impact −6.5% (wind 6.5 · v1)" in A.format_edge(c1, _edge(), BOARD)
+    assert A.format_edge(c1, _edge(), BOARD).splitlines()[3].endswith("· 18 mph wind")
     monkeypatch.setattr(C, "ALERT_MODEL", "v1")
-    assert "Impact −6.5% (wind 6.5 · v1)" in A.format_edge(c, _edge(), BOARD)
-    # no components at all -> bare version label, no dangling separator
+    assert A.format_edge(c, _edge(), BOARD).splitlines()[3].endswith("· 18 mph wind")
+    # With no components, a signal flag is the concise fallback reason.
     c1["impact"]["v1"]["components"] = {}
-    assert "Impact −6.5% (v1) ·" in A.format_edge(c1, _edge(), BOARD)
+    c1["signal"]["flags"] = ["NFL Wind"]
+    assert A.format_edge(c1, _edge(), BOARD).splitlines()[3].endswith("· NFL Wind")
 
 
-def test_move_gone_wx_messages():
+def test_update_closed_and_forecast_messages_are_concise():
     c = card([_edge(line=39.0, edge_pts=4.4)])
     e = c["fair"]["edges"][0]
     rec = {"first_line": 38.0, "first_edge": 3.4, "last_line": 38.0, "last_edge": 3.4, "last_fair": 34.6,
            "last_wind": 18.0, "last_rain": 0.8, "last_signal": "High Impact"}
     move = A.format_move(c, rec, e, "away from fair", BOARD)
-    assert move.split("\n")[0] == "<b>↕️ NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
-    assert "<b>UNDER @ BetOnline</b> moved 38 → 39 (away from fair)" in move
-    assert "fair 34.6 · edge now 4.4 pts (was 3.4) · −110" in move
-    assert move.endswith(f'&amp;game={GID}">board</a>')
+    assert move.splitlines() == [
+        "🔄 <b>UPDATE · MID · NFL W3</b>",
+        "<b>SEA @ NE</b> · Sun 1:00p ET",
+        "Line: Under 38 → 39 · BetOnline −110",
+        "Value: +3.4 → +4.4 pts",
+        f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
+    ]
 
     gone_card = card([_edge(line=35.0, edge_pts=0.4)], signal="No Impact", wind=6.0, rain=0.0)
     gone = A.format_gone(gone_card, rec, gone_card["fair"]["edges"][0], BOARD)
-    assert gone.split("\n")[0] == "<b>🚫 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
-    assert gone.split("\n")[1] == ("SIGNAL GONE: was High Impact → No Impact · <b>UNDER 35 @ BetOnline</b> · "
-                                   "market edge now +0.4 pts / +4.1% (alerted at 38)")
-    assert gone.split("\n")[2] == "wind 6 mph · 41°F · rain 0 mm"
+    assert gone.splitlines() == [
+        "⛔ <b>CLOSED · NFL W3</b>",
+        "<b>SEA @ NE</b> · Sun 1:00p ET",
+        "Reason: Signal High Impact → No Impact",
+        "Was: Under 38 · Now: 35 (+0.4 pts vs fair)",
+        f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
+    ]
     neg = A.format_gone(gone_card, rec, dict(gone_card["fair"]["edges"][0], edge_pts=-0.2, edge_prob=None), BOARD)
-    assert "market edge now −0.2 pts (market already there)" in neg
+    assert "Was: Under 38 · Now: 35 (−0.2 pts vs fair)" in neg
 
     c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=13.0, rain=0.0)
     wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
-    assert "FORECAST MOVE: wind 18 → 13 mph · rain 0.8 → 0 mm" in wx
-    assert "fair total 34.6 → 36.1 · <b>UNDER 38 @ BetOnline</b> edge 1.9 pts" in wx
+    wx_lines = wx.splitlines()
+    assert wx_lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
+    assert wx_lines[2] == "Forecast: fair total 34.6 → 36.1"
+    assert wx_lines[3] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
+    assert wx_lines[4] == "<b>Play: Under 38 (−110) · BetOnline</b>"
+    assert len(wx_lines) == 6
 
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
-    lines = chg.split("\n")
-    assert lines[0] == "<b>🌦 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b>"
-    assert lines[1] == "SIGNAL Low Impact → <b>Mid Impact</b> · wind 17 mph · 41°F · rain 0.8 mm"
-    assert lines[2] == "<b>UNDER 38 −110 @ BetOnline</b> · market edge +3.4 pts / +4.1%"
-    assert lines[3] == "Books: <b>BetOnline u38.0 −110</b> · ref u37.5"
-    assert lines[4].endswith(f'&amp;game={GID}">board</a>') and len(lines) == 5
+    lines = chg.splitlines()
+    assert lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
+    assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
+    assert lines[3] == "<b>Play: Under 38 (−110) · BetOnline</b>"
+    assert lines[4] == "Why: +3.4 pts above fair 34.6 · 17 mph wind"
+    assert len(lines) == 6
 
 
 def test_openers_and_ops_and_digest_format():
@@ -214,12 +214,15 @@ def test_openers_and_ops_and_digest_format():
     ops = A.format_ops("Degradation [warn] weather", "open-meteo <503> & retry")
     assert ops == "⚠️ <b>Degradation [warn] weather</b>\nopen-meteo &lt;503&gt; &amp; retry"
     assert A.format_ops("x") == "⚠️ <b>x</b>"
+    system = A.format_digest("SYSTEM", [ops])
+    assert system == ["<b>SYSTEM (1)</b>\n\n1. ⚠️ <b>Degradation [warn] weather</b>\nopen-meteo &lt;503&gt; &amp; retry"]
+    assert system[0].count("SYSTEM") == 1
 
-    msgs = A.format_digest("Alert digest", ["a", "b"])
-    assert msgs == ["<b>Alert digest (2)</b>\n\n1. a\n\n2. b"]
-    big = A.format_digest("Alert digest", ["x" * 1500] * 5)
-    assert len(big) == 3 and all(len(m) <= A.TELEGRAM_MAX_CHARS for m in big)
-    assert big[1].startswith("<b>Alert digest (cont.)</b>")
+    msgs = A.format_digest("SUMMARY", ["a", "b"])
+    assert msgs == ["<b>SUMMARY (2)</b>\n\n1. a\n\n2. b"]
+    big = A.format_digest("SUMMARY", ["x" * 1500] * 5)
+    assert len(big) == 1 and len(big[0]) <= A.TELEGRAM_MAX_CHARS
+    assert big[0].count("…") == 5 and "(cont.)" not in big[0]
 
 
 def test_context_spread_is_the_consensus_spread_not_a_book_line():
@@ -242,8 +245,8 @@ def test_candidate_summary_is_one_line_without_link():
     alerts = pstate.migrate(None, "alerts")
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
     assert "\n" not in c.summary and "<a " not in c.summary
-    # the play is the largest under edge on the card (Betcris 3.9), the summary is header + bet line
-    assert c.summary == "<b>🌬 NFL Wk 3 · SEA @ NE · Sun 1:00p ET</b> · <b>UNDER 38.5 −108 @ Betcris</b> · market edge +3.9 pts / +5.0%"
+    # The summary keeps only the tier, matchup, action, price source, and kickoff.
+    assert c.summary == "🎯 MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET"
 
 
 def test_kickoff_label_and_helpers():
@@ -257,35 +260,35 @@ def test_kickoff_label_and_helpers():
     assert A.et_day(NOW) == "2026-09-18" and A.et_day(KICK + timedelta(hours=8)) == "2026-09-20"
 
 
-def test_clv_digest_groups_and_top_bottom():
+def test_clv_scorecard_prioritizes_overall_signal_and_best_worst():
     alerts = pstate.migrate(None, "alerts")
-    assert "no settled EDGE alerts" in A.clv_digest(alerts)
+    assert A.clv_digest(alerts) == "<b>📊 CLV SCORECARD</b>\nNo settled plays with a closing line yet."
     for i, (book, clv) in enumerate([("betonline", 1.5), ("betcris", -0.5), ("fanduel", 2.0), ("betonline", 0.0)]):
         pstate.upsert_alert_record(alerts, f"edge|2026|3|nfl:2026:3:t{i}@ne|total|under|{book}|v1",
                                    {"family": "edge", "sport": "nfl", "book": book, "tier": "edge" if i else "strong",
                                     "side": "under", "first_line": 40.0 + i, "closing_line": 40.0 + i + clv, "clv_pts": clv,
                                     "game_id": f"nfl:2026:3:t{i}@ne"}, "t")
     text = A.clv_digest(alerts, top_n=2)
-    assert text.startswith("<b>📊 Weekly CLV digest · 4 alerts</b>")
-    assert "<b>by tier</b>" in text and "<b>by league</b>" in text and "<b>by book</b>" in text
-    assert re.search(r"FD: n=1 avg \+2\.00 · \+CLV 1/1", text)
-    assert re.search(r"BetOnline: n=2 avg \+0\.75 · \+CLV 1/2", text)
-    top = text.split("<b>top 2</b>")[1].split("<b>bottom 2</b>")[0]
-    assert "t2@ne" in top.split("\n")[1] and "t0@ne" in top.split("\n")[2]
-    bottom = text.split("<b>bottom 2</b>")[1]
-    assert "t1@ne" in bottom.split("\n")[1]
-    assert A.clv_digest(alerts, sport="cfb").startswith("<b>📊 Weekly CLV digest</b>\nno settled")
+    assert text.startswith("<b>📊 CLV SCORECARD · 4 settled plays</b>\nOverall: avg +0.75 pts · positive 2/4")
+    assert "<b>By signal</b>\n  Strong: 1 plays · avg +1.50 · positive 1/1" in text
+    assert "  Edge: 3 plays · avg +0.50 · positive 1/3" in text
+    assert "By league" not in text and "By book" not in text
+    best = text.split("<b>Best 2</b>")[1].split("<b>Worst 2</b>")[0]
+    assert "T2 @ NE" in best.splitlines()[1] and "T0 @ NE" in best.splitlines()[2]
+    worst = text.split("<b>Worst 2</b>")[1]
+    assert "T1 @ NE" in worst.splitlines()[1]
+    assert A.clv_digest(alerts, sport="cfb") == "<b>📊 CLV SCORECARD</b>\nNo settled plays with a closing line yet."
 
 
 def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
     assert A.main(["--digest", "--state-dir", str(tmp_path), "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "Weekly CLV digest" in out and "clv digest: sent" in out
+    assert "CLV SCORECARD" in out and "clv digest: sent" in out
     tg = pstate.migrate(None, "telegram_state")
     pstate.queue_alert(tg, {"key": "edge|k", "family": "edge", "sport": "nfl", "text": "<b>hi</b>", "record": {"family": "edge"}})
     pstate.save_telegram_state(tmp_path, tg)
     assert A.main(["--flush", "--state-dir", str(tmp_path), "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "Overnight alerts (1)" in out and "flush: 1 alert(s) in 1 message(s)" in out
+    assert "MANUAL QUEUE · SNAPSHOT (1)" in out and "flush: 1 alert(s) in 1 message(s)" in out
     assert pstate.load_telegram_state(tmp_path)["queue"] != []   # dry-run keeps the queue
     assert A.main(["--state-dir", str(tmp_path)]) == 2

@@ -446,8 +446,9 @@ export async function handleScheduled(event, env) {
   if (!env.GH_DISPATCH_TOKEN) {
     console.log("scheduled: GH_DISPATCH_TOKEN not set — skipping pipeline dispatch");
     await notifyTelegram(env,
-      "⚠️ Football board cron fired but GH_DISPATCH_TOKEN is unset — no pipeline runs "
-      + "are being dispatched. `wrangler secret put GH_DISPATCH_TOKEN` to fix.");
+      "🚨 SYSTEM · Scheduled refresh blocked"
+      + "\nCause: GitHub dispatch token is missing."
+      + "\nAction: set GH_DISPATCH_TOKEN in Worker secrets.");
     return { dispatched: false, trimmed: false, plan };
   }
   const { ok, status, detail } = await dispatchBoard(env, plan);
@@ -455,10 +456,9 @@ export async function handleScheduled(event, env) {
     + (ok ? "" : ` ${detail}`));
   if (!ok) {
     await notifyTelegram(env,
-      "⚠️ Football board cron FAILED to dispatch pipeline.yml"
-      + `\ncron: ${event.cron} (${plan.sport}/${plan.scope})`
-      + `\nstatus: ${status || "exception"}`
-      + `\n${detail || "(no detail)"}`);
+      "🚨 SYSTEM · Scheduled refresh failed"
+      + `\nRequest: ${plan.sport}/${plan.scope}`
+      + `\nResult: ${status || "exception"} · ${detail || "no detail"}`);
   }
   return { dispatched: ok, trimmed: false, plan, status };
 }
