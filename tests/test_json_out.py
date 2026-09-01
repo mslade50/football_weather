@@ -141,6 +141,7 @@ def test_card_has_every_required_key_and_labels():
     assert len(card["weather"]["hourly"]) == 6 and card["weather"]["hourly"][0]["t"] == "2026-09-27T16:00:00Z"
     assert card["impact"]["v1"]["gs_fg_pct"] < 0 and "wind" in card["impact"]["v1"]["components"]
     assert card["signal"]["label"] and isinstance(card["signal"]["flags"], list)
+    assert card["signal"]["drivers"] == ["wind"]
     assert card["run_id"] == "r1"
     json.dumps(card, allow_nan=False)
 

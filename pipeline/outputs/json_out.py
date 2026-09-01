@@ -258,6 +258,7 @@ def _signal_block(sig: Any, flags: Sequence[str], dow_base: Optional[float] = No
         "level": getattr(sig, "level", None),
         "color": getattr(sig, "color", None),
         "size": getattr(sig, "size", None),
+        "drivers": list(getattr(sig, "drivers", ()) or ()),
         "flags": list(flags or []),
         "dow_base": dow_base,
     }

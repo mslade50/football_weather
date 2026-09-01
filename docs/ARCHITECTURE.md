@@ -271,7 +271,8 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
           hourly [{t, temp, wind, gust, dir, precip, pop, p10, p90}]  (kickoff-1h .. kickoff+4h)},
  impact {v1 {gs_fg_pct, away_fg_pct, components {wind, cold, heat, rain, alt, heat_away, cold_away}},
          v2 {...same + w_eff, dir_mult, conf}, model_version},
- signal {nfl|cfb label, color, size, flags [CFB Wind|NFL Wind|Heat|Alt+Heat], dow_base},
+ signal {nfl|cfb label, color, size, drivers [wind|rain|temperature|altitude_warmth],
+         flags [CFB Wind|NFL Wind|Heat|Alt+Heat], dow_base},
  odds {<book>: {spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
                 total  {line, over, under, open_line, open_under, updated_at},
                 ml     {home, away, open_home, open_away}}},
@@ -438,10 +439,12 @@ Families and keys:
 🎯 <b>PLAY · MID · NFL W3</b>
 <b>SEA @ NE</b> · Sun 1:00p ET
 <b>Under 38 (−110) · BetOnline</b>
-Why: +3.4 pts above fair 34.6 · 18 mph wind
+Why:
+• Value: +3.4 pts above fair 34.6
+• Wind: 18 mph
 <a href="...">Details & all prices</a>
 ```
-   Full forecast/model detail and the price ladder remain on the linked board.
+   Full forecast/model detail and the price ladder remain on the linked board. When CFB's altitude-plus-warmth rule contributes to the signal, its bullet shows the elevation climb and kickoff temperature explicitly.
 2. **UPDATE / CLOSED** on the one open play parent only and only before kickoff. A run emits at most one follow-up per game, in this order: CLOSED (signal below the gate, value below the gate, or no actionable price), signal-tier change/reactivation, line move, forecast move. Line buckets are 1.5 total / 1.0 spread with a 4-hour cooldown; forecast buckets are 2.0 points. A simultaneous signal/fair/line change becomes one UPDATE, not three messages. A material change caused by switching books is labeled `Best price`, not presented as a one-book line move. Legacy book/model-keyed parents are collapsed.
 3. **OPENER DIGEST** is off by default (`TELEGRAM_INCLUDE_OPENERS=1` opts in), because a newly posted book and a PLAY for the same game were redundant.
 4. **SYSTEM**: scrape-volume/data-health and other actionable warnings are grouped. Scrape-volume detection reports the active sport/week-scoped incident, bypasses quiet hours, and no longer sends through a second direct Telegram path; `alerts.json` suppresses it after success but lets a failed transport retry. Per-sport/week baselines coexist in `scrape_baseline.json`, so alternating NFL/CFB passes do not manufacture a new DARK incident. A persistent incident can remind once on a later ET day. Fatal build errors belong only to the workflow failure ping, preventing a detailed alert plus a generic duplicate.

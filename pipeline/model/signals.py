@@ -24,6 +24,7 @@ class Signal:
     color: str
     size: int
     label: str = ""
+    drivers: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.label:
@@ -58,11 +59,12 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
     """Evaluated purple-first so High is reachable (legacy ordering made it dead code)."""
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     if _gt(w, 15) and _between(t, 32, 45):
-        return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH])
+        return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
     if _gt(r, 2) or (w is not None and 8 < w < 15 and _lt(t, 60)):
-        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW])
+        driver = "rain" if _gt(r, 2) else "wind"
+        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     if _gt(w, 15) and _lt(t, 60):
-        return Signal(MID, "orange", C.SIGNAL_SIZES[MID])
+        return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("wind",))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
 
@@ -87,6 +89,16 @@ def cfb_low_wind_threshold(weekday: int) -> float:
     return C.CFB_DOW_LOW_WIND.get(weekday, C.CFB_DOW_DEFAULT)
 
 
+def cfb_altitude_mid_trigger(
+    temp_fg: Optional[float],
+    open_spread: Optional[float],
+    travel_alt: Optional[float],
+) -> bool:
+    """Whether the legacy CFB altitude-plus-warmth rule contributes a Mid signal."""
+    t, sp, alt = _f(temp_fg), _f(open_spread), _f(travel_alt)
+    return _gt(alt, 800) and _gt(t, 75) and _between(sp, -20.5, 20.5)
+
+
 def cfb_signal(
     wind_fg: Optional[float],
     temp_fg: Optional[float],
@@ -107,19 +119,21 @@ def cfb_signal(
 
     rain_cond = _gt(r, 2)
     heat_cond = _gt(t, 80) and _lt(ht, 57) and _lt(at, 57)
+    altitude_mid = cfb_altitude_mid_trigger(t, sp, alt)
 
     if _gt(w, hi) and _lt(t, 50) and tight:
-        return Signal(VERY_HIGH, "darkred", C.SIGNAL_SIZES[VERY_HIGH])
+        return Signal(VERY_HIGH, "darkred", C.SIGNAL_SIZES[VERY_HIGH], drivers=("wind",))
     if _gt(w, hi) and _lt(t, 65) and tight:
-        return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH])
-    if ((_gt(w, hi) and _lt(t, 65)) or (_gt(alt, 800) and _gt(t, 75))) and wide:
-        return Signal(MID, "orange", C.SIGNAL_SIZES[MID])
+        return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
+    if (_gt(w, hi) and _lt(t, 65) and wide) or altitude_mid:
+        driver = "altitude_warmth" if altitude_mid else "wind"
+        return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=(driver,))
     if ((_gt(w, base) and _lt(t, 65)) or rain_cond or heat_cond) and wide:
         if rain_cond:
-            return Signal(LOW, "black", C.SIGNAL_SIZES[LOW], "Low (Rain)")
+            return Signal(LOW, "black", C.SIGNAL_SIZES[LOW], label="Low (Rain)", drivers=("rain",))
         if heat_cond:
-            return Signal(LOW, "red", C.SIGNAL_SIZES[LOW], "Low (Temp)")
-        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], "Low (Wind)")
+            return Signal(LOW, "red", C.SIGNAL_SIZES[LOW], label="Low (Temp)", drivers=("temperature",))
+        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], label="Low (Wind)", drivers=("wind",))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
 
@@ -173,6 +187,7 @@ __all__ = [
     "nfl_wind_vol",
     "wind_diff",
     "cfb_low_wind_threshold",
+    "cfb_altitude_mid_trigger",
     "cfb_signal",
     "combined_flags",
     "combined_color",

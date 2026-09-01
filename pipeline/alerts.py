@@ -29,8 +29,10 @@ the candidates with their keys instead of sending.
 Chat routing: ``TELEGRAM_CHAT_ID_NFL`` / ``TELEGRAM_CHAT_ID_CFB`` fall back to
 ``TELEGRAM_CHAT_ID``; OPS alerts always go to the default chat.
 
-The compact message body shows action, matchup/time, price, and one plain-English
-reason. Full forecasts, model details, and the price ladder stay behind the board link.
+The compact message body shows action, matchup/time, price, and short reason
+bullets. Signal-only drivers such as CFB altitude plus warmth are named
+explicitly. Full forecasts, model details, and the price ladder stay behind the
+board link.
 """
 
 from __future__ import annotations
@@ -359,21 +361,50 @@ def _brief_bet(card: dict[str, Any], edge: dict[str, Any], *, label: str = "") -
     return f"<b>{html.escape(prefix + value)}</b>"
 
 
+def _altitude_phrase(card: dict[str, Any], *, warmth: bool = False) -> str:
+    alt_m = _num(card.get("travel_alt"))
+    temp = _num((card.get("weather") or {}).get("temp_fg"))
+    climb = f"+{round(alt_m * 3.28084):,} ft climb" if alt_m is not None else "altitude climb"
+    if warmth:
+        temp_s = f"{round(temp)}°F" if temp is not None else "warm conditions"
+        return f"Altitude + warmth: {climb} · {temp_s}"
+    return f"Altitude: {climb}"
+
+
 def _driver_phrase(card: dict[str, Any]) -> str:
     wx = card.get("weather") or {}
+    drivers = {str(d) for d in ((card.get("signal") or {}).get("drivers") or []) if d}
+    if "altitude_warmth" in drivers:
+        return _altitude_phrase(card, warmth=True)
     comps = _components(card)
     top = max(comps, key=comps.get) if comps else ""
     if top == "wind":
-        return f"{_fmt_line(wx.get('wind_fg'))} mph wind"
+        return f"Wind: {_fmt_line(wx.get('wind_fg'))} mph"
     if top == "rain":
-        return f"{_fmt_line(wx.get('rain_fg'))} mm rain"
+        return f"Rain: {_fmt_line(wx.get('rain_fg'))} mm"
     if top in ("cold", "cold_away", "heat", "heat_away"):
         t = _num(wx.get("temp_fg"))
-        return f"{round(t) if t is not None else '?'}°F"
+        return f"Temperature: {round(t) if t is not None else '?'}°F"
     if top == "alt":
-        return "altitude"
+        return _altitude_phrase(card)
     flags = [str(f) for f in ((card.get("signal") or {}).get("flags") or []) if f]
-    return flags[0] if flags else _wx_numbers(card)
+    return f"Signal: {flags[0]}" if flags else f"Weather: {_wx_numbers(card)}"
+
+
+def _why_lines(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
+    return [
+        "Why:",
+        f"• Value: {_fmt_signed(edge.get('edge_pts'))} pts above fair {_fmt_line(edge.get('fair_line'))}",
+        f"• {html.escape(_driver_phrase(card))}",
+    ]
+
+
+def _special_driver_lines(card: dict[str, Any]) -> list[str]:
+    """Persistent context worth repeating on UPDATE messages."""
+    drivers = {str(d) for d in ((card.get("signal") or {}).get("drivers") or []) if d}
+    if "altitude_warmth" in drivers:
+        return [f"• {html.escape(_altitude_phrase(card, warmth=True))}"]
+    return []
 
 
 def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
@@ -618,14 +649,11 @@ def book_ladder(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 # ---- formatters --------------------------------------------------------------------------
 
 def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
-    """A scan-first PLAY: action, matchup/time, price, one reason, then details."""
-    fair = _num(edge.get("fair_line"))
-    pts = _num(edge.get("edge_pts"))
-    why = f"Why: {_fmt_signed(pts)} pts above fair {_fmt_line(fair)} · {html.escape(_driver_phrase(card))}"
+    """A scan-first PLAY: action, matchup/time, price, reason bullets, then details."""
     lines = [
         *_alert_heading("PLAY", card, "🎯"),
         _brief_bet(card, edge),
-        why,
+        *_why_lines(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -660,6 +688,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         *_alert_heading("UPDATE", card, "🔄"),
         change,
         (f"Value: {_fmt_signed(rec.get('last_edge'))} → {_fmt_signed(edge.get('edge_pts'))} pts{fair_change}"),
+        *_special_driver_lines(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -690,7 +719,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
         *_alert_heading("UPDATE", card, "🔄"),
         f"Signal: <b>{html.escape(old)} → {html.escape(new)}</b>",
         _brief_bet(card, edge, label="Play"),
-        f"Why: {_fmt_signed(edge.get('edge_pts'))} pts above fair {_fmt_line(edge.get('fair_line'))} · {html.escape(_driver_phrase(card))}",
+        *_why_lines(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -707,6 +736,7 @@ def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, An
         f"Forecast: fair {market} {_fmt_line(rec.get('last_fair'), signed)} → {_fmt_line(edge.get('fair_line'), signed)}",
         f"Weather: wind {old_w} → {new_w} mph · rain {old_r} → {new_r} mm",
         _brief_bet(card, edge, label="Play"),
+        *_special_driver_lines(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)

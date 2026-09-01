@@ -8,6 +8,7 @@ from pipeline.model.signals import (
     MID,
     NO,
     VERY_HIGH,
+    cfb_altitude_mid_trigger,
     cfb_low_wind_threshold,
     cfb_signal,
     combined_color,
@@ -105,8 +106,12 @@ def test_cfb_dow_shifts_boundary() -> None:
 
 def test_cfb_mid_alt_heat() -> None:
     s = _cfb(wind=2.0, temp=76.0, alt=801.0, open_spread=20.5)
-    assert s.level == MID
+    assert s.level == MID and s.drivers == ("altitude_warmth",)
     assert _cfb(wind=2.0, temp=76.0, alt=800.0, open_spread=20.5).level == NO
+    assert cfb_altitude_mid_trigger(78.0, -18.5, 955.4)
+    assert not cfb_altitude_mid_trigger(75.0, -18.5, 955.4)
+    assert not cfb_altitude_mid_trigger(78.0, -18.5, 800.0)
+    assert not cfb_altitude_mid_trigger(78.0, -20.51, 955.4)
 
 
 def test_cfb_low_colors() -> None:
