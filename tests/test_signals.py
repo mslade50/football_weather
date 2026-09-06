@@ -84,16 +84,15 @@ def _cfb(wind, temp, rain=0.0, open_spread=-3.0, alt=0.0, home_temp=60.0, away_t
 
 
 def test_cfb_very_high() -> None:
-    s = _cfb(wind=16.3, temp=45.0, open_spread=10.5, weekday=SAT)  # hi = 8.79+7.5 = 16.29
+    s = _cfb(wind=16.3, temp=45.0, open_spread=10.0, weekday=SAT)  # hi = 8.79+7.5 = 16.29
     assert (s.level, s.color, s.size) == (VERY_HIGH, "darkred", 50)
     assert _cfb(wind=16.2, temp=45.0, weekday=SAT).level == LOW  # below hi -> only low band
 
 
 def test_cfb_high_spread_gate() -> None:
-    assert _cfb(wind=20.0, temp=60.0, open_spread=-10.5).level == HIGH
-    s = _cfb(wind=20.0, temp=60.0, open_spread=-11.0)
-    assert (s.level, s.color) == (MID, "orange")
-    assert _cfb(wind=20.0, temp=60.0, open_spread=-21.0).level == NO
+    assert _cfb(wind=20.0, temp=60.0, open_spread=-10.0).level == HIGH
+    assert _cfb(wind=20.0, temp=60.0, open_spread=-10.01).level == NO
+    assert _cfb(wind=20.0, temp=60.0, open_spread=10.01).level == NO
 
 
 def test_cfb_dow_shifts_boundary() -> None:
@@ -105,13 +104,31 @@ def test_cfb_dow_shifts_boundary() -> None:
 
 
 def test_cfb_mid_alt_heat() -> None:
-    s = _cfb(wind=2.0, temp=76.0, alt=801.0, open_spread=20.5)
+    s = _cfb(wind=2.0, temp=76.0, alt=801.0, open_spread=10.0)
     assert s.level == MID and s.drivers == ("altitude_warmth",)
-    assert _cfb(wind=2.0, temp=76.0, alt=800.0, open_spread=20.5).level == NO
-    assert cfb_altitude_mid_trigger(78.0, -18.5, 955.4)
-    assert not cfb_altitude_mid_trigger(75.0, -18.5, 955.4)
-    assert not cfb_altitude_mid_trigger(78.0, -18.5, 800.0)
-    assert not cfb_altitude_mid_trigger(78.0, -20.51, 955.4)
+    assert _cfb(wind=2.0, temp=76.0, alt=800.0, open_spread=10.0).level == NO
+    assert cfb_altitude_mid_trigger(78.0, -10.0, 955.4)
+    assert not cfb_altitude_mid_trigger(75.0, -10.0, 955.4)
+    assert not cfb_altitude_mid_trigger(78.0, -10.0, 800.0)
+    assert not cfb_altitude_mid_trigger(78.0, -10.01, 955.4)
+    assert not cfb_altitude_mid_trigger(78.0, 10.01, 955.4)
+    # Regression: Maine's -18.5 opener must be disqualified despite altitude and warmth.
+    assert not cfb_altitude_mid_trigger(78.0, -18.5, 955.4)
+
+
+@pytest.mark.parametrize(
+    "weather",
+    [
+        {"wind": 20.0, "temp": 45.0},
+        {"wind": 2.0, "temp": 76.0, "alt": 801.0},
+        {"wind": 2.0, "temp": 70.0, "rain": 2.5},
+        {"wind": 2.0, "temp": 81.0, "home_temp": 56.0, "away_temp": 50.0},
+        {"wind": 9.0, "temp": 60.0},
+    ],
+)
+@pytest.mark.parametrize("open_spread", [-10.01, 10.01, -18.5])
+def test_cfb_universal_spread_gate(weather, open_spread) -> None:
+    assert _cfb(open_spread=open_spread, **weather).level == NO
 
 
 def test_cfb_low_colors() -> None:
@@ -140,6 +157,7 @@ def test_combined_flags_cfb() -> None:
     assert flags == ["Heat", "Alt+Heat"]
     assert combined_flags("cfb", 1.0, 76.0, 10.1, 900.0, 60.0, 60.0) == []
     assert combined_flags("cfb", 15.0, 69.0, -10.5, 0.0, 60.0, 60.0) == []
+    assert combined_flags("cfb", 1.0, 81.0, 10.01, 0.0, 50.0, 50.0) == []
 
 
 def test_combined_flags_nfl() -> None:

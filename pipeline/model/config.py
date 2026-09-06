@@ -97,6 +97,9 @@ NFL_WIND_VOL_LOW_BELOW = 11.99
 CFB_DOW_LOW_WIND: dict[int, float] = {0: 11.14, 1: 11.14, 2: 10.10, 3: 10.10, 4: 9.31, 5: 8.79, 6: 11.93}
 CFB_DOW_DEFAULT = 10.0
 CFB_HIGH_OFFSET = 7.5
+# Every CFB weather signal and combined-page flag is disqualified when the
+# absolute opening spread exceeds this value.
+CFB_OPEN_SPREAD_MAX = 10.0
 SIGNAL_SIZES: dict[str, int] = {
     "No Impact": 7,
     "Low Impact": 15,

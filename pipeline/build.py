@@ -1130,6 +1130,7 @@ def build_record(
     wind_avg: float | None = None,
     is_fbs: bool = True,
     odds: dict[str, Any] | None = None,
+    signal_open_spread: float | None = None,
 ) -> tuple[LegacyRecord, ImpactV1, signals.Signal, list[str]]:
     """Pure assembly of one legacy row + impact + signal from resolved inputs."""
     tz = game.tz or (stadium.timezone if stadium and stadium.timezone else "America/New_York")
@@ -1164,12 +1165,15 @@ def build_record(
         avg_wind_month = stadium.avg_wind_by_month.get(_month_key(kickoff_local.month))
 
     odds = dict(odds or {})
-    spread_now = odds.get("current") if sport == "cfb" else odds.get("spread_now")
     if sport == "nfl":
         sig = signals.nfl_signal(wind_fg, temp_fg, rain_fg)
     else:
-        sig = signals.cfb_signal(wind_fg, temp_fg, rain_fg, odds.get("open", spread_now), travel_alt, home_temp, away_temp, et_weekday())
-    flags = signals.combined_flags(sport, wind_fg, temp_fg, odds.get("open", spread_now), travel_alt, home_temp, away_temp)
+        sig = signals.cfb_signal(
+            wind_fg, temp_fg, rain_fg, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
+        )
+    flags = signals.combined_flags(
+        sport, wind_fg, temp_fg, signal_open_spread, travel_alt, home_temp, away_temp
+    )
 
     rec = LegacyRecord(
         sport=sport,
@@ -1451,8 +1455,13 @@ def run_sport(
             rg = resolved[g.game_id]
             fc = forecasts.get(g.game_id)
             game_odds = legacy_odds(sport, g.game_id, odds.by_game, odds.consensus, odds.openers) if books else {}
+            signal_open_spread = (
+                json_out.consensus_spread_opener(g.game_id, odds.openers)[0] if sport == "cfb" else None
+            )
             if rg is None:
-                rec, impact, sig, flags = build_record(sport, g, None, None, None, fc, odds=game_odds)
+                rec, impact, sig, flags = build_record(
+                    sport, g, None, None, None, fc, odds=game_odds, signal_open_spread=signal_open_spread
+                )
                 card_kwargs: dict[str, Any] = {}
             else:
                 rec, impact, sig, flags = build_record(
@@ -1460,6 +1469,7 @@ def run_sport(
                     travel_alt=rg.travel_alt, home_temp=rg.home_temp, away_temp=rg.away_temp,
                     roof_state=rg.roof_state, wind_avg=rg.wind_avg,
                     is_fbs=_is_fbs(book, sport, g.home_id, g.away_id), odds=game_odds,
+                    signal_open_spread=signal_open_spread,
                 )
                 for t in (rg.home_team, rg.away_team):
                     if t is not None:

@@ -144,7 +144,7 @@ def test_edge_message_names_cfb_altitude_warmth_mid_trigger():
     c["home"] = {"team_id": "appalachian-state", "name": "Appalachian State", "short": "APP"}
     c["weather"]["temp_fg"] = 78.3
     c["travel_alt"] = 955.4
-    sig = signals.cfb_signal(6.7, 78.3, 0.0, -18.5, 955.4, 52.4, 47.2, weekday=1)
+    sig = signals.cfb_signal(6.7, 78.3, 0.0, -9.5, 955.4, 52.4, 47.2, weekday=1)
     c["signal"].update({"label": sig.label, "level": sig.level, "drivers": list(sig.drivers)})
     c["impact"]["v1"]["components"] = {"wind": 0.0, "rain": 0.0, "heat": 0.0, "alt": 0.0}
 

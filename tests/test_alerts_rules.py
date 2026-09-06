@@ -10,7 +10,7 @@ from typing import Any
 
 from pipeline import alerts as A
 from pipeline import state as pstate
-from pipeline.model import fair
+from pipeline.model import fair, signals
 from pipeline.outputs import d1_out, json_out
 from pipeline.run_context import RunContext
 
@@ -159,6 +159,20 @@ def test_no_impact_never_alerts():
     assert A.edge_candidates(card(signal=None), alerts, CFG) == []
     assert A.edge_candidates(card([_edge(edge_pts=9.0, tier="strong")], signal="No Impact"), alerts, CFG) == []
     assert A._alertable_edges(card(signal="")) == []
+
+
+def test_cfb_wide_opener_never_becomes_a_telegram_play():
+    sig = signals.cfb_signal(6.7, 78.3, 0.0, -18.5, 955.4, 52.4, 47.2, weekday=1)
+    assert sig.level == signals.NO
+
+    alerts, _ = _fresh()
+    maine = card(
+        sport="cfb",
+        game_id="cfb:2026:1:maine@appalachian-state",
+        signal=sig.level,
+    )
+    maine["signal"]["drivers"] = list(sig.drivers)
+    assert A.edge_candidates(maine, alerts, CFG) == []
 
 
 def test_signal_slugs():

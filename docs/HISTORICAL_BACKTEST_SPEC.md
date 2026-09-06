@@ -66,8 +66,10 @@ Actual = mean over the kickoff window `[kick, kick+3h]` (same as `pipeline/backt
 ### 2.4 Model
 `pipeline/model/impact.py::compute_impact_v1(sport, month, temp_fg, wind_fg, rain_fg, travel_alt,
 home_temp, away_temp, home_elev_m=, era_date=)` reproduces the legacy numbers at 99.6 %
-(golden test). `pipeline/model/signals.py::nfl_signal / cfb_signal` give the legacy tiers
-(CFB needs `weekday` = ET weekday of the **run**, `open_spread`). v2 lives beside it
+(golden test). `pipeline/model/signals.py::nfl_signal` gives the legacy NFL tiers;
+`cfb_signal` uses the legacy CFB weather thresholds with the current universal
+`|consensus spread opener|≤10` eligibility policy (CFB needs `weekday` = ET weekday of the **run**,
+`open_spread`). v2 lives beside it
 (`compute_impact_v2`). Use the archived `temp_fg/wind_fg/rain_fg/travel_alt/home_temp/away_temp`
 as inputs — that is exactly what the generator saw at that lead.
 
@@ -94,7 +96,10 @@ aggregation, `stadium_results`, `alerts_clv`) unchanged wherever possible.
 5. **Model replay per snapshot**: recompute `gs_fg/away_fg` with `compute_impact_v1(..., era_date=commit_date,
    month=run_month)`; keep the archived values too (`gs_fg_archived`) and log the mismatch rate
    (expect ≥ 99 %). Compute the legacy signal tier per snapshot (NFL: `nfl_signal`; CFB:
-   `cfb_signal` with `open_spread` = `Open` (FanDuel open) and `weekday` from `run_ts` in ET).
+   `cfb_signal` with the reconstructed consensus spread opener when available, including its universal
+   `|open_spread|≤10` eligibility policy, and `weekday` from `run_ts` in ET). The archived CFB `Open`
+   column is FanDuel-only; use it only as an explicitly labeled proxy when consensus opener history
+   cannot be reconstructed.
    Also compute v2 impact where inputs allow (`home_elev_m` from `data/stadiums.csv`).
 6. **Alert simulation** (mirrors `pipeline/alerts.py` after the signal-tier change): the first
    snapshot whose tier != "No Impact" **and** `lead_hours ≤ 240` is the *alert snapshot*;

@@ -122,6 +122,8 @@ def test_signals_view_wiring() -> None:
         assert f'"{preset}"' in sig, f"signals.js must define the {preset} preset"
     for fn in ("function activePreset", "function gameFlags", "function hasFlag", "function renderSignals", "function setPreset"):
         assert fn in sig
+    assert "const CFB_OPEN_SPREAD_MAX = 10;" in sig
+    assert "Math.abs(open) > CFB_OPEN_SPREAD_MAX" in sig
     app = (WEB / "app.js").read_text(encoding="utf-8")
     assert "renderSignals()" in app
     assert 'params.set("preset"' in app and 'params.get("preset")' in app

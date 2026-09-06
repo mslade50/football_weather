@@ -7,15 +7,16 @@
 
 const PRESETS = {
   cfb_wind: { id: "cfb_wind", label: "CFB Wind", flag: "CFB Wind", sports: ["cfb"],
-    desc: "|spread open| < 10.5 · temp < 70 °F · wind > 14 mph", sort: (g) => wxNum(g, "wind_fg") },
+    desc: "spread open within ±10 · temp < 70 °F · wind > 14 mph", sort: (g) => wxNum(g, "wind_fg") },
   nfl_wind: { id: "nfl_wind", label: "NFL Wind", flag: "NFL Wind", sports: ["nfl"],
     desc: "wind > 15 mph · temp < 60 °F", sort: (g) => wxNum(g, "wind_fg") },
   heat: { id: "heat", label: "Heat", flag: "Heat", sports: ["nfl", "cfb"],
-    desc: "temp > 80 °F · both teams' home avg temp < 57 °F", sort: (g) => wxNum(g, "temp_fg") },
+    desc: "temp > 80 °F · both teams' home avg temp < 57 °F · CFB spread within ±10", sort: (g) => wxNum(g, "temp_fg") },
   alt_heat: { id: "alt_heat", label: "Alt+Heat", flag: "Alt+Heat", sports: ["cfb"],
     desc: "travel altitude > 800 m · spread within ±10 · temp > 75 °F", sort: (g) => (isNum(g.travel_alt) ? Number(g.travel_alt) : -Infinity) },
 };
 const PRESET_ORDER = ["cfb_wind", "nfl_wind", "heat", "alt_heat"];
+const CFB_OPEN_SPREAD_MAX = 10;
 
 const wxNum = (g, k) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
 
@@ -28,15 +29,16 @@ function computeFlags(g) {
   const wx = g.weather || {}, c = g.consensus || {};
   const wind = isNum(wx.wind_fg) ? Number(wx.wind_fg) : null;
   const temp = isNum(wx.temp_fg) ? Number(wx.temp_fg) : null;
-  const open = isNum(c.spread_open) ? Number(c.spread_open) : (isNum(c.spread_now) ? Number(c.spread_now) : null);
+  const open = isNum(c.spread_open) ? Number(c.spread_open) : null;
   const ht = isNum(g.home_temp) ? Number(g.home_temp) : null, at = isNum(g.away_temp) ? Number(g.away_temp) : null;
   const alt = isNum(g.travel_alt) ? Number(g.travel_alt) : null;
   const out = [];
   if (isDome(g) || wind == null || temp == null) return out;
-  if (g.sport === "cfb" && open != null && Math.abs(open) < 10.5 && temp < 70 && wind > 14) out.push("CFB Wind");
+  if (g.sport === "cfb" && (open == null || Math.abs(open) > CFB_OPEN_SPREAD_MAX)) return out;
+  if (g.sport === "cfb" && temp < 70 && wind > 14) out.push("CFB Wind");
   if (g.sport === "nfl" && wind > 15 && temp < 60) out.push("NFL Wind");
   if (ht != null && at != null && ht < 57 && at < 57 && temp > 80) out.push("Heat");
-  if (g.sport === "cfb" && alt != null && alt > 800 && open != null && open >= -10 && open <= 10 && temp > 75) out.push("Alt+Heat");
+  if (g.sport === "cfb" && alt != null && alt > 800 && temp > 75) out.push("Alt+Heat");
   return out;
 }
 function gameFlags(g) {

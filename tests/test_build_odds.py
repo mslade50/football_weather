@@ -23,7 +23,8 @@ from pipeline.build import (
     scrape_books,
     weighted_median,
 )
-from pipeline.contracts import Game, GameLine
+from pipeline.contracts import Game, GameLine, WeatherForecast
+from pipeline.model import signals
 
 KC_BUF = "nfl:2026:1:buf@kc"
 KICK = datetime(2026, 9, 13, 20, 25, tzinfo=timezone.utc)
@@ -218,6 +219,62 @@ def test_cfb_legacy_odds_from_fanduel():
     assert (o["current"], o["open"]) == (-3.5, -2.5)
     assert (o["spread"], o["total_proj"]) == (-3.0, 52.0)  # pinnacle weight 3 beats fanduel 1
     assert "spread_now" not in o
+
+
+def test_cfb_signal_gate_uses_the_consensus_opener_argument():
+    gid = "cfb:2026:1:maine@appalachian-state"
+    game = Game(
+        game_id=gid,
+        sport="cfb",
+        season=2026,
+        week=1,
+        kickoff_utc=KICK,
+        kickoff_local=KICK,
+        tz="America/New_York",
+        home_id="appalachian-state",
+        away_id="maine",
+        stadium_id="kidd-brewer",
+    )
+    forecast = WeatherForecast(
+        game_id=gid,
+        source="test",
+        temp_fg=78.3,
+        wind_fg=6.7,
+        rain_fg_mm=0.0,
+    )
+
+    # A narrow FanDuel opener cannot override the displayed consensus DQ.
+    _, _, disqualified, flags = build.build_record(
+        "cfb",
+        game,
+        None,
+        None,
+        None,
+        forecast,
+        travel_alt=955.4,
+        home_temp=52.4,
+        away_temp=47.2,
+        odds={"open": -9.5},
+        signal_open_spread=-10.01,
+    )
+    assert disqualified.level == signals.NO and flags == []
+
+    # Likewise, a wide FanDuel opener does not veto an eligible consensus opener.
+    _, _, eligible, flags = build.build_record(
+        "cfb",
+        game,
+        None,
+        None,
+        None,
+        forecast,
+        travel_alt=955.4,
+        home_temp=52.4,
+        away_temp=47.2,
+        odds={"open": -18.5},
+        signal_open_spread=-10.0,
+    )
+    assert eligible.level == signals.MID
+    assert eligible.drivers == ("altitude_warmth",) and flags == ["Alt+Heat"]
 
 
 def test_legacy_odds_empty_when_no_lines():
