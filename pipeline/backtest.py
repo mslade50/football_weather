@@ -6,7 +6,8 @@ Regenerates the legacy ``cfb_weather_backtest.xlsx`` as ``board/backtest.json`` 
     python -m pipeline.backtest [--snapshot-dir data/snapshots] [--state-dir data/state]
                                 [--export-dir <wrangler d1 export json dir>] [--sqlite <db|d1_inserts.sql>]
                                 [--board-dir site/web/data] [--parquet-dir data/backtest]
-                                [--season 2026] [--sport nfl|cfb] [--no-network] [--freeze]
+                                [--season 2026] [--sport nfl|cfb] [--no-network]
+                                [--network-budget-seconds 600] [--freeze]
 
 Inputs (every one optional; the grid is emitted with empty buckets when nothing is
 available so the Backtest tab never blanks):
@@ -92,6 +93,8 @@ NFLVERSE_GAMES_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/
 USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
 NET_SLEEP_S = 0.3
 BATCH = 50
+NETWORK_BUDGET_S = 600.0
+HTTP_TIMEOUT_S = 20.0
 
 PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv", "postmortem")
 LEGACY_SEASONS = "pre-2026"   # the sheet does not say which seasons it covers (AUDIT §4.3)
@@ -616,6 +619,13 @@ def apply_final_weather(rows: Mapping[str, GameRow], weather_history: Iterable[M
 
 # ---- Open-Meteo actuals + previous runs -------------------------------------------------------
 
+class WeatherRateLimitError(RuntimeError):
+    """Open-Meteo rejected the stage; retrying adjacent windows would add noise and latency."""
+
+
+def _within_budget(deadline: Optional[float]) -> bool:
+    return deadline is None or time.monotonic() < deadline
+
 def _window(kick: datetime) -> tuple[datetime, datetime]:
     k = ensure_utc(kick).replace(minute=0, second=0, microsecond=0)
     return k, k + timedelta(hours=2)
@@ -625,19 +635,27 @@ def _get_json(url: str, params: Mapping[str, str], client: Any = None) -> Any:
     import httpx
 
     own = client is None
-    c = client or httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
+    c = client or httpx.Client(timeout=HTTP_TIMEOUT_S, headers={"User-Agent": USER_AGENT})
     try:
         last: Optional[Exception] = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 r = c.get(url, params=dict(params))
-                if r.status_code >= 500 or r.status_code == 429:
+                if r.status_code == 429:
+                    raise WeatherRateLimitError(f"rate limited: {url}")
+                if r.status_code >= 500:
                     raise httpx.HTTPStatusError(f"status {r.status_code}", request=r.request, response=r)
                 r.raise_for_status()
                 return r.json()
+            except WeatherRateLimitError:
+                raise
             except (httpx.HTTPError, ValueError) as exc:
                 last = exc
-                time.sleep(1.5 * (attempt + 1))
+                response = getattr(exc, "response", None)
+                if response is not None and response.status_code < 500:
+                    break
+                if attempt == 0:
+                    time.sleep(1.5)
         raise RuntimeError(f"request failed: {url}: {last}")
     finally:
         if own:
@@ -683,23 +701,32 @@ def _group_windows(rows: Iterable[GameRow]) -> dict[tuple[str, str], list[GameRo
 
 
 def fetch_actuals(rows: Iterable[GameRow], *, get: Callable[[str, Mapping[str, str]], Any] = _get_json,
-                  models: str = ACTUAL_MODELS, sleep: Callable[[float], None] = time.sleep) -> int:
+                  models: str = ACTUAL_MODELS, sleep: Callable[[float], None] = time.sleep,
+                  deadline: Optional[float] = None) -> int:
     """Historical-forecast API (HRRR archive) over kickoff..+2h per game, batched by
     identical window (≤50 points). Falls back to ``best_match`` when the CONUS model
     returns nothing (international venues). Returns the number of rows filled."""
     n = 0
     for (start, end), grp in _group_windows(rows).items():
         for i in range(0, len(grp), BATCH):
+            if not _within_budget(deadline):
+                return n
             batch = grp[i:i + BATCH]
             params = {"latitude": ",".join(f"{r.lat:.4f}" for r in batch), "longitude": ",".join(f"{r.lon:.4f}" for r in batch),
                       "hourly": ",".join(HOURLY_VARS), "start_hour": start, "end_hour": end, "wind_speed_unit": "mph",
                       "temperature_unit": "fahrenheit", "precipitation_unit": "mm", "timezone": "UTC", "models": models}
             try:
                 series = hourly_series(get(HIST_FORECAST_URL, params))
+            except WeatherRateLimitError:
+                return n
             except Exception:  # noqa: BLE001
+                if not _within_budget(deadline):
+                    return n
                 params["models"] = "best_match"
                 try:
                     series = hourly_series(get(HIST_FORECAST_URL, params))
+                except WeatherRateLimitError:
+                    return n
                 except Exception:  # noqa: BLE001
                     continue
             s_dt, e_dt = _dt(start), _dt(end)
@@ -716,19 +743,23 @@ def fetch_actuals(rows: Iterable[GameRow], *, get: Callable[[str, Mapping[str, s
 
 def fetch_previous_runs(rows: Iterable[GameRow], *, leads: Sequence[int] = LEADS,
                         get: Callable[[str, Mapping[str, str]], Any] = _get_json, models: str = PREVIOUS_MODELS,
-                        sleep: Callable[[float], None] = time.sleep) -> int:
+                        sleep: Callable[[float], None] = time.sleep, deadline: Optional[float] = None) -> int:
     """previous-runs API ``<var>_previous_dayN`` for rows missing a lead-N snapshot forecast."""
     need = [r for r in rows if any(getattr(r, f"wind_lead{n}") is None for n in leads)]
     n_filled = 0
     hourly = [f"{v}_previous_day{n}" for n in leads for v in ("temperature_2m", "wind_speed_10m", "precipitation")]
     for (start, end), grp in _group_windows(need).items():
         for i in range(0, len(grp), BATCH):
+            if not _within_budget(deadline):
+                return n_filled
             batch = grp[i:i + BATCH]
             params = {"latitude": ",".join(f"{r.lat:.4f}" for r in batch), "longitude": ",".join(f"{r.lon:.4f}" for r in batch),
                       "hourly": ",".join(hourly), "start_hour": start, "end_hour": end, "wind_speed_unit": "mph",
                       "temperature_unit": "fahrenheit", "precipitation_unit": "mm", "timezone": "UTC", "models": models}
             try:
                 series = hourly_series(get(PREVIOUS_RUNS_URL, params))
+            except WeatherRateLimitError:
+                return n_filled
             except Exception:  # noqa: BLE001
                 continue
             s_dt, e_dt = _dt(start), _dt(end)
@@ -823,7 +854,8 @@ def apply_scores(rows: Iterable[GameRow], scores: Mapping[tuple, tuple[int, int]
 
 
 def fetch_results(rows: Sequence[GameRow], book: Any = None, *, get: Callable[[str, Mapping[str, str]], Any] = _get_json,
-                  cfbd_key: Optional[str] = None, sleep: Callable[[float], None] = time.sleep) -> dict[str, int]:
+                  cfbd_key: Optional[str] = None, sleep: Callable[[float], None] = time.sleep,
+                  deadline: Optional[float] = None) -> dict[str, int]:
     """CFB: CFBD /games per (season, week) when ``CFBD_API_KEY`` is set, else ESPN
     scoreboard; NFL: nflverse games.csv. ``book`` = StadiumBook for team resolution."""
     import httpx
@@ -846,12 +878,15 @@ def fetch_results(rows: Sequence[GameRow], book: Any = None, *, get: Callable[[s
         weeks = sorted({(r.season, r.week) for r in cfb if r.season is not None and r.week is not None})
         key = cfbd_key or os.environ.get("CFBD_API_KEY")
         for season, week in weeks:
+            if not _within_budget(deadline):
+                break
             grp = [r for r in cfb if (r.season, r.week) == (season, week)]
             if key:
                 try:
                     stype, wk = ("postseason", week - 15) if week > 15 else ("regular", week)
                     payload = httpx.get(f"{CFBD_BASE}/games", params={"year": season, "week": wk, "seasonType": stype},
-                                        headers={"Authorization": f"Bearer {key}", "Accept": "application/json"}, timeout=30.0).json()
+                                        headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+                                        timeout=HTTP_TIMEOUT_S).json()
                     counts["cfbd"] += apply_scores(grp, parse_cfbd_scores(payload, lambda n: resolve_name("cfb", n)), "cfbd")
                     sleep(NET_SLEEP_S)
                     continue
@@ -865,9 +900,9 @@ def fetch_results(rows: Sequence[GameRow], book: Any = None, *, get: Callable[[s
             except Exception:  # noqa: BLE001
                 pass
             sleep(NET_SLEEP_S)
-    if nfl:
+    if nfl and _within_budget(deadline):
         try:
-            text = httpx.get(NFLVERSE_GAMES_URL, timeout=60.0, headers={"User-Agent": USER_AGENT}).text
+            text = httpx.get(NFLVERSE_GAMES_URL, timeout=HTTP_TIMEOUT_S, headers={"User-Agent": USER_AGENT}).text
             counts["nflverse"] += apply_scores(nfl, parse_nflverse_scores(text), "nflverse", keyed_by_week=True)
         except Exception:  # noqa: BLE001
             pass
@@ -1371,6 +1406,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--sport", choices=("nfl", "cfb"), default=None)
     p.add_argument("--bucket-on", choices=("forecast", "actual"), default="forecast")
     p.add_argument("--no-network", action="store_true", help="skip Open-Meteo / results fetches")
+    p.add_argument("--network-budget-seconds", type=float,
+                   default=float(os.environ.get("BACKTEST_NETWORK_BUDGET_S", NETWORK_BUDGET_S)),
+                   help="best-effort network enrichment budget; outputs are still written when exhausted")
     p.add_argument("--freeze", action="store_true", help="freeze closings from state history.json first (model/clv.py)")
     p.add_argument("--now", default=None, help="ISO override of the clock (tests)")
     return p.parse_args(argv)
@@ -1406,16 +1444,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rows = build_rows(snapshots=snaps, d1=d1, closings_state=closings_state, sport=args.sport, season=args.season, now=now)
     sources: dict[str, Any] = {"snapshots": len(snaps), "d1_games": len(d1.games), "network": not args.no_network}
     if rows and not args.no_network:
+        network_started = time.monotonic()
+        deadline = network_started + max(0.0, args.network_budget_seconds)
         book = None
         try:
             from pipeline.stadiums.loader import load_stadium_book
             book = load_stadium_book()
         except Exception:  # noqa: BLE001
             pass
-        sources["actuals"] = fetch_actuals(rows)
-        sources["previous_runs"] = fetch_previous_runs(rows)
-        sources["results"] = fetch_results(rows, book)
-        print(f"  network: actuals={sources['actuals']} previous_runs={sources['previous_runs']} results={sources['results']}")
+        # Scores and observed weather drive the weekly grade. Previous-run weather is
+        # optional enrichment, so it goes last and can be skipped when the provider is slow.
+        sources["results"] = fetch_results(rows, book, deadline=deadline)
+        sources["actuals"] = fetch_actuals(rows, deadline=deadline)
+        sources["previous_runs"] = fetch_previous_runs(rows, deadline=deadline)
+        sources["network_elapsed_seconds"] = round(time.monotonic() - network_started, 1)
+        sources["network_budget_exhausted"] = not _within_budget(deadline)
+        print(f"  network: results={sources['results']} actuals={sources['actuals']} "
+              f"previous_runs={sources['previous_runs']} elapsed={sources['network_elapsed_seconds']}s "
+              f"budget_exhausted={sources['network_budget_exhausted']}", flush=True)
 
     alerts_state, _ = pstate.load_alerts_rehydrated(args.state_dir)
     records = list((alerts_state.get("records") or {}).values()) + list(d1.alerts)

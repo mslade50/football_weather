@@ -67,6 +67,8 @@ env:
   D1_TABLES: games odds_history closings alerts stadiums teams weather_history
   # newest snapshot objects mirrored per run (one `wrangler r2 object get` each)
   SNAPSHOT_MAX: "120"
+  # Network enrichment is best-effort. Reserve time for publishing the report/artifacts.
+  BACKTEST_NETWORK_BUDGET_S: "600"
 
 jobs:
   backtest:

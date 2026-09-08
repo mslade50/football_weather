@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -364,6 +365,33 @@ def test_fetch_actuals_and_previous_runs_with_fake_client():
     assert (r.wind_lead1, r.wind_lead3, r.wind_lead5, r.rain_lead3) == (9.0, 11.0, None, pytest.approx(0.1))
     assert calls[0][1]["start_hour"] == "2026-10-03T19:00" and calls[0][1]["end_hour"] == "2026-10-03T21:00"
     assert "wind_speed_10m_previous_day1" in calls[-1][1]["hourly"]
+
+
+def test_weather_fetches_stop_immediately_when_rate_limited():
+    rows = [_row(game_id=f"cfb:2026:1:a{i}@b{i}", kickoff_utc=(KICK + timedelta(hours=i)).isoformat(),
+                 lat=40.0, lon=-83.0) for i in range(3)]
+    calls = []
+
+    def rate_limited(url, params):
+        calls.append((url, params))
+        raise bt.WeatherRateLimitError("429")
+
+    assert bt.fetch_actuals(rows, get=rate_limited, sleep=lambda s: None) == 0
+    assert len(calls) == 1
+    calls.clear()
+    assert bt.fetch_previous_runs(rows, get=rate_limited, sleep=lambda s: None) == 0
+    assert len(calls) == 1
+
+
+def test_network_deadline_skips_weather_calls_but_keeps_partial_report_possible():
+    r = _row(lat=40.0, lon=-83.0)
+
+    def unexpected_get(url, params):
+        raise AssertionError("expired budget must not start another request")
+
+    expired = time.monotonic() - 1
+    assert bt.fetch_actuals([r], get=unexpected_get, deadline=expired, sleep=lambda s: None) == 0
+    assert bt.fetch_previous_runs([r], get=unexpected_get, deadline=expired, sleep=lambda s: None) == 0
 
 
 def test_result_parsers_and_apply_scores():
