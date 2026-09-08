@@ -1,7 +1,9 @@
 """Telegram alert engine (ARCHITECTURE §10).
 
+    python -m pipeline.alerts --digest postmortem [--backtest data/board/backtest.json] [--dry-run]
+                                                                            # Sunday CFB / Tuesday NFL audit
     python -m pipeline.alerts --digest clv [--state-dir data/state] [--backtest data/board/backtest.json] [--dry-run]
-                                                                            # weekly CLV digest (backtest.yml, Monday)
+                                                                            # legacy CLV-only digest
     python -m pipeline.alerts --flush  [--state-dir data/state] [--dry-run]   # flush the quiet-hours queue
 
 Telegram is an action channel, not a mirror of the board:
@@ -14,11 +16,13 @@ Telegram is an action channel, not a mirror of the board:
   move → forecast move. Best-book changes update the same parent and are labeled
   as best-price changes. Betting notifications stop at kickoff.
 * CLOSED: the signal/value/price no longer meets the actionable gate.
-* SYSTEM: grouped operational issues. Scrape-volume incidents enter only this
-  unified path, so quiet hours, dedupe, and grouping all apply.
+* SYSTEM: disabled by default so Telegram remains an action channel for bets.
+  Operators can explicitly opt in with ``TELEGRAM_SYSTEM_ALERTS=1``; issues are
+  then summarized by component instead of emitted once per affected game.
 
 Defaults can be tuned with ``TELEGRAM_MIN_TIER``, ``TELEGRAM_MIN_EDGE_PTS``,
-``TELEGRAM_MAX_PER_RUN`` and ``TELEGRAM_INCLUDE_OPENERS``.
+``TELEGRAM_MAX_PER_RUN``, ``TELEGRAM_INCLUDE_OPENERS`` and
+``TELEGRAM_SYSTEM_ALERTS``.
 
 Pipeline: ``collect_candidates`` (pure: GameCards in → ``Candidate`` list out) →
 ``plan`` (dedup, current-data quiet-hours queue, three individual messages then a
@@ -113,7 +117,7 @@ class Candidate:
 
     def __post_init__(self) -> None:
         if not self.summary:
-            lines = 4 if self.family == "edge" else 2 if self.family == "ops" else 1
+            lines = 4 if self.family == "edge" else 1
             self.summary = _summary(self.text, lines)
 
     @property
@@ -156,6 +160,7 @@ class Config:
     min_tier: str = DEFAULT_MIN_TIER
     min_edge_pts: float = DEFAULT_MIN_EDGE_PTS
     include_openers: bool = DEFAULT_INCLUDE_OPENERS
+    system_alerts: bool = False
 
     @classmethod
     def from_env(cls, env: Optional[dict[str, str]] = None) -> Config:
@@ -178,6 +183,7 @@ class Config:
         except (TypeError, ValueError):
             min_edge_pts = DEFAULT_MIN_EDGE_PTS
         include_openers = str(e.get("TELEGRAM_INCLUDE_OPENERS") or "0").strip().lower() in ("1", "true", "yes", "on")
+        system_alerts = str(e.get("TELEGRAM_SYSTEM_ALERTS") or "0").strip().lower() in ("1", "true", "yes", "on")
         return cls(
             board_url=(e.get("BOARD_URL") or DEFAULT_BOARD_URL).rstrip("/"),
             chat_default=e.get("TELEGRAM_CHAT_ID") or None,
@@ -186,10 +192,46 @@ class Config:
             min_tier=min_tier,
             min_edge_pts=min_edge_pts,
             include_openers=include_openers,
+            system_alerts=system_alerts,
         )
 
     def chat_for(self, sport: Optional[str]) -> Optional[str]:
         return self.chat_by_sport.get(sport or "", self.chat_default)
+
+
+@dataclass(frozen=True)
+class EmailConfig:
+    host: str = ""
+    port: int = 587
+    username: str = ""
+    password: str = ""
+    from_addr: str = ""
+    to_addrs: tuple[str, ...] = ()
+    use_ssl: bool = False
+    starttls: bool = True
+
+    @classmethod
+    def from_env(cls, env: Optional[dict[str, str]] = None) -> EmailConfig:
+        e = os.environ if env is None else env
+        try:
+            port = int(e.get("SMTP_PORT") or 587)
+        except (TypeError, ValueError):
+            port = 587
+        truthy = {"1", "true", "yes", "on"}
+        ssl = str(e.get("SMTP_USE_SSL") or "").strip().lower() in truthy
+        starttls = str(e.get("SMTP_STARTTLS") or "1").strip().lower() in truthy
+        recipients = tuple(x.strip() for x in str(e.get("POSTMORTEM_EMAIL_TO") or "").split(",") if x.strip())
+        username = str(e.get("SMTP_USERNAME") or "")
+        return cls(
+            host=str(e.get("SMTP_HOST") or ""), port=port, username=username,
+            password=str(e.get("SMTP_PASSWORD") or ""),
+            from_addr=str(e.get("SMTP_FROM") or username), to_addrs=recipients,
+            use_ssl=ssl, starttls=starttls,
+        )
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.host and self.from_addr and self.to_addrs)
 
 
 # ---- small helpers --------------------------------------------------------------------
@@ -1165,16 +1207,30 @@ def ops_candidates(
             out.append(Candidate(key, "ops", sport, text, game_id=game_id,
                                  record=record))
 
+    degradations_by_component: dict[str, list[str]] = {}
     for d in getattr(ctx, "degradations", []) or []:
         # Fatal build errors are owned by the workflow's one failure notification.
         # Sending them here as well duplicated the page and, because a failed job
         # does not publish alert state, could repeat the detailed copy next run.
         if d.severity != "warn" or _ops_expected(d.reason):
             continue
-        title = ("DATA ISSUE · odds coverage dropped" if d.component == "odds.volume"
-                 else f"{d.component} degraded")
-        add(f"degr|{d.component}|{_slug(_stable(d.reason))}|{day}", "",
-            format_ops(title, d.reason), bypass_quiet=d.component == "odds.volume")
+        reasons = degradations_by_component.setdefault(d.component, [])
+        reasons.append(" ".join(str(d.reason).split()))
+
+    for component, reasons in sorted(degradations_by_component.items()):
+        title = ("DATA ISSUE · odds coverage dropped" if component == "odds.volume"
+                 else f"{component} degraded")
+        unique_reasons = list(dict.fromkeys(reasons))
+        if len(reasons) == 1:
+            detail = unique_reasons[0]
+        else:
+            shown = unique_reasons[:3]
+            detail = f"{len(reasons)} issues this run\n" + "\n".join(f"• {reason}" for reason in shown)
+            if len(reasons) > len(shown):
+                detail += f"\n• +{len(reasons) - len(shown)} more"
+        incident_scope = f"|{_slug(_stable(reasons[0]))}" if component == "odds.volume" else ""
+        add(f"degr|{component}{incident_scope}|{day}", "", format_ops(title, detail),
+            bypass_quiet=component == "odds.volume")
     for ts, what in ((heartbeat_ts, "CF cron heartbeat"), (prev_meta_ts, "board meta")):
         if ts is not None and (now - ts) > timedelta(hours=STALE_HOURS):
             add(f"heartbeat|{_slug(what)}|{day}", "", format_ops(f"Refresh stale · {what}",
@@ -1192,11 +1248,14 @@ def ops_candidates(
         add(f"names|{book}|{day}", "", format_ops(f"DATA ISSUE · unresolved teams · {_book_label(book)} ({len(names)})",
                                                     "\n".join(sorted(set(names))[:25])))
     for sport, cards in cards_by_sport.items():
-        for card in cards:
-            if card.get("stadium") is None:
-                add(f"stadium|{card.get('game_id')}", sport, format_ops(f"DATA ISSUE · stadium missing · {_matchup(card)}",
-                                                                        str(card.get("game_id"))),
-                    game_id=card.get("game_id"))
+        missing_stadiums = [card for card in cards if card.get("stadium") is None]
+        if missing_stadiums:
+            shown = missing_stadiums[:3]
+            detail = "\n".join(f"• {_matchup(card)}" for card in shown)
+            if len(missing_stadiums) > len(shown):
+                detail += f"\n• +{len(missing_stadiums) - len(shown)} more"
+            add(f"stadium|{sport}|{day}", sport,
+                format_ops(f"DATA ISSUE · stadium mappings missing ({len(missing_stadiums)})", detail))
         if cards and all((c.get("consensus") or {}).get("total_now") is None for c in cards) and getattr(ctx, "scope", "") != "weather":
             add(f"noref|{sport}|{day}", sport, format_ops(f"DATA ISSUE · no reference totals · {SPORT_LABEL.get(sport, sport)}",
                                                           f"{len(cards)} games have no consensus total"))
@@ -1222,7 +1281,7 @@ def collect_candidates(
             out += followup_candidates(card, alerts, cfg, now, run_id)   # before new EDGEs: a key gone this run never MOVEs
             out += edge_candidates(card, alerts, cfg, run_id, now)
         out += opener_candidates(sport, cards, (new_keys_by_sport or {}).get(sport) or [], alerts, cfg, now, run_id)
-    if include_ops:
+    if include_ops and cfg.system_alerts:
         out += ops_candidates(ctx, cards_by_sport, alerts, now, heartbeat_ts=heartbeat_ts, prev_meta_ts=prev_meta_ts)
     return out
 
@@ -1513,9 +1572,10 @@ def run_alerts(
     return AlertsRun(cands, p, outcome, alerts, tg, source)
 
 
-# ---- weekly CLV digest (backtest.yml) ------------------------------------------------------------
+# ---- weekly results / CLV digest (backtest.yml) --------------------------------------------------
 
-DIGEST_KINDS = ("clv",)
+DIGEST_KINDS = ("clv", "postmortem")
+POSTMORTEM_MORE_MARKER = "more on dashboard"
 
 
 def _backtest_section(backtest: Optional[dict[str, Any]]) -> list[str]:
@@ -1589,6 +1649,140 @@ def clv_digest(alerts: dict, *, sport: Optional[str] = None, top_n: int = 3,
     return "\n".join(lines)
 
 
+def postmortem_digest(backtest: Optional[dict[str, Any]], *, sport: Optional[str] = None,
+                      board_url: str = DEFAULT_BOARD_URL, max_chars: Optional[int] = TELEGRAM_MAX_CHARS) -> str:
+    """One scan-friendly weekly scorecard; the dashboard retains every detail."""
+    pm = (backtest or {}).get("postmortem") or {}
+    latest = pm.get("latest") or {}
+    bets = [b for b in (latest.get("bets") or []) if isinstance(b, dict)
+            and (sport is None or b.get("sport") == sport)]
+    if not bets:
+        return "\n".join([
+            "<b>🧾 WEEKLY POST-MORTEM</b>",
+            f"No completed {SPORT_LABEL.get(sport, sport or '').strip()} plays in the last 7 days.".replace("  ", " "),
+            f'<a href="{html.escape(board_url + "/#view=backtest", quote=True)}">Season report</a>',
+        ])
+
+    graded = [b for b in bets if b.get("result") in {"W", "L", "P"}]
+    wins = sum(b.get("result") == "W" for b in graded)
+    losses = sum(b.get("result") == "L" for b in graded)
+    pushes = sum(b.get("result") == "P" for b in graded)
+    units = [_num(b.get("unit_profit")) for b in graded]
+    units = [x for x in units if x is not None]
+    clvs = [_num(b.get("clv_pts")) for b in bets]
+    clvs = [x for x in clvs if x is not None]
+    thesis = [b for b in bets if b.get("wind_thesis")]
+    thesis_checked = [b for b in thesis if b.get("wind_materialized") is not None]
+    held = sum(b.get("wind_materialized") is True for b in thesis_checked)
+    first_wind_errors = [abs(float(first) - float(actual)) for b in bets
+                         if (first := _num((b.get("first_weather") or {}).get("wind_mph"))) is not None
+                         and (actual := _num((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
+    final_wind_errors = [abs(float(final) - float(actual)) for b in bets
+                         if (final := _num((b.get("final_forecast") or {}).get("wind_mph"))) is not None
+                         and (actual := _num((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
+
+    start, end = _dt(latest.get("window_start")), _dt(latest.get("window_end"))
+    def day(dt: Optional[datetime]) -> str:
+        return f"{to_et(dt).strftime('%b')} {to_et(dt).day}" if dt is not None else "?"
+
+    league = SPORT_LABEL.get(sport or "", "FOOTBALL")
+    title = f"<b>🧾 {league} WEEKLY POST-MORTEM · {day(start)}–{day(end)}</b>"
+    units_text = f" · {_fmt_signed(sum(units), 2)}u" if units else ""
+    roi_text = f" · ROI {_fmt_signed(100 * sum(units) / len(units), 1)}%" if units else ""
+    close_text = (f"Closing line: beat {sum(x > 0 for x in clvs)}/{len(clvs)} · "
+                  f"avg {_fmt_signed(sum(clvs) / len(clvs), 2)} pts"
+                  if clvs else "Closing line: pending")
+    pending = len(bets) - len(graded)
+    result_text = f"Results: {wins}-{losses}-{pushes} W-L-P{units_text}{roi_text}" + (f" · {pending} pending" if pending else "")
+    if thesis_checked:
+        wind_text = f"Wind thesis: {held}/{len(thesis_checked)} materialized"
+        if len(thesis) > len(thesis_checked):
+            wind_text += f" · {len(thesis) - len(thesis_checked)} pending"
+    elif thesis:
+        wind_text = f"Wind thesis: {len(thesis)} awaiting actual weather"
+    else:
+        wind_text = "Wind thesis: no 12+ mph forecasts"
+    accuracy_text = (f"Wind MAE: {sum(first_wind_errors) / len(first_wind_errors):.1f} at alert"
+                     + (f" → {sum(final_wind_errors) / len(final_wind_errors):.1f} final" if final_wind_errors else "")
+                     + " mph") if first_wind_errors else ""
+    lines = [title, result_text, close_text, wind_text, *([accuracy_text] if accuracy_text else []), "<b>Games</b>"]
+
+    def game_line(b: dict[str, Any]) -> str:
+        result_icon = {"W": "✅", "L": "❌", "P": "➖"}.get(b.get("result"), "⏳")
+        away, home = html.escape(str(b.get("away") or "?")), html.escape(str(b.get("home") or "?"))
+        market, side = str(b.get("market") or ""), str(b.get("side") or "")
+        if market == "total":
+            bet = f"{'U' if side == 'under' else 'O'}{_fmt_line(b.get('first_line'))}"
+        else:
+            team = home if side == "home" else away
+            bet = f"{team} {_fmt_line(b.get('first_line'), True)}"
+        lead = _num(b.get("hours_before_kickoff"))
+        first = (f"Bet: {bet} {_fmt_odds(b.get('first_odds'))} · {_book_label(str(b.get('book') or ''))}"
+                 f" · edge {_fmt_signed(b.get('first_edge'))} pts")
+        if lead is not None:
+            first += f" · {round(lead):g}h early"
+        close = (f"Close: {_fmt_line(b.get('closing_line'), market == 'spread')} · "
+                 f"CLV {_fmt_signed(b.get('clv_pts'))} pts" if b.get("closing_line") is not None
+                 else "Close: unavailable")
+        final = f"game total {_fmt_line(b.get('actual_total'))}" if b.get("actual_total") is not None else "result pending"
+        fw = _num((b.get("first_weather") or {}).get("wind_mph"))
+        lw = _num((b.get("final_forecast") or {}).get("wind_mph"))
+        aw = _num((b.get("actual_weather") or {}).get("wind_mph"))
+        wx = f"Wind: {_fmt_line(fw)} alert → {_fmt_line(lw)} final fcst → {_fmt_line(aw)} actual mph"
+        if b.get("wind_thesis"):
+            if b.get("wind_materialized") is None:
+                wx += " — actual pending"
+            else:
+                wx += " — materialized" if b.get("wind_materialized") else " — missed"
+        elif aw is not None:
+            wx += " — emerged (not thesis)" if b.get("wind_materialized") else " — not wind-driven"
+        return f"• {result_icon} <b>{away} @ {home}</b>\n  {first}\n  {close} · {final}\n  {wx}"
+
+    link = f'<a href="{html.escape(board_url + "/#view=backtest", quote=True)}">Full season report</a>'
+    rendered = "\n".join(lines)
+    for idx, bet in enumerate(bets):
+        item = game_line(bet)
+        remaining = len(bets) - idx - 1
+        suffix = f"\n… +{remaining} more on dashboard" if remaining else ""
+        if max_chars is not None and len(rendered) + len(item) + len(suffix) + len(link) + 4 > max_chars:
+            rendered += f"\n… +{remaining + 1} {POSTMORTEM_MORE_MARKER}"
+            break
+        rendered += "\n" + item
+    return f"{rendered}\n{link}"
+
+
+def send_postmortem_email(report_html: str, *, sport: Optional[str], board_url: str,
+                          cfg: Optional[EmailConfig] = None, smtp_factory: Optional[Callable[..., Any]] = None) -> bool:
+    """Send the complete report through ordinary SMTP without logging credentials."""
+    import smtplib
+    from email.message import EmailMessage
+
+    cfg = cfg or EmailConfig.from_env()
+    if not cfg.configured:
+        logger.warning("post-mortem email fallback is not configured")
+        return False
+    plain = html.unescape(re.sub(r"<[^>]*>", "", report_html)).strip()
+    plain += f"\n\nDashboard: {board_url}/#view=backtest"
+    msg = EmailMessage()
+    league = SPORT_LABEL.get(sport or "", "Football")
+    msg["Subject"] = f"{league} weekly betting post-mortem"
+    msg["From"] = cfg.from_addr
+    msg["To"] = ", ".join(cfg.to_addrs)
+    msg.set_content(plain)
+    factory = smtp_factory or (smtplib.SMTP_SSL if cfg.use_ssl else smtplib.SMTP)
+    try:
+        with factory(cfg.host, cfg.port, timeout=20) as client:
+            if not cfg.use_ssl and cfg.starttls:
+                client.starttls()
+            if cfg.username:
+                client.login(cfg.username, cfg.password)
+            client.send_message(msg)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("post-mortem email fallback failed: %s", exc)
+        return False
+
+
 def _load_backtest(path: Optional[Path]) -> Optional[dict[str, Any]]:
     if path is None or not Path(path).is_file():
         return None
@@ -1603,13 +1797,15 @@ def _load_backtest(path: Optional[Path]) -> Optional[dict[str, Any]]:
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m pipeline.alerts", description=__doc__.split("\n\n")[0])
     p.add_argument("--digest", nargs="?", const="clv", choices=DIGEST_KINDS, default=None,
-                   help="send a weekly digest: 'clv' (default) = CLV by tier/league/book/model from alerts.json "
-                        "records + v1 vs v2 from --backtest")
+                   help="send a weekly digest: 'postmortem' = results, close, and weather; "
+                        "'clv' (default) = the legacy CLV-only scorecard")
     p.add_argument("--flush", action="store_true",
                    help="release stored queue snapshots now; started games are discarded")
     p.add_argument("--sport", choices=("nfl", "cfb"), default=None)
     p.add_argument("--state-dir", type=Path, default=Path("data/state"))
-    p.add_argument("--backtest", type=Path, default=None, help="board/backtest.json (v1 vs v2 CLV section of the digest)")
+    p.add_argument("--backtest", type=Path, default=None, help="board/backtest.json (post-mortem and v1 vs v2 data)")
+    p.add_argument("--email-fallback", action="store_true",
+                   help="email the complete post-mortem if Telegram fails or must omit games")
     p.add_argument("--dry-run", action="store_true", help="print instead of sending")
     return p.parse_args(argv)
 
@@ -1625,6 +1821,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         text = clv_digest(alerts, sport=args.sport, backtest=_load_backtest(args.backtest))
         ok = sender(text, cfg.chat_for(args.sport))
         print(f"  clv digest: {'sent' if ok else 'FAILED'}")
+        return 0 if ok else 1
+    if args.digest == "postmortem":
+        backtest = _load_backtest(args.backtest)
+        text = postmortem_digest(backtest, sport=args.sport, board_url=cfg.board_url)
+        ok = sender(text, cfg.chat_for(args.sport))
+        print(f"  postmortem digest: {'sent' if ok else 'FAILED'}")
+        incomplete = POSTMORTEM_MORE_MARKER in text
+        if args.email_fallback and (not ok or incomplete):
+            complete = postmortem_digest(backtest, sport=args.sport, board_url=cfg.board_url, max_chars=None)
+            if args.dry_run:
+                print("\n--- EMAIL FALLBACK PREVIEW ---\n")
+                plain = html.unescape(re.sub(r"<[^>]*>", "", complete))
+                enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+                print(plain.encode(enc, errors="replace").decode(enc))
+                print(f"  email fallback: dry-run ({'telegram failed' if not ok else 'telegram was truncated'})")
+                return 0
+            email_ok = send_postmortem_email(complete, sport=args.sport, board_url=cfg.board_url)
+            print(f"  email fallback: {'sent' if email_ok else 'FAILED'}"
+                  f" ({'telegram failed' if not ok else 'telegram was truncated'})")
+            return 0 if email_ok else 1
         return 0 if ok else 1
     if args.flush:
         alerts, _ = pstate.load_alerts_rehydrated(args.state_dir)

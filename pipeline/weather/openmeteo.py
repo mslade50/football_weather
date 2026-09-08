@@ -84,7 +84,12 @@ def _get_json(client: httpx.Client, url: str, params: dict[str, str]) -> tuple[A
     for attempt in range(RETRIES):
         try:
             r = client.get(url, params=params)
-            if r.status_code >= 500 or r.status_code == 429:
+            # Retrying a rate-limited multi-location request immediately only
+            # extends the outage and increases provider load. Let the caller
+            # preserve other successful batches and use NWS/static fallbacks.
+            if r.status_code == 429:
+                raise RuntimeError("open-meteo rate limited (HTTP 429)")
+            if r.status_code >= 500:
                 raise httpx.HTTPStatusError(f"status {r.status_code}", request=r.request, response=r)
             r.raise_for_status()
             return r.json(), str(r.url)

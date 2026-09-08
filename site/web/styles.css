@@ -280,6 +280,14 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .bt-banner { padding: 7px 18px; font-size: 12px; border-bottom: 1px solid var(--line);
   color: var(--warn); background: rgba(180,120,20,.12); }
 .bt-note { padding: 6px 18px; }
+.bt-pm-summary { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.bt-pm-card { display: grid; grid-template-columns: auto auto 1fr; gap: 3px 12px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; background: rgba(139,148,158,.06); }
+.bt-pm-card .sub { grid-column: 1 / -1; }
+.bt-pm-card b { font-size: 17px; }
+.bt-pm-card .bt-pm-accuracy { grid-column: 1 / -1; color: var(--muted); }
+.bt-postmortem td { vertical-align: top; line-height: 1.45; }
+.bt-pm-weeks { margin: 10px 18px 18px; }
+.bt-pm-weeks summary { cursor: pointer; color: var(--muted); margin-bottom: 6px; }
 .alertctl .al-clv { margin-left: auto; }
 .alertctl .al-clv b { color: var(--text); }
-@media (max-width: 800px) { .status-grid { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .status-grid, .bt-pm-summary { grid-template-columns: 1fr; } }

@@ -214,7 +214,7 @@ test("dispatchBoard posts to pipeline.yml on main with sport/scope/force inputs"
   assert.match(fail.detail, /boom/);
 });
 
-test("scheduled failure notices use concise SYSTEM language", async () => {
+test("scheduled SYSTEM notices are opt-in and concise", async () => {
   const origFetch = globalThis.fetch;
   const sent = [];
   try {
@@ -222,7 +222,13 @@ test("scheduled failure notices use concise SYSTEM language", async () => {
       sent.push({ url: String(url), body: JSON.parse(init.body) });
       return new Response(null, { status: 200 });
     };
-    const blockedEnv = fakeEnv({ TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
+    const silentEnv = fakeEnv({ TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, silentEnv);
+    assert.equal(sent.length, 0);
+
+    const blockedEnv = fakeEnv({
+      TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
+    });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, blockedEnv);
     assert.equal(sent.length, 1);
     assert.equal(sent[0].body.chat_id, "chat");
@@ -235,7 +241,10 @@ test("scheduled failure notices use concise SYSTEM language", async () => {
       sent.push({ url: String(url), body: JSON.parse(init.body) });
       return new Response(null, { status: 200 });
     };
-    const failedEnv = fakeEnv({ GH_DISPATCH_TOKEN: "tok", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
+    const failedEnv = fakeEnv({
+      GH_DISPATCH_TOKEN: "tok", TELEGRAM_SYSTEM_ALERTS: "1",
+      TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
+    });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, failedEnv);
     assert.equal(sent.length, 1);
     assert.match(sent[0].body.text,

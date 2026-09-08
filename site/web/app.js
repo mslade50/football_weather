@@ -43,8 +43,8 @@
  *    fair, edge_pts, clv_pts, closing_line, sent_at, first_sent_at, sends, status, text_html, run_id}
  *   (D1 `alerts` column names first_line/last_line/first_edge/last_edge/last_sent_at also accepted);
  *   fallback /api/alerts → {ok, rows}.
- * /data/backtest.json → Backtest tab (backtest.js): {run_id, generated_at, grid [bucket rows], stadium_results [..],
- *   games [matched games], clv {weeks, by_tier, by_league, by_book, by_model {v1, v2}}}; backtestHover(g) feeds the
+ * /data/backtest.json → Backtest tab (backtest.js): {run_id, generated_at, postmortem {latest, season}, grid [bucket rows],
+ *   stadium_results [..], games [matched games], clv {weeks, by_tier, by_league, by_book, by_model {v1, v2}}}; backtestHover(g) feeds the
  *   Record / ROI lines on the map popup, table hover and drawer via first-match bucket lookup.
  * /data/status.json → Status tab (status.js): {run_id, last_updated, season, week, git_sha, model_version,
  *   next_run_eta, stage_timings {stage: s}, books {..}, degradations [..], unresolved_names [..],

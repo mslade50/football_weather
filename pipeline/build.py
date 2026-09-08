@@ -265,6 +265,42 @@ def _is_conus(st: Stadium) -> bool:
     return 24.0 <= st.lat <= 50.0 and -125.0 <= st.lon <= -66.0
 
 
+def _fetch_point_batches(
+    points: Sequence[tuple[float, float]],
+    fetcher: Callable[..., Sequence[Any]],
+    *,
+    batch_size: int,
+    source_prefix: str,
+    **kwargs: Any,
+) -> tuple[dict[tuple[float, float], Any], list[tuple[int, int, Exception]]]:
+    """Fetch independent point batches and retain every successful batch.
+
+    The provider client also enforces its own maximum size, but batching here is
+    deliberate: one HTTP 429 must not discard forecasts already returned by an
+    earlier request in the same run.
+    """
+    fetched: dict[tuple[float, float], Any] = {}
+    failures: list[tuple[int, int, Exception]] = []
+    for batch_index, offset in enumerate(range(0, len(points), batch_size)):
+        batch = list(points[offset : offset + batch_size])
+        try:
+            parsed = list(
+                fetcher(
+                    batch,
+                    source_prefix=f"{source_prefix}_batch{batch_index:02d}",
+                    **kwargs,
+                )
+            )
+            if len(parsed) != len(batch):
+                raise RuntimeError(
+                    f"provider returned {len(parsed)} locations for {len(batch)} points"
+                )
+            fetched.update(zip(batch, parsed, strict=True))
+        except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
+            failures.append((batch_index, len(batch), exc))
+    return fetched, failures
+
+
 def stage_weather(
     ctx: RunContext, sport: str, games: list[Game], stadiums: dict[str, Stadium], raw: RawStore, roof_states: dict[str, str | None],
     extras: dict[str, dict[str, Any]] | None = None,
@@ -301,28 +337,54 @@ def stage_weather(
     for pts, models, prefix in ((conus_pts, om_mod.CONUS_MODELS, "openmeteo_conus"), (intl_pts, om_mod.INTL_MODELS, "openmeteo_intl")):
         if not pts:
             continue
-        try:
-            parsed = om_mod.fetch_forecast(pts, start=start, end=end, models=models, capture=capture, source_prefix=prefix)
-            om_by_point.update(zip(pts, parsed, strict=False))
-        except Exception as exc:  # noqa: BLE001
-            ctx.degrade("weather", f"{sport}: open-meteo ({prefix}) failed: {exc}", "error")
+        fetched, failures = _fetch_point_batches(
+            pts,
+            om_mod.fetch_forecast,
+            batch_size=om_mod.BATCH_SIZE,
+            source_prefix=prefix,
+            start=start,
+            end=end,
+            models=models,
+            capture=capture,
+        )
+        om_by_point.update(fetched)
+        if failures:
+            affected = sum(size for _, size, _ in failures)
+            ctx.degrade(
+                "weather",
+                f"{sport}: open-meteo ({prefix}) unavailable for {affected}/{len(pts)} locations "
+                f"across {len(failures)} batch(es): {failures[0][2]}",
+                "warn",
+            )
 
     # ensemble members (wind_vol_fc / P10-P90 / precip_prob_ens); failure -> static wind_vol fallback
     ens_by_point: dict[tuple[float, float], Any] = {}
     all_pts = conus_pts + intl_pts
-    ens_ok = False
     fetch_ens = getattr(om_mod, "fetch_ensemble", None)
     if callable(fetch_ens) and all_pts:
-        try:
-            parsed_ens = fetch_ens(all_pts, start=start, end=end, capture=capture, source_prefix="openmeteo_ensemble")
-            ens_by_point.update(zip(all_pts, parsed_ens, strict=False))
-            ens_ok = True
-        except Exception as exc:  # noqa: BLE001
-            ctx.degrade("weather", f"{sport}: open-meteo ensemble failed ({exc}); wind_vol falls back to static", "warn")
+        fetched_ens, failures = _fetch_point_batches(
+            all_pts,
+            fetch_ens,
+            batch_size=om_mod.BATCH_SIZE,
+            source_prefix="openmeteo_ensemble",
+            start=start,
+            end=end,
+            capture=capture,
+        )
+        ens_by_point.update(fetched_ens)
+        if failures:
+            affected = sum(size for _, size, _ in failures)
+            ctx.degrade(
+                "weather",
+                f"{sport}: open-meteo ensemble unavailable for {affected}/{len(all_pts)} locations "
+                f"across {len(failures)} batch(es); wind volatility uses static fallback",
+                "warn",
+            )
     else:
         ctx.degrade("weather", f"{sport}: ensemble client unavailable; wind_vol falls back to static", "warn")
 
     nws_by_point: dict[tuple[float, float], Any] = {}
+    nws_failures: list[tuple[tuple[float, float], Exception]] = []
     cache = nws_mod.PointsCache()
     nws_h = merge_mod.NWS_HORIZON_H
     for pt in conus_pts:
@@ -331,7 +393,14 @@ def stage_weather(
         try:
             nws_by_point[pt] = nws_mod.fetch_hourly(pt[0], pt[1], cache=cache, capture=capture)
         except Exception as exc:  # noqa: BLE001
-            ctx.degrade("weather", f"{sport}: nws {pt} failed: {exc}", "warn")
+            nws_failures.append((pt, exc))
+    if nws_failures:
+        ctx.degrade(
+            "weather",
+            f"{sport}: NWS unavailable for {len(nws_failures)}/{len(conus_pts)} locations: "
+            f"{nws_failures[0][1]}",
+            "warn",
+        )
     try:
         cache.save()
     except OSError:
@@ -345,7 +414,8 @@ def stage_weather(
                 res = merge_mod.build_forecast(
                     g.game_id, g.kickoff_utc, now, om_by_point.get(pt), nws_by_point.get(pt),
                     orientation_deg=st.orientation_deg, roof_state=roof_states.get(g.game_id), run_id=ctx.run_id,
-                    ens=ens_by_point.get(pt), roof_type=st.roof_type, expect_ensemble=ens_ok,
+                    ens=ens_by_point.get(pt), roof_type=st.roof_type,
+                    expect_ensemble=pt in ens_by_point, report_source_degradations=False,
                 )
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{g.game_id}: merge failed: {exc}", "warn")
@@ -360,6 +430,30 @@ def stage_weather(
                     "ensemble": getattr(res, "ensemble", None) is not None,
                 }
     ctx.count("weather", sport, len(fc))
+    nws_only = [
+        forecast
+        for forecast in fc.values()
+        if forecast.source == merge_mod.NWS
+        and any(value is not None for value in (forecast.temp_fg, forecast.wind_fg, forecast.rain_fg_mm))
+    ]
+    no_source = [
+        forecast
+        for forecast in fc.values()
+        if all(value is None for value in (forecast.temp_fg, forecast.wind_fg, forecast.rain_fg_mm))
+    ]
+    if nws_only:
+        ctx.degrade(
+            "weather",
+            f"{sport}: {len(nws_only)} games used NWS-only weather after Open-Meteo was unavailable",
+            "warn",
+        )
+    if no_source:
+        nearest = min((forecast.lead_hours for forecast in no_source), default=0.0)
+        ctx.degrade(
+            "weather",
+            f"{sport}: {len(no_source)} games have no usable forecast (nearest kickoff {nearest:.0f}h away)",
+            "warn",
+        )
     missing = [g.game_id for g in games if g.game_id not in fc]
     if missing:
         ctx.degrade("weather", f"{sport}: {len(missing)} games without forecast", "warn")

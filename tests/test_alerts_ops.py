@@ -1,6 +1,7 @@
-"""OPS-notice noise controls (added after the first live day sent 25 OPS messages).
+"""OPS-notice noise controls.
 
-* keys strip counts so ``cfb: 136 unresolved`` and ``cfb: 239 unresolved`` are one alert/day
+* Telegram SYSTEM notices are off by default
+* opt-in notices group repeated provider failures under one component key/day
 * expected conditions (off-season window, optional keys, disabled/dark books) never page
 * ``:no-schedule-match`` names (FCS games a book lists) are not "unresolved"
 * every OPS candidate of a run rides in ONE grouped message
@@ -15,7 +16,7 @@ import pytest
 from pipeline import alerts as A
 from pipeline import build
 from pipeline import state as pstate
-from tests.test_alerts_rules import CFG, NOW, _ctx, _fresh
+from tests.test_alerts_rules import CFG, NOW, _ctx, _fresh, card
 
 
 def _ops_keys(ctx) -> list[str]:
@@ -27,7 +28,24 @@ def test_degradation_key_is_stable_across_changing_counts():
     a, b = _ctx(), _ctx()
     a.degrade("odds.merge", "cfb: 136 unresolved book games/names (of 249)", "warn")
     b.degrade("odds.merge", "cfb: 239 unresolved book games/names (of 312)", "warn")
-    assert _ops_keys(a) == _ops_keys(b) == ["degr|odds.merge|cfb-unresolved-book-games-names-of|2026-09-18"]
+    assert _ops_keys(a) == _ops_keys(b) == ["degr|odds.merge|2026-09-18"]
+
+
+def test_collect_candidates_keeps_system_chatter_off_telegram_by_default():
+    ctx = _ctx()
+    for i in range(85):
+        ctx.degrade("weather", f"game {i}: open-meteo unavailable; NWS-only forecast", "warn")
+    alerts, _ = _fresh()
+
+    assert A.collect_candidates(ctx, {}, alerts, A.Config(), NOW) == []
+    bet_candidates = A.collect_candidates(ctx, {"nfl": [card()]}, alerts, A.Config(), NOW)
+    assert [candidate.family for candidate in bet_candidates] == ["edge"]
+
+    enabled = A.Config(system_alerts=True)
+    candidates = A.collect_candidates(ctx, {}, alerts, enabled, NOW)
+    assert len(candidates) == 1
+    assert candidates[0].key == "degr|weather|2026-09-18"
+    assert "85 issues this run" in candidates[0].text
 
 
 @pytest.mark.parametrize("reason", [
@@ -89,17 +107,17 @@ def test_no_schedule_match_names_are_not_unresolved():
 def test_ops_candidates_are_one_grouped_message():
     ctx = _ctx()
     for i in range(6):
-        ctx.degrade(f"c{i}", f"thing {i} broke badly", "warn")
+        ctx.degrade("weather", f"thing {i} broke badly", "warn")
     alerts, tg = _fresh()
     cands = A.ops_candidates(ctx, {}, alerts, NOW)
-    assert len(cands) == 6
+    assert len(cands) == 1
     plan = A.plan(cands, alerts, tg, NOW, CFG)
-    assert plan.send == [] and len(plan.ops) == 6
+    assert plan.send == [] and len(plan.ops) == 1
     sent: list[str] = []
     out = A.dispatch(plan, alerts, lambda text, chat: sent.append(text) or True, NOW, CFG)
     assert out.n_messages == 1 and "SYSTEM" in sent[0]
-    assert "thing 0 broke badly" in sent[0] and "thing 5 broke badly" in sent[0]
-    assert all(pstate.alert_sent(alerts, c.key) for c in cands)          # all six keys marked
+    assert "6 issues this run" in sent[0]
+    assert all(pstate.alert_sent(alerts, c.key) for c in cands)
     again = A.ops_candidates(ctx, {}, alerts, NOW + timedelta(hours=2))
     assert again == []                                                    # same ET day → dedup
 

@@ -1,19 +1,19 @@
 name: backtest
 
-# Phase 6: weekly backtest + CLV (ARCH §9.3, PLAN Phase 6).
+# Weekly bet post-mortem + season backtest (ARCH §9.3, PLAN Phase 6).
 #
-#   * Tuesday 06:17 ET-ish (10:17 UTC, off-the-minute like pipeline.yml): fetch the
+#   * Sunday 08:17/09:17 ET for CFB and Tuesday 08:17/09:17 ET for NFL (13:17 UTC): fetch the
 #     state files pipeline.backtest reads from R2 board/ (alerts, closings, history,
 #     wx_history, openers), pull the D1 tables it joins as {table}.json
 #     (`d1 execute --json`), mirror the R2 snapshots/ those exports reference (wrangler
-#     `r2 object get`, newest SNAPSHOT_MAX), run `python -m pipeline.backtest` -> data/board/backtest.json (bucket
-#     grid + stadium results + matched games + alerts_clv by tier/league/book/model)
+#     `r2 object get`, newest SNAPSHOT_MAX), run `python -m pipeline.backtest` -> data/board/backtest.json (weekly
+#     post-mortem + season rollups + bucket grid + stadium results + matched games)
 #     and data/backtest/*.parquet, push backtest.json to R2 board/ and the parquet
 #     files to R2 backtest/, and archive the closings / stadium_results rows it
 #     produced to D1. The board's Backtest tab reads /data/backtest.json.
-#   * Monday 08:17 ET-ish (12:17 UTC): same job, plus the weekly CLV digest
-#     (`python -m pipeline.alerts --digest clv`) — CLV by tier/league/book, v1 vs v2
-#     and the promotion gate, from alerts.json records + the fresh backtest.json.
+#   * Each run sends one league-specific Telegram post-mortem: first alerted price,
+#     closing-line value, result, and forecast-vs-actual wind for every play. SMTP
+#     receives the complete report when Telegram fails or has to omit games.
 #   * State is read-only here: nothing under board/ except backtest.json is written,
 #     so this job can never clobber openers or alert markers. A failed R2 state fetch
 #     (anything but NoSuchKey) still fails the job — a backtest on blank state would
@@ -24,15 +24,21 @@ name: backtest
 
 on:
   schedule:
-    - cron: '17 10 * * 2'    # Tue 06:17 EDT / 05:17 EST — weekly backtest
-    - cron: '17 12 * * 1'    # Mon 08:17 EDT / 07:17 EST — backtest + CLV digest
+    - cron: '17 13 * * 0'    # Sun 09:17 EDT / 08:17 EST — CFB after Saturday slate
+    - cron: '17 13 * * 2'    # Tue 09:17 EDT / 08:17 EST — post-mortem after MNF
   workflow_dispatch:
     inputs:
       digest:
-        description: 'Also send the weekly CLV digest to Telegram'
+        description: 'Also send the weekly post-mortem to Telegram'
         type: boolean
         required: false
         default: false
+      digest_sport:
+        description: 'League for a manually requested post-mortem'
+        type: choice
+        options: [all, cfb, nfl]
+        required: false
+        default: all
       dry_run:
         description: 'Build backtest.json but push nothing and print the digest instead of sending'
         type: boolean
@@ -53,8 +59,9 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
   DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
-  # Monday schedule or explicit dispatch input -> send the CLV digest.
-  SEND_DIGEST: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 12 * * 1') || inputs.digest == true }}
+  # Every scheduled run, or an explicit dispatch input, sends one post-mortem.
+  SEND_DIGEST: ${{ github.event_name == 'schedule' || inputs.digest == true }}
+  DIGEST_SPORT: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 13 * * 0' && 'cfb') || (github.event_name == 'schedule' && 'nfl') || inputs.digest_sport || 'all' }}
   # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
   STATE_FILES: alerts closings history wx_history openers
   D1_TABLES: games odds_history closings alerts stadiums teams weather_history
@@ -197,15 +204,28 @@ jobs:
         if: env.DRY_RUN == '' && hashFiles('data/d1_backtest.sql') != ''
         run: |
           npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_backtest.sql
-      - name: Weekly CLV digest
+      - name: Weekly post-mortem
         if: env.SEND_DIGEST == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_CHAT_ID_NFL: ${{ secrets.TELEGRAM_CHAT_ID_NFL }}
           TELEGRAM_CHAT_ID_CFB: ${{ secrets.TELEGRAM_CHAT_ID_CFB }}
+          POSTMORTEM_EMAIL_TO: ${{ secrets.POSTMORTEM_EMAIL_TO }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
+          SMTP_STARTTLS: ${{ secrets.SMTP_STARTTLS }}
         run: |
-          python -m pipeline.alerts --digest clv --state-dir data/state --backtest data/board/backtest.json ${DRY_RUN:+--dry-run}
+          SPORT_ARGS=()
+          if [ "$DIGEST_SPORT" = "cfb" ] || [ "$DIGEST_SPORT" = "nfl" ]; then
+            SPORT_ARGS=(--sport "$DIGEST_SPORT")
+          fi
+          python -m pipeline.alerts --digest postmortem --state-dir data/state --backtest data/board/backtest.json \
+            --email-fallback "${SPORT_ARGS[@]}" ${DRY_RUN:+--dry-run}
       - name: Upload backtest artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -218,7 +238,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Telegram on failure
-        if: failure()
+        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

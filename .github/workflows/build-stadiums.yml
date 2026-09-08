@@ -110,7 +110,7 @@ jobs:
           labels: data
 
       - name: Telegram on failure
-        if: failure()
+        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

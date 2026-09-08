@@ -14,7 +14,7 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 | Worker tests | `node --test "site/worker/test/*.mjs"` | **21 pass / 0 fail** |
 | Frontend syntax | `node --check site/web/*.js` | 8 files ok (`alerts app backtest drawer map signals status table`) |
 | Backtest CLI | `python -m pipeline.backtest --help` | ok (flags listed in §3) |
-| Fixture backtest | `python -m pipeline.backtest --no-network --board-dir … --parquet-dir … --state-dir …` | `board/backtest.json` with **118 grid rows** (ids 1..118, legacy `Signal` order), keys `meta grid stadium_results alerts_clv games`; 4 parquet files (`games grid stadium_results alerts_clv`); 8 snapshot games, 0 graded (season not started) |
+| Fixture backtest | `python -m pipeline.backtest --no-network --board-dir … --parquet-dir … --state-dir …` | `board/backtest.json` with **118 grid rows** plus `postmortem {latest, season}`; 5 parquet files (`games grid stadium_results alerts_clv postmortem`) |
 | Calibrate | `python -m pipeline.calibrate --dry-run` | "0 usable game(s) … nothing to fit" (expected: no settled data yet) |
 | Full build | `python -m pipeline.build --sport all --scope light --no-alerts --run-id final-integration` (scratch out/state/board/snapshot dirs) | exit 0; NFL 0 games in window (272 in 2026 season), CFB week-1 board; pinnacle/betcris/fanduel/kalshi/novig lines live, prophetx 0 (no key), 63 CFB unresolved book names (FCS); wrote legacy csv/xlsx, 8 board JSONs (meta last), 5 state files incl. `closings.json` |
 
@@ -47,7 +47,7 @@ field populated by `weather/merge.py` and emitted in the GameCard weather block
 `odds_history` export, newest `SNAPSHOT_MAX=120`) — no S3 keys anywhere in the
 workflows.
 
-Telegram cleanup (2026-08-31): PLAY alerts now default to Mid+ signals with a real posted price and `edge_pts >= 1.0`; one game-level identity survives best-book churn and model promotion, concurrent signal/fair/line changes collapse to one UPDATE, and notifications stop at kickoff. Quiet-hour messages are rebuilt from current prices, openers are opt-in, and three individual alerts are followed by one bounded SUMMARY. Scrape-volume incidents use one immediate sport-scoped SYSTEM path, NFL/CFB baseline scopes no longer reset each other, and fatal workflow errors have one notification owner (ARCH §10; `pipeline/alerts.py`).
+Telegram cleanup (2026-09-08): PLAY alerts default to Mid+ signals with a real posted price and `edge_pts >= 1.0`; one game-level identity survives best-book churn and model promotion, concurrent signal/fair/line changes collapse to one UPDATE, and notifications stop at kickoff. Quiet-hour messages are rebuilt from current prices, openers are opt-in, and three individual alerts are followed by one bounded SUMMARY. SYSTEM paging is off by default (`TELEGRAM_SYSTEM_ALERTS=1` opts in); repeated provider issues collapse by component and the pipeline owns only one run-level failure page. Open-Meteo batches now preserve earlier successful batches during a later 429, fail rate limits without immediate retry traffic, aggregate NWS/no-source fallbacks, and publish degraded data without turning a temporary provider outage into a failed run (ARCH §10; `pipeline/alerts.py`).
 
 ## 2. What is implemented, per phase
 
@@ -72,7 +72,7 @@ Telegram cleanup (2026-08-31): PLAY alerts now default to Mid+ signals with a re
 - `site/web/{index.html,app.js,map.js,table.js,drawer.js,styles.css}` + vendored MapLibre / uPlot (`site/web/vendor`, no CDN); `deploy.yml` (tests → `d1 migrations apply --remote` → wrangler deploy on push to `main` touching `site/**`).
 
 ### Phase 4 — Telegram alerts, Alerts + Status tabs: DONE (Telegram sends fixture-tested only)
-- `pipeline/alerts.py`: PLAY / UPDATE / CLOSED / SYSTEM UX over the EDGE / MOVE / GONE / WX records, stable dedup in `state/alerts.json` (cap 500), chat routing `TELEGRAM_CHAT_ID_NFL` / `_CFB` → `TELEGRAM_CHAT_ID`, `--alerts-stdout` / `--no-alerts`, `--digest clv`.
+- `pipeline/alerts.py`: PLAY / UPDATE / CLOSED UX over the EDGE / MOVE / GONE / WX records, with SYSTEM opt-in only; stable dedup in `state/alerts.json` (cap 500), chat routing `TELEGRAM_CHAT_ID_NFL` / `_CFB` → `TELEGRAM_CHAT_ID`, `--alerts-stdout` / `--no-alerts`, `--digest postmortem` (`--digest clv` retained manually).
 - `board/alerts_feed.json`, `board/status.json`, `site/web/{alerts,status}.js`; D1 `alerts` + `runs` tables; records retain the originating `ALERT_MODEL`, while a model promotion does not re-page the same play.
 
 ### Phase 5 — Better weather + stadiums, v2 model side by side: DONE
@@ -83,10 +83,10 @@ Telegram cleanup (2026-08-31): PLAY alerts now default to Mid+ signals with a re
 
 ### Phase 6 — Backtest + calibration + CLV: DONE (fixture-verified; no settled season yet)
 - `pipeline/model/clv.py` (19 tests): closing freeze from `history.json` / D1 `odds_history`, side-relative `clv_pts`, legacy `clv_status`, `closings.json` store, `settle_alerts`; now wired into `pipeline.build` (see §1).
-- `pipeline/backtest.py` (15 grid tests incl. pandas oracle of the legacy `pages/cfb_weather.py` lookup): 118 legacy buckets from the xlsx fixture, Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV%, stadium results, alerts CLV by tier/league/book/model/market; inputs from snapshots, D1 export (`--export-dir`) or SQLite replay (`--sqlite`), HRRR actuals from Open-Meteo historical-forecast, results from CFBD / ESPN / nflverse; outputs `board/backtest.json`, `data/backtest/*.parquet`, optional `--d1-sql`.
+- `pipeline/backtest.py`: 118 legacy buckets plus a bet-level post-mortem that grades the frozen first alerted line/price, same-book close/CLV, score and units; joins first/final forecasts to Open-Meteo kickoff-window historical-model weather; emits weekly and season rollups by week/sport/tier/book/model to JSON and parquet.
 - `pipeline/calibrate.py` (14 tests): bounded coordinate-descent refit of the v2 block into `data/calibration.json` (never edits `config.py`; sha256 guard), refuses on <4 distinct weeks unless `--force`; promotion rule + v1-vs-v2 CLV gate.
-- `backtest.yml` (Tue `17 10 * * 2` weekly, Mon `17 12 * * 1` + CLV digest), `calibrate.yml` (monthly `17 13 1 * *`, PR `chore/calibrate-v2` touching only `data/calibration.json`); 17 workflow-contract tests.
-- `site/web/backtest.js` Backtest tab (grid / stadium results / matched games / CLV summary + promotion pill); Record/ROI hover lines in map/table/drawer; CLV columns in Alerts tab.
+- `backtest.yml` (Sun `17 13 * * 0` CFB + Tue `17 13 * * 2` NFL, each builds the unified report then sends one league post-mortem with complete-report SMTP fallback), `calibrate.yml` (monthly `17 13 1 * *`, PR `chore/calibrate-v2` touching only `data/calibration.json`).
+- `site/web/backtest.js` Backtest tab (weekly post-mortem default + season rollups / grid / stadium results / matched games / CLV summary); Record/ROI hover lines in map/table/drawer; CLV columns in Alerts tab.
 
 ## 3. Live-verified vs fixture-only
 
@@ -119,9 +119,11 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `ALERT_MODEL` | `pipeline/model/config.py` — `v1` (default) or `v2` picks which impact drives alerts | .env / workflow env | optional |
 | `PIPELINE_FORCE` | `pipeline/gate_check.py` (`1` bypasses the off-season gate) | GH dispatch input / .env | optional |
 | `GITHUB_SHA`, `GITHUB_OUTPUT` | `run_context.py` meta sha, `gate_check.py` outputs | provided by Actions | — |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `utils/telegram.py`, `pipeline/alerts.py`, every workflow `if: failure()`, Worker cron/dispatch failure pings | .env, GH, wrangler | required for alerts / failure pings |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `utils/telegram.py`, `pipeline/alerts.py`; optional workflow/Worker failure paging | .env, GH, wrangler | required for bet alerts |
 | `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB` | `pipeline/alerts.py` per-sport routing (fallback `TELEGRAM_CHAT_ID`) | .env, GH (pipeline.yml) | optional |
 | `TELEGRAM_MIN_TIER`, `TELEGRAM_MIN_EDGE_PTS`, `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | Telegram policy; defaults `mid`, `1.0`, `4`, `0` | .env / workflow env | optional |
+| `TELEGRAM_SYSTEM_ALERTS` | aggregated in-run/workflow/Worker operations paging; default `0` | GH repo variable / Worker var | optional |
+| `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`, `SMTP_STARTTLS` | `backtest.yml` full weekly post-mortem fallback | GH | optional — without them Telegram still sends, but a failed/truncated Telegram report has no email fallback |
 | `CLOUDFLARE_API_TOKEN` | `pipeline.yml`, `deploy.yml`, `backtest.yml`, `calibrate.yml`, `build-stadiums.yml` (wrangler r2/d1/deploy) — needs Workers Scripts: Edit, R2 Storage: Edit, D1: Edit | GH | required for any Cloudflare workflow |
 | `CF_ACCOUNT_ID` | same workflows (exported as `CLOUDFLARE_ACCOUNT_ID`); `pipeline/outputs/r2.py` boto3 endpoint | GH, .env | required; value `ba4875f01f2bc46dd48e1e26d2ec9080` |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional `R2_BUCKET`, `R2_ENDPOINT`) | `pipeline/outputs/r2.py` boto3 path (`--publish`, `--merge-into-r2`) | .env | optional, local only — no workflow references them (pipeline / backtest / calibrate use wrangler get/put); the secrets do not exist on GitHub |

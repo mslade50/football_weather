@@ -20,4 +20,12 @@ def test_failure_pings_are_clear_encoded_guarded_and_do_not_log_telegram_payload
         assert "SYSTEM ·" in text, name
         assert '--data-urlencode text="$MSG"' in text, name
         assert 'TELEGRAM_BOT_TOKEN" ]' in text and 'TELEGRAM_CHAT_ID" ]' in text, name
+        assert "vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text, name
         assert ">/dev/null || true" in text, name
+
+
+def test_pipeline_has_only_one_optional_failure_page_for_the_whole_run():
+    text = (ROOT / ".github" / "workflows" / "pipeline.yml").read_text(encoding="utf-8")
+    assert text.count("api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage") == 1
+    assert "needs: [gate, light, playwright]" in text
+    assert "always() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text

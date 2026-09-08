@@ -364,8 +364,10 @@ function ghHeaders(env) {
   };
 }
 
-// Best-effort Telegram alert; no-ops if creds aren't set.
+// Best-effort SYSTEM Telegram alert. This is opt-in so the betting channel does
+// not become a CI/provider-health pager.
 export async function notifyTelegram(env, text, fetchImpl = fetch) {
+  if (env.TELEGRAM_SYSTEM_ALERTS !== "1") return;
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
   try {
     await fetchImpl(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {

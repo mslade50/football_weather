@@ -59,7 +59,7 @@ npx wrangler secret put BOARD_PASSWORD          # shared viewer password (any us
 npx wrangler secret put BOARD_ADMIN_USERNAME    # optional override of the `mslade` var in wrangler.toml
 npx wrangler secret put BOARD_ADMIN_PASSWORD    # distinct admin password: unlocks POST /refresh
 npx wrangler secret put GH_DISPATCH_TOKEN       # fine-grained GitHub PAT, Actions: write on mslade50/football_weather
-npx wrangler secret put TELEGRAM_BOT_TOKEN      # cron/dispatch failure pings
+npx wrangler secret put TELEGRAM_BOT_TOKEN      # optional: only used if TELEGRAM_SYSTEM_ALERTS=1
 npx wrangler secret put TELEGRAM_CHAT_ID
 ```
 
@@ -70,8 +70,8 @@ Notes:
   OPEN (dev convenience) — set `BOARD_PASSWORD` before the first deploy.
 - `GH_DISPATCH_TOKEN`: GitHub → Settings → Developer settings → Fine-grained
   tokens → repository `mslade50/football_weather` → Permissions → Actions:
-  Read and write. Note the expiry in your calendar; the Worker Telegram-pings
-  when a dispatch returns 401/403.
+  Read and write. Note the expiry in your calendar; dispatch failures remain in
+  Worker logs unless `TELEGRAM_SYSTEM_ALERTS=1` is explicitly configured.
 
 ## 4. First deploy (manual)
 
@@ -102,7 +102,9 @@ done
 | `CLOUDFLARE_API_TOKEN` | deploy.yml, pipeline.yml | Workers Scripts: Edit, Workers R2 Storage: Edit, D1: Edit (dash.cloudflare.com/profile/api-tokens) |
 | `CF_ACCOUNT_ID` | deploy.yml, pipeline.yml | `ba4875f01f2bc46dd48e1e26d2ec9080` (exported as `CLOUDFLARE_ACCOUNT_ID`) |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | OPTIONAL — local `pipeline.build --publish` / `--merge-into-r2` boto3 path only; pipeline.yml uses the wrangler put loop and does not read them | R2 → Manage R2 API tokens → Object Read & Write on `football-board` |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | all workflows `if: failure()` + alerts | already set for Phases 1–2 |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | bet alerts; optional SYSTEM failure paging | already set for Phases 1–2 |
+| `TELEGRAM_SYSTEM_ALERTS` | opt in to aggregated SYSTEM failure paging | repo/Worker variable; default `0` |
+| `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | backtest.yml complete-report fallback when Telegram fails or must omit games | SMTP account; add `SMTP_USE_SSL` or `SMTP_STARTTLS` only when provider defaults differ |
 | `CFBD_API_KEY`, `PROPHETX_*` | pipeline.yml | already set |
 
 ```bash
@@ -110,6 +112,13 @@ gh secret set CLOUDFLARE_API_TOKEN
 gh secret set CF_ACCOUNT_ID --body ba4875f01f2bc46dd48e1e26d2ec9080
 gh secret set R2_ACCESS_KEY_ID
 gh secret set R2_SECRET_ACCESS_KEY
+# Weekly report email fallback (enter values interactively; use an app password when required)
+gh secret set POSTMORTEM_EMAIL_TO
+gh secret set SMTP_HOST
+gh secret set SMTP_PORT
+gh secret set SMTP_USERNAME
+gh secret set SMTP_PASSWORD
+gh secret set SMTP_FROM
 ```
 
 R2 S3 endpoint for boto3: `https://ba4875f01f2bc46dd48e1e26d2ec9080.r2.cloudflarestorage.com`.

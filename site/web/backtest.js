@@ -12,6 +12,8 @@
 //               "+ CLV", "CLV %", n_games, legacy {Wins, Losses, Push, Sample, Margin, ROI, "+ CLV", "CLV %"} } ],
 //     stadium_results: [ { stadium_id, sport, season, Team, Stadium, Record "W-L-P", Percentage, under_w, under_l, under_p, roi, n } ],
 //     stadium_results_legacy: [ { Team, Stadium, Record "W-L-P", Percentage, sport "cfb" } ]   (the xlsx Stadiums sheet),
+//     postmortem: { methodology, latest {window_start, window_end, summary, bets},
+//                   season {summary, by_week, by_sport, by_tier, by_book, by_model, bets} },
 //     games: [ GameRow.to_dict(): game_id, sport, season, week, kickoff_utc, home_id, away_id, home_name, away_name,
 //              stadium_name, roof_state, temp_fc, wind_fc, gust_fc, rain_fc, lead_fc, gs_fg_v1, gs_fg_v2,
 //              temp_act, wind_act, rain_act, total_open, total_close, spread_open, spread_close, clv_status,
@@ -42,7 +44,7 @@ function saveBtLegacy(on) {
 }
 const BT_NO_GRADED_BANNER = "No graded 2026 games yet (first grading after Week 0 settles) — showing legacy sheet results.";
 
-const BT = { data: null, loaded: false, loading: null, sport: "", section: "grid", q: "", sort: null, dir: -1, legacy: loadBtLegacy() };
+const BT = { data: null, loaded: false, loading: null, sport: "", section: "postmortem", q: "", sort: null, dir: -1, legacy: loadBtLegacy() };
 
 const BT_SPORT = { nfl: "NFL", cfb: "NCAAF" };
 const btNum = (...vals) => { for (const v of vals) if (isNum(v)) return Number(v); return null; };
@@ -132,6 +134,46 @@ function normalizeClv(d) {
   if (weeks === null && Array.isArray(clv.alerts)) weeks = new Set(clv.alerts.filter((a) => a && a.week != null).map((a) => `${a.season}-${a.week}`)).size;
   return { n: btNum(clv.n), weeks, by_model: models, alerts: Array.isArray(clv.alerts) ? clv.alerts : [] };
 }
+function normalizePmStats(raw) {
+  const stats = raw || {};
+  return { bets: btNum(stats.bets) ?? 0, graded: btNum(stats.graded) ?? 0, pending: btNum(stats.pending) ?? 0,
+    wins: btNum(stats.wins) ?? 0, losses: btNum(stats.losses) ?? 0, pushes: btNum(stats.pushes) ?? 0,
+    units: btNum(stats.units), roi: btNum(stats.roi), priced_bets: btNum(stats.priced_bets),
+    clv_bets: btNum(stats.clv_bets), avg_clv: btNum(stats.avg_clv), beat_close: btNum(stats.beat_close),
+    tied_close: btNum(stats.tied_close), beat_close_rate: btNum(stats.beat_close_rate), avg_first_edge: btNum(stats.avg_first_edge),
+    avg_lead_hours: btNum(stats.avg_lead_hours), weather_checked: btNum(stats.weather_checked),
+    actual_windy_games: btNum(stats.actual_windy_games),
+    wind_thesis_games: btNum(stats.wind_thesis_games), wind_thesis_checked: btNum(stats.wind_thesis_checked),
+    wind_thesis_pending: btNum(stats.wind_thesis_pending), wind_materialized: btNum(stats.wind_materialized),
+    wind_materialization_rate: btNum(stats.wind_materialization_rate), first_wind_mae_mph: btNum(stats.first_wind_mae_mph),
+    first_wind_bias_mph: btNum(stats.first_wind_bias_mph), final_wind_mae_mph: btNum(stats.final_wind_mae_mph),
+    final_wind_bias_mph: btNum(stats.final_wind_bias_mph), first_temp_mae_f: btNum(stats.first_temp_mae_f),
+    final_temp_mae_f: btNum(stats.final_temp_mae_f), first_rain_mae_mm: btNum(stats.first_rain_mae_mm),
+    final_rain_mae_mm: btNum(stats.final_rain_mae_mm) };
+}
+function normalizePmBet(raw) {
+  const b = raw || {}, fw = b.first_weather || {}, lf = b.final_forecast || {}, aw = b.actual_weather || {};
+  return { ...b, sport: String(b.sport || "").toLowerCase(), away: btStr(b.away) || "?", home: btStr(b.home) || "?",
+    stadium: btStr(b.stadium) || "", first_line: btNum(b.first_line), first_odds: btNum(b.first_odds),
+    first_fair: btNum(b.first_fair), first_edge: btNum(b.first_edge), closing_line: btNum(b.closing_line),
+    clv_pts: btNum(b.clv_pts), hours_before_kickoff: btNum(b.hours_before_kickoff), unit_profit: btNum(b.unit_profit),
+    actual_total: btNum(b.actual_total), home_score: btNum(b.home_score), away_score: btNum(b.away_score),
+    first_weather: { temp_f: btNum(fw.temp_f), wind_mph: btNum(fw.wind_mph), gust_mph: btNum(fw.gust_mph), rain_mm: btNum(fw.rain_mm) },
+    final_forecast: { temp_f: btNum(lf.temp_f), wind_mph: btNum(lf.wind_mph), gust_mph: btNum(lf.gust_mph), rain_mm: btNum(lf.rain_mm) },
+    actual_weather: { temp_f: btNum(aw.temp_f), wind_mph: btNum(aw.wind_mph), gust_mph: btNum(aw.gust_mph), rain_mm: btNum(aw.rain_mm) } };
+}
+function normalizePostmortem(d) {
+  const pm = d.postmortem && typeof d.postmortem === "object" ? d.postmortem : {};
+  const latest = pm.latest && typeof pm.latest === "object" ? pm.latest : {};
+  const season = pm.season && typeof pm.season === "object" ? pm.season : {};
+  const normRollup = (rows) => (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, ...normalizePmStats(r) }));
+  return { methodology: pm.methodology || {},
+    latest: { window_start: btStr(latest.window_start), window_end: btStr(latest.window_end),
+      summary: normalizePmStats(latest.summary), bets: (Array.isArray(latest.bets) ? latest.bets : []).map(normalizePmBet) },
+    season: { summary: normalizePmStats(season.summary), bets: (Array.isArray(season.bets) ? season.bets : []).map(normalizePmBet),
+      by_week: normRollup(season.by_week), by_sport: normRollup(season.by_sport), by_tier: normRollup(season.by_tier),
+      by_book: normRollup(season.by_book), by_model: normRollup(season.by_model) } };
+}
 function normalizeBacktest(payload) {
   const d = payload && typeof payload === "object" ? payload : {};
   const meta = d.meta && typeof d.meta === "object" ? d.meta : {};
@@ -143,11 +185,12 @@ function normalizeBacktest(payload) {
     .map((row) => normalizeStadiumRow(row, true)).filter((row) => row.stadium || row.team);
   const games = (Array.isArray(d.games) ? d.games : Array.isArray(d.matched_games) ? d.matched_games : []).map(normalizeBtGame);
   const clv = normalizeClv(d);
+  const postmortem = normalizePostmortem(d);
   const lg = meta.legacy && typeof meta.legacy === "object" ? meta.legacy : {};
   const legacy = { source: btStr(lg.source), seasons: btStr(lg.seasons), n_buckets: btNum(lg.n_buckets) };
   return { run_id: meta.run_id || d.run_id || null, generated_at: meta.generated_at || meta.last_updated || d.generated_at || d.last_updated || null,
     bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks),
-    grid, stadiums, stadiums_legacy, games, clv, legacy };
+    grid, stadiums, stadiums_legacy, games, clv, postmortem, legacy };
 }
 
 async function loadBacktest(force = false) {
@@ -347,18 +390,106 @@ function clvSummaryHtml(clv) {
   return `<div class="statusbar bt-clv">${models.map((k) => `<span class="seg">${cell(k)}</span>`).join('<span class="sep">|</span>')}${isNum(weeks) ? `<span class="sep">|</span><span class="seg">${weeks} wk</span>` : ""}${gate}</div>`;
 }
 
+function pmStats(bets) {
+  const graded = bets.filter((b) => ["W", "L", "P"].includes(b.result));
+  const nums = (key) => bets.map((b) => b[key]).filter(isNum).map(Number);
+  const clv = nums("clv_pts"), units = graded.map((b) => b.unit_profit).filter(isNum).map(Number);
+  const thesis = bets.filter((b) => b.wind_thesis);
+  const thesisChecked = thesis.filter((b) => typeof b.wind_materialized === "boolean");
+  const firstErr = bets.filter((b) => isNum(b.first_weather.wind_mph) && isNum(b.actual_weather.wind_mph))
+    .map((b) => Number(b.first_weather.wind_mph) - Number(b.actual_weather.wind_mph));
+  const finalErr = bets.filter((b) => isNum(b.final_forecast.wind_mph) && isNum(b.actual_weather.wind_mph))
+    .map((b) => Number(b.final_forecast.wind_mph) - Number(b.actual_weather.wind_mph));
+  const firstTempErr = bets.filter((b) => isNum(b.first_weather.temp_f) && isNum(b.actual_weather.temp_f))
+    .map((b) => Number(b.first_weather.temp_f) - Number(b.actual_weather.temp_f));
+  const finalTempErr = bets.filter((b) => isNum(b.final_forecast.temp_f) && isNum(b.actual_weather.temp_f))
+    .map((b) => Number(b.final_forecast.temp_f) - Number(b.actual_weather.temp_f));
+  const firstRainErr = bets.filter((b) => isNum(b.first_weather.rain_mm) && isNum(b.actual_weather.rain_mm))
+    .map((b) => Number(b.first_weather.rain_mm) - Number(b.actual_weather.rain_mm));
+  const finalRainErr = bets.filter((b) => isNum(b.final_forecast.rain_mm) && isNum(b.actual_weather.rain_mm))
+    .map((b) => Number(b.final_forecast.rain_mm) - Number(b.actual_weather.rain_mm));
+  const avg = (xs) => xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null;
+  return { bets: bets.length, graded: graded.length, pending: bets.length - graded.length,
+    wins: graded.filter((b) => b.result === "W").length, losses: graded.filter((b) => b.result === "L").length,
+    pushes: graded.filter((b) => b.result === "P").length, units: units.length ? units.reduce((a, x) => a + x, 0) : null,
+    roi: units.length ? units.reduce((a, x) => a + x, 0) / units.length : null, clv_bets: clv.length,
+    avg_clv: avg(clv), beat_close: clv.filter((x) => x > 0).length,
+    beat_close_rate: clv.length ? clv.filter((x) => x > 0).length / clv.length : null,
+    wind_thesis_games: thesis.length, wind_thesis_checked: thesisChecked.length,
+    wind_thesis_pending: thesis.length - thesisChecked.length, wind_materialized: thesisChecked.filter((b) => b.wind_materialized).length,
+    wind_materialization_rate: thesisChecked.length ? thesisChecked.filter((b) => b.wind_materialized).length / thesisChecked.length : null,
+    first_wind_mae_mph: firstErr.length ? avg(firstErr.map(Math.abs)) : null,
+    final_wind_mae_mph: finalErr.length ? avg(finalErr.map(Math.abs)) : null,
+    first_temp_mae_f: firstTempErr.length ? avg(firstTempErr.map(Math.abs)) : null,
+    final_temp_mae_f: finalTempErr.length ? avg(finalTempErr.map(Math.abs)) : null,
+    first_rain_mae_mm: firstRainErr.length ? avg(firstRainErr.map(Math.abs)) : null,
+    final_rain_mae_mm: finalRainErr.length ? avg(finalRainErr.map(Math.abs)) : null };
+}
+function pmSummaryHtml(label, summary) {
+  const record = `${summary.wins || 0}-${summary.losses || 0}-${summary.pushes || 0}`;
+  const close = summary.clv_bets ? `${summary.beat_close}/${summary.clv_bets} beat · ${isNum(summary.avg_clv) ? (summary.avg_clv >= 0 ? "+" : "") + Number(summary.avg_clv).toFixed(2) : "—"} avg` : "pending";
+  const wind = summary.wind_thesis_checked ? `${summary.wind_materialized}/${summary.wind_thesis_checked} held${summary.wind_thesis_pending ? ` · ${summary.wind_thesis_pending} pending` : ""}`
+    : summary.wind_thesis_games ? `${summary.wind_thesis_games} pending` : "no wind thesis";
+  const mae = (first, final, unit) => isNum(first) ? `${Number(first).toFixed(1)}${isNum(final) ? `→${Number(final).toFixed(1)}` : ""}${unit}` : "—";
+  return `<div class="bt-pm-card"><span class="sub">${esc(label)}</span><b>${record}</b>`
+    + `<span>${isNum(summary.units) ? `${summary.units >= 0 ? "+" : ""}${Number(summary.units).toFixed(2)}u · ${fmtRoi(summary.roi)}` : `${summary.graded || 0} graded`}</span>`
+    + `<span>Close: ${close}</span><span>Wind: ${wind}</span>`
+    + `<span class="bt-pm-accuracy">Forecast MAE first→final: wind ${mae(summary.first_wind_mae_mph, summary.final_wind_mae_mph, " mph")} · temp ${mae(summary.first_temp_mae_f, summary.final_temp_mae_f, "°F")} · rain ${mae(summary.first_rain_mae_mm, summary.final_rain_mae_mm, " mm")}</span></div>`;
+}
+function postmortemSectionHtml(pm, bets) {
+  const latestStats = pmStats(bets);
+  const range = pm.latest.window_start && pm.latest.window_end ? `${fmtShortET(pm.latest.window_start)} – ${fmtShortET(pm.latest.window_end)}` : "Last 7 days";
+  const summary = `<div class="bt-pm-summary">${pmSummaryHtml(range, latestStats)}${pmSummaryHtml("Season", pm.season.summary)}</div>`;
+  const method = pm.methodology || {}, windThreshold = btNum(method.wind_materialization_mph) ?? 12;
+  const note = `<div class="sub bt-note">First = first successfully sent actionable alert. Close = same-book pre-kick line. Actual weather = venue historical-model estimate, kickoff through +2h. Wind “held” = forecast and actual both ≥ ${fmtNum(windThreshold, 0)} mph.</div>`;
+  const weeks = (pm.season.by_week || []).map((w) => `<tr><td class="left">${esc(String(w.sport || "").toUpperCase())} ${esc(w.season)} wk ${esc(w.week)}</td>`
+    + `<td>${w.wins}-${w.losses}-${w.pushes}</td><td class="${roiClass(w.units)}">${isNum(w.units) ? `${w.units >= 0 ? "+" : ""}${Number(w.units).toFixed(2)}u` : "—"}</td>`
+    + `<td>${w.clv_bets ? `${w.beat_close}/${w.clv_bets}` : "—"}</td><td>${isNum(w.avg_clv) ? `${w.avg_clv >= 0 ? "+" : ""}${Number(w.avg_clv).toFixed(2)}` : "—"}</td>`
+    + `<td>${w.wind_thesis_checked ? `${w.wind_materialized}/${w.wind_thesis_checked}` : (w.wind_thesis_games ? "pending" : "—")}</td></tr>`).join("");
+  const weekTable = weeks ? `<details class="bt-pm-weeks"><summary>Season by week</summary><div class="wrap"><table class="bt"><thead><tr><th class="left">Week</th><th>Record</th><th>Units</th><th>Beat close</th><th>Avg CLV</th><th>Wind held</th></tr></thead><tbody>${weeks}</tbody></table></div></details>` : "";
+  const splitRows = [["Sport", pm.season.by_sport], ["Signal", pm.season.by_tier], ["Book", pm.season.by_book], ["Model", pm.season.by_model]]
+    .flatMap(([dimension, rows]) => (rows || []).map((row) => `<tr><td class="left">${esc(dimension)}</td><td class="left">${esc(String(row.key || "?").replace("_", " "))}</td>`
+      + `<td>${row.wins}-${row.losses}-${row.pushes}</td><td class="${roiClass(row.units)}">${isNum(row.units) ? `${row.units >= 0 ? "+" : ""}${Number(row.units).toFixed(2)}u` : "—"}</td>`
+      + `<td>${row.clv_bets ? `${row.beat_close}/${row.clv_bets}` : "—"}</td><td>${isNum(row.avg_clv) ? `${row.avg_clv >= 0 ? "+" : ""}${Number(row.avg_clv).toFixed(2)}` : "—"}</td></tr>`)).join("");
+  const splitTable = splitRows ? `<details class="bt-pm-weeks"><summary>Season splits</summary><div class="wrap"><table class="bt"><thead><tr><th class="left">Split</th><th class="left">Group</th><th>Record</th><th>Units</th><th>Beat close</th><th>Avg CLV</th></tr></thead><tbody>${splitRows}</tbody></table></div></details>` : "";
+  const head = `<tr><th class="left">Game</th><th class="left">First edge</th><th>Close</th><th>Result</th><th>Wind: first → final fc → actual</th><th>Temp: first → actual</th><th>Rain: first → actual</th></tr>`;
+  const body = bets.map((b) => {
+    const side = b.market === "total" ? `${b.side === "under" ? "U" : "O"}${fmtTotal(b.first_line)}`
+      : `${b.side === "home" ? b.home : b.away} ${fmtLine(b.first_line)}`;
+    const first = `${esc(side)} ${isNum(b.first_odds) ? (b.first_odds > 0 ? "+" : "") + Math.round(b.first_odds) : ""}`
+      + ` · edge ${isNum(b.first_edge) ? (b.first_edge >= 0 ? "+" : "") + Number(b.first_edge).toFixed(1) : "—"}`
+      + `${isNum(b.hours_before_kickoff) ? ` · ${Math.round(b.hours_before_kickoff)}h early` : ""}`;
+    const clv = isNum(b.clv_pts) ? `<span class="mv ${b.clv_pts > 0 ? "up" : b.clv_pts < 0 ? "dn" : ""}">${b.clv_pts > 0 ? "+" : ""}${Number(b.clv_pts).toFixed(1)}</span>` : "—";
+    const close = `${b.market === "spread" ? fmtLine(b.closing_line) : fmtTotal(b.closing_line)} · ${clv}`;
+    const score = isNum(b.away_score) && isNum(b.home_score) ? `${b.away_score}-${b.home_score}` : (isNum(b.actual_total) ? fmtTotal(b.actual_total) : "—");
+    const closeGrade = b.result_at_close && b.result_at_close !== b.result ? ` <span class="sub">(close ${esc(b.result_at_close)})</span>` : "";
+    const result = b.result ? `<span class="mv ${b.result === "W" ? "up" : b.result === "L" ? "dn" : ""}">${esc(b.result)}</span> · ${score}${closeGrade}` : "pending";
+    const windState = b.wind_thesis ? (typeof b.wind_materialized !== "boolean" ? "actual pending" : b.wind_materialized ? '<span class="mv up">held</span>' : '<span class="mv dn">missed</span>')
+      : b.wind_materialized ? "emerged (not thesis)" : "not wind-driven";
+    return `<tr class="bt-game${b.game_id ? " link" : ""}" data-game="${esc(b.game_id || "")}"><td class="left"><b>${esc(b.away)} @ ${esc(b.home)}</b><br><span class="sub">${b.kickoff_utc ? esc(fmtShortET(b.kickoff_utc)) : ""} · ${esc(String(b.sport || "").toUpperCase())}</span></td>`
+      + `<td class="left">${first}<br><span class="sub">${esc(String(b.book || ""))} · ${esc(String(b.tier || "").replace("_", " "))}</span></td>`
+      + `<td>${close}</td><td>${result}</td>`
+      + `<td>${fmtNum(b.first_weather.wind_mph, 1)} → ${fmtNum(b.final_forecast.wind_mph, 1)} → ${fmtNum(b.actual_weather.wind_mph, 1)} mph<br>${windState}</td>`
+      + `<td>${fmtNum(b.first_weather.temp_f, 0)}° → ${fmtNum(b.actual_weather.temp_f, 0)}°</td>`
+      + `<td>${fmtNum(b.first_weather.rain_mm, 1)} → ${fmtNum(b.actual_weather.rain_mm, 1)} mm</td></tr>`;
+  }).join("");
+  const table = `<div class="wrap bt-wrap"><table class="bt bt-postmortem"><thead>${head}</thead><tbody>${body || '<tr><td colspan="7" class="empty">No alerted plays kicked off in the last 7 days.</td></tr>'}</tbody></table></div>`;
+  return summary + note + table + weekTable + splitTable;
+}
+
 function filteredBacktest() {
-  const d = BT.data || { grid: [], stadiums: [], stadiums_legacy: [], games: [] };
+  const d = BT.data || { grid: [], stadiums: [], stadiums_legacy: [], games: [], postmortem: { latest: { bets: [] } } };
   const sportLabel = BT.sport ? BT_SPORT[BT.sport] : "";
-  let grid = d.grid, stadiums = stadiumRows(), games = d.games;
-  if (sportLabel) { grid = grid.filter((row) => row.sport === sportLabel); games = games.filter((row) => row.sport === BT.sport); }
+  let grid = d.grid, stadiums = stadiumRows(), games = d.games, bets = d.postmortem.latest.bets;
+  if (sportLabel) { grid = grid.filter((row) => row.sport === sportLabel); games = games.filter((row) => row.sport === BT.sport); bets = bets.filter((row) => row.sport === BT.sport); }
   if (BT.sport === "nfl") stadiums = [];   // stadium sheet is CFB-only (legacy)
   if (BT.q) {
     const q = BT.q;
     stadiums = stadiums.filter((row) => `${row.team} ${row.stadium}`.toLowerCase().includes(q));
     games = games.filter((row) => `${row.away} ${row.home} ${row.stadium} ${row.game_id || ""}`.toLowerCase().includes(q));
+    bets = bets.filter((row) => `${row.away} ${row.home} ${row.stadium} ${row.game_id || ""} ${row.book || ""}`.toLowerCase().includes(q));
   }
-  return { grid, stadiums, games: games.slice(0, 1000) };
+  return { grid, stadiums, games: games.slice(0, 1000), bets };
 }
 
 async function renderBacktest() {
@@ -377,17 +508,19 @@ async function renderBacktest() {
     + (lg.source ? ` · legacy: ${esc(lg.source)}${lg.seasons ? ` (${esc(lg.seasons)})` : ""}` : "");
   const controls = `<div class="controls btctl">
     <select id="bt-sport"><option value="">Sport: all</option><option value="cfb">CFB (NCAAF)</option><option value="nfl">NFL</option></select>
-    <select id="bt-section"><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
+    <select id="bt-section"><option value="postmortem">Weekly post-mortem</option><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
     <input id="bt-q" placeholder="Filter team / stadium…" />
-    <label class="chk" title="Show the legacy sheet's Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV % next to this season's"><input type="checkbox" id="bt-legacy" /> legacy</label>
+    ${BT.section === "grid" ? `<label class="chk" title="Show the legacy sheet's Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV % next to this season's"><input type="checkbox" id="bt-legacy" /> legacy</label>` : ""}
     <span class="sub" id="bt-count"></span>
     <span class="sub">${meta}${d.run_id ? ` · run ${esc(d.run_id)}` : ""}</span>
     <button class="controlbtn" id="bt-reload" type="button" title="Re-fetch backtest.json">↻</button>
   </div>`;
-  const banner = d.n_graded === 0 && d.grid.length ? `<div class="banner warn bt-banner">${esc(BT_NO_GRADED_BANNER)}</div>` : "";
+  const banner = BT.section === "grid" && d.n_graded === 0 && d.grid.length ? `<div class="banner warn bt-banner">${esc(BT_NO_GRADED_BANNER)}</div>` : "";
   let section = "";
-  if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length) {
+  if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length && !d.postmortem.season.bets.length) {
     section = `<div class="empty">no backtest published yet (backtest.yml writes board/backtest.json every Tuesday)</div>`;
+  } else if (BT.section === "postmortem") {
+    section = postmortemSectionHtml(d.postmortem, flt.bets);
   } else if (BT.section === "stadiums") {
     section = stadiumSectionHtml(flt.stadiums);
   } else if (BT.section === "games") {
@@ -396,21 +529,21 @@ async function renderBacktest() {
     section = gridSectionHtml(flt.grid);
   }
   host.innerHTML = controls + banner + clvSummaryHtml(d.clv) + section;
-  const counts = { grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
+  const counts = { postmortem: `${flt.bets.length} plays`, grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
   document.getElementById("bt-count").textContent = counts[BT.section] || "";
   document.getElementById("bt-sport").value = BT.sport;
   document.getElementById("bt-section").value = BT.section;
   document.getElementById("bt-q").value = BT.q;
-  document.getElementById("bt-legacy").checked = BT.legacy;
+  if (document.getElementById("bt-legacy")) document.getElementById("bt-legacy").checked = BT.legacy;
   document.getElementById("bt-sport").addEventListener("change", (ev) => { BT.sport = ev.target.value; renderBacktest(); });
   document.getElementById("bt-section").addEventListener("change", (ev) => { BT.section = ev.target.value; renderBacktest(); });
   document.getElementById("bt-q").addEventListener("input", (ev) => { BT.q = ev.target.value.toLowerCase().trim(); renderBacktest(); });
-  document.getElementById("bt-legacy").addEventListener("change", (ev) => {
-    BT.legacy = !!ev.target.checked;
-    saveBtLegacy(BT.legacy);
-    if (!BT.legacy && BT.sort && BT.sort.startsWith("l:")) BT.sort = null;   // hidden group can't stay the sort key
-    renderBacktest();
-  });
+  if (document.getElementById("bt-legacy")) document.getElementById("bt-legacy").addEventListener("change", (ev) => {
+      BT.legacy = !!ev.target.checked;
+      saveBtLegacy(BT.legacy);
+      if (!BT.legacy && BT.sort && BT.sort.startsWith("l:")) BT.sort = null;   // hidden group can't stay the sort key
+      renderBacktest();
+    });
   document.getElementById("bt-reload").addEventListener("click", async () => { await loadBacktest(true); renderBacktest(); });
   host.querySelectorAll("table.bt-grid th.sortable").forEach((th) => th.addEventListener("click", () => {
     const key = th.dataset.sort;

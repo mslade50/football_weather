@@ -69,7 +69,7 @@ def test_no_continue_on_error(text: str):
 
 def test_telegram_only_on_failure(wf: dict):
     tg = next(s for s in _steps(wf) if "Telegram" in s.get("name", ""))
-    assert tg["if"] == "failure()"
+    assert tg["if"] == "${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}"
 
 
 # ---- wrangler.toml ------------------------------------------------------------------

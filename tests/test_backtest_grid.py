@@ -188,6 +188,75 @@ def test_alerts_clv_groups_v1_vs_v2():
     assert out["by_league"][0]["key"] == "NFL" and out["alerts"][0]["alert_key"] == "a"
 
 
+def test_weekly_postmortem_grades_first_price_close_and_weather(tmp_path: Path):
+    row = _row(wind_fc=16.0, wind_act=13.0, temp_fc=55.0, temp_act=57.0, rain_fc=0.2, rain_act=0.0,
+               home_score=20, away_score=21)
+    sent = KICK - timedelta(hours=40)
+    rec = {"alert_key": "edge|one", "family": "edge", "game_id": row.game_id, "sport": "cfb",
+           "season": 2026, "week": 5, "market": "total", "side": "under", "book": "betonline",
+           "tier": "mid", "model_version": "v1", "first_sent_at": sent.isoformat(),
+           "first_line": 48.5, "first_odds": -110, "first_fair": 46.0, "first_edge": 2.5,
+           "closing_line": 47.0, "clv_pts": 1.5, "status": "settled"}
+    # The same alert is read from R2 and D1; it must remain one bet.
+    duplicate = {**rec, "first_fair": None, "status": "open"}
+    weather = [
+        {"game_id": row.game_id, "fetched_at": (sent - timedelta(hours=2)).isoformat(), "source": "merged",
+         "lead_hours": 42, "wind_mph": 14.0, "gust_mph": 21.0, "temp_f": 54.0, "precip_mm": 0.3},
+        {"game_id": row.game_id, "fetched_at": (sent + timedelta(hours=1)).isoformat(), "source": "merged",
+         "lead_hours": 39, "wind_mph": 20.0},
+    ]
+    out = bt.build_postmortem([row], [rec, duplicate], weather, now=KICK + timedelta(hours=5))
+    bet = out["latest"]["bets"][0]
+    assert out["latest"]["summary"]["bets"] == 1 and out["season"]["summary"]["bets"] == 1
+    assert (bet["result"], bet["result_at_close"], bet["clv_grade"]) == ("W", "W", "beat")
+    assert bet["unit_profit"] == pytest.approx(100 / 110, abs=0.001)
+    assert bet["hours_before_kickoff"] == 40.0 and bet["first_weather"]["wind_mph"] == 14.0
+    assert bet["wind_thesis"] is True and bet["wind_materialized"] is True
+    assert bet["first_wind_error_mph"] == 1.0 and bet["final_wind_error_mph"] == 3.0
+    summary = out["season"]["summary"]
+    assert summary["beat_close_rate"] == 1.0 and summary["wind_materialization_rate"] == 1.0
+    assert summary["first_wind_mae_mph"] == 1.0 and out["season"]["by_week"][0]["week"] == 5
+    assert summary["first_temp_mae_f"] == 3.0 and summary["final_temp_mae_f"] == 2.0
+    assert summary["first_rain_mae_mm"] == 0.3 and summary["final_rain_mae_mm"] == 0.2
+    assert summary["actual_windy_games"] == 1 and summary["wind_thesis_checked"] == 1
+    assert out["methodology"]["wind_materialization_mph"] == 12.0
+    res = bt.assemble([row], [], [rec, duplicate], now=(KICK + timedelta(hours=5)).isoformat(), weather_history=weather)
+    written = bt.write_parquet(res, tmp_path)
+    assert set(written) == set(bt.PARQUET_TABLES)
+    saved = pd.read_parquet(written["postmortem"])
+    assert saved.loc[0, "result"] == "W" and saved.loc[0, "first_weather"]["wind_mph"] == 14.0
+
+
+def test_postmortem_joins_exact_same_book_closing_when_alert_row_is_unsettled():
+    row = _row(home_score=20, away_score=21)
+    rec = {"alert_key": "edge|one", "family": "edge", "game_id": row.game_id, "sport": "cfb",
+           "season": 2026, "week": 5, "market": "total", "side": "under", "book": "betonline",
+           "tier": "mid", "first_sent_at": (KICK - timedelta(hours=10)).isoformat(),
+           "first_line": 48.5, "first_odds": -110, "first_edge": 2.5}
+    closings = [
+        {"game_id": row.game_id, "market": "total", "side": "under", "book": "fanduel",
+         "line": 45.0, "odds": -105},
+        {"game_id": row.game_id, "market": "total", "side": "under", "book": "betonline",
+         "line": 47.0, "odds": -115},
+    ]
+    # A later alert for a different book is the same recommendation, not a second bet.
+    repeat = {**rec, "alert_key": "edge|two", "book": "fanduel",
+              "first_sent_at": (KICK - timedelta(hours=5)).isoformat(), "first_line": 47.5, "first_odds": -105}
+    out = bt.build_postmortem([row], [repeat, rec], closings=closings, now=KICK + timedelta(hours=5))
+    bet = out["latest"]["bets"][0]
+    assert out["latest"]["summary"]["bets"] == 1 and bet["alert_key"] == "edge|one"
+    assert bet["closing_line"] == 47.0 and bet["closing_odds"] == -115
+    assert bet["clv_pts"] == 1.5 and bet["clv_grade"] == "beat" and bet["result_at_close"] == "W"
+
+
+def test_grade_bet_supports_totals_and_side_relative_spreads():
+    row = _row(home_score=20, away_score=21)
+    assert bt.grade_bet(row, "total", "under", 41) == "P"
+    assert bt.grade_bet(row, "total", "over", 40.5) == "W"
+    assert bt.grade_bet(row, "spread", "home", 1.0) == "P"
+    assert bt.grade_bet(row, "spread", "away", -0.5) == "W"
+
+
 # ---- snapshots → rows ---------------------------------------------------------------------------
 
 def _card(lead_h: float, wind: float, total_now: float, total_open: float = 50.0) -> dict:
@@ -240,6 +309,23 @@ def test_build_rows_merges_d1_and_snapshots_and_filters_by_kickoff():
     assert (r.total_close, r.spread_close, r.ref_book) == (47.5, -7.5, "betonline")   # D1 closing overrides consensus
     assert r.total_open == 52.0                      # earliest odds_history row = opener
     assert r.clv_status == "Positive"
+
+
+def test_build_rows_uses_d1_for_final_forecast_when_old_snapshot_is_not_mirrored():
+    d1 = bt.D1Data(
+        games=[{"game_id": "cfb:2026:5:a@b", "sport": "cfb", "season": 2026, "week": 5,
+                "kickoff_utc": "2026-10-03T19:30:00Z", "home_id": "b", "away_id": "a", "stadium_id": "s1"}],
+        stadiums=[{"stadium_id": "s1", "name": "S One", "lat": 40.0, "lon": -83.0}],
+        weather_history=[
+            {"game_id": "cfb:2026:5:a@b", "fetched_at": "2026-10-03T16:00:00Z", "source": "merged",
+             "wind_mph": 14, "gust_mph": 20, "temp_f": 55, "precip_mm": 0.3, "lead_hours": 3.5},
+            {"game_id": "cfb:2026:5:a@b", "fetched_at": "2026-10-03T20:00:00Z", "source": "merged",
+             "wind_mph": 30, "temp_f": 50},
+        ],
+    )
+    row = bt.build_rows(d1=d1, now=KICK + timedelta(hours=5))[0]
+    assert (row.wind_fc, row.gust_fc, row.temp_fc, row.rain_fc, row.lead_fc) == (14, 20, 55, 0.3, 3.5)
+    assert row.src_forecast == "d1_weather:2026-10-03T16:00:00Z"
 
 
 # ---- weather window + results parsers ---------------------------------------------------------------
@@ -326,7 +412,8 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games"}
+    assert payload["postmortem"]["latest"]["summary"]["bets"] == 0
     # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
     assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}
     assert payload["grid"][0]["legacy"] == {"Wins": 165, "Losses": 162, "Push": 6, "Sample": 333, "Margin": -2.08, "ROI": -0.036,

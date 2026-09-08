@@ -138,7 +138,7 @@ jobs:
             does not promote v2; alerts stay keyed to v1 until that manual edit.
           labels: model
       - name: Telegram on failure
-        if: failure()
+        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

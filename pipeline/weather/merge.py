@@ -397,6 +397,7 @@ def build_forecast(
     climo: Optional[CB.ClimoTable] = None,
     auto_climo: bool = True,
     blend_cfg: Optional[CB.BlendConfig] = None,
+    report_source_degradations: bool = True,
 ) -> MergeResult:
     """``climo`` (or, when None and ``auto_climo``, the data/climatology.csv table) supplies
     the shrinkage base rate; the cell is found by ``stadium_id`` or else by the nearest
@@ -423,9 +424,9 @@ def build_forecast(
     if not om_usable:
         om = None
         source = NWS
-        if allow_nws:
+        if allow_nws and report_source_degradations:
             _deg("open-meteo unavailable; NWS-only forecast", "warn")
-        else:
+        elif not allow_nws and report_source_degradations:
             _deg("no weather source available", "error")
     elif regime.average:
         members = medium_members_present(om, window, regime.weights)

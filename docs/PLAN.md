@@ -148,20 +148,20 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 
 ---
 
-## Phase 6 — Backtest + calibration + CLV (ship: `backtest.json` replaces `cfb_weather_backtest.xlsx`; weekly backtest/calibrate/CLV digest; v2 promotion gate)
+## Phase 6 — Backtest + calibration + CLV (ship: `backtest.json` replaces `cfb_weather_backtest.xlsx`; weekly post-mortem; v2 promotion gate)
 
 ### Files to create
 - `pipeline/model/clv.py` (closing freeze = last odds_history row before kickoff per key; `clv_pts`; alerts update; `closings` table + `closings.json`).
 - `pipeline/backtest.py`: inputs D1 export (odds_history, closings, games) + `snapshots/` + historical-forecast HRRR actuals + previous-runs `_previous_dayN` (lead 1/3/5) → per-game rows (actual wind/temp/rain at kickoff window, forecast at lead N, closing total/spread, result from CFBD `/games` scores and nflverse `result/total`); regenerate the Backtesting grid (NCAAF wind [8,15]/[15,∞) × temp (,50]/[50,60]/[60,75]/[75,100] × spread [0,10]/[10,20]/[0,20] × CLV all/+/−; NFL bands incl. [32,45]) with Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV%; Stadiums sheet equivalent → `stadium_results`; CLV per alert by tier/league/book, v1 vs v2 → `board/backtest.json`, `data/backtest/*.parquet` (R2).
 - `pipeline/calibrate.py`: refit v2 coefficients (wind curve, gust blend, rain prob threshold, alt slope, heat-away delta) minimizing closing-total error / maximizing under ROI on ≥4 weeks → `data/calibration.json` PR; promotion rule: set `ALERT_MODEL=v2` in `model/config.py` only when v2 CLV ≥ v1 over ≥4 weeks (manual merge).
-- `.github/workflows/backtest.yml` (Tue 06:00 ET + dispatch; Monday CLV digest sent via `pipeline.alerts --digest`), `calibrate.yml`.
-- `site/web/`: Backtest tab (grid, stadium results, matched games list = old bottom table), CLV columns in Alerts tab, drawer CLV timeline; hover Record/ROI lookup by first-match.
+- `.github/workflows/backtest.yml` (Sunday morning CFB after Saturday games, Tuesday morning NFL after Monday night + dispatch; league-specific results/CLV/weather post-mortem via `pipeline.alerts --digest postmortem`, with SMTP fallback when Telegram fails or must omit games), `calibrate.yml`.
+- `site/web/`: Backtest tab (weekly post-mortem, season rollups, grid, stadium results, matched games list = old bottom table), CLV columns in Alerts tab, drawer CLV timeline; hover Record/ROI lookup by first-match.
 - Optional: `pipeline/odds/oddsapi.py` (The Odds API historical seeding of true openers, `ODDS_API_KEY`), `draftkings.py` enablement.
 - Tests: `tests/test_clv.py` (freeze picks last pre-kickoff row; sign conventions per side), `tests/test_backtest_grid.py` (bucket assignment reproduces xlsx rows from fixture games; first-match semantics), `tests/test_calibrate.py` (writes valid calibration.json schema; never touches v1 constants), workflow contract tests for backtest/calibrate.
 
 ### Acceptance
 - `backtest.json` grid has the 118 legacy buckets (ids preserved) populated from ≥1 season of D1 + historical data; UI hover shows Record/ROI for matched CFB games as before.
-- Weekly digest arrives Monday with CLV by tier/league/book and v1 vs v2.
+- Weekly post-mortem arrives Sunday for CFB and Tuesday for NFL with first alerted line/edge, same-book close/CLV, result/units, and forecast-vs-actual weather for each play; season rollups remain on the dashboard.
 - `calibrate.yml` opens a PR; v1 golden test still green after merge.
 - `cfb_weather_backtest.xlsx` retained only as a test fixture.
 

@@ -310,5 +310,5 @@ def test_build_stadiums_workflow_contract() -> None:
     assert "python -m pipeline.stadiums.climatology" in runs
     assert "python -m pipeline.stadiums.build_stadiums" in runs
     assert "git commit" not in runs and "git push" not in runs
-    assert "CFBD_API_KEY" in text and "if: failure()" in text
+    assert "CFBD_API_KEY" in text and "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text
     assert wf["permissions"]["contents"] == "write" and wf["permissions"]["pull-requests"] == "write"

@@ -104,10 +104,12 @@ def test_confidence_and_lead_bypass():
 
 def test_notification_policy_defaults_and_env_overrides():
     assert CFG.max_per_run == 4 and CFG.min_tier == "mid" and CFG.min_edge_pts == 1.0
-    assert not CFG.include_openers
+    assert not CFG.include_openers and not CFG.system_alerts
     cfg = A.Config.from_env({"TELEGRAM_MIN_TIER": "high", "TELEGRAM_MIN_EDGE_PTS": "2.5",
-                             "TELEGRAM_MAX_PER_RUN": "7", "TELEGRAM_INCLUDE_OPENERS": "true"})
-    assert cfg.min_tier == "high" and cfg.min_edge_pts == 2.5 and cfg.max_per_run == 7 and cfg.include_openers
+                             "TELEGRAM_MAX_PER_RUN": "7", "TELEGRAM_INCLUDE_OPENERS": "true",
+                             "TELEGRAM_SYSTEM_ALERTS": "1"})
+    assert (cfg.min_tier == "high" and cfg.min_edge_pts == 2.5 and cfg.max_per_run == 7
+            and cfg.include_openers and cfg.system_alerts)
 
 
 def test_default_play_gate_requires_actionable_mid_plus_real_book_price():
@@ -623,10 +625,10 @@ def test_ops_candidates_keys():
     c = A.ops_candidates(ctx, cards, alerts, NOW, heartbeat_ts=NOW - timedelta(hours=21), prev_meta_ts=NOW - timedelta(hours=1))
     keys = sorted(x.key for x in c)
     assert keys == sorted([
-        "degr|weather|open-meteo-for-games|2026-09-18",   # counts stripped → stable across runs
+        "degr|weather|2026-09-18",
         "heartbeat|cf-cron-heartbeat|2026-09-18",
         "names|betcris|2026-09-18",
-        f"stadium|{GID}",
+        "stadium|nfl|2026-09-18",
     ])
     assert all(x.family == "ops" for x in c)
     empty = {"nfl": [dict(card(), consensus={"total_now": None, "thin": True})]}

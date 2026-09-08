@@ -32,7 +32,7 @@ def _step(text: str, name: str) -> str:
 
 def _job(text: str, name: str) -> str:
     start = text.index(f"\n  {name}:\n")
-    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright")]
+    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright", "notify_failure")]
     ends = [i for i in nxt if i > start]
     return text[start:min(ends)] if ends else text[start:]
 
@@ -156,7 +156,7 @@ def test_self_check_after_publish(text: str, name: str):
 def test_light_step_order(text: str):
     light = _job(text, "light")
     order = ["Fetch board state from R2", "Build board", "Push to R2",
-             "Archive to D1 (change-only)", "Self-check published board", "Upload build logs", "Telegram on failure"]
+             "Archive to D1 (change-only)", "Self-check published board", "Upload build logs"]
     idx = [light.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
 
@@ -174,7 +174,7 @@ def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]
     idx = [pw.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
-    assert "if: failure()" in pw
+    assert "Telegram on failure" not in pw
 
 
 def test_no_git_commit_step_remains(text: str):
@@ -200,11 +200,12 @@ def test_state_steps_never_continue_on_error(text: str):
 
 
 def test_telegram_on_failure(text: str):
-    for name in ("Telegram on failure", "Telegram on failure (playwright)"):
-        step = _step(text, name)
-        assert "if: failure()" in step
-        assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
-        assert "--max-time 15" in step
+    job = _job(text, "notify_failure")
+    step = _step(job, "Telegram on failure")
+    assert "needs: [gate, light, playwright]" in job
+    assert "always() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in job
+    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
+    assert "--max-time 15" in step
 
 
 def test_read_only_contents_permission(text: str):

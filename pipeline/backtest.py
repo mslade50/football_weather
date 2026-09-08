@@ -58,6 +58,7 @@ from typing import Any, Optional, Union
 
 from pipeline import state as pstate
 from pipeline.model import clv as clv_mod
+from pipeline.model import config as model_config
 from pipeline.outputs import d1_out, json_out
 from pipeline.run_context import REPO_ROOT
 from pipeline.weather.merge import compass16, mean3, vector_mean_deg
@@ -92,9 +93,11 @@ USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
 NET_SLEEP_S = 0.3
 BATCH = 50
 
-PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv")
+PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv", "postmortem")
 LEGACY_SEASONS = "pre-2026"   # the sheet does not say which seasons it covers (AUDIT §4.3)
 LEGACY_SPORT = "cfb"          # the Stadiums sheet is CFB-only
+WIND_MATERIALIZATION_MPH = min(threshold for threshold, _ in model_config.WIND_TIERS)
+POSTMORTEM_WINDOW_DAYS = 7
 
 
 # ---- helpers ------------------------------------------------------------------------
@@ -581,6 +584,36 @@ def apply_openers(rows: Mapping[str, GameRow], odds_history: Iterable[Mapping[st
     return n
 
 
+def apply_final_weather(rows: Mapping[str, GameRow], weather_history: Iterable[Mapping[str, Any]]) -> int:
+    """Fill the last pre-kick forecast from D1 when an older R2 snapshot was not mirrored."""
+    latest: dict[str, tuple[datetime, Mapping[str, Any]]] = {}
+    for raw in weather_history:
+        gid = str(raw.get("game_id") or "")
+        row = rows.get(gid)
+        fetched, kickoff = _dt(raw.get("fetched_at")), _dt(row.kickoff_utc) if row is not None else None
+        if row is None or fetched is None or kickoff is None or fetched >= kickoff:
+            continue
+        if gid not in latest or fetched > latest[gid][0]:
+            latest[gid] = (fetched, raw)
+    filled = 0
+    for gid, (fetched, raw) in latest.items():
+        row = rows[gid]
+        values = {
+            "temp_fc": _num(raw.get("temp_f")), "wind_fc": _num(raw.get("wind_mph")),
+            "gust_fc": _num(raw.get("gust_mph")), "rain_fc": _num(raw.get("precip_mm")),
+            "wind_dir_fc": raw.get("wind_dir"), "lead_fc": _num(raw.get("lead_hours")),
+        }
+        changed = False
+        for name, value in values.items():
+            if getattr(row, name) is None and value is not None:
+                setattr(row, name, value)
+                changed = True
+        if changed:
+            row.src_forecast = row.src_forecast or f"d1_weather:{utc_iso(fetched)}"
+            filled += 1
+    return filled
+
+
 # ---- Open-Meteo actuals + previous runs -------------------------------------------------------
 
 def _window(kick: datetime) -> tuple[datetime, datetime]:
@@ -901,9 +934,54 @@ def stadium_results(rows: Sequence[GameRow], now: Optional[str] = None) -> list[
     return out
 
 
+def canonical_edge_records(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """One complete row per EDGE alert key.
+
+    The weekly job reads the R2 alert state and the D1 mirror. Both normally contain
+    the same record, so simply concatenating them double-counts bets. Non-null D1/R2
+    fields are merged; settled status wins over closed, which wins over open.
+    """
+    by_key: dict[str, dict[str, Any]] = {}
+    rank = {"open": 0, "closed": 1, "settled": 2}
+    for raw in records:
+        if not isinstance(raw, Mapping) or raw.get("family", "edge") != "edge":
+            continue
+        key = str(raw.get("alert_key") or "")
+        if not key:
+            continue
+        cur = by_key.setdefault(key, {})
+        old_status = str(cur.get("status") or "open")
+        for name, value in raw.items():
+            if value is not None:
+                cur[name] = value
+        new_status = str(raw.get("status") or "open")
+        cur["status"] = new_status if rank.get(new_status, 0) >= rank.get(old_status, 0) else old_status
+        cur["alert_key"] = key
+    return sorted(by_key.values(), key=lambda r: (str(r.get("first_sent_at") or ""), str(r.get("alert_key") or "")))
+
+
+def first_play_records(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """First actionable alert per game/market/side, not one bet per quoted book.
+
+    Earlier versions created one alert record for every sportsbook carrying an edge.
+    Counting those as separate bets exaggerates both the record and the message volume.
+    A recommendation starts with the earliest successfully sent record that has an
+    actual line and price; later book repeats remain in the raw alert/CLV audit.
+    """
+    first: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for rec in canonical_edge_records(records):
+        if (_dt(rec.get("first_sent_at")) is None or _num(rec.get("first_line")) is None
+                or _num(rec.get("first_odds")) is None):
+            continue
+        key = (str(rec.get("game_id") or ""), str(rec.get("market") or ""), str(rec.get("side") or ""))
+        if key[0]:
+            first.setdefault(key, rec)
+    return list(first.values())
+
+
 def alerts_clv(records: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """CLV per settled EDGE alert grouped by tier / league / book / model (v1 vs v2)."""
-    recs = [r for r in records if isinstance(r, dict) and r.get("family", "edge") == "edge" and _num(r.get("clv_pts")) is not None]
+    recs = [r for r in canonical_edge_records(records) if _num(r.get("clv_pts")) is not None]
 
     def group(keyfn: Callable[[Mapping[str, Any]], str]) -> list[dict[str, Any]]:
         acc: dict[str, list[float]] = defaultdict(list)
@@ -925,6 +1003,220 @@ def alerts_clv(records: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "alerts": [{k: r.get(k) for k in ("alert_key", "sport", "season", "week", "game_id", "market", "side", "book", "tier",
                                           "model_version", "first_line", "first_odds", "closing_line", "clv_pts", "first_sent_at")}
                    for r in sorted(recs, key=lambda r: float(r["clv_pts"]), reverse=True)],
+    }
+
+
+def grade_bet(row: GameRow, market: Any, side: Any, line: Any) -> Optional[str]:
+    """Grade a side-relative alert line against the final score."""
+    ln = _num(line)
+    market, side = str(market or ""), str(side or "")
+    if ln is None:
+        return None
+    if market == "total" and row.actual_total is not None:
+        delta = ln - row.actual_total if side == "under" else row.actual_total - ln if side == "over" else None
+    elif market == "spread" and row.result is not None:
+        team_margin = row.result if side == "home" else -row.result if side == "away" else None
+        delta = team_margin + ln if team_margin is not None else None
+    else:
+        return None
+    return "W" if delta > 0 else "L" if delta < 0 else "P"
+
+
+def _unit_profit(result: Optional[str], odds: Any) -> Optional[float]:
+    """Profit for one unit risked at the recorded American price."""
+    if result == "P":
+        return 0.0
+    price = _num(odds)
+    if result not in {"W", "L"} or price in (None, 0):
+        return None
+    if result == "L":
+        return -1.0
+    return price / 100.0 if price > 0 else 100.0 / abs(price)
+
+
+def _first_weather(game_id: str, sent_at: Any, weather_history: Iterable[Mapping[str, Any]]) -> Optional[dict[str, Any]]:
+    """Latest forecast issuance available when the first alert was sent."""
+    sent = _dt(sent_at)
+    if sent is None:
+        return None
+    eligible: list[tuple[datetime, Mapping[str, Any]]] = []
+    for raw in weather_history:
+        if str(raw.get("game_id") or "") != game_id:
+            continue
+        fetched = _dt(raw.get("fetched_at"))
+        if fetched is not None and fetched <= sent:
+            eligible.append((fetched, raw))
+    if not eligible:
+        return None
+    fetched, raw = max(eligible, key=lambda item: item[0])
+    return {
+        "fetched_at": utc_iso(fetched), "source": raw.get("source"), "lead_hours": _num(raw.get("lead_hours")),
+        "temp_f": _num(raw.get("temp_f")), "wind_mph": _num(raw.get("wind_mph")),
+        "gust_mph": _num(raw.get("gust_mph")), "rain_mm": _num(raw.get("precip_mm")),
+    }
+
+
+def _postmortem_bet(rec: Mapping[str, Any], row: GameRow,
+                    weather_history: Iterable[Mapping[str, Any]],
+                    closing: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    first_sent = _dt(rec.get("first_sent_at"))
+    kickoff = _dt(row.kickoff_utc)
+    first_wx = _first_weather(row.game_id, rec.get("first_sent_at"), weather_history)
+    first_wind = _num((first_wx or {}).get("wind_mph"))
+    first_temp = _num((first_wx or {}).get("temp_f"))
+    first_rain = _num((first_wx or {}).get("rain_mm"))
+    actual_wind = row.wind_act
+    wind_thesis = first_wind is not None and first_wind >= WIND_MATERIALIZATION_MPH
+    first_result = grade_bet(row, rec.get("market"), rec.get("side"), rec.get("first_line"))
+    closing_line = _num(rec.get("closing_line"))
+    if closing_line is None:
+        closing_line = _num((closing or {}).get("line"))
+    close_result = grade_bet(row, rec.get("market"), rec.get("side"), closing_line)
+    clv = _num(rec.get("clv_pts"))
+    if clv is None:
+        clv = clv_mod.clv_pts(str(rec.get("market") or ""), str(rec.get("side") or ""),
+                              rec.get("first_line"), closing_line)
+    lead = ((kickoff - first_sent) / timedelta(hours=1)) if kickoff is not None and first_sent is not None else None
+    return {
+        "alert_key": rec.get("alert_key"), "game_id": row.game_id, "sport": row.sport,
+        "season": row.season, "week": row.week, "kickoff_utc": row.kickoff_utc,
+        "away": row.away_name or row.away_id, "home": row.home_name or row.home_id,
+        "stadium": row.stadium_name, "market": rec.get("market"), "side": rec.get("side"),
+        "book": rec.get("book"), "tier": rec.get("tier"), "model_version": rec.get("model_version") or "v1",
+        "first_sent_at": rec.get("first_sent_at"), "hours_before_kickoff": _round(lead, 1),
+        "first_line": _num(rec.get("first_line")), "first_odds": _num(rec.get("first_odds")),
+        "first_fair": _num(rec.get("first_fair")), "first_edge": _num(rec.get("first_edge")),
+        "closing_line": closing_line, "closing_odds": _num((closing or {}).get("odds")), "clv_pts": clv,
+        "clv_grade": "beat" if clv is not None and clv > 0 else "missed" if clv is not None and clv < 0 else "tied" if clv == 0 else None,
+        "result": first_result, "result_at_close": close_result,
+        "unit_profit": _round(_unit_profit(first_result, rec.get("first_odds")), 3),
+        "home_score": row.home_score, "away_score": row.away_score, "actual_total": row.actual_total,
+        "first_weather": first_wx,
+        "final_forecast": {"temp_f": row.temp_fc, "wind_mph": row.wind_fc, "gust_mph": row.gust_fc,
+                           "rain_mm": row.rain_fc, "source": row.src_forecast},
+        "actual_weather": {"temp_f": row.temp_act, "wind_mph": row.wind_act, "gust_mph": row.gust_act,
+                           "rain_mm": row.rain_act, "source": row.src_actual},
+        "wind_thesis": wind_thesis,
+        "wind_materialized": (actual_wind >= WIND_MATERIALIZATION_MPH) if actual_wind is not None else None,
+        "first_wind_error_mph": _round(first_wind - actual_wind, 2) if first_wind is not None and actual_wind is not None else None,
+        "final_wind_error_mph": _round(row.wind_fc - actual_wind, 2) if row.wind_fc is not None and actual_wind is not None else None,
+        "first_temp_error_f": _round(first_temp - row.temp_act, 2) if first_temp is not None and row.temp_act is not None else None,
+        "final_temp_error_f": _round(row.temp_fc - row.temp_act, 2) if row.temp_fc is not None and row.temp_act is not None else None,
+        "first_rain_error_mm": _round(first_rain - row.rain_act, 2) if first_rain is not None and row.rain_act is not None else None,
+        "final_rain_error_mm": _round(row.rain_fc - row.rain_act, 2) if row.rain_fc is not None and row.rain_act is not None else None,
+    }
+
+
+def postmortem_stats(bets: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    graded = [b for b in bets if b.get("result") in {"W", "L", "P"}]
+    wins = sum(b.get("result") == "W" for b in graded)
+    losses = sum(b.get("result") == "L" for b in graded)
+    pushes = sum(b.get("result") == "P" for b in graded)
+    profits = [_num(b.get("unit_profit")) for b in graded]
+    profits = [p for p in profits if p is not None]
+    clvs = [_num(b.get("clv_pts")) for b in bets]
+    clvs = [x for x in clvs if x is not None]
+    edges = [_num(b.get("first_edge")) for b in bets]
+    edges = [x for x in edges if x is not None]
+    leads = [_num(b.get("hours_before_kickoff")) for b in bets]
+    leads = [x for x in leads if x is not None]
+    def errors(field_name: str) -> list[float]:
+        return [value for b in bets if (value := _num(b.get(field_name))) is not None]
+
+    first_errors, final_errors = errors("first_wind_error_mph"), errors("final_wind_error_mph")
+    first_temp_errors, final_temp_errors = errors("first_temp_error_f"), errors("final_temp_error_f")
+    first_rain_errors, final_rain_errors = errors("first_rain_error_mm"), errors("final_rain_error_mm")
+    thesis = [b for b in bets if b.get("wind_thesis")]
+    thesis_checked = [b for b in thesis if b.get("wind_materialized") is not None]
+    materialized = sum(b.get("wind_materialized") is True for b in thesis_checked)
+    weather_checked = sum((b.get("actual_weather") or {}).get("wind_mph") is not None for b in bets)
+    return {
+        "bets": len(bets), "graded": len(graded), "pending": len(bets) - len(graded),
+        "wins": wins, "losses": losses, "pushes": pushes,
+        "units": _round(sum(profits), 3) if profits else None,
+        "roi": _round(sum(profits) / len(profits), 4) if profits else None,
+        "priced_bets": len(profits),
+        "clv_bets": len(clvs), "avg_clv": _round(sum(clvs) / len(clvs), 3) if clvs else None,
+        "beat_close": sum(x > 0 for x in clvs), "tied_close": sum(x == 0 for x in clvs),
+        "beat_close_rate": _round(sum(x > 0 for x in clvs) / len(clvs), 4) if clvs else None,
+        "avg_first_edge": _round(sum(edges) / len(edges), 3) if edges else None,
+        "avg_lead_hours": _round(sum(leads) / len(leads), 1) if leads else None,
+        "weather_checked": weather_checked,
+        "actual_windy_games": sum((b.get("actual_weather") or {}).get("wind_mph") is not None
+                                  and (b.get("actual_weather") or {}).get("wind_mph") >= WIND_MATERIALIZATION_MPH
+                                  for b in bets),
+        "wind_thesis_games": len(thesis), "wind_thesis_checked": len(thesis_checked),
+        "wind_thesis_pending": len(thesis) - len(thesis_checked), "wind_materialized": materialized,
+        "wind_materialization_rate": _round(materialized / len(thesis_checked), 4) if thesis_checked else None,
+        "first_wind_mae_mph": _round(sum(abs(x) for x in first_errors) / len(first_errors), 2) if first_errors else None,
+        "first_wind_bias_mph": _round(sum(first_errors) / len(first_errors), 2) if first_errors else None,
+        "final_wind_mae_mph": _round(sum(abs(x) for x in final_errors) / len(final_errors), 2) if final_errors else None,
+        "final_wind_bias_mph": _round(sum(final_errors) / len(final_errors), 2) if final_errors else None,
+        "first_temp_mae_f": _round(sum(abs(x) for x in first_temp_errors) / len(first_temp_errors), 2) if first_temp_errors else None,
+        "first_temp_bias_f": _round(sum(first_temp_errors) / len(first_temp_errors), 2) if first_temp_errors else None,
+        "final_temp_mae_f": _round(sum(abs(x) for x in final_temp_errors) / len(final_temp_errors), 2) if final_temp_errors else None,
+        "final_temp_bias_f": _round(sum(final_temp_errors) / len(final_temp_errors), 2) if final_temp_errors else None,
+        "first_rain_mae_mm": _round(sum(abs(x) for x in first_rain_errors) / len(first_rain_errors), 2) if first_rain_errors else None,
+        "first_rain_bias_mm": _round(sum(first_rain_errors) / len(first_rain_errors), 2) if first_rain_errors else None,
+        "final_rain_mae_mm": _round(sum(abs(x) for x in final_rain_errors) / len(final_rain_errors), 2) if final_rain_errors else None,
+        "final_rain_bias_mm": _round(sum(final_rain_errors) / len(final_rain_errors), 2) if final_rain_errors else None,
+    }
+
+
+def _postmortem_rollup(bets: Sequence[Mapping[str, Any]], field_name: str) -> list[dict[str, Any]]:
+    groups: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for bet in bets:
+        groups[str(bet.get(field_name) or "?")].append(bet)
+    return [{"key": key, **postmortem_stats(members)} for key, members in sorted(groups.items())]
+
+
+def build_postmortem(rows: Sequence[GameRow], records: Iterable[Mapping[str, Any]],
+                     weather_history: Iterable[Mapping[str, Any]] = (), *,
+                     closings: Iterable[Mapping[str, Any]] = (),
+                     now: Optional[datetime] = None, window_days: int = POSTMORTEM_WINDOW_DAYS) -> dict[str, Any]:
+    """Grade sent plays at the first alerted price and audit the associated weather."""
+    now = ensure_utc(now or now_utc())
+    by_game = {row.game_id: row for row in rows}
+    wx = list(weather_history)
+    closing_by_key = {
+        pstate.odds_key(str(c.get("game_id") or ""), str(c.get("market") or ""),
+                        str(c.get("side") or ""), str(c.get("book") or "")): c
+        for c in closings
+    }
+    bets = []
+    for rec in first_play_records(records):
+        gid = str(rec.get("game_id") or "")
+        if gid not in by_game:
+            continue
+        key = pstate.odds_key(gid, str(rec.get("market") or ""), str(rec.get("side") or ""),
+                              str(rec.get("book") or ""))
+        bets.append(_postmortem_bet(rec, by_game[gid], wx, closing_by_key.get(key)))
+    bets.sort(key=lambda b: (str(b.get("kickoff_utc") or ""), str(b.get("alert_key") or "")), reverse=True)
+    start = now - timedelta(days=window_days)
+    latest = [b for b in bets if (kick := _dt(b.get("kickoff_utc"))) is not None and start < kick <= now]
+    week_groups: dict[tuple[str, Any, Any], list[Mapping[str, Any]]] = defaultdict(list)
+    for bet in bets:
+        week_groups[(str(bet.get("sport") or "?"), bet.get("season"), bet.get("week"))].append(bet)
+    by_week = [
+        {"sport": sport, "season": season, "week": week, **postmortem_stats(members)}
+        for (sport, season, week), members in sorted(
+            week_groups.items(), key=lambda item: (item[0][0], int(item[0][1] or -1), int(item[0][2] or -1)), reverse=True
+        )
+    ]
+    return {
+        "methodology": {
+            "cohort": "first successfully sent actionable EDGE alert per game, market, and side",
+            "first_edge": "line, price, fair line, and edge frozen at the first successful Telegram send; later book repeats are not extra bets",
+            "close": "last same-book market line before kickoff; CLV is signed in the alerted side's favor",
+            "actual_weather": "Open-Meteo historical-model mean at the venue from kickoff through +2 hours",
+            "wind_materialization_mph": WIND_MATERIALIZATION_MPH,
+        },
+        "latest": {"window_start": utc_iso(start), "window_end": utc_iso(now),
+                   "summary": postmortem_stats(latest), "bets": latest},
+        "season": {"summary": postmortem_stats(bets), "by_week": by_week,
+                   "by_sport": _postmortem_rollup(bets, "sport"), "by_tier": _postmortem_rollup(bets, "tier"),
+                   "by_book": _postmortem_rollup(bets, "book"), "by_model": _postmortem_rollup(bets, "model_version"),
+                   "bets": bets},
     }
 
 
@@ -950,6 +1242,7 @@ class BacktestResult:
     grid: list[dict[str, Any]]
     stadiums: list[dict[str, Any]]
     alerts: dict[str, Any]
+    postmortem: dict[str, Any]
     games: list[dict[str, Any]]
     sources: dict[str, Any]
     stadiums_legacy: list[dict[str, Any]] = field(default_factory=list)   # the sheet's Stadiums rows (load_stadium_sheet)
@@ -962,7 +1255,7 @@ class BacktestResult:
                      "n_games": len(self.rows), "n_graded": sum(1 for r in self.rows if r.under_result is not None),
                      "sources": self.sources, "legacy": self.legacy},
             "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
-            "alerts_clv": self.alerts, "games": self.games,
+            "alerts_clv": self.alerts, "postmortem": self.postmortem, "games": self.games,
         })
 
 
@@ -994,6 +1287,7 @@ def build_rows(
     closings: list[Mapping[str, Any]] = list(d1.closings)
     if closings_state:
         closings += clv_mod.closing_rows(closings_state)
+    apply_final_weather(rows, d1.weather_history)
     apply_openers(rows, d1.odds_history)
     apply_closings(rows, closings)
     out = []
@@ -1012,10 +1306,15 @@ def build_rows(
 
 def assemble(rows: Sequence[GameRow], defs: Sequence[Bucket], alert_records: Iterable[Mapping[str, Any]] = (),
              sources: Optional[dict[str, Any]] = None, on: str = "forecast", now: Optional[str] = None,
-             stadiums_legacy: Sequence[Mapping[str, Any]] = (), legacy: Optional[Mapping[str, Any]] = None) -> BacktestResult:
+             stadiums_legacy: Sequence[Mapping[str, Any]] = (), legacy: Optional[Mapping[str, Any]] = None,
+             weather_history: Iterable[Mapping[str, Any]] = (),
+             closings: Iterable[Mapping[str, Any]] = ()) -> BacktestResult:
     rows = [finalize_row(r) for r in rows]
     grid = grid_stats(rows, defs, on)
-    return BacktestResult(list(rows), grid, stadium_results(rows, now), alerts_clv(alert_records),
+    records = list(alert_records)
+    now_dt = _dt(now) or now_utc()
+    return BacktestResult(list(rows), grid, stadium_results(rows, utc_iso(now_dt)), alerts_clv(records),
+                          build_postmortem(rows, records, weather_history, closings=closings, now=now_dt),
                           matched_games(rows, defs, grid, on), sources or {},
                           [dict(s) for s in stadiums_legacy], dict(legacy or {}))
 
@@ -1030,6 +1329,7 @@ def write_parquet(res: BacktestResult, out_dir: PathLike) -> dict[str, Path]:
         "grid": pd.DataFrame([{k: v for k, v in g.items() if k != "legacy"} for g in res.grid]),
         "stadium_results": pd.DataFrame(res.stadiums),
         "alerts_clv": pd.DataFrame(res.alerts.get("alerts") or []),
+        "postmortem": pd.DataFrame((res.postmortem.get("season") or {}).get("bets") or []),
     }
     written = {}
     for name, df in tables.items():
@@ -1091,7 +1391,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         d1 = load_sqlite(args.sqlite)
     snaps = load_snapshots(args.snapshot_dir, args.sport, args.season)
     print(f"  inputs: {len(snaps)} games in snapshots, d1 games={len(d1.games)} odds={len(d1.odds_history)} "
-          f"closings={len(d1.closings)} alerts={len(d1.alerts)}")
+          f"weather={len(d1.weather_history)} closings={len(d1.closings)} alerts={len(d1.alerts)}")
 
     new_closing_rows: list[dict[str, Any]] = []
     closings_state = clv_mod.load_closings(args.state_dir)
@@ -1119,12 +1419,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     alerts_state, _ = pstate.load_alerts_rehydrated(args.state_dir)
     records = list((alerts_state.get("records") or {}).values()) + list(d1.alerts)
+    postmortem_closings = list(d1.closings) + clv_mod.closing_rows(closings_state)
     res = assemble(rows, defs, records, sources, on=args.bucket_on, now=utc_iso(now),
-                   stadiums_legacy=sheet_stadiums, legacy=legacy_meta(defs, args.grid))
+                   stadiums_legacy=sheet_stadiums, legacy=legacy_meta(defs, args.grid),
+                   weather_history=d1.weather_history, closings=postmortem_closings)
     written = write_outputs(res, board_dir=args.board_dir, parquet_dir=args.parquet_dir, now=now, on=args.bucket_on)
     graded = sum(1 for r in rows if r.under_result is not None)
     print(f"  rows: {len(rows)} games ({graded} graded); buckets with samples: {sum(1 for g in res.grid if g['Sample'])}; "
-          f"stadiums: {len(res.stadiums)}; settled alerts: {res.alerts['n']}")
+          f"stadiums: {len(res.stadiums)}; settled alerts: {res.alerts['n']}; "
+          f"postmortem bets: {res.postmortem['season']['summary']['bets']}")
     if args.d1_sql:
         stmts = d1_statements(res, new_closing_rows)
         d1_out.write_sql(args.d1_sql, stmts)
@@ -1138,9 +1441,10 @@ __all__ = [
     "GRID_FIXTURE", "LEADS", "SPORT_LABEL", "Bucket", "GameRow", "D1Data", "BacktestResult",
     "bucket_from_row", "load_grid_defs", "load_stadium_sheet", "legacy_meta", "bucket_matches", "first_match",
     "grade_under", "finalize_row", "load_snapshots", "row_from_snapshots", "load_export_dir", "load_sqlite",
-    "rows_from_games", "apply_closings", "apply_openers", "hourly_series", "window_stats", "fetch_actuals",
+    "rows_from_games", "apply_closings", "apply_openers", "apply_final_weather", "hourly_series", "window_stats", "fetch_actuals",
     "fetch_previous_runs", "parse_cfbd_scores", "parse_espn_scores", "parse_nflverse_scores", "apply_scores",
-    "fetch_results", "grid_stats", "stadium_results", "alerts_clv", "matched_games", "build_rows", "assemble",
+    "fetch_results", "grid_stats", "stadium_results", "canonical_edge_records", "alerts_clv", "grade_bet",
+    "postmortem_stats", "build_postmortem", "matched_games", "build_rows", "assemble",
     "write_parquet", "write_outputs", "d1_statements", "parse_args", "main",
 ]
 

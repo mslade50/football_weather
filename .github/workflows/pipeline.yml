@@ -22,7 +22,7 @@ name: pipeline
 # Primary scheduler: Cloudflare Worker crons (site/worker/wrangler.toml) dispatch
 # this workflow; the schedule below is the off-the-minute UTC backstop.
 # Adapted from golf_scraping/.github/workflows/board.yml (R2 loops, d1 execute,
-# Telegram failure step) + betonline.yml (Playwright job); the golf commit loop
+# optional run-level Telegram failure page) + betonline.yml (Playwright job); the golf commit loop
 # is intentionally NOT ported (no generated data in git).
 #
 # Requires GitHub secrets: CFBD_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
@@ -99,6 +99,8 @@ env:
   TELEGRAM_MIN_EDGE_PTS: ${{ vars.TELEGRAM_MIN_EDGE_PTS || '1.0' }}
   TELEGRAM_MAX_PER_RUN: ${{ vars.TELEGRAM_MAX_PER_RUN || '4' }}
   TELEGRAM_INCLUDE_OPENERS: ${{ vars.TELEGRAM_INCLUDE_OPENERS || '0' }}
+  # SYSTEM paging is deliberately off unless an operator explicitly opts in.
+  TELEGRAM_SYSTEM_ALERTS: ${{ vars.TELEGRAM_SYSTEM_ALERTS || '0' }}
   R2_BUCKET: football-board
   D1_DATABASE: football-odds
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -264,18 +266,6 @@ jobs:
             data/d1_inserts.sql
           if-no-files-found: ignore
           retention-days: 7
-      - name: Telegram on failure
-        if: failure()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJob: light · Trigger: %s · Sport: %s\nOpen run: %s' \
-            '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
-            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true
-
   playwright:
     # BetOnline needs Chromium (Cloudflare pass). Runs AFTER light so it re-scrapes
     # only the Playwright books, merges them onto the state light just pushed to
@@ -385,13 +375,21 @@ jobs:
             data/d1_inserts.sql
           if-no-files-found: ignore
           retention-days: 7
-      - name: Telegram on failure (playwright)
-        if: failure()
+  notify_failure:
+    # One optional page for the whole run. Disabled by default so provider
+    # fallbacks and CI failures stay on the dashboard / Actions run, not Telegram.
+    needs: [gate, light, playwright]
+    if: ${{ always() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Telegram on failure
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJob: BetOnline · Trigger: %s · Sport: %s\nOpen run: %s' \
+          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJobs: gate=%s · light=%s · BetOnline=%s\nTrigger: %s · Sport: %s\nOpen run: %s' \
+            '${{ needs.gate.result }}' '${{ needs.light.result }}' '${{ needs.playwright.result }}' \
             '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
           [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \

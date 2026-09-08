@@ -1,10 +1,10 @@
 """String-contract tests for .github/workflows/backtest.yml and calibrate.yml (PLAN Phase 6,
 ARCH §9.3 / §13; convention: tests/test_pipeline_workflow.py).
 
-backtest.yml: Tue 06:17 ET-ish + Mon digest schedule + dispatch, off-the-minute crons,
+backtest.yml: Sunday CFB + Tuesday NFL post-mortem schedules and dispatch, off-the-minute crons,
 read-only R2 state fetch that fails on anything but NoSuchKey, D1 table export,
 `python -m pipeline.backtest` -> board/backtest.json pushed to R2 with retries (meta.json
-never touched), `python -m pipeline.alerts --digest clv` on the Monday schedule, Telegram on
+never touched), `python -m pipeline.alerts --digest postmortem` after the backtest, Telegram on
 failure, no continue-on-error, no git commit.
 
 calibrate.yml: dispatch + monthly schedule, R2 backtest inputs, `python -m pipeline.calibrate`
@@ -58,14 +58,15 @@ def test_backtest_parses_and_has_one_job(bt: str):
     assert wf["jobs"]["backtest"]["timeout-minutes"] <= 30
 
 
-def test_backtest_schedule_tuesday_and_monday_digest_off_the_minute(bt: str):
+def test_backtest_schedule_is_sunday_cfb_and_tuesday_nfl_off_the_minute(bt: str):
     crons = re.findall(r"- cron: '([^']+)'", bt)
-    assert "17 10 * * 2" in crons      # Tue 06:17 EDT weekly backtest
-    assert "17 12 * * 1" in crons      # Mon 08:17 EDT backtest + CLV digest
+    assert crons == ["17 13 * * 0", "17 13 * * 2"]
     for c in crons:
         assert c.split()[0] == "17", c
     assert "workflow_dispatch:" in bt and "digest:" in bt and "dry_run:" in bt
-    assert "github.event.schedule == '17 12 * * 1'" in bt
+    assert "github.event_name == 'schedule'" in bt
+    assert "github.event.schedule == '17 13 * * 0'" in bt and "DIGEST_SPORT:" in bt
+    assert "digest_sport:" in bt and "options: [all, cfb, nfl]" in bt
     assert "inputs.digest == true" in bt
 
 
@@ -135,26 +136,32 @@ def test_backtest_cli_flags_exist_in_module():
         assert f'"{flag}"' in src, flag
 
 
-def test_backtest_sends_clv_digest_via_alerts_module(bt: str):
-    step = _step(bt, "Weekly CLV digest")
+def test_backtest_sends_postmortem_via_alerts_module(bt: str):
+    step = _step(bt, "Weekly post-mortem")
     assert "if: env.SEND_DIGEST == 'true'" in step
-    assert "python -m pipeline.alerts --digest clv --state-dir data/state --backtest data/board/backtest.json" in step
+    assert "python -m pipeline.alerts --digest postmortem --state-dir data/state --backtest data/board/backtest.json" in step
+    assert '--email-fallback "${SPORT_ARGS[@]}"' in step
+    assert 'SPORT_ARGS=(--sport "$DIGEST_SPORT")' in step
     assert "${DRY_RUN:+--dry-run}" in step
     for secret in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_ID_NFL", "TELEGRAM_CHAT_ID_CFB"):
         assert f"{secret}: ${{{{ secrets.{secret} }}}}" in step
+    for secret in ("POSTMORTEM_EMAIL_TO", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_USE_SSL", "SMTP_STARTTLS"):
+        assert f"{secret}: ${{{{ secrets.{secret} }}}}" in step
     # the digest mode exists in pipeline/alerts.py with that exact spelling
     src = ALERTS_PY.read_text(encoding="utf-8")
-    assert 'const="clv"' in src and 'DIGEST_KINDS = ("clv",)' in src and 'args.digest == "clv"' in src
+    assert 'DIGEST_KINDS = ("clv", "postmortem")' in src and 'args.digest == "postmortem"' in src
+    assert '"--email-fallback"' in src and "send_postmortem_email" in src
 
 
 def test_backtest_step_order_and_failure_ping(bt: str):
     order = ["Fetch board state from R2 (read-only)", "Export D1 tables", "Mirror snapshots from R2 (wrangler, read-only)",
              "Run backtest", "Push backtest to R2", "Archive backtest rows to D1 (closings / stadium_results)",
-             "Weekly CLV digest", "Upload backtest artifacts", "Telegram on failure"]
+             "Weekly post-mortem", "Upload backtest artifacts", "Telegram on failure"]
     idx = [bt.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
     tg = _step(bt, "Telegram on failure")
-    assert "if: failure()" in tg and "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg and "--max-time 15" in tg
+    assert "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in tg
+    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg and "--max-time 15" in tg
 
 
 def test_backtest_no_git_commit_no_continue_on_error_no_playwright(bt: str):
@@ -222,7 +229,8 @@ def test_calibrate_opens_pr_touching_only_calibration_json(cal: str):
 
 def test_calibrate_failure_ping(cal: str):
     tg = _step(cal, "Telegram on failure")
-    assert "if: failure()" in tg and "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg
+    assert "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in tg
+    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg
 
 
 def test_promotion_rule_documented_in_config_and_calibrate():

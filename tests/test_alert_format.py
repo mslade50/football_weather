@@ -306,10 +306,113 @@ def test_clv_scorecard_prioritizes_overall_signal_and_best_worst():
     assert A.clv_digest(alerts, sport="cfb") == "<b>📊 CLV SCORECARD</b>\nNo settled plays with a closing line yet."
 
 
+def test_postmortem_digest_is_clear_bounded_and_game_level():
+    bet = {"game_id": GID, "sport": "nfl", "away": "Seattle", "home": "New England",
+           "market": "total", "side": "under", "book": "betonline", "tier": "mid",
+           "first_line": 38.5, "first_odds": -108, "first_edge": 2.2, "hours_before_kickoff": 40,
+           "closing_line": 37.0, "clv_pts": 1.5, "result": "W", "unit_profit": 100 / 108,
+           "actual_total": 34, "first_weather": {"wind_mph": 14}, "final_forecast": {"wind_mph": 13},
+           "actual_weather": {"wind_mph": 12}, "wind_thesis": True, "wind_materialized": True}
+    payload = {"postmortem": {"latest": {"window_start": "2026-09-15T13:17:00Z",
+                                             "window_end": "2026-09-22T13:17:00Z", "bets": [bet]}}}
+    text = A.postmortem_digest(payload, board_url=BOARD)
+    assert text.startswith("<b>🧾 FOOTBALL WEEKLY POST-MORTEM · Sep 15–Sep 22</b>")
+    assert "Results: 1-0-0 W-L-P · +0.93u · ROI +92.6%" in text
+    assert "Closing line: beat 1/1 · avg +1.50 pts" in text and "Wind thesis: 1/1 materialized" in text
+    assert "Wind MAE: 2.0 at alert → 1.0 final mph" in text
+    assert "Bet: U38.5 −108 · BetOnline · edge +2.2 pts · 40h early" in text
+    assert "Close: 37 · CLV +1.5 pts · game total 34" in text
+    assert "Wind: 14 alert → 13 final fcst → 12 actual mph — materialized" in text
+    assert "#view=backtest" in text and len(text) < A.TELEGRAM_MAX_CHARS
+
+
+def test_postmortem_digest_marks_telegram_overflow_and_email_version_is_complete():
+    bet = {"game_id": GID, "sport": "cfb", "away": "A" * 30, "home": "B" * 30,
+           "market": "total", "side": "under", "first_line": 48.5, "first_odds": -110,
+           "first_edge": 2.0, "result": "W", "unit_profit": 100 / 110,
+           "first_weather": {"wind_mph": 15}, "final_forecast": {"wind_mph": 14},
+           "actual_weather": {"wind_mph": 13}, "wind_thesis": True, "wind_materialized": True}
+    payload = {"postmortem": {"latest": {"window_start": "2026-09-01T13:17:00Z",
+                                            "window_end": "2026-09-08T13:17:00Z",
+                                            "bets": [dict(bet, game_id=f"g{i}") for i in range(40)]}}}
+    telegram = A.postmortem_digest(payload, sport="cfb", board_url=BOARD)
+    complete = A.postmortem_digest(payload, sport="cfb", board_url=BOARD, max_chars=None)
+    assert len(telegram) <= A.TELEGRAM_MAX_CHARS
+    assert A.POSTMORTEM_MORE_MARKER in telegram
+    assert A.POSTMORTEM_MORE_MARKER not in complete
+    assert complete.count("• ✅") == 40
+
+
+def test_postmortem_email_config_and_delivery_are_plain_text():
+    env = {"SMTP_HOST": "smtp.test", "SMTP_PORT": "2525", "SMTP_USERNAME": "sender@test",
+           "SMTP_PASSWORD": "secret", "POSTMORTEM_EMAIL_TO": "one@test, two@test",
+           "SMTP_FROM": "reports@test", "SMTP_STARTTLS": "true"}
+    cfg = A.EmailConfig.from_env(env)
+    assert cfg.configured and cfg.to_addrs == ("one@test", "two@test") and cfg.port == 2525
+
+    class FakeSMTP:
+        instance = None
+
+        def __init__(self, host, port, timeout):
+            self.args = (host, port, timeout)
+            self.tls = False
+            self.auth = None
+            self.message = None
+            FakeSMTP.instance = self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def starttls(self):
+            self.tls = True
+
+        def login(self, username, password):
+            self.auth = (username, password)
+
+        def send_message(self, message):
+            self.message = message
+
+    assert A.send_postmortem_email("<b>WEEKLY</b>\n• clear &amp; brief", sport="cfb",
+                                   board_url=BOARD, cfg=cfg, smtp_factory=FakeSMTP)
+    sent = FakeSMTP.instance
+    assert sent.args == ("smtp.test", 2525, 20) and sent.tls
+    assert sent.auth == ("sender@test", "secret")
+    assert sent.message["Subject"] == "CFB weekly betting post-mortem"
+    assert sent.message["To"] == "one@test, two@test"
+    body = sent.message.get_content()
+    assert "WEEKLY\n• clear & brief" in body and "<b>" not in body
+    assert f"Dashboard: {BOARD}/#view=backtest" in body
+    assert not A.send_postmortem_email("x", sport="nfl", board_url=BOARD,
+                                       cfg=A.EmailConfig(), smtp_factory=FakeSMTP)
+
+
+def test_postmortem_dry_run_previews_but_never_sends_email(tmp_path, capsys, monkeypatch):
+    bet = {"game_id": "template", "sport": "cfb", "away": "A" * 30, "home": "B" * 30,
+           "market": "total", "side": "under", "first_line": 48.5, "first_odds": -110,
+           "result": "W", "first_weather": {}, "final_forecast": {}, "actual_weather": {}}
+    payload = {"postmortem": {"latest": {"bets": [dict(bet, game_id=f"g{i}") for i in range(50)]}}}
+    backtest = tmp_path / "backtest.json"
+    import json
+    backtest.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(A, "send_postmortem_email", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError))
+    assert A.main(["--digest", "postmortem", "--backtest", str(backtest), "--sport", "cfb",
+                   "--email-fallback", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "EMAIL FALLBACK PREVIEW" in out and "email fallback: dry-run (telegram was truncated)" in out
+
+
 def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
     assert A.main(["--digest", "--state-dir", str(tmp_path), "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "CLV SCORECARD" in out and "clv digest: sent" in out
+    backtest = tmp_path / "backtest.json"
+    backtest.write_text('{"postmortem":{"latest":{"bets":[]}}}', encoding="utf-8")
+    assert A.main(["--digest", "postmortem", "--backtest", str(backtest), "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "WEEKLY POST-MORTEM" in out and "postmortem digest: sent" in out
     tg = pstate.migrate(None, "telegram_state")
     pstate.queue_alert(tg, {"key": "edge|k", "family": "edge", "sport": "nfl", "text": "<b>hi</b>", "record": {"family": "edge"}})
     pstate.save_telegram_state(tmp_path, tg)

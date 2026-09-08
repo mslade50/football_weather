@@ -154,7 +154,7 @@ def test_drawer_phase5_sections() -> None:
 
 
 def test_backtest_tab_wiring() -> None:
-    """Phase 6: Backtest tab (grid + stadium results + matched games), loaded from
+    """Phase 6: Backtest tab (weekly post-mortem + grid + stadium results + matched games), loaded from
     /data/backtest.json, reachable from the shell and rendered by app.js."""
     html = (WEB / "index.html").read_text(encoding="utf-8")
     assert 'data-view="backtest"' in html and 'id="backtestwrap"' in html
@@ -162,7 +162,8 @@ def test_backtest_tab_wiring() -> None:
     bt = (WEB / "backtest.js").read_text(encoding="utf-8")
     assert "data/backtest.json" in bt
     for fn in ("function loadBacktest", "function renderBacktest", "function backtestMatch", "function backtestHover",
-               "function bucketMatch", "function gridSectionHtml", "function stadiumSectionHtml", "function gamesSectionHtml"):
+               "function bucketMatch", "function gridSectionHtml", "function stadiumSectionHtml", "function gamesSectionHtml",
+               "function normalizePostmortem", "function postmortemSectionHtml", "function pmStats"):
         assert fn in bt, fn
     # first-match semantics of pages/cfb_weather.py: NaN Wind Below -> 100, NaN Spread_l -> 0, NaN Temp Above -> 0,
     # NaN Spread_h never matches an NCAAF row; walk in id order
@@ -172,9 +173,10 @@ def test_backtest_tab_wiring() -> None:
     for legacy_col in ("Wind Above", "Wind Below", "Temp Above", "Temp Below", "Spread_l", "Spread_h", "CLV from Open", "Signal", "Percentage"):
         assert legacy_col in bt, legacy_col
     # pipeline.backtest payload spellings: meta.run_id, GameRow fields, alerts_clv list-shaped by_model
-    for key in ("alerts_clv", "by_model", "pos_frac", "wind_fc", "temp_act", "under_result", "actual_total", "stadium_name", "home_name"):
+    for key in ("alerts_clv", "postmortem", "first_weather", "wind_materialized", "by_model", "pos_frac", "wind_fc", "temp_act", "under_result", "actual_total", "stadium_name", "home_name"):
         assert key in bt, key
     assert "function normalizeClv" in bt
+    assert 'section: "postmortem"' in bt and '<option value="postmortem">Weekly post-mortem</option>' in bt
     app = (WEB / "app.js").read_text(encoding="utf-8")
     assert "renderBacktest()" in app and 'view === "backtest"' in app and "loadBacktest" in app
     assert "data/backtest.json" in app   # documented in EXPECTED JSON SHAPES

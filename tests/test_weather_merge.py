@@ -250,6 +250,20 @@ def test_no_source_at_all_is_error():
     assert [d.severity for d in res.degradations] == ["error"]
 
 
+def test_build_can_aggregate_source_outages_without_per_game_errors():
+    kickoff = datetime(2026, 8, 26, 20, 0, tzinfo=UTC)
+    res = M.build_forecast(
+        "nfl:2026:1:a@b",
+        kickoff,
+        kickoff - timedelta(hours=3),
+        None,
+        None,
+        report_source_degradations=False,
+    )
+    assert res.forecast.wind_fg is None
+    assert res.degradations == []
+
+
 def test_nws_fills_null_fields_within_horizon():
     t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
     hrs = [t0 + timedelta(hours=i) for i in range(-1, 5)]
