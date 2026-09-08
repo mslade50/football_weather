@@ -11,9 +11,10 @@ from pathlib import Path
 import pytest
 
 from pipeline.weather import merge as M
-from pipeline.weather.openmeteo import ENSEMBLE_URL, build_ensemble_params
+from pipeline.weather.openmeteo import ENSEMBLE_URL, build_ensemble_mean_params, build_ensemble_params
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.ensemble import CONTROL, EnsembleLocation, Member, parse_ensemble
+from pipeline.weather.parsers.ensemble_mean import EnsembleMeanLocation, parse_ensemble_mean
 from pipeline.weather.parsers.openmeteo import ParsedLocation, parse_forecast
 
 UTC = timezone.utc
@@ -108,6 +109,52 @@ def test_fetch_ensemble_batches_and_captures(monkeypatch, ens_payload: dict):
     assert OM.fetch_ensemble([]) == []
 
 
+def test_fetch_ensemble_mean_uses_lightweight_model_and_parses(monkeypatch):
+    from pipeline.weather import openmeteo as OM
+
+    payload = {
+        "latitude": 42.0,
+        "longitude": -71.0,
+        "hourly_units": {"wind_speed_10m": "mp/h", "wind_speed_10m_spread": "mp/h"},
+        "hourly": {
+            "time": ["2026-08-25T08:00", "2026-08-25T09:00"],
+            "wind_speed_10m": [10.0, 12.0],
+            "wind_speed_10m_spread": [2.0, 3.0],
+            "wind_gusts_10m": [15.0, 17.0],
+            "wind_gusts_10m_spread": [3.0, 4.0],
+            "precipitation": [0.0, 0.2],
+            "precipitation_spread": [0.0, 0.4],
+        },
+    }
+    calls = []
+
+    def fake_get_json(client, url, params):
+        calls.append((url, params))
+        return payload, url
+
+    monkeypatch.setattr(OM, "_get_json", fake_get_json)
+    captured = []
+    locations = OM.fetch_ensemble_mean(
+        [(42.0, -71.0)],
+        forecast_days=2,
+        capture=lambda name, raw, url: captured.append(name),
+    )
+
+    assert len(locations) == 1 and locations[0].wind == [10.0, 12.0]
+    assert locations[0].wind_spread == [2.0, 3.0]
+    assert calls[0][0] == ENSEMBLE_URL
+    assert calls[0][1] == build_ensemble_mean_params([(42.0, -71.0)], forecast_days=2)
+    assert calls[0][1]["models"] == "ncep_gefs_ensemble_mean_seamless"
+    assert "wind_speed_10m_spread" in calls[0][1]["hourly"]
+    assert captured == ["openmeteo_ensemble_mean_00"]
+
+
+def test_parse_ensemble_mean_error_and_list():
+    with pytest.raises(ValueError):
+        parse_ensemble_mean({"error": True, "reason": "bad"})
+    assert len(parse_ensemble_mean([{"hourly": {"time": []}}] * 2)) == 2
+
+
 # ---------------------------------------------------------------- statistics
 
 
@@ -159,6 +206,30 @@ def test_ensemble_stats_rejects_missing_window_or_few_members():
     assert M.ensemble_stats(ok, [t0 + timedelta(hours=40)], []) is None  # outside the member times
 
 
+def test_ensemble_mean_stats_builds_approximate_wind_band():
+    times = [ENS_T0 + timedelta(hours=i) for i in range(6)]
+    mean = EnsembleMeanLocation(
+        latitude=42.0,
+        longitude=-71.0,
+        times=times,
+        wind=[10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
+        wind_spread=[2.0] * 6,
+        gust=[16.0] * 6,
+        gust_spread=[3.0] * 6,
+    )
+    window = times[1:4]
+    stats = M.ensemble_mean_stats(mean, window, times)
+
+    assert stats is not None and stats.method == "mean_spread"
+    assert stats.wind_p50 == pytest.approx(12.0)
+    assert stats.wind_p10 == pytest.approx(12.0 - M.NORMAL_P10_Z * 2.0)
+    assert stats.wind_p90 == pytest.approx(12.0 + M.NORMAL_P10_Z * 2.0)
+    assert stats.wind_vol_fc == pytest.approx(2 * M.NORMAL_P10_Z * 2.0)
+    assert stats.gust_p90 == pytest.approx(16.0 + M.NORMAL_P10_Z * 3.0)
+    assert stats.precip_prob_ens is None and stats.n_members == 0
+    assert set(stats.hourly_p10) == set(times)
+
+
 # ---------------------------------------------------------------- merge with ensemble
 
 
@@ -192,6 +263,34 @@ def test_build_forecast_without_ensemble_degrades_to_static(om: ParsedLocation):
     # no expectation -> silent (Phase 1 behaviour)
     quiet = M.build_forecast("nfl:2026:1:a@b", kickoff, kickoff - timedelta(hours=30), om, None)
     assert not [d for d in quiet.degradations if "ensemble" in d.reason]
+
+
+def test_build_forecast_uses_ensemble_mean_when_members_are_rate_limited(om: ParsedLocation):
+    kickoff = ENS_T0 + timedelta(hours=1)
+    times = [ENS_T0 + timedelta(hours=i) for i in range(6)]
+    fallback = EnsembleMeanLocation(
+        latitude=42.0,
+        longitude=-71.0,
+        times=times,
+        wind=[10.0] * 6,
+        wind_spread=[2.0] * 6,
+        gust=[15.0] * 6,
+        gust_spread=[3.0] * 6,
+    )
+    res = M.build_forecast(
+        "nfl:2026:1:a@b",
+        kickoff,
+        kickoff - timedelta(hours=30),
+        om,
+        None,
+        ens_mean=fallback,
+        expect_ensemble=True,
+    )
+
+    assert res.ensemble is not None and res.ensemble.method == "mean_spread"
+    assert res.forecast.wind_vol_fc == pytest.approx(2 * M.NORMAL_P10_Z * 2.0)
+    assert res.forecast.precip_prob_ens is None
+    assert not [d for d in res.degradations if "ensemble missing" in d.reason]
 
 
 def test_ensemble_window_outside_members_is_ignored(om: ParsedLocation, ens: EnsembleLocation):

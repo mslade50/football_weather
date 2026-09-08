@@ -5,7 +5,10 @@ members: ``wind_vol_fc = P90-P10`` of pooled member wind over kickoff..+3h,
 ``wind_p10/p50/p90``, per-hour p10/p90 on the display strip and
 ``precip_prob_ens`` (fraction of members with >0.1 mm in the window, carried on
 ``WeatherForecast.precip_prob_ens`` and mirrored on :class:`MergeResult` for the
-build's ``wx_extras``). With no ensemble every one of those stays None and a
+build's ``wx_extras``). When the full-member API is rate limited, its lighter
+precomputed mean + standard-deviation response supplies an approximate wind band;
+precipitation probability remains on the deterministic/NWS path. With no ensemble
+every one of those stays None and a
 Degradation(info) says so — downstream falls back to the static wind_vol.
 
 Stitching by lead time (hours from `now` to kickoff):
@@ -49,6 +52,7 @@ from pipeline.contracts import Degradation, WeatherForecast, WeatherPoint
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.ensemble import EnsembleLocation
+from pipeline.weather.parsers.ensemble_mean import EnsembleMeanLocation
 from pipeline.weather.parsers.openmeteo import ParsedLocation
 
 HRRR = "ncep_hrrr_conus"
@@ -76,6 +80,7 @@ FIELDS = ("temp", "wind", "gust", "dir", "precip", "pop")
 
 ENS_PRECIP_THRESHOLD_MM = 0.1
 MIN_ENSEMBLE_MEMBERS = 10
+NORMAL_P10_Z = 1.2815515655446004
 
 # Retractable-roof heuristic (ARCH §6): closed if any of these hold, else open.
 ROOF_CLOSE_TEMP_F = 40.0
@@ -285,6 +290,7 @@ class EnsembleStats:
     hourly_p90: dict[datetime, float] = field(default_factory=dict)
     n_members: int = 0
     models: list[str] = field(default_factory=list)
+    method: str = "members"
 
 
 def ensemble_stats(
@@ -335,6 +341,65 @@ def ensemble_stats(
         if len(col) >= MIN_ENSEMBLE_MEMBERS:
             st.hourly_p10[t] = percentile(col, 0.10)  # type: ignore[assignment]
             st.hourly_p90[t] = percentile(col, 0.90)  # type: ignore[assignment]
+    return st
+
+
+def ensemble_mean_stats(
+    ens: Optional[EnsembleMeanLocation],
+    window: Sequence[datetime],
+    display: Sequence[datetime] = (),
+) -> Optional[EnsembleStats]:
+    """Approximate P10/P50/P90 from Open-Meteo's precomputed mean + spread.
+
+    The endpoint exposes the ensemble standard deviation but not individual
+    members.  We map mean +/- 1.28155 standard deviations to P10/P90 under a
+    normal approximation.  Averaging hourly spreads is conservative for the
+    three-hour game window because cross-hour member covariance is unavailable.
+    """
+    if ens is None or not ens.times:
+        return None
+    tidx = {t: i for i, t in enumerate(ens.times)}
+    if not all(t in tidx for t in window):
+        return None
+    win_i = [tidx[t] for t in window]
+
+    def complete_mean(series: Sequence[Optional[float]]) -> Optional[float]:
+        values = [series[i] for i in win_i if i < len(series) and series[i] is not None]
+        return sum(values) / len(values) if len(values) == len(win_i) else None
+
+    wind_mean = complete_mean(ens.wind)
+    wind_sd = complete_mean(ens.wind_spread)
+    if wind_mean is None or wind_sd is None:
+        return None
+    wind_p10 = max(0.0, wind_mean - NORMAL_P10_Z * wind_sd)
+    wind_p90 = max(wind_p10, wind_mean + NORMAL_P10_Z * wind_sd)
+    gust_mean = complete_mean(ens.gust)
+    gust_sd = complete_mean(ens.gust_spread)
+    gust_p90 = (
+        max(0.0, gust_mean + NORMAL_P10_Z * gust_sd)
+        if gust_mean is not None and gust_sd is not None
+        else None
+    )
+    st = EnsembleStats(
+        wind_p10=wind_p10,
+        wind_p50=wind_mean,
+        wind_p90=wind_p90,
+        wind_vol_fc=wind_p90 - wind_p10,
+        gust_p90=gust_p90,
+        precip_prob_ens=None,
+        n_members=0,
+        models=[ens.model],
+        method="mean_spread",
+    )
+    for t in display:
+        i = tidx.get(t)
+        if i is None or i >= len(ens.wind) or i >= len(ens.wind_spread):
+            continue
+        mean, spread = ens.wind[i], ens.wind_spread[i]
+        if mean is None or spread is None:
+            continue
+        st.hourly_p10[t] = max(0.0, mean - NORMAL_P10_Z * spread)
+        st.hourly_p90[t] = max(st.hourly_p10[t], mean + NORMAL_P10_Z * spread)
     return st
 
 
@@ -391,6 +456,7 @@ def build_forecast(
     roof_state: Optional[str] = None,
     run_id: Optional[str] = None,
     ens: Optional[EnsembleLocation] = None,
+    ens_mean: Optional[EnsembleMeanLocation] = None,
     roof_type: Optional[str] = None,
     expect_ensemble: bool = False,
     stadium_id: Optional[str] = None,
@@ -453,13 +519,13 @@ def build_forecast(
     ):
         source = f"{source}+nws"
 
-    stats = ensemble_stats(ens, window, display)
+    stats = ensemble_stats(ens, window, display) or ensemble_mean_stats(ens_mean, window, display)
     if stats is None and expect_ensemble:
         _deg("ensemble missing; wind_vol falls back to static", "info")
 
     # ---- climatology shrinkage (lead-weighted) --------------------------------------
     table = climo if climo is not None else (_default_climo() if auto_climo else None)
-    lat, lon = _coords(om, ens)
+    lat, lon = _coords(om, ens, ens_mean)
     cell = table.lookup(h0 + timedelta(hours=1), stadium_id=stadium_id, lat=lat, lon=lon) if table is not None else None
     w_wind = cfg.weight(lead_hours, "wind")
     blend_active = min(cfg.weight(lead_hours, k) for k in CB.KINDS) < 1.0
@@ -540,8 +606,12 @@ def build_forecast(
     )
 
 
-def _coords(om: Optional[ParsedLocation], ens: Optional[EnsembleLocation]) -> tuple[Optional[float], Optional[float]]:
-    for loc in (om, ens):
+def _coords(
+    om: Optional[ParsedLocation],
+    ens: Optional[EnsembleLocation],
+    ens_mean: Optional[EnsembleMeanLocation] = None,
+) -> tuple[Optional[float], Optional[float]]:
+    for loc in (om, ens, ens_mean):
         lat, lon = getattr(loc, "latitude", None), getattr(loc, "longitude", None)
         if isinstance(lat, (int, float)) and isinstance(lon, (int, float)) and (lat, lon) != (0.0, 0.0):
             return float(lat), float(lon)
@@ -572,6 +642,7 @@ __all__ = [
     "percentile",
     "EnsembleStats",
     "ensemble_stats",
+    "ensemble_mean_stats",
     "roof_state_for",
     "MergeResult",
     "build_forecast",

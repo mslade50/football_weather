@@ -357,8 +357,11 @@ def stage_weather(
                 "warn",
             )
 
-    # ensemble members (wind_vol_fc / P10-P90 / precip_prob_ens); failure -> static wind_vol fallback
+    # Full ensemble members are primary.  A 429 retries the affected locations
+    # through Open-Meteo's much lighter precomputed mean + spread API so weather
+    # uncertainty survives without repeating the expensive member request.
     ens_by_point: dict[tuple[float, float], Any] = {}
+    ens_mean_by_point: dict[tuple[float, float], Any] = {}
     all_pts = conus_pts + intl_pts
     fetch_ens = getattr(om_mod, "fetch_ensemble", None)
     if callable(fetch_ens) and all_pts:
@@ -373,13 +376,50 @@ def stage_weather(
         )
         ens_by_point.update(fetched_ens)
         if failures:
-            affected = sum(size for _, size, _ in failures)
-            ctx.degrade(
-                "weather",
-                f"{sport}: open-meteo ensemble unavailable for {affected}/{len(all_pts)} locations "
-                f"across {len(failures)} batch(es); wind volatility uses static fallback",
-                "warn",
-            )
+            rate_limited = [failure for failure in failures if "429" in str(failure[2])]
+            other_failures = [failure for failure in failures if failure not in rate_limited]
+            rate_limited_pts: list[tuple[float, float]] = []
+            for batch_index, size, _ in rate_limited:
+                offset = batch_index * om_mod.BATCH_SIZE
+                rate_limited_pts.extend(all_pts[offset : offset + size])
+
+            fallback_failures: list[tuple[int, int, Exception]] = []
+            fetch_ens_mean = getattr(om_mod, "fetch_ensemble_mean", None)
+            if rate_limited_pts and callable(fetch_ens_mean):
+                fetched_mean, fallback_failures = _fetch_point_batches(
+                    rate_limited_pts,
+                    fetch_ens_mean,
+                    batch_size=om_mod.BATCH_SIZE,
+                    source_prefix="openmeteo_ensemble_mean_fallback",
+                    start=start,
+                    end=end,
+                    capture=capture,
+                )
+                ens_mean_by_point.update(fetched_mean)
+
+            recovered = len(ens_mean_by_point)
+            if recovered:
+                ctx.degrade(
+                    "weather",
+                    f"{sport}: full ensemble rate limited for {len(rate_limited_pts)} locations; "
+                    f"recovered {recovered} with ensemble mean + spread",
+                    "info",
+                )
+            unresolved = len(rate_limited_pts) - recovered + sum(size for _, size, _ in other_failures)
+            if unresolved:
+                detail = (
+                    fallback_failures[0][2]
+                    if fallback_failures
+                    else other_failures[0][2]
+                    if other_failures
+                    else rate_limited[0][2]
+                )
+                ctx.degrade(
+                    "weather",
+                    f"{sport}: ensemble unavailable for {unresolved}/{len(all_pts)} locations after fallback; "
+                    f"wind volatility uses static fallback ({detail})",
+                    "warn",
+                )
     else:
         ctx.degrade("weather", f"{sport}: ensemble client unavailable; wind_vol falls back to static", "warn")
 
@@ -414,8 +454,9 @@ def stage_weather(
                 res = merge_mod.build_forecast(
                     g.game_id, g.kickoff_utc, now, om_by_point.get(pt), nws_by_point.get(pt),
                     orientation_deg=st.orientation_deg, roof_state=roof_states.get(g.game_id), run_id=ctx.run_id,
-                    ens=ens_by_point.get(pt), roof_type=st.roof_type,
-                    expect_ensemble=pt in ens_by_point, report_source_degradations=False,
+                    ens=ens_by_point.get(pt), ens_mean=ens_mean_by_point.get(pt), roof_type=st.roof_type,
+                    expect_ensemble=pt in ens_by_point or pt in ens_mean_by_point,
+                    report_source_degradations=False,
                 )
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{g.game_id}: merge failed: {exc}", "warn")
@@ -428,6 +469,7 @@ def stage_weather(
                     "precip_prob_ens": getattr(res, "precip_prob_ens", None),
                     "roof_heuristic": bool(getattr(res, "roof_heuristic", False)),
                     "ensemble": getattr(res, "ensemble", None) is not None,
+                    "ensemble_source": getattr(getattr(res, "ensemble", None), "method", None),
                 }
     ctx.count("weather", sport, len(fc))
     nws_only = [

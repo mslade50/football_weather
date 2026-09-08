@@ -21,6 +21,7 @@ from typing import Any, Optional
 import httpx
 
 from pipeline.weather.parsers.ensemble import EnsembleLocation, parse_ensemble
+from pipeline.weather.parsers.ensemble_mean import EnsembleMeanLocation, parse_ensemble_mean
 from pipeline.weather.parsers.openmeteo import ParsedLocation, parse_forecast
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -28,6 +29,12 @@ ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
 ENSEMBLE_MODELS = "ecmwf_ifs025,gfs_seamless"
 ENSEMBLE_HOURLY = "wind_speed_10m,wind_gusts_10m,precipitation"
 ENSEMBLE_UNIT_PARAMS = {"wind_speed_unit": "mph", "precipitation_unit": "mm", "timezone": "UTC"}
+ENSEMBLE_MEAN_MODEL = "ncep_gefs_ensemble_mean_seamless"
+ENSEMBLE_MEAN_HOURLY = (
+    "wind_speed_10m,wind_speed_10m_spread,"
+    "wind_gusts_10m,wind_gusts_10m_spread,"
+    "precipitation,precipitation_spread"
+)
 AIFS_MODEL = "ecmwf_aifs025_single"
 CONUS_MODELS = f"ncep_nbm_conus,ncep_hrrr_conus,ncep_gfs_seamless,ecmwf_ifs025,{AIFS_MODEL}"
 INTL_MODELS = f"best_match,ecmwf_ifs025,{AIFS_MODEL}"
@@ -174,6 +181,29 @@ def build_ensemble_params(
     return params
 
 
+def build_ensemble_mean_params(
+    points: Sequence[Point],
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    model: str = ENSEMBLE_MEAN_MODEL,
+    forecast_days: Optional[int] = None,
+) -> dict[str, str]:
+    """Parameters for Open-Meteo's lightweight precomputed mean/spread API."""
+    params: dict[str, str] = {
+        "latitude": ",".join(f"{lat:.4f}" for lat, _ in points),
+        "longitude": ",".join(f"{lon:.4f}" for _, lon in points),
+        "models": model,
+        "hourly": ENSEMBLE_MEAN_HOURLY,
+    }
+    params.update(ENSEMBLE_UNIT_PARAMS)
+    if start is not None and end is not None:
+        params["start_hour"] = _fmt_hour(start)
+        params["end_hour"] = _fmt_hour(end)
+    elif forecast_days is not None:
+        params["forecast_days"] = str(forecast_days)
+    return params
+
+
 def fetch_ensemble(
     points: Sequence[Point],
     start: Optional[datetime] = None,
@@ -209,6 +239,46 @@ def fetch_ensemble(
     return out
 
 
+def fetch_ensemble_mean(
+    points: Sequence[Point],
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    model: str = ENSEMBLE_MEAN_MODEL,
+    forecast_days: Optional[int] = None,
+    capture: Optional[CaptureFn] = None,
+    client: Optional[httpx.Client] = None,
+    source_prefix: str = "openmeteo_ensemble_mean",
+) -> list[EnsembleMeanLocation]:
+    """Fetch precomputed GEFS mean/spread as a low-cost 429 fallback.
+
+    This deliberately requests no individual members.  The response is much
+    smaller than ``fetch_ensemble`` while retaining the wind uncertainty needed
+    for P10/P90 bands.
+    """
+    if not points:
+        return []
+    own = client is None
+    c = client or httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
+    out: list[EnsembleMeanLocation] = []
+    try:
+        for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
+            batch = list(points[i : i + BATCH_SIZE])
+            params = build_ensemble_mean_params(batch, start, end, model, forecast_days)
+            payload, url = _get_json(c, ENSEMBLE_URL, params)
+            if capture is not None:
+                capture(f"{source_prefix}_{b:02d}", payload, url)
+            parsed = parse_ensemble_mean(payload, model=model)
+            if len(parsed) != len(batch):
+                raise RuntimeError(
+                    f"open-meteo ensemble mean returned {len(parsed)} locations for {len(batch)} points"
+                )
+            out.extend(parsed)
+    finally:
+        if own:
+            c.close()
+    return out
+
+
 __all__ = [
     "FORECAST_URL",
     "ENSEMBLE_URL",
@@ -216,12 +286,15 @@ __all__ = [
     "CONUS_MODELS",
     "INTL_MODELS",
     "ENSEMBLE_MODELS",
+    "ENSEMBLE_MEAN_MODEL",
     "BATCH_SIZE",
     "CaptureFn",
     "window_for",
     "build_params",
     "build_ensemble_params",
+    "build_ensemble_mean_params",
     "fetch_forecast",
     "fetch_forecast_raw",
     "fetch_ensemble",
+    "fetch_ensemble_mean",
 ]
