@@ -1,7 +1,7 @@
 "use strict";
 // Table view: one row per GameCard. Columns: GAME (kickoff ET), STADIUM, TEMP, WIND, GUST, RAIN,
 // GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
-// TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (open → now, under price
+// TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (baseline → now, under price
 // + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
 // (#bookspreads, remembered in localStorage). The Book filter narrows the per-book columns.
 
@@ -81,11 +81,12 @@ function consensusTotalCell(g) {
   if (!isNum(c.total_now) && !isNum(c.total_open)) return `<td class="muted">—</td>`;
   const hk = ++HK;
   const f = g.fair || {};
+  const baseline = g.sport === "cfb" ? "T−6d" : "open";
   HOVER[hk] = {
     label: `Consensus total · ${gameLabel(g)}`,
     lines: [
       ["ref", `${c.ref_book || "?"} (n=${c.n_books ?? "?"})`],
-      ["open", fmtTotal(c.total_open)],
+      [baseline, fmtTotal(c.total_open)],
       ["now", fmtTotal(c.total_now)],
       ...(isNum(f.fair_total) ? [["fair", fmtTotal(f.fair_total)]] : []),
     ],
@@ -115,10 +116,11 @@ function bookTotalCell(g, bk) {
   if (!t || (!isNum(t.line) && !isNum(t.open_line))) return `<td class="muted">—</td>`;
   const e = edgeAt(g, bk, "total");
   const hk = ++HK;
+  const baseline = g.sport === "cfb" ? "T−6d" : "open";
   HOVER[hk] = {
     label: `${bookLabel(bk)} total · ${gameLabel(g)}`,
     lines: [
-      ["open", `${fmtTotal(t.open_line)} u${fmtOdds(t.open_under)}`],
+      [baseline, `${fmtTotal(t.open_line)} u${fmtOdds(t.open_under)}`],
       ["now", `${fmtTotal(t.line)} o${fmtOdds(t.over)} / u${fmtOdds(t.under)}`],
       ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}`]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
@@ -143,7 +145,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Away %", "v1 away-team impact %", (g) => impactPct(g, "away_fg_pct")],
     ["Signal", "Impact tier + combined flags", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
-    ["Total", "Consensus total open → now (Pinnacle-weighted)", cons("total_now")],
+    ["Total", "Consensus total baseline → now (CFB baseline = kickoff minus 6 days; NFL = first-seen open; Pinnacle-weighted)", cons("total_now")],
   ];
   for (const bk of books) {
     if (withSpreads) {
@@ -151,7 +153,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
         (g) => bookSpreadCell(g, bk)]);
     }
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total open → now; hover = under price, edge chip = pts vs fair`,
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total baseline → now; CFB baseline = kickoff minus 6 days; hover = under price, edge chip = pts vs fair`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
       (g) => bookTotalCell(g, bk)]);
   }

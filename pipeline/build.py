@@ -21,7 +21,9 @@ matcher), a weighted-median consensus is computed (``pipeline.model.fair`` when
 present, else built-in) and openers/archive_last/scrape_baseline are persisted under
 ``data/state/``. Legacy odds columns are filled from the sport's reference book
 (NFL: BetOnline, CFB: FanDuel) with consensus fallback; openers come from
-``openers.json`` so ``*_open`` stays fixed while ``*_now`` moves.
+``openers.json`` so ``*_open`` stays fixed while ``*_now`` moves. CFB total
+"open" values use the line in force at kickoff minus six days; other opener
+fields remain first-seen.
 
 Two horizons (decoupled): weather / impact / cards / legacy files / alerts cover
 games kicking off within [now-6h, now+10d] (``WINDOW_AFTER_D``); the odds stage
@@ -109,6 +111,7 @@ WINDOW_AFTER_D = 10.0
 # every schedule game within [now-6h, now+ODDS_WINDOW_AFTER_D]. gate_check.HORIZON_DAYS
 # must carry the same number (pinned by tests/test_gate_check.py).
 ODDS_WINDOW_AFTER_D = 45.0
+CFB_TOTAL_BASELINE_DAYS = 6
 
 # ---- books ------------------------------------------------------------------------
 # book -> (module, class); order = display / alert order.
@@ -976,6 +979,96 @@ def consensus_pseudo_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
     return rows
 
 
+def retarget_cfb_total_openers(
+    openers: dict,
+    history: dict,
+    lines: Sequence[GameLine],
+    games: Sequence[Game],
+    now: datetime,
+) -> list[str]:
+    """Set CFB total baselines to the line in force at kickoff minus six days.
+
+    Each book is selected independently from its change-only history. The
+    consensus baseline is then rebuilt with the normal book weights, using only
+    books observed by the target when any exist. This prevents a book that first
+    appeared after T-6 from leaking into the historical consensus.
+    """
+    targets: dict[str, datetime] = {}
+    for game in games:
+        target = pstate.parse_utc(game.kickoff_utc - timedelta(days=CFB_TOTAL_BASELINE_DAYS))
+        if target is not None:
+            targets[game.game_id] = target
+    now_text = utc_iso(now)
+    changed = set(pstate.retarget_openers(
+        openers,
+        history,
+        lines,
+        targets,
+        now_text,
+        market="total",
+        excluded_books=(CONSENSUS_BOOK,),
+    ))
+    store = openers.setdefault("openers", {})
+
+    for game_id, target in targets.items():
+        side_rows: dict[str, dict[str, tuple[dict[str, Any], datetime]]] = {}
+        for key, val in store.items():
+            parts = key.split("|")
+            if len(parts) != 4 or not isinstance(val, dict):
+                continue
+            gid, market, side, book = parts
+            if (
+                gid != game_id
+                or market != "total"
+                or book == CONSENSUS_BOOK
+                or side not in ("under", "over")
+            ):
+                continue
+            line = val.get("line")
+            ts = pstate.parse_utc(val.get("ts"))
+            if line is None or ts is None:
+                continue
+            side_rows.setdefault(book, {})[side] = (val, ts)
+
+        per_book: dict[str, tuple[str, dict[str, Any], datetime]] = {}
+        for book, sides in side_rows.items():
+            pre_target = {side: row for side, row in sides.items() if row[1] <= target}
+            available = pre_target or sides
+            side = "under" if "under" in available else "over"
+            val, ts = available[side]
+            per_book[book] = (side, val, ts)
+
+        rows = list(per_book.items())
+        before = [row for row in rows if row[1][2] <= target]
+        if before:
+            rows = before
+        weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], 0.5)) for row in rows]
+        line = weighted_median(weighted)
+        if line is None:
+            continue
+        refs = [row for row in rows if float(row[1][1]["line"]) == line]
+        ref_book, (ref_side, ref_val, _ref_ts) = max(
+            refs,
+            key=lambda row: BOOK_WEIGHTS.get(row[0], 0.5),
+        )
+        source_ts = max(row[1][2] for row in rows)
+        key = pstate.odds_key(game_id, "total", "under", CONSENSUS_BOOK)
+        desired = {
+            "line": line,
+            "odds": ref_val.get("odds") if ref_side == "under" else None,
+            "ts": utc_iso(source_ts),
+            "basis": "t_minus_6d",
+            "target_ts": utc_iso(target),
+            "ref_book": ref_book,
+            "n_books": len(rows),
+        }
+        if store.get(key) != desired:
+            store[key] = desired
+            changed.add(key)
+
+    return sorted(changed)
+
+
 def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], sport: str, now: datetime,
                            run_id: str | None = None) -> list[GameLine]:
     """The consensus SPREAD as ``book='consensus'`` home GameLines so history.json,
@@ -1078,6 +1171,7 @@ class OddsResult:
     deltas: list[GameLine] = dataclasses.field(default_factory=list)    # main lines whose (line, odds) moved -> D1
     new_opener_keys: list[str] = dataclasses.field(default_factory=list)
     pseudo: list[GameLine] = dataclasses.field(default_factory=list)    # consensus spread as book='consensus' rows
+    opener_update_keys: list[str] = dataclasses.field(default_factory=list)  # rebased existing rows -> D1 upsert
 
 
 def stage_odds(
@@ -1182,13 +1276,18 @@ def stage_odds(
         if consensus is None:
             consensus = consensus_lines(sport, board_lines)
 
-    # state: openers (never overwritten), archive_last (last seen per key)
+    # state: first-seen openers except CFB totals, which use the T-6-day snapshot;
+    # archive_last remains the most recently seen value per key
     with ctx.stage(f"{sport}.state"):
         now = utc_iso(ctx.now_utc)
         main_lines = [ln for ln in lines if ln.is_main]
         before_keys = set(openers.get("openers") or {})
         added = pstate.record_openers(openers, main_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
+        opener_update_keys = (
+            retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+            if sport == "cfb" else []
+        )
         new_keys = sorted(set(openers.get("openers") or {}) - before_keys)
         pruned = pstate.prune_openers(openers, _active_for(openers.get("openers") or {}, sport, active_ids))
         last = archive.setdefault("last", {})
@@ -1201,7 +1300,8 @@ def stage_odds(
         if not dry_run:
             pstate.save_openers(state_dir, openers)
             pstate.save_archive_last(state_dir, archive)
-        print(f"  openers {sport}: +{added} new, {pruned} pruned, {len(openers.get('openers') or {})} total; "
+        print(f"  openers {sport}: +{added} new, {len(opener_update_keys)} T-6 updated, {pruned} pruned, "
+              f"{len(openers.get('openers') or {})} total; "
               f"{len(deltas)} moved line(s) of {len(main_lines)}")
 
     by_game: dict[str, list[GameLine]] = {}
@@ -1209,7 +1309,8 @@ def stage_odds(
         by_game.setdefault(ln.game_id, []).append(ln)
     ctx.count("odds", sport, len(lines))
     return OddsResult(board_lines, consensus, openers, by_game, unresolved, per_book_n,
-                      scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo)
+                      scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo,
+                      opener_update_keys=opener_update_keys)
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1762,7 +1863,8 @@ def d1_statements(ctx: RunContext, results: Sequence[SportResult], finished_at: 
         edges = [e for gf in res.fairs.values() for e in (getattr(gf, "edges", None) or [])]
         odds_rows += d1_out.odds_rows(res.odds.deltas, now, ctx.run_id, edges)
         wx_rows += res.wx_changed
-        opener_rows += d1_out.opener_rows(res.odds.openers, res.odds.new_opener_keys, ctx.run_id)
+        opener_keys = set(res.odds.new_opener_keys) | set(res.odds.opener_update_keys)
+        opener_rows += d1_out.opener_rows(res.odds.openers, sorted(opener_keys), ctx.run_id)
         n_games += len(res.games)
         n_lines += len(res.odds.scraped)
         s, w = res.season_week

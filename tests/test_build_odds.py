@@ -165,6 +165,66 @@ def test_consensus_is_weighted_median_with_ref_book():
     assert fb[(KC_BUF, "spread")].ref_book == "kalshi" and fb[(KC_BUF, "spread")].odds == -102
 
 
+def test_cfb_total_baseline_uses_t_minus_six_and_rebuilds_consensus():
+    gid = "cfb:2026:3:maine@nevada"
+    kick = datetime(2026, 9, 19, 20, 0, tzinfo=timezone.utc)
+    target = "2026-09-13T20:00:00Z"
+    game = Game(
+        game_id=gid,
+        sport="cfb",
+        season=2026,
+        week=3,
+        kickoff_utc=kick,
+        kickoff_local=kick,
+        tz="America/Los_Angeles",
+        home_id="nevada",
+        away_id="maine",
+        stadium_id="mackay",
+    )
+    op = pstate.migrate(None, "openers")
+    hist = pstate.migrate(None, "history")
+    pin = pstate.odds_key(gid, "total", "under", "pinnacle")
+    bol = pstate.odds_key(gid, "total", "under", "betonline")
+    fd = pstate.odds_key(gid, "total", "under", "fanduel")
+    spread = pstate.odds_key(gid, "spread", "home", "pinnacle")
+    op["openers"] = {
+        pin: {"line": 47.0, "odds": -110, "ts": "2026-09-01T12:00:00Z"},
+        bol: {"line": 47.5, "odds": -110, "ts": "2026-09-02T12:00:00Z"},
+        fd: {"line": 60.0, "odds": -110, "ts": "2026-09-14T12:00:00Z"},
+        spread: {"line": -4.0, "odds": -108, "ts": "2026-09-01T12:00:00Z"},
+    }
+    hist["series"] = {
+        pin: [["2026-09-13T18:00:00Z", 50.0, -105], ["2026-09-14T01:00:00Z", 51.0, -110]],
+        bol: [["2026-09-13T19:00:00Z", 48.0, -112], ["2026-09-14T02:00:00Z", 49.0, -110]],
+        # First seen after T-6, so this book must not enter a consensus that has pre-target books.
+        fd: [["2026-09-14T12:00:00Z", 60.0, -110]],
+    }
+
+    changed = build.retarget_cfb_total_openers(
+        op,
+        hist,
+        [],
+        [game],
+        datetime(2026, 9, 15, 0, 0, tzinfo=timezone.utc),
+    )
+
+    consensus_key = pstate.odds_key(gid, "total", "under", "consensus")
+    assert set(changed) == {pin, bol, fd, consensus_key}
+    assert op["openers"][pin]["line"] == 50.0
+    assert op["openers"][bol]["line"] == 48.0
+    assert op["openers"][fd]["line"] == 60.0
+    assert op["openers"][consensus_key] == {
+        "line": 50.0,
+        "odds": -105,
+        "ts": "2026-09-13T19:00:00Z",
+        "basis": "t_minus_6d",
+        "target_ts": target,
+        "ref_book": "pinnacle",
+        "n_books": 2,
+    }
+    assert op["openers"][spread]["line"] == -4.0
+
+
 # ---- legacy odds columns ------------------------------------------------------------------
 
 def _by_game(lines: list[GameLine]) -> dict[str, list[GameLine]]:

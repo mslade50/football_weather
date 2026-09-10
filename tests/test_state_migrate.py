@@ -1,6 +1,7 @@
 """pipeline/state.py: schema_version + migrate(), openers, history, alerts caps."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -102,6 +103,61 @@ def test_openers_skip_missing_odds_and_prune():
                               _line(G2, "ml", "home", "kalshi", None, 120)], "t0")
     assert state.prune_openers(op, [G2]) == 1
     assert list(op["openers"]) == [state.odds_key(G2, "ml", "home", "kalshi")]
+
+
+def test_retarget_openers_uses_line_in_force_at_target_and_late_fallback():
+    gid = "cfb:2026:2:maine@nevada"
+    target = datetime(2026, 9, 13, 20, 0, tzinfo=timezone.utc)
+    op = state.migrate(None, "openers")
+    history = state.migrate(None, "history")
+    pin = state.odds_key(gid, "total", "under", "pinnacle")
+    bol = state.odds_key(gid, "total", "under", "betonline")
+    spread = state.odds_key(gid, "spread", "home", "pinnacle")
+    op["openers"] = {
+        pin: {"line": 50.0, "odds": -110, "ts": "2026-09-01T12:00:00Z"},
+        spread: {"line": -3.0, "odds": -105, "ts": "2026-09-01T12:00:00Z"},
+    }
+    history["series"] = {
+        pin: [
+            ["2026-09-12T12:00:00Z", 51.0, -108],
+            ["2026-09-13T18:00:00Z", 52.0, -112],
+            ["2026-09-14T01:00:00Z", 53.0, -110],
+        ],
+        # No pre-target observation: use the earliest point after T-6.
+        bol: [
+            ["2026-09-14T03:00:00Z", 54.0, -105],
+            ["2026-09-14T08:00:00Z", 55.0, -110],
+        ],
+    }
+
+    changed = state.retarget_openers(
+        op,
+        history,
+        [],
+        {gid: target},
+        "2026-09-15T00:00:00Z",
+        market="total",
+    )
+
+    assert changed == [bol, pin]
+    assert op["openers"][pin] == {
+        "line": 52.0,
+        "odds": -112,
+        "ts": "2026-09-13T18:00:00Z",
+        "basis": "t_minus_6d",
+        "target_ts": "2026-09-13T20:00:00Z",
+    }
+    assert op["openers"][bol]["line"] == 54.0
+    assert op["openers"][bol]["ts"] == "2026-09-14T03:00:00Z"
+    assert op["openers"][spread]["line"] == -3.0
+    assert state.retarget_openers(
+        op,
+        history,
+        [_line(gid, "total", "under", "pinnacle", 52.0, -112)],
+        {gid: target},
+        "2026-09-15T01:00:00Z",
+        market="total",
+    ) == []
 
 
 # ── history ────────────────────────────────────────────────────────────────────

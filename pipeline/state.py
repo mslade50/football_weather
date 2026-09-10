@@ -14,7 +14,8 @@ does not understand.
 """
 import json
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -162,6 +163,102 @@ def record_openers(openers: dict, lines: Iterable[Any], now: str) -> int:
             store[key] = {"line": line, "odds": odds, "ts": now}
             added += 1
     return added
+
+
+def retarget_openers(
+    openers: dict,
+    history: dict,
+    lines: Iterable[Any],
+    targets: Mapping[str, datetime],
+    now: str,
+    *,
+    market: str,
+    excluded_books: Iterable[str] = (),
+) -> list[str]:
+    """Rebase selected openers to the line in force at each game's target time.
+
+    Odds history is change-only, so the correct point is the last observation at
+    or before ``targets[game_id]``.  If collection began after the target, the
+    earliest later observation is the best available fallback.  Existing opener
+    rows are candidates too, which lets old games be backfilled immediately.
+
+    Returns keys whose stored row changed.  The caller can upsert those rows to
+    durable storage without treating them as newly posted opener alerts.
+    """
+    store = openers.setdefault("openers", {})
+    excluded = set(excluded_books)
+    candidates: dict[str, list[tuple[datetime, Any, Any]]] = {}
+
+    def add(key: str, ts: Any, line: Any, odds: Any) -> None:
+        dt = parse_utc(ts)
+        if dt is None or odds is None:
+            return
+        candidates.setdefault(key, []).append((dt, line, odds))
+
+    eligible: set[str] = set()
+    for key, val in store.items():
+        parts = key.split(_KEY_SEP)
+        if len(parts) != 4:
+            continue
+        game_id, key_market, _side, book = parts
+        if game_id not in targets or key_market != market or book in excluded:
+            continue
+        eligible.add(key)
+        if isinstance(val, dict):
+            add(key, val.get("ts"), val.get("line"), val.get("odds"))
+
+    for key, seq in (history.get("series") or {}).items():
+        parts = key.split(_KEY_SEP)
+        if len(parts) != 4:
+            continue
+        game_id, key_market, _side, book = parts
+        if game_id not in targets or key_market != market or book in excluded:
+            continue
+        eligible.add(key)
+        for point in seq if isinstance(seq, list) else ():
+            if isinstance(point, (list, tuple)) and len(point) >= 3:
+                add(key, point[0], point[1], point[2])
+
+    for ln in lines:
+        game_id, key_market, side, book, line, odds = _line_tuple(ln)
+        if game_id not in targets or key_market != market or book in excluded or odds is None:
+            continue
+        key = odds_key(game_id, key_market, side, book)
+        eligible.add(key)
+        add(key, now, line, odds)
+
+    changed: list[str] = []
+    for key in sorted(eligible):
+        game_id = key.split(_KEY_SEP, 1)[0]
+        target = targets[game_id]
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        else:
+            target = target.astimezone(timezone.utc)
+        points = candidates.get(key) or []
+        before = [point for point in points if point[0] <= target]
+        chosen = max(before, key=lambda point: point[0]) if before else (
+            min(points, key=lambda point: point[0]) if points else None
+        )
+        if chosen is None:
+            continue
+        dt, line, odds = chosen
+        desired = {
+            "line": line,
+            "odds": odds,
+            "ts": _utc_text(dt),
+            "basis": "t_minus_6d",
+            "target_ts": _utc_text(target),
+        }
+        prior = store.get(key)
+        stable = isinstance(prior, dict) and all(
+            prior.get(field) == desired[field]
+            for field in ("line", "odds", "basis", "target_ts")
+        )
+        if not stable:
+            store[key] = desired
+            changed.append(key)
+    return changed
 
 
 def get_opener(openers: dict, key: str) -> Optional[dict]:
@@ -519,3 +616,20 @@ def _line_tuple(ln: Any) -> tuple[str, str, str, str, Optional[float], Optional[
         get("line"),
         get("odds"),
     )
+
+
+def parse_utc(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _utc_text(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")

@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS stadium_results (
   PRIMARY KEY (stadium_id, sport, season)
 );
 ```
-All pipeline writes: `INSERT OR IGNORE` (history/openers/alerts-first-send) or `INSERT ... ON CONFLICT(pk) DO UPDATE` (games, stadiums, teams, alerts updates, runs). Statements chunked ≤100 rows, ≤100 KB each.
+All pipeline writes: `INSERT OR IGNORE` (history/alerts-first-send) or `INSERT ... ON CONFLICT(pk) DO UPDATE` (games, stadiums, teams, openers, alerts updates, runs). Opener upserts preserve immutable first-seen rows in normal operation while allowing CFB total baselines to settle at T−6. Statements chunked ≤100 rows, ≤100 KB each.
 
 ## 5. R2 layout and JSON payloads
 
@@ -336,7 +336,7 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 
 ### 7.3 Consensus / fair / edges (improvement)
 - Devig per book per market via multiplicative normalization of the two sides (`american_to_prob`, copied from golf). Exchanges (Kalshi/Novig/ProphetX) use `prob_raw` directly.
-- **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, betcris:1.5, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}`; `n_books<2 ⇒ thin=True` (no edges, no alerts). Consensus prob at that line = weighted mean of devigged probs after moving each book to the consensus line via pts→prob.
+- **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, betcris:1.5, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}`; `n_books<2 ⇒ thin=True` (no edges, no alerts). Consensus prob at that line = weighted mean of devigged probs after moving each book to the consensus line via pts→prob. For CFB only, the displayed per-book and consensus total "open" baseline is the line in force at kickoff−6 days (normally the prior Sunday for a Saturday game): last change-point at or before T−6, falling back to the earliest later observation when collection started late. It is recomputed from `history.json` and upserted to D1; spread openers and all NFL openers remain first-seen.
 - **Consensus SPREAD** = simple average of the Betcris, BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the three are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"cris+bol+pin"`, `"bol+pin"`, …). When none of the three has a spread the weighted-median rule above applies and `spread_src="fallback"`. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, the legacy CFB `Spread` column, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are still computed over every book posting a spread.
 - **pts→prob**: totals `PTS_PROB_TOTAL = {"nfl": 0.026, "cfb": 0.020}` per point; spreads key-number-aware table `SPREAD_KEY_PROB["nfl"] = {0.5:.02,1:.015,1.5:.02,2:.02,2.5:.03,3:.095,3.5:.03,4:.02,...,6:.04,7:.075,...,10:.045,14:.04}` (cumulative half-point values from `data/calibration.json`, defaults shipped); CFB flatter table.
 - **Fair line** v1: `fair_total = consensus_total * (1 + gs_fg/100)`; `fair_spread = consensus_spread * (1 + away_fg/100)` (sign: home-relative). v2 uses v2 components (§7.5).
@@ -375,7 +375,7 @@ All: `class XScraper(BaseScraper)`, `BOOK_NAME`, `async scrape(sport) -> list[Ga
 | pinnacle | httpx guest | `/sports/15/matchups`, `/sports/15/markets/straight?primaryOnly=false` | `type` moneyline/spread/total, period 0; leagues NFL + NCAA; reference weight 3 |
 | draftkings (optional) | curl_cffi | eventGroup 88808/87637, category 492 | `displayOdds.american` (U+2212), `points` |
 
-`odds/merge.py`: build `game_key` by matching `(away_id, home_id)` + kickoff within ±36 h to the schedule `Game`; neutral-site flips handled by trying swapped sides; pivot by book; select main line per book/market (`is_main` or nearest consensus); update openers (first-seen per key, from `openers.json` rehydrated from D1 `openers` if R2 empty); emit `odds_history` deltas (change-only vs `archive_last.json`).
+`odds/merge.py`: build `game_key` by matching `(away_id, home_id)` + kickoff within ±36 h to the schedule `Game`; neutral-site flips handled by trying swapped sides; pivot by book; select main line per book/market (`is_main` or nearest consensus); update openers (first-seen per key except the CFB total T−6 baseline described in §7.3, from `openers.json` rehydrated from D1 `openers` if R2 empty); emit `odds_history` deltas (change-only vs `archive_last.json`).
 
 ## 9. Scheduling and GitHub Actions
 
@@ -484,7 +484,7 @@ Table view: all GameCard columns, sortable, filters (sport, week, signal, min ed
 - `allow_nan=False` on every served JSON; probabilities clamped to finite (0,1).
 - meta.json pushed last; self-check after publish; content floor 50% unless `--force`.
 - Per-row identity checks: every GameLine `game_id` must exist in this run's schedule; kickoff drift >36 h → drop + Degradation.
-- Openers never overwritten; D1 `openers` used to rehydrate.
+- Openers are first-seen and immutable except CFB totals, which are rebased to kickoff−6 days from change-only history and upserted; D1 `openers` is used to rehydrate.
 - `git commit` (Phases 1–2) happens before R2 push.
 - All PAT curls: `-fsS --max-time 30`, capture status, `::error` on 401/403.
 - Workflow Telegram failure steps require explicit `TELEGRAM_SYSTEM_ALERTS=1`; the pipeline owns one run-level notification after all jobs. Concurrency group `football-refresh` remains on pipeline/backtest/calibrate/build-stadiums.

@@ -102,11 +102,13 @@ def test_table_consensus_spread_and_book_spreads_toggle() -> None:
     for fn in ("function setupTableControls", "function consensusSpreadCell", "function consensusTotalCell",
                "function bookSpreadCell", "function bookTotalCell"):
         assert fn in table, fn
+    assert 'g.sport === "cfb" ? "T−6d" : "open"' in table
     assert "withSpreads" in table and "BOOK_SPREADS" in table
     app = (WEB / "app.js").read_text(encoding="utf-8")
     assert "setupTableControls()" in app
     for js in ("map.js", "drawer.js"):
         assert "spread_src" in (WEB / js).read_text(encoding="utf-8"), js
+    assert "Total T−6d" in (WEB / "drawer.js").read_text(encoding="utf-8")
     # §5 spec carries the key the JS reads
     assert "spread_src" in _spec_keys()
 

@@ -9,9 +9,9 @@ rebuild agents; everything below is verified locally on Windows / Python 3.10.
 
 | Check | Command | Result |
 |---|---|---|
-| Python tests | `python -m pytest tests -q -o addopts=""` | **729 passed** (19 s; 2026-08-25 after the medium-range + climatology blend pass) |
+| Python tests | `python -m pytest tests -q -o addopts=""` | **801 passed** (20 s; 2026-09-09 after CFB T−6 total baselines) |
 | Lint | `ruff check .` | All checks passed |
-| Worker tests | `node --test "site/worker/test/*.mjs"` | **21 pass / 0 fail** |
+| Worker tests | `node --test "site/worker/test/*.mjs"` | **22 pass / 0 fail** |
 | Frontend syntax | `node --check site/web/*.js` | 8 files ok (`alerts app backtest drawer map signals status table`) |
 | Backtest CLI | `python -m pipeline.backtest --help` | ok (flags listed in §3) |
 | Fixture backtest | `python -m pipeline.backtest --no-network --board-dir … --parquet-dir … --state-dir …` | `board/backtest.json` with **118 grid rows** plus `postmortem {latest, season}`; 5 parquet files (`games grid stadium_results alerts_clv postmortem`) |
@@ -63,7 +63,7 @@ Telegram cleanup (2026-09-08): PLAY alerts default to Mid+ signals with a real p
 
 ### Phase 2 — Odds scrapers: DONE
 - httpx books `pipeline/odds/{pinnacle,betcris,fanduel,kalshi,novig,prophetx}.py` + `parsers/`; Playwright book `betonline.py` (own job in `pipeline.yml`, `--scope odds --books betonline --merge-into-r2`; `BETONLINE_CHANNEL` picks an installed Chrome).
-- `pipeline/odds/merge.py` + `teams.py` aliases (57 tests), `pipeline/model/fair.py` (fair/edge, golden `golden_fair_2024`), openers persisted in `state/openers.json`, scrape-volume baseline (`test_scrape_volume`), per-book `BOOK_<NAME>_ENABLED` switches.
+- `pipeline/odds/merge.py` + `teams.py` aliases (57 tests), `pipeline/model/fair.py` (fair/edge, golden `golden_fair_2024`), openers persisted in `state/openers.json` (CFB totals use the line in force at kickoff−6 days; spreads and NFL remain first-seen), scrape-volume baseline (`test_scrape_volume`), per-book `BOOK_<NAME>_ENABLED` switches.
 - `pipeline/odds/oddsapi.py` (Phase 6 add-on): optional The Odds API historical opener seeding, off unless `ODDS_API_KEY` set.
 
 ### Phase 3 — Cloudflare Worker + R2 + D1 + JSON board: CODE DONE, NOT DEPLOYED

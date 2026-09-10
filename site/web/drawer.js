@@ -60,7 +60,8 @@ function backtestRows(g) {
 function oddsTable(g) {
   const c = g.consensus || {}, f = g.fair || {};
   const books = ["consensus", ...BOOKS.filter((b) => (g.odds || {})[b])];
-  const head = `<tr><th>Book</th><th>Spread open</th><th>Spread now</th><th>Total open</th><th>Total now</th><th>Edge</th></tr>`;
+  const totalBaseline = g.sport === "cfb" ? "Total T−6d" : "Total open";
+  const head = `<tr><th>Book</th><th>Spread open</th><th>Spread now</th><th>${totalBaseline}</th><th>Total now</th><th>Edge</th></tr>`;
   const body = books.map((bk) => {
     if (bk === "consensus") {
       return `<tr><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)}, n=${c.n_books ?? "?"})</span>` : ""}</td>`
@@ -352,7 +353,7 @@ function openDrawer(gameId) {
       <div><h3>Game Info</h3>${gameInfoTable(g)}</div>
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
-    <h3>Odds by book (open → now)</h3><div style="overflow:auto">${oddsTable(g)}</div>
+    <h3>Odds by book (${g.sport === "cfb" ? "totals T−6d; spreads open" : "open"} → now)</h3><div style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>
     <div class="chart small" id="drift-chart"></div><span class="chart-note" id="drift-note">loading…</span>

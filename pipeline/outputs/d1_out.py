@@ -6,7 +6,7 @@ Patterns copied from golf_scraping/board/build.py L1887-1983 (``_d1_sql_value``,
 * ``games`` / ``stadiums`` / ``teams``  ``INSERT ... ON CONFLICT(pk) DO UPDATE`` upserts
 * ``odds_history``                      change-only ``INSERT OR IGNORE`` (moved line OR odds)
 * ``weather_history``                   change-only ``INSERT OR IGNORE`` (any tracked field moved)
-* ``openers``                           ``INSERT OR IGNORE`` (never overwritten)
+* ``openers``                           upsert (CFB totals can rebase to T-6 days)
 * ``runs``                              upsert of the RunMeta
 
 Every statement carries at most ``CHUNK`` (100) rows; the file is a sequence of
@@ -361,7 +361,7 @@ def build_statements(
     if games:
         stmts += upsert_sql("games", GAME_COLS, ["game_id"], games)
     if openers:
-        stmts += insert_ignore_sql("openers", OPENER_COLS, openers)
+        stmts += upsert_sql("openers", OPENER_COLS, ["game_id", "book", "market", "side"], openers)
     if odds:
         stmts += insert_ignore_sql("odds_history", ODDS_COLS, odds)
     if weather:
