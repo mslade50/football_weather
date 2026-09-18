@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import difflib
 import json
+import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field, fields
@@ -208,6 +209,18 @@ class StadiumBook:
             # one unmapped venue must not fail the whole run / page Telegram.
             _degrade(ctx, "stadiums", f"{game.game_id}: no stadium for {game.stadium_id!r} / home {game.home_id!r}", "warn")
             self.unresolved.append(game.game_id)
+            if os.environ.get("IDENTITY_SHADOW_LOG"):
+                # Emit-only identity-shadow hook (tools/README_identity_shadow.md).
+                try:
+                    from tools.shadow_log import log_venue_unresolved
+
+                    log_venue_unresolved(self, game, [
+                        f"game.stadium_id={game.stadium_id!r}",
+                        ("home_team_neutral_fallback" if game.neutral else "home_team")
+                        + ("" if home is not None else f" (unknown team {game.home_id!r})"),
+                    ])
+                except Exception:  # noqa: BLE001 - shadow logging must never affect a run
+                    pass
         for side, t, tid in (("home", home, game.home_id), ("away", away, game.away_id)):
             if t is None:
                 _degrade(ctx, "teams", f"{game.game_id}: unknown {side} team {tid!r}", "warn")

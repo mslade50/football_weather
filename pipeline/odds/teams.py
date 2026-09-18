@@ -28,6 +28,7 @@ import csv
 import difflib
 import json
 import logging
+import os
 import re
 import threading
 from collections.abc import Iterable
@@ -295,6 +296,15 @@ def normalize_team(
     tid = res.resolve(raw, fuzzy=fuzzy)
     if tid is None and raw is not None and str(raw).strip():
         _register_unresolved(sport, book or "", str(raw).strip())
+    if os.environ.get("IDENTITY_SHADOW_LOG") and raw is not None and str(raw).strip():
+        # Emit-only identity-shadow hook (tools/README_identity_shadow.md); exact alias
+        # hits return early inside the sink. Never changes what this function returns.
+        try:
+            from tools.shadow_log import log_team_resolve
+
+            log_team_resolve(sport, str(raw).strip(), book, tid, res, data_dir)
+        except Exception:  # noqa: BLE001 - shadow logging must never affect a run
+            pass
     return tid
 
 
