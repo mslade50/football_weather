@@ -1,0 +1,610 @@
+{
+  "main": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0aa74-2ede-7f10-9cd3-b25f74edd416",
+          "type": "MONEY",
+          "strike": 0.0,
+          "description": "GB",
+          "volume": 310315.37,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-25T00:15:00+00:00",
+            "description": "Atlanta Falcons @ Green Bay Packers",
+            "league": "NFL",
+            "type": "Game",
+            "game": {
+              "id": "01a0aa74-2e7d-7fa2-a992-039f9b78e159",
+              "league": "NFL",
+              "sport": "Football",
+              "scheduled_start": "2026-09-25T00:15:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+                "name": "Atlanta Falcons",
+                "symbol": "ATL",
+                "short_name": "ATL",
+                "mascot": "Falcons",
+                "primary_color": "#A71930",
+                "secondary_color": "#000000",
+                "swish_id": "323nfl",
+                "optic_odds_id": "348C1EE88C42",
+                "wins": "0",
+                "losses": "2",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "homeTeam": {
+                "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+                "name": "Green Bay Packers",
+                "symbol": "GB",
+                "short_name": "GB",
+                "mascot": "Packers",
+                "primary_color": "#203731",
+                "secondary_color": "#FFB612",
+                "swish_id": "335nfl",
+                "optic_odds_id": "2C6CB429C60C",
+                "wins": "1",
+                "losses": "1",
+                "draws": "0",
+                "country": "USA"
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0aa74-2ede-7f10-9cd3-b26187c8abfa",
+              "index": 0,
+              "type": "Home",
+              "description": "GB",
+              "available": 0.705,
+              "altAvailable": null,
+              "competitor": {
+                "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+                "symbol": "GB",
+                "swish_id": "335nfl",
+                "name": "Green Bay Packers",
+                "short_name": "GB"
+              }
+            },
+            {
+              "id": "01a0aa74-2ede-7f10-9cd3-b27844c636b5",
+              "index": 1,
+              "type": "Away",
+              "description": "ATL",
+              "available": 0.3,
+              "altAvailable": null,
+              "competitor": {
+                "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+                "symbol": "ATL",
+                "swish_id": "323nfl",
+                "name": "Atlanta Falcons",
+                "short_name": "ATL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0aa74-34b1-7b62-8c36-27ea335b5d0c",
+          "type": "SPREAD",
+          "strike": 6.5,
+          "description": "WSH +6.5",
+          "volume": 192022.72,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0aa74-33f4-7591-ad7b-c747c414917d",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-27T17:00:00+00:00",
+            "description": "Seattle Seahawks @ Washington Commanders",
+            "league": "NFL",
+            "type": "Game",
+            "game": {
+              "id": "01a0aa74-33f4-7591-ad7b-c73a7295e670",
+              "league": "NFL",
+              "sport": "Football",
+              "scheduled_start": "2026-09-27T17:00:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+                "name": "Seattle Seahawks",
+                "symbol": "SEA",
+                "short_name": "SEA",
+                "mascot": "Seahawks",
+                "primary_color": "#002244",
+                "secondary_color": "#69BE28",
+                "swish_id": "361nfl",
+                "optic_odds_id": "EFED0277C4BD",
+                "wins": "2",
+                "losses": "0",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "homeTeam": {
+                "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+                "name": "Washington Commanders",
+                "symbol": "WAS",
+                "short_name": "WSH",
+                "mascot": "Commanders",
+                "primary_color": "#773141",
+                "secondary_color": "#FFB612",
+                "swish_id": "363nfl",
+                "optic_odds_id": "C921828AB706",
+                "wins": "0",
+                "losses": "2",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0aa74-33f4-7591-ad7b-c747c414917d",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0aa74-34b1-7b62-8c36-27fc147ae523",
+              "index": 0,
+              "type": "Home",
+              "description": "WSH +6.5",
+              "available": 0.465,
+              "altAvailable": null,
+              "competitor": {
+                "id": "06229cb8-f308-4353-ad14-114bd03ddd1a",
+                "symbol": "WAS",
+                "swish_id": "363nfl",
+                "name": "Washington Commanders",
+                "short_name": "WSH"
+              }
+            },
+            {
+              "id": "01a0aa74-34b1-7b62-8c36-280305711690",
+              "index": 1,
+              "type": "Away",
+              "description": "SEA -6.5",
+              "available": 0.54,
+              "altAvailable": null,
+              "competitor": {
+                "id": "3478e296-cd29-49c3-a878-f74455bf3e03",
+                "symbol": "SEA",
+                "swish_id": "361nfl",
+                "name": "Seattle Seahawks",
+                "short_name": "SEA"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0aa74-3764-7d43-943f-284b2b15c42f",
+          "type": "TOTAL",
+          "strike": 43.5,
+          "description": "LV @ NO t43.5",
+          "volume": 41347.5,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0aa74-36dd-7251-b18e-486f25a0821b",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-27T20:25:00+00:00",
+            "description": "Las Vegas Raiders @ New Orleans Saints",
+            "league": "NFL",
+            "type": "Game",
+            "game": {
+              "id": "01a0aa74-36dc-75d3-8cc1-2f79635a5526",
+              "league": "NFL",
+              "sport": "Football",
+              "scheduled_start": "2026-09-27T20:25:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "15828d11-973b-45af-bbd0-74d55edc5d21",
+                "name": "Las Vegas Raiders",
+                "symbol": "LV",
+                "short_name": "LV",
+                "mascot": "Raiders",
+                "primary_color": "#000000",
+                "secondary_color": "#FFF8F4",
+                "swish_id": "341nfl",
+                "optic_odds_id": "A715F8199801",
+                "wins": "2",
+                "losses": "0",
+                "draws": "0",
+                "country": "USA"
+              },
+              "homeTeam": {
+                "id": "3e0d7ef9-8cb4-456e-b777-f7230d898d53",
+                "name": "New Orleans Saints",
+                "symbol": "NO",
+                "short_name": "NO",
+                "mascot": "Saints",
+                "primary_color": "#9F8958",
+                "secondary_color": "#000000",
+                "swish_id": "350nfl",
+                "optic_odds_id": "E94C20E042D9",
+                "wins": "1",
+                "losses": "1",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0aa74-36dd-7251-b18e-486f25a0821b",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0aa74-3764-7d43-943f-285092e63f79",
+              "index": 0,
+              "type": "Over",
+              "description": "Over 43.5",
+              "available": 0.525,
+              "altAvailable": null,
+              "competitor": null
+            },
+            {
+              "id": "01a0aa74-3764-7d43-943f-286a48d55d54",
+              "index": 1,
+              "type": "Under",
+              "description": "Under 43.5",
+              "available": 0.48,
+              "altAvailable": null,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "alternate": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0aa74-2ede-7f10-9cd3-b4cf5f276221",
+          "type": "SPREAD",
+          "strike": -6.5,
+          "description": "GB -6.5",
+          "volume": 201231.63,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-25T00:15:00+00:00",
+            "description": "Atlanta Falcons @ Green Bay Packers",
+            "league": "NFL",
+            "type": "Game",
+            "game": {
+              "id": "01a0aa74-2e7d-7fa2-a992-039f9b78e159",
+              "league": "NFL",
+              "sport": "Football",
+              "scheduled_start": "2026-09-25T00:15:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+                "name": "Atlanta Falcons",
+                "symbol": "ATL",
+                "short_name": "ATL",
+                "mascot": "Falcons",
+                "primary_color": "#A71930",
+                "secondary_color": "#000000",
+                "swish_id": "323nfl",
+                "optic_odds_id": "348C1EE88C42",
+                "wins": "0",
+                "losses": "2",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "homeTeam": {
+                "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+                "name": "Green Bay Packers",
+                "symbol": "GB",
+                "short_name": "GB",
+                "mascot": "Packers",
+                "primary_color": "#203731",
+                "secondary_color": "#FFB612",
+                "swish_id": "335nfl",
+                "optic_odds_id": "2C6CB429C60C",
+                "wins": "1",
+                "losses": "1",
+                "draws": "0",
+                "country": "USA"
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0aa74-2ede-7f10-9cd3-b4dcce189356",
+              "index": 0,
+              "type": "Home",
+              "description": "GB -6.5",
+              "available": 0.45,
+              "altAvailable": null,
+              "competitor": {
+                "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+                "symbol": "GB",
+                "swish_id": "335nfl",
+                "name": "Green Bay Packers",
+                "short_name": "GB"
+              }
+            },
+            {
+              "id": "01a0aa74-2ede-7f10-9cd3-b4e9a0f6fd35",
+              "index": 1,
+              "type": "Away",
+              "description": "ATL +6.5",
+              "available": 0.555,
+              "altAvailable": null,
+              "competitor": {
+                "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+                "symbol": "ATL",
+                "swish_id": "323nfl",
+                "name": "Atlanta Falcons",
+                "short_name": "ATL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0aa74-2edf-7812-9f3f-b5630e080ee5",
+          "type": "TOTAL",
+          "strike": 44.5,
+          "description": "ATL @ GB t44.5",
+          "volume": 87688.18,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-25T00:15:00+00:00",
+            "description": "Atlanta Falcons @ Green Bay Packers",
+            "league": "NFL",
+            "type": "Game",
+            "game": {
+              "id": "01a0aa74-2e7d-7fa2-a992-039f9b78e159",
+              "league": "NFL",
+              "sport": "Football",
+              "scheduled_start": "2026-09-25T00:15:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "cf8154b7-e0a1-4eb9-8249-cd927c889a03",
+                "name": "Atlanta Falcons",
+                "symbol": "ATL",
+                "short_name": "ATL",
+                "mascot": "Falcons",
+                "primary_color": "#A71930",
+                "secondary_color": "#000000",
+                "swish_id": "323nfl",
+                "optic_odds_id": "348C1EE88C42",
+                "wins": "0",
+                "losses": "2",
+                "draws": "0",
+                "country": "UnitedStates"
+              },
+              "homeTeam": {
+                "id": "c6b026f8-60ca-496f-aed7-d15b22a37c37",
+                "name": "Green Bay Packers",
+                "symbol": "GB",
+                "short_name": "GB",
+                "mascot": "Packers",
+                "primary_color": "#203731",
+                "secondary_color": "#FFB612",
+                "swish_id": "335nfl",
+                "optic_odds_id": "2C6CB429C60C",
+                "wins": "1",
+                "losses": "1",
+                "draws": "0",
+                "country": "USA"
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0aa74-2e7d-7fa2-a992-03a280d70d7e",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0aa74-2edf-7812-9f3f-b5805f2a996a",
+              "index": 1,
+              "type": "Under",
+              "description": "Under 44.5",
+              "available": 0.565,
+              "altAvailable": null,
+              "competitor": null
+            },
+            {
+              "id": "01a0aa74-2edf-7812-9f3f-b573c72ef574",
+              "index": 0,
+              "type": "Over",
+              "description": "Over 44.5",
+              "available": 0.44,
+              "altAvailable": null,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

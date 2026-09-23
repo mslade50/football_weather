@@ -1,0 +1,610 @@
+{
+  "main": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0b615-1928-7bd3-a161-6ab8f484dfc8",
+          "type": "MONEY",
+          "strike": 0.0,
+          "description": "FLA",
+          "volume": 197212.8,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0b615-18a8-7240-899c-85110a16ddb8",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-26T19:30:00+00:00",
+            "description": "Ole Miss @ Florida",
+            "league": "NCAAF",
+            "type": "Game",
+            "game": {
+              "id": "01a0b615-18a7-7a23-b557-1e1a86a7a59e",
+              "league": "NCAAF",
+              "sport": "American Football",
+              "scheduled_start": "2026-09-26T19:30:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "28fcae92-c0cf-41f6-864b-8fe51ab25364",
+                "name": "Ole Miss",
+                "symbol": "MISS",
+                "short_name": "MISS",
+                "mascot": "Rebels",
+                "primary_color": "#CE1126",
+                "secondary_color": "#14213D",
+                "swish_id": null,
+                "optic_odds_id": "FD8B7660E58B",
+                "wins": "3",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "homeTeam": {
+                "id": "1bf7dd4b-9855-4f38-b56b-230e9c7a3c2e",
+                "name": "Florida",
+                "symbol": "FLA",
+                "short_name": "FLA",
+                "mascot": "Gators",
+                "primary_color": "#0021A5",
+                "secondary_color": "#FA4616",
+                "swish_id": null,
+                "optic_odds_id": "B5FE2526A2BF",
+                "wins": "3",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0b615-18a8-7240-899c-85110a16ddb8",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0b615-1928-7bd3-a161-6ac302c9b780",
+              "index": 0,
+              "type": "Home",
+              "description": "FLA",
+              "available": 0.585,
+              "altAvailable": null,
+              "competitor": {
+                "id": "1bf7dd4b-9855-4f38-b56b-230e9c7a3c2e",
+                "symbol": "FLA",
+                "swish_id": null,
+                "name": "Florida",
+                "short_name": "FLA"
+              }
+            },
+            {
+              "id": "01a0b615-1928-7bd3-a161-6ad775044be4",
+              "index": 1,
+              "type": "Away",
+              "description": "MISS",
+              "available": 0.42,
+              "altAvailable": null,
+              "competitor": {
+                "id": "28fcae92-c0cf-41f6-864b-8fe51ab25364",
+                "symbol": "MISS",
+                "swish_id": null,
+                "name": "Ole Miss",
+                "short_name": "MISS"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0bda2-07a3-7540-89cb-8cbc60a2be03",
+          "type": "SPREAD",
+          "strike": 2.5,
+          "description": "CCU +2.5",
+          "volume": 72282.57,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0ac99-e408-7262-8284-81b4544f1c3c",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-24T23:30:00+00:00",
+            "description": "Liberty @ Coastal Carolina",
+            "league": "NCAAF",
+            "type": "Game",
+            "game": {
+              "id": "01a0ac99-e407-7842-974b-351bd2badaab",
+              "league": "NCAAF",
+              "sport": "Football",
+              "scheduled_start": "2026-09-24T23:30:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "22944c4e-fdb4-4b9b-a660-4161ca6e63db",
+                "name": "Liberty",
+                "symbol": "LIB",
+                "short_name": "LIB",
+                "mascot": "Flames",
+                "primary_color": "#A6192E",
+                "secondary_color": "#C6C7C9",
+                "swish_id": null,
+                "optic_odds_id": "638274B79CED",
+                "wins": "2",
+                "losses": "1",
+                "draws": "0",
+                "country": null
+              },
+              "homeTeam": {
+                "id": "f6178893-bd7b-4dcf-9074-5513fad696bc",
+                "name": "Coastal Carolina",
+                "symbol": "CCU",
+                "short_name": "CCU",
+                "mascot": "Chanticleers",
+                "primary_color": "#006F71",
+                "secondary_color": "#C4A962",
+                "swish_id": null,
+                "optic_odds_id": "710544DCE554",
+                "wins": "1",
+                "losses": "2",
+                "draws": "0",
+                "country": null
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0ac99-e408-7262-8284-81b4544f1c3c",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0bda2-07a3-7540-89cb-8cc405379e15",
+              "index": 0,
+              "type": "Home",
+              "description": "CCU +2.5",
+              "available": 0.485,
+              "altAvailable": null,
+              "competitor": {
+                "id": "f6178893-bd7b-4dcf-9074-5513fad696bc",
+                "symbol": "CCU",
+                "swish_id": null,
+                "name": "Coastal Carolina",
+                "short_name": "CCU"
+              }
+            },
+            {
+              "id": "01a0bda2-07a3-7540-89cb-8cd7c34c69aa",
+              "index": 1,
+              "type": "Away",
+              "description": "LIB -2.5",
+              "available": 0.525,
+              "altAvailable": null,
+              "competitor": {
+                "id": "22944c4e-fdb4-4b9b-a660-4161ca6e63db",
+                "symbol": "LIB",
+                "swish_id": null,
+                "name": "Liberty",
+                "short_name": "LIB"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0b615-1677-7ba0-b23e-67e89f1461c2",
+          "type": "TOTAL",
+          "strike": 44.5,
+          "description": "OU @ UGA t44.5",
+          "volume": 21183.74,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0b615-15fc-7512-9669-186e4fdb3e8a",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-26T19:30:00+00:00",
+            "description": "Oklahoma @ Georgia",
+            "league": "NCAAF",
+            "type": "Game",
+            "game": {
+              "id": "01a0b615-15fb-7b72-ae44-51337639d12f",
+              "league": "NCAAF",
+              "sport": "American Football",
+              "scheduled_start": "2026-09-26T19:30:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "d1ef76c3-0ad9-44a3-8d26-8e5a120fdac3",
+                "name": "Oklahoma",
+                "symbol": "OU",
+                "short_name": "OU",
+                "mascot": "Sooners",
+                "primary_color": "#841617",
+                "secondary_color": "#FFFFFF",
+                "swish_id": null,
+                "optic_odds_id": "EEEB0AC066A7",
+                "wins": "2",
+                "losses": "1",
+                "draws": "0",
+                "country": null
+              },
+              "homeTeam": {
+                "id": "a1519831-eb60-411a-abdd-dc3ff1adee8a",
+                "name": "Georgia",
+                "symbol": "UGA",
+                "short_name": "UGA",
+                "mascot": "Bulldogs",
+                "primary_color": "#BA0C2F",
+                "secondary_color": "#000000",
+                "swish_id": null,
+                "optic_odds_id": "04C37B5D7034",
+                "wins": "3",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0b615-15fc-7512-9669-186e4fdb3e8a",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0b615-1677-7ba0-b23e-67f3a1b25fa1",
+              "index": 0,
+              "type": "Over",
+              "description": "Over 44.5",
+              "available": 0.52,
+              "altAvailable": null,
+              "competitor": null
+            },
+            {
+              "id": "01a0b615-1677-7ba0-b23e-680ab665aa64",
+              "index": 1,
+              "type": "Under",
+              "description": "Under 44.5",
+              "available": 0.5,
+              "altAvailable": null,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "alternate": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0b6f0-c2b3-71a0-a215-432901474ce7",
+          "type": "SPREAD",
+          "strike": 2.5,
+          "description": "USC +2.5",
+          "volume": 27018.56,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0b6f0-c22d-7433-81f4-42d3b87a4d91",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-26T23:30:00+00:00",
+            "description": "Oregon @ USC",
+            "league": "NCAAF",
+            "type": "Game",
+            "game": {
+              "id": "01a0b6f0-c22c-7c32-9145-085587b2ea1c",
+              "league": "NCAAF",
+              "sport": "American Football",
+              "scheduled_start": "2026-09-26T23:30:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "69ab075c-c783-492c-b08c-d7f768708554",
+                "name": "Oregon",
+                "symbol": "ORE",
+                "short_name": "ORE",
+                "mascot": "Ducks",
+                "primary_color": "#154733",
+                "secondary_color": "#FEE123",
+                "swish_id": null,
+                "optic_odds_id": "D836AC0A0496",
+                "wins": "2",
+                "losses": "1",
+                "draws": "0",
+                "country": null
+              },
+              "homeTeam": {
+                "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+                "name": "USC",
+                "symbol": "USC",
+                "short_name": "USC",
+                "mascot": "Trojans",
+                "primary_color": "#990000",
+                "secondary_color": "#FFC72C",
+                "swish_id": null,
+                "optic_odds_id": "6414D2CB2EFE",
+                "wins": "4",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0b6f0-c22d-7433-81f4-42d3b87a4d91",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0b6f0-c2b3-71a0-a215-43377f5729b5",
+              "index": 0,
+              "type": "Home",
+              "description": "USC +2.5",
+              "available": 0.46,
+              "altAvailable": null,
+              "competitor": {
+                "id": "6030636e-8c80-4d64-aad3-4a9d17519211",
+                "symbol": "USC",
+                "swish_id": null,
+                "name": "USC",
+                "short_name": "USC"
+              }
+            },
+            {
+              "id": "01a0b6f0-c2b3-71a0-a215-4344ad77067a",
+              "index": 1,
+              "type": "Away",
+              "description": "ORE -2.5",
+              "available": 0.56,
+              "altAvailable": null,
+              "competitor": {
+                "id": "69ab075c-c783-492c-b08c-d7f768708554",
+                "symbol": "ORE",
+                "swish_id": null,
+                "name": "Oregon",
+                "short_name": "ORE"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0b615-14f1-7a72-83d5-eb33b4b19faa",
+          "type": "TOTAL",
+          "strike": 37.5,
+          "description": "IOWA @ MICH t37.5",
+          "volume": 34452.62,
+          "status": "OPEN",
+          "re_settled_at": null,
+          "competitor": null,
+          "market_locks": [],
+          "player": null,
+          "event": {
+            "id": "01a0b615-146e-7cf1-bc12-983a03c0f356",
+            "status": "OPEN_PREGAME",
+            "scheduled_start": "2026-09-26T19:30:00+00:00",
+            "description": "Iowa @ Michigan",
+            "league": "NCAAF",
+            "type": "Game",
+            "game": {
+              "id": "01a0b615-146e-7cf1-bc12-9826d049e4dc",
+              "league": "NCAAF",
+              "sport": "American Football",
+              "scheduled_start": "2026-09-26T19:30:00+00:00",
+              "period": null,
+              "time_remaining": null,
+              "home_score": null,
+              "away_score": null,
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA",
+                "short_name": "IOWA",
+                "mascot": "Hawkeyes",
+                "primary_color": "#FFCD00",
+                "secondary_color": "#000000",
+                "swish_id": null,
+                "optic_odds_id": "9F321A1DA403",
+                "wins": "3",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "homeTeam": {
+                "id": "e9147f88-61b0-4487-b3bf-badea67dcd62",
+                "name": "Michigan",
+                "symbol": "MICH",
+                "short_name": "MICH",
+                "mascot": "Wolverines",
+                "primary_color": "#00274C",
+                "secondary_color": "#FFCB05",
+                "swish_id": null,
+                "optic_odds_id": "83E0960213F5",
+                "wins": "3",
+                "losses": "0",
+                "draws": "0",
+                "country": null
+              },
+              "down": null,
+              "distance": null,
+              "yardLine": null,
+              "yardline_territory": null,
+              "events": [
+                {
+                  "id": "01a0b615-146e-7cf1-bc12-983a03c0f356",
+                  "status": "OPEN_PREGAME"
+                }
+              ],
+              "home_set_1": null,
+              "home_set_2": null,
+              "home_set_3": null,
+              "home_set_4": null,
+              "home_set_5": null,
+              "away_set_1": null,
+              "away_set_2": null,
+              "away_set_3": null,
+              "away_set_4": null,
+              "away_set_5": null,
+              "possession": null,
+              "home_game_score": null,
+              "away_game_score": null,
+              "strikes": null,
+              "balls": null,
+              "outs": null,
+              "runner_on_first": null,
+              "runner_on_second": null,
+              "runner_on_third": null,
+              "away_suspensions": null,
+              "home_suspensions": null
+            },
+            "parent_event": null
+          },
+          "outcomes": [
+            {
+              "id": "01a0b615-14f1-7a72-83d5-eb4a99286c30",
+              "index": 0,
+              "type": "Over",
+              "description": "Over 37.5",
+              "available": 0.56,
+              "altAvailable": null,
+              "competitor": null
+            },
+            {
+              "id": "01a0b615-14f1-7a72-83d5-eb58ae2a1ba6",
+              "index": 1,
+              "type": "Under",
+              "description": "Under 37.5",
+              "available": 0.46,
+              "altAvailable": null,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
