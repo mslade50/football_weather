@@ -1,4 +1,9 @@
-"""Pure parser: Novig GraphQL ``event`` payload -> list[GameLine].
+"""Pure parser: Novig GraphQL payloads -> list[GameLine].
+
+Since 2026-09-23, captures contain ``main`` and ``alternate`` raw responses to
+HotMarkets_Query (``data.market`` with nested ``event``). Group membership
+supplies is_consensus, which the public query does not return. The older
+``data.event`` format below remains supported for historical capture replay.
 
 Payload shape (Hasura, see ``pipeline/odds/novig.py`` for the query)::
 
@@ -140,6 +145,14 @@ def parse(
     """Convert a raw Novig GraphQL response into GameLine rows for ``sport``."""
     league = LEAGUE_BY_SPORT[sport]
     events = ((payload.get("data") or {}).get("event")) or []
+    if "main" in payload or "alternate" in payload:
+        events = []
+        for group in ("main", "alternate"):
+            response = payload.get(group) or {}
+            for market in (response.get("data") or {}).get("market") or []:
+                # Copy only the enclosing dicts so captured responses stay raw.
+                event = market.get("event") or {}
+                events.append({**event, "markets": [{**market, "is_consensus": group == "main"}]})
     lines: list[GameLine] = []
     for e in events:
         if (e.get("league") or league) != league:

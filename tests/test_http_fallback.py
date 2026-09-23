@@ -259,34 +259,37 @@ def test_fanduel_competition_pages_stay_on_curl_after_fallback(curl: type[FakeCu
 
 def test_novig_auto_fallback_parses_and_captures(curl: type[FakeCurlSession], httpx_status: Any) -> None:
     log = httpx_status(403)
-    curl.payload = _load("novig", "cfb")
+    curl.payload = _load("novig", "cfb_markets")["main"]
     captured: list[tuple[str, Any, str | None]] = []
     s = nv.NovigScraper()
     lines = _run(s.scrape("cfb", capture=lambda src, data, url: captured.append((src, data, url)), run_id="r1"))
     assert lines and s.last_transport == "curl"
-    assert len(log.requests) == 1 and log.requests[0].method == "POST"
-    assert len(curl.calls) == 1
+    assert len(log.requests) == 2 and all(r.method == "POST" for r in log.requests)
+    assert len(curl.calls) == 2
     call = curl.calls[0]
     assert call["method"] == "POST" and call["url"] == nv.GRAPHQL_URL
-    assert call["json"]["query"] == nv.GAMES_QUERY and call["json"]["variables"] == {"leagues": ["NCAAF"]}
+    assert call["json"]["query"] == nv.MARKETS_QUERY
+    assert call["json"]["operationName"] == "HotMarkets_Query"
+    assert call["json"]["variables"]["where_market"]["event"]["league"] == {"_eq": "NCAAF"}
     assert call["headers"]["Origin"] == "https://novig.com" and call["headers"]["Sec-Fetch-Site"] == "cross-site"
     assert call["headers"]["Content-Type"] == "application/json" and "sec-ch-ua" in call["headers"]
-    assert captured == [("novig_cfb", curl.payload, nv.GRAPHQL_URL)]
+    assert captured == [("novig_cfb", {"main": curl.payload, "alternate": curl.payload}, nv.GRAPHQL_URL)]
 
 
-def test_novig_httpx_path_unchanged(curl: type[FakeCurlSession], httpx_status: Any) -> None:
-    log = httpx_status(200, _load("novig", "nfl"))
+def test_novig_httpx_public_query(curl: type[FakeCurlSession], httpx_status: Any) -> None:
+    log = httpx_status(200, _load("novig", "nfl_markets")["main"])
     s = nv.NovigScraper()
     lines = _run(s.scrape("nfl"))
     assert lines and s.last_transport == "httpx" and curl.calls == []
     req = log.requests[0]
-    assert req.headers["origin"] == "https://novig.com" and json.loads(req.content)["variables"] == {"leagues": ["NFL"]}
+    assert req.headers["origin"] == "https://novig.com"
+    assert json.loads(req.content)["variables"]["where_market"]["event"]["league"] == {"_eq": "NFL"}
 
 
 def test_novig_env_curl_first(monkeypatch: pytest.MonkeyPatch, curl: type[FakeCurlSession], httpx_status: Any) -> None:
     monkeypatch.setenv("BOOK_NOVIG_TRANSPORT", "curl")
-    log = httpx_status(200, _load("novig", "nfl"))
-    curl.payload = _load("novig", "nfl")
+    log = httpx_status(200, _load("novig", "nfl_markets")["main"])
+    curl.payload = _load("novig", "nfl_markets")["main"]
     s = nv.NovigScraper()
     lines = _run(s.scrape("nfl"))
     assert lines and s.last_transport == "curl" and log.requests == []
