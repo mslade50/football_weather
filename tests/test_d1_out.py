@@ -135,7 +135,7 @@ def test_consensus_spread_history_row_is_change_only():
     assert sql.startswith("INSERT OR IGNORE INTO odds_history") and "'consensus','spread','home',-3.0" in sql
     # carry-forward never resurrects the pseudo book; CLV closings freeze it like any key
     archive = {"last": {pseudo[0].key: {"line": -2.75, "odds": -108, "ts": NOW}}}
-    assert build.carry_forward_lines(archive, "nfl", {GID}, ["betonline"]) == []
+    assert build.carry_forward_lines(archive, "nfl", {GID}, ["betonline"], now=KICK) == []
     from pipeline.model import clv
     hist = {"series": {pseudo[0].key: [["2026-09-26T12:00:00Z", -2.75, -108], ["2026-09-27T16:00:00Z", -3.0, -108]]}}
     frozen = clv.freeze_from_series(hist, {GID: KICK}, KICK + timedelta(hours=1))

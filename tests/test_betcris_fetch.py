@@ -51,6 +51,33 @@ def test_gives_up_after_attempts_and_returns_none():
     c = _Client([httpx.ReadTimeout("")] * B.FETCH_ATTEMPTS)
     assert asyncio.run(s._get_with_retry(c, "college-football", "/x/")) is None
     assert c.calls == B.FETCH_ATTEMPTS
+    assert s.fetch_errors == {"college-football": "ReadTimeout"}
+
+
+def test_recovers_without_leaving_a_stale_failure():
+    s = B.BetcrisScraper()
+    bad = _Client([httpx.ConnectTimeout("")] * B.FETCH_ATTEMPTS)
+    assert asyncio.run(s._get_with_retry(bad, "nfl", "/x/")) is None
+    assert s.fetch_errors == {"nfl": "ConnectTimeout"}
+    good = _Client(["<div class='oddsTable'>ok</div>"])
+    assert asyncio.run(s._get_with_retry(good, "nfl", "/x/")) is not None
+    assert s.fetch_errors == {}
+
+
+def test_book_failure_reaches_board_diagnostics(monkeypatch):
+    from pipeline import build
+
+    async def unavailable(self, client, slug, path):
+        self.fetch_errors[slug] = "ConnectTimeout"
+        return None
+
+    monkeypatch.setattr(B.BetcrisScraper, "_get_with_retry", unavailable)
+    monkeypatch.setattr(build, "load_scraper_class", lambda name: B.BetcrisScraper)
+    issues = []
+    result, _ = asyncio.run(build.scrape_books("cfb", ["betcris"], None, "r", lambda *args: issues.append(args)))
+    assert result == {"betcris": []}
+    assert any(component == "odds.betcris" and "college-football: ConnectTimeout" in reason and severity == "warn"
+               for component, reason, severity in issues)
 
 
 def test_timeout_is_generous_for_large_pages():

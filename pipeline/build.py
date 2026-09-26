@@ -112,6 +112,8 @@ WINDOW_AFTER_D = 10.0
 # must carry the same number (pinned by tests/test_gate_check.py).
 ODDS_WINDOW_AFTER_D = 45.0
 CFB_TOTAL_BASELINE_DAYS = 6
+# Carry quotes between the light and BetOnline jobs, not between hours-old runs.
+ODDS_CARRY_MAX_AGE = timedelta(hours=1)
 
 # ---- books ------------------------------------------------------------------------
 # book -> (module, class); order = display / alert order.
@@ -576,6 +578,12 @@ async def scrape_books(
             out[name] = []
         else:
             out[name] = [ln for ln in (res or []) if isinstance(ln, GameLine)]
+        # Page-based books can return partial/empty data after handling a network
+        # error internally. Surface the cause on the board, not only in CI logs.
+        errors = getattr(scrapers[name], "fetch_errors", {})
+        if errors:
+            detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
+            degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
     return out, scrapers
 
 
@@ -1259,7 +1267,7 @@ def stage_odds(
     # collapse to a one-book view between the light and playwright commits.
     active_ids = {g.game_id for g in games}
     archive = pstate.load_archive_last(state_dir)
-    carried = carry_forward_lines(archive, sport, active_ids, books)
+    carried = carry_forward_lines(archive, sport, active_ids, books, now=ctx.now_utc)
     if carried:
         n_books = len({ln.book for ln in carried})
         print(f"  carried {sport}: {len(carried)} lines from {n_books} unscraped book(s) (archive_last)")
@@ -1294,8 +1302,14 @@ def stage_odds(
         # consensus spread rides along as book='consensus' (history / D1 / closings), never carried forward
         pseudo = consensus_spread_lines(consensus, sport, ctx.now_utc, ctx.run_id)
         deltas = d1_out.odds_deltas(main_lines + pseudo, last)  # change-only set BEFORE last is advanced
+        # Keep historical observations, but an empty/partial scrape withdraws its
+        # missing quotes from later jobs. Do not resurrect them from archive_last.
+        for key, value in last.items():
+            if key.startswith(f"{sport}:") and key.rsplit("|", 1)[-1] in books and isinstance(value, dict):
+                value["available"] = False
         for ln in main_lines + pseudo:
-            last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": now}
+            last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": utc_iso(ln.scraped_at) if ln.scraped_at else now,
+                            "available": True}
         pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
@@ -1318,9 +1332,11 @@ def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
     return active_ids | {k.split("|", 1)[0] for k in store if not k.startswith(f"{sport}:")}
 
 
-def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped_books: Sequence[str]) -> list[GameLine]:
+def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped_books: Sequence[str],
+                       *, now: datetime) -> list[GameLine]:
     """Rebuild main lines for active games from ``archive_last`` for books NOT scraped
-    this run. Never carries a book that was scraped (its fresh result, even empty, wins)."""
+    this run. Require a recent quote present in that book's last scrape. Legacy
+    state without availability must be scraped once before it can be carried."""
     scraped = set(scraped_books)
     out: list[GameLine] = []
     for key, val in (archive.get("last") or {}).items():
@@ -1330,12 +1346,17 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
         game_id, market, side, book = parts
         if book in scraped or book == CONSENSUS_BOOK or game_id not in active_ids or not game_id.startswith(f"{sport}:"):
             continue
-        odds = val.get("odds") if isinstance(val, dict) else None
+        if not isinstance(val, dict) or val.get("available") is not True:
+            continue
+        quoted_at = pstate.parse_utc(val.get("ts"))
+        if quoted_at is None or not timedelta(0) <= now - quoted_at <= ODDS_CARRY_MAX_AGE:
+            continue
+        odds = val.get("odds")
         if odds is None:
             continue
         try:
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
-                                odds=int(odds), line=val.get("line"), is_main=True))
+                                odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at))
         except (TypeError, ValueError):
             continue
     return out
