@@ -1,0 +1,266 @@
+# Public Novig web app HotMarkets_Query, captured 2026-09-23.
+# Source: https://novig.com/_expo/static/js/web/index-808d8ebd917441699f0cecbbd2cde21d.js
+# Keep every field and the compiled fragment order: the API allowlist rejects
+# custom selections and reordered fragments. Variables supply football filters.
+
+  query HotMarkets_Query($where_market: market_bool_exp, $limit: Int!) @cached(ttl: 5) {
+    market(where: $where_market, order_by: { volume: desc_nulls_last }, limit: $limit) {
+      id
+      ...MarketCard_Frag
+    }
+  }
+
+
+  fragment MarketData_Frag on market {
+    id
+    type
+    strike
+    status
+    re_settled_at
+    competitor {
+      id
+      name
+      country
+    }
+    market_locks(order_by: { created_at: desc }, where: { deleted_at: { _is_null: true } }) {
+      id
+      market_id
+      created_at
+      minute_duration
+    }
+    player {
+      id
+      full_name
+    }
+  }
+
+
+  fragment EventData_Frag on event {
+    id
+    type
+    status
+    scheduled_start
+    league
+    game {
+      id
+      league
+      sport
+      scheduled_start
+      period
+      time_remaining
+      home_score
+      away_score
+      awayTeam {
+        id
+        name
+        symbol
+        short_name
+        mascot
+        primary_color
+        secondary_color
+        swish_id
+        optic_odds_id
+        wins
+        losses
+        draws
+        country
+      }
+      homeTeam {
+        id
+        name
+        symbol
+        short_name
+        mascot
+        primary_color
+        secondary_color
+        swish_id
+        optic_odds_id
+        wins
+        losses
+        draws
+        country
+      }
+    }
+  }
+
+
+  fragment FootballGamestate_Frag on game {
+    down
+    distance
+    yardLine
+    yardline_territory
+  }
+
+
+  fragment LiveEventTimeState_Frag on game {
+    id
+    period
+    time_remaining
+    league
+  }
+
+
+  fragment TennisScoreboard_Frag on game {
+    events {
+      id
+      status
+    }
+    home_set_1
+    home_set_2
+    home_set_3
+    home_set_4
+    home_set_5
+    away_set_1
+    away_set_2
+    away_set_3
+    away_set_4
+    away_set_5
+    possession
+    home_game_score
+    away_game_score
+    homeTeam {
+      id
+      name
+    }
+    awayTeam {
+      id
+      name
+    }
+  }
+
+
+  fragment BaseballGamestate_Frag on game {
+    strikes
+    balls
+    outs
+    runner_on_first
+    runner_on_second
+    runner_on_third
+  }
+
+
+  fragment Outcome_Frag on outcome {
+    id
+    available
+    altAvailable
+    index
+    description
+    competitor {
+      id
+      symbol
+    }
+  }
+
+
+  fragment MarketCard_Frag on market {
+    id
+    type
+    strike
+    description
+    volume
+    ...MarketData_Frag
+    event {
+      id
+      status
+      scheduled_start
+      description
+      league
+      ...EventData_Frag
+      game {
+        id
+        ...FootballGamestate_Frag
+        ...LiveEventTimeState_Frag
+        ...TennisScoreboard_Frag
+        ...BaseballGamestate_Frag
+        sport
+        period
+        home_score
+        away_score
+        time_remaining
+        possession
+        # Hockey specific
+        away_suspensions
+        home_suspensions
+        # Tennis specific
+        awayTeam {
+          id
+          symbol
+          name
+          short_name
+          mascot
+          primary_color
+          secondary_color
+          swish_id
+          optic_odds_id
+          wins
+          losses
+          draws
+          country
+        }
+        homeTeam {
+          id
+          symbol
+          name
+          short_name
+          mascot
+          primary_color
+          secondary_color
+          swish_id
+          optic_odds_id
+          wins
+          losses
+          draws
+          country
+        }
+      }
+      parent_event {
+        description
+      }
+    }
+    player {
+      id
+      full_name
+      logo
+      jersey_number
+      player_competitors {
+        competitor {
+          id
+          swish_id
+          primary_color
+          secondary_color
+          optic_odds_id
+        }
+      }
+    }
+    outcomes {
+      id
+      index
+      type
+      description
+      available
+      altAvailable
+      ...Outcome_Frag
+      competitor {
+        swish_id
+        name
+        short_name
+        symbol
+      }
+    }
+    market_locks(order_by: { created_at: desc }, where: { deleted_at: { _is_null: true } }) {
+      id
+      market_id
+      minute_duration
+      created_at
+    }
+    competitor {
+      id
+      name
+      swish_id
+      optic_odds_id
+      primary_color
+      secondary_color
+      symbol
+      country
+    }
+  }

@@ -157,3 +157,33 @@ def test_stamps_scraped_at_and_run_id() -> None:
     rows = parse(_load("nfl"), "nfl", scraped_at=ts, run_id="r1")
     assert all(r.scraped_at == ts and r.run_id == "r1" for r in rows)
     assert all("|" not in r.game_id for r in rows)
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+def test_allowlisted_market_responses_preserve_main_and_alternates(sport: str) -> None:
+    """Sept 23 public app response: markets nest events, and omit is_consensus."""
+    payload = _load(f"{sport}_markets")
+    before = json.dumps(payload, sort_keys=True)
+    ts = datetime(2026, 9, 23, 16, 0, tzinfo=timezone.utc)
+    rows = parse(payload, sport, scraped_at=ts, run_id="new-api")
+    assert len(rows) == 10
+    assert sum(r.is_main for r in rows) == 6
+    assert all(r.sport == sport and r.scraped_at == ts and r.run_id == "new-api" for r in rows)
+    for group, response in payload.items():
+        for market in response["data"]["market"]:
+            event = market["event"]
+            selected = [r for r in rows if r.source_id == f"{event['id']}:{market['id']}"]
+            assert len(selected) == 2
+            assert all(r.is_main == (group == "main") for r in selected)
+            for row in selected:
+                outcome = next(o for o in market["outcomes"] if o["type"].lower() == row.side)
+                assert row.prob_raw == outcome["available"]
+                assert row.odds == prob_to_american(outcome["available"])
+                if row.market == "spread":
+                    assert row.line == (market["strike"] if row.side == "home" else -market["strike"])
+                elif row.market == "total":
+                    assert row.line == market["strike"]
+                else:
+                    assert row.line is None
+    assert json.dumps(payload, sort_keys=True) == before
+    assert parse(payload, "cfb" if sport == "nfl" else "nfl") == []

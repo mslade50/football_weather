@@ -1,15 +1,16 @@
-"""Betcris/Bookmaker football scraper via the public bookmaker.eu LINES viewer.
+"""Betcris football scraper via its public sportsbook odds JSON.
 
-Source: https://lines.bookmaker.eu/en/sports/football/{nfl,nfl-preseason,college-football}/
+Source: https://sportsbook.betcris.com/assets/odds/v1/league/{1,2}.json
 
-Transport copied from golf_scraping/scrapers/betcris.py: the viewer is PUBLIC —
-no login, no Cloudflare, no browser — server-rendered HTML with odds baked in,
-pure httpx + BS4. Parsing lives in ``pipeline.odds.parsers.betcris``.
+The former lines.bookmaker.eu host became unreachable in September 2026.
+The current public feed includes actual spread/total prices and feed health.
+Legacy HTML fetching remains available for diagnostics; live scraping uses JSON.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from pipeline.odds.parsers.betcris import PAGES, BetcrisGame
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://lines.bookmaker.eu"
+PUBLIC_URL = "https://sportsbook.betcris.com/assets/odds/v1/league/{league}.json"
 FOOTBALL_PATH = "/en/sports/football/{slug}/"
 FETCH_TIMEOUT_S = 60.0
 FETCH_ATTEMPTS = 3
@@ -53,10 +55,12 @@ class BetcrisScraper(BaseScraper):
         self.run_id = run_id
         self.season = season
         self.last_games: list[BetcrisGame] = []
+        self.fetch_errors: dict[str, str] = {}
 
     async def fetch_pages(self, sport: str) -> dict[str, str]:
         """{page_slug: html} for every viewer page that feeds ``sport``."""
         pages: dict[str, str] = {}
+        self.fetch_errors.clear()
         async with httpx.AsyncClient(
             base_url=BASE_URL,
             headers=HEADERS,
@@ -83,11 +87,13 @@ class BetcrisScraper(BaseScraper):
             try:
                 resp = await client.get(path)
                 resp.raise_for_status()
+                self.fetch_errors.pop(slug, None)
                 return resp.text
             except Exception as e:  # noqa: BLE001
                 # str(httpx.ReadTimeout) is empty — always name the exception type.
                 logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
                                f"{type(e).__name__}: {e}")
+                self.fetch_errors[slug] = f"{type(e).__name__}: {e}".rstrip(": ")
                 if attempt < FETCH_ATTEMPTS:
                     await asyncio.sleep(FETCH_BACKOFF_S * attempt)
         return None
@@ -98,15 +104,22 @@ class BetcrisScraper(BaseScraper):
         if not enabled():
             logger.info(f"[{self.BOOK_NAME}] disabled via BOOK_BETCRIS_ENABLED")
             return []
-        scraped_at = datetime.now(timezone.utc)
-        games: list[BetcrisGame] = []
-        for slug, html in (await self.fetch_pages(sport)).items():
-            page_games = parser.parse_games(html, sport, page=slug, season=self.season)
-            priced = sum(1 for g in page_games if g.total is not None or g.away_ml is not None)
-            logger.info(f"[{self.BOOK_NAME}] {slug}: {len(page_games)} games, {priced} priced")
-            games.extend(page_games)
-        self.last_games = parser.dedupe_games(games)
-        lines: list[GameLine] = []
-        for g in self.last_games:
-            lines.extend(parser.game_lines(g, market=market, scraped_at=scraped_at, run_id=self.run_id))
+        self.fetch_errors.clear()
+        self.last_games = []
+        slug = PAGES[sport][0]
+        url = PUBLIC_URL.format(league=parser.PUBLIC_LEAGUES[sport])
+        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True,
+                                     timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0)) as client:
+            raw = await self._get_with_retry(client, slug, url)
+        if raw is None:
+            return []
+        if self.raw_store is not None:
+            self.raw_store.put(f"betcris_public_{sport}", raw, url=url, ext="json")
+        try:
+            lines = parser.parse_public(json.loads(raw), sport, now=datetime.now(timezone.utc),
+                                        market=market, run_id=self.run_id)
+        except ValueError as exc:
+            self.fetch_errors[slug] = str(exc)
+            return []
+        logger.info(f"[betcris] {sport}: {len(lines)} open pregame lines from public JSON")
         return lines

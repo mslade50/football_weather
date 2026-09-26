@@ -3,7 +3,7 @@ return_exceptions, provisional-id matching, consensus, legacy odds columns, open
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -448,14 +448,60 @@ def test_external_merge_failure_falls_back(monkeypatch: pytest.MonkeyPatch):
 def test_carry_forward_lines_only_for_unscraped_books():
     archive = pstate.migrate(None, "archive_last")
     last = archive["last"]
-    last[f"{KC_BUF}|total|under|fanduel"] = {"line": 47.5, "odds": -108, "ts": "t"}
+    now = datetime(2026, 9, 25, 21, 45, tzinfo=timezone.utc)
+    quoted = now - timedelta(minutes=10)
+    last[f"{KC_BUF}|total|under|fanduel"] = {"line": 47.5, "odds": -108, "ts": quoted.isoformat(), "available": True}
     last[f"{KC_BUF}|spread|home|betonline"] = {"line": -2.5, "odds": -110, "ts": "t"}   # scraped now: not carried
     last[f"{KC_BUF}|total|under|consensus"] = {"line": 47.5, "odds": -110, "ts": "t"}   # pseudo book: never
     last["nfl:2026:1:den@lv|total|under|fanduel"] = {"line": 40.0, "odds": -110, "ts": "t"}  # inactive game
     last["cfb:2026:1:a@b|total|under|fanduel"] = {"line": 50.0, "odds": -110, "ts": "t"}    # other sport
     last[f"{KC_BUF}|ml|home|kalshi"] = {"line": None, "odds": None, "ts": "t"}              # no odds
-    got = build.carry_forward_lines(archive, "nfl", {KC_BUF}, ["betonline"])
+    got = build.carry_forward_lines(archive, "nfl", {KC_BUF}, ["betonline"], now=now)
     assert [(ln.book, ln.market, ln.side, ln.line, ln.odds, ln.is_main) for ln in got] == [("fanduel", "total", "under", 47.5, -108, True)]
+    assert got[0].scraped_at == quoted
+
+
+@pytest.mark.parametrize("fields", [
+    {"available": False},
+    {"available": None},  # legacy archive: no verified current availability
+    {"ts": "2026-09-25T20:44:59Z"},  # more than one hour old
+    {"ts": "2026-09-25T21:45:01Z"},  # future timestamp
+    {"ts": "invalid"},
+    {"ts": None},
+])
+def test_carry_forward_rejects_unavailable_or_unverifiable_quotes(fields):
+    value = {"line": 47.5, "odds": -108, "ts": "2026-09-25T21:40:00Z", "available": True, **fields}
+    archive = {"last": {f"{KC_BUF}|total|under|fanduel": value}}
+    assert build.carry_forward_lines(
+        archive, "nfl", {KC_BUF}, ["betonline"], now=datetime(2026, 9, 25, 21, 45, tzinfo=timezone.utc),
+    ) == []
+
+
+@pytest.mark.parametrize("remaining", [[], [_ln("fanduel", "spread", "home", -3.5)]])
+def test_playwright_does_not_restore_quotes_missing_from_latest_scrape(tmp_path, monkeypatch, remaining):
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    runs = iter([
+        {"fanduel": [_ln("fanduel", "total", "under", 60.5), _ln("fanduel", "spread", "home", -3.5)]},
+        {"fanduel": remaining},  # failed book or withdrawn total
+        {"betonline": [_ln("betonline", "total", "under", 44.5)]},
+    ])
+
+    async def fake_scrape(*args):
+        return next(runs), {}
+
+    monkeypatch.setattr(build, "scrape_books", fake_scrape)
+    for book in ("fanduel", "fanduel", "betonline"):
+        res = build.stage_odds(RunContext(sport="nfl", git_sha="t"), "nfl", [_game()], _Book(),
+                               NullRawStore("nfl", "r"), [book], tmp_path, 2026)
+    assert not any(ln.book == "fanduel" and ln.market == "total" for ln in res.lines)
+    assert res.consensus[(KC_BUF, "total")].line == 44.5
+    assert res.consensus[(KC_BUF, "total")].n_books == 1
+    # Retain the old observation for history/delta comparisons and the original opener.
+    key = f"{KC_BUF}|total|under|fanduel"
+    assert pstate.load_archive_last(tmp_path)["last"][key]["line"] == 60.5
+    assert pstate.load_openers(tmp_path)["openers"][key]["line"] == 60.5
 
 
 def test_playwright_style_run_keeps_fanduel_now_via_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
