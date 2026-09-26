@@ -39,6 +39,9 @@ def test_edge_message_is_a_compact_scan_first_play():
         "Why:",
         "• Value: +3.4 pts above fair 34.6",
         "• Wind: 18 mph",
+        "Week open: Under 38 (?) · BetOnline",
+        "Kalshi now: unavailable",
+        "NoVig now: unavailable",
         f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
     ]
     # unicode minus for negative odds, no ASCII hyphen-minus in the price
@@ -111,7 +114,7 @@ def test_edge_message_spread_side_sign():
     lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
     assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
     assert lines[3:6] == ["Why:", "• Value: +1.5 pts above fair −4.5", "• Wind: 18 mph"]
-    assert len(lines) == 7
+    assert len(lines) == 10
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
@@ -195,6 +198,9 @@ def test_update_closed_and_forecast_messages_are_concise():
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Line: Under 38 → 39 · BetOnline −110",
         "Value: +3.4 → +4.4 pts",
+        "Week open: Under 38 (?) · BetOnline",
+        "Kalshi now: unavailable",
+        "NoVig now: unavailable",
         f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
     ]
 
@@ -217,7 +223,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert wx_lines[2] == "Forecast: fair total 34.6 → 36.1"
     assert wx_lines[3] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
     assert wx_lines[4] == "<b>Play: Under 38 (−110) · BetOnline</b>"
-    assert len(wx_lines) == 6
+    assert len(wx_lines) == 9
 
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
@@ -226,7 +232,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
     assert lines[3] == "<b>Play: Under 38 (−110) · BetOnline</b>"
     assert lines[4:7] == ["Why:", "• Value: +3.4 pts above fair 34.6", "• Wind: 17 mph"]
-    assert len(lines) == 8
+    assert len(lines) == 11
 
 
 def test_openers_and_ops_and_digest_format():
@@ -421,3 +427,32 @@ def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
     assert "MANUAL QUEUE · SNAPSHOT (1)" in out and "flush: 1 alert(s) in 1 message(s)" in out
     assert pstate.load_telegram_state(tmp_path)["queue"] != []   # dry-run keeps the queue
     assert A.main(["--state-dir", str(tmp_path)]) == 2
+
+
+def test_alert_price_context_uses_weekly_opener_and_each_exchange_line():
+    c = card()
+    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["odds"]["kalshi"] = {"total": {"line": 39.5, "under": -108, "over": 120}}
+    c["odds"]["novig"] = {"total": {"line": 40.0, "under": -115, "over": 105}}
+    expected = ["Week open: Under 41.5 (−105) · BetOnline",
+                "Kalshi now: Under 39.5 (52¢)", "NoVig now: Under 40 (−115)"]
+    for text in (A.format_edge(c, _edge()), A.format_move(c, {}, _edge(), "toward fair"),
+                 A.format_signal_change(c, {}, _edge()), A.format_wx_move(c, {}, _edge())):
+        assert text.splitlines()[-4:-1] == expected
+    over = A._price_context(c, _edge(side="over"))
+    assert over[1:] == ["Kalshi now: Over 39.5 (45¢)", "NoVig now: Over 40 (+105)"]
+    c["sport"] = "cfb"
+    assert A._price_context(c, _edge())[0].startswith("Week open (T−6d):")
+
+
+def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
+    c = card()
+    c["odds"] = {"kalshi": {"total": {"line": 40.5, "over": -110}}}
+    c["consensus"]["total_open"] = 43.5
+    assert A._price_context(c, _edge()) == ["Week open: Under 43.5 (?) · reference",
+                                            "Kalshi now: unavailable", "NoVig now: unavailable"]
+    c["odds"] = {"novig": {"spread": {"home_line": -3.5, "away_odds": 105,
+                                        "open_line": -2.5, "open_odds": -120}}}
+    rows = A._price_context(c, _edge(book="novig", market="spread", side="away"))
+    assert rows == ["Week open: Sea +2.5 (?) · Novig", "Kalshi now: unavailable",
+                    "NoVig now: Sea +3.5 (+105)"]

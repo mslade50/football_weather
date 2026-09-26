@@ -690,12 +690,61 @@ def book_ladder(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
 # ---- formatters --------------------------------------------------------------------------
 
+def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
+    """Stored weekly baseline and current exchange quotes for the alerted side."""
+    market, side = edge.get("market"), edge.get("side")
+    if market not in ("total", "spread", "ml"):
+        return []
+    books = card.get("odds") or {}
+    book = str(edge.get("book") or CONSENSUS_BOOK)
+    opening = (books.get(book) or {}).get(market) or {}
+
+    def quote(data: dict[str, Any], venue: str, *, opener: bool = False) -> str:
+        if market == "total":
+            line = _num(data.get("open_line" if opener else "line"))
+            odds = data.get(f"open_{side}" if opener else side)
+        elif market == "spread":
+            line = _num(data.get("open_line" if opener else "home_line"))
+            if side == "away" and line is not None:
+                line = -line
+            # The board stores only the home-side spread opening juice.
+            odds = (data.get("open_odds") if side == "home" else None) if opener else data.get(f"{side}_odds")
+        else:
+            line = None
+            odds = data.get(f"open_{side}" if opener else side)
+        if (market != "ml" and line is None) or (not opener and _num(odds) is None):
+            return "unavailable"
+        if market == "ml" and _num(odds) is None:
+            return "unavailable"
+        label = html.escape(_side_label(edge, card).title())
+        if market != "ml":
+            label += f" {_fmt_line(line, signed=market == 'spread')}"
+        cents = _cents(odds) if venue in CENTS_BOOKS else None
+        price = f"{cents}¢" if cents is not None else _fmt_odds(odds)
+        return f"{label} ({price})"
+
+    baseline = quote(opening, book, opener=True)
+    source = _book_label(book)
+    if baseline == "unavailable" and market in ("total", "spread"):
+        opening_line = (card.get("consensus") or {}).get(f"{market}_open")
+        baseline = quote({"open_line": opening_line}, CONSENSUS_BOOK, opener=True)
+        source = "reference"
+    # CFB totals use the board's six-days-before-kickoff baseline.
+    label = "Week open (T−6d)" if card.get("sport") == "cfb" and market == "total" else "Week open"
+    rows = [f"{label}: {baseline}" + (f" · {source}" if baseline != "unavailable" else "")]
+    for venue, name in (("kalshi", "Kalshi"), ("novig", "NoVig")):
+        data = (books.get(venue) or {}).get(market) or {}
+        rows.append(f"{name} now: {quote(data, venue)}")
+    return rows
+
+
 def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
     """A scan-first PLAY: action, matchup/time, price, reason bullets, then details."""
     lines = [
         *_alert_heading("PLAY", card, "🎯"),
         _brief_bet(card, edge),
         *_why_lines(card, edge),
+        *_price_context(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -731,6 +780,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         change,
         (f"Value: {_fmt_signed(rec.get('last_edge'))} → {_fmt_signed(edge.get('edge_pts'))} pts{fair_change}"),
         *_special_driver_lines(card),
+        *_price_context(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -762,6 +812,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
         f"Signal: <b>{html.escape(old)} → {html.escape(new)}</b>",
         _brief_bet(card, edge, label="Play"),
         *_why_lines(card, edge),
+        *_price_context(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -779,6 +830,7 @@ def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, An
         f"Weather: wind {old_w} → {new_w} mph · rain {old_r} → {new_r} mm",
         _brief_bet(card, edge, label="Play"),
         *_special_driver_lines(card),
+        *_price_context(card, edge),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
