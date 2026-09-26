@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -54,7 +55,7 @@ def test_index_references_exist() -> None:
     for ref in refs:
         if ref.startswith(("http:", "https:", "#")):
             continue
-        assert (WEB / ref).is_file(), f"index.html references missing file: {ref}"
+        assert (WEB / urlsplit(ref).path).is_file(), f"index.html references missing file: {ref}"
     for js in JS_FILES:
         assert f'src="{js}"' in html, f"index.html must load {js}"
     for vendor in ("vendor/maplibre-gl.js", "vendor/maplibre-gl.css", "vendor/uPlot.iife.min.js", "vendor/uPlot.min.css"):

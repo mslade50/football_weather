@@ -35,6 +35,7 @@ from typing import Any, Optional, Union
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
 from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
+from pipeline.model.total_prices import compare_totals
 from utils.timeutil import date_label, time_label, to_tz, utc_iso
 
 PathLike = Union[str, Path]
@@ -467,6 +468,7 @@ def build_card(
         "odds": odds_block(game.game_id, lines, openers),
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
+        "total_prices": compare_totals(sport, lines, fair),
         "alerts": list(alerts),
         "run_id": run_id,
     }

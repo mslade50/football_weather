@@ -279,6 +279,8 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  consensus {spread_open, spread_now, spread_src, total_open, total_now, move_s, move_t, ref_book, n_books, thin},
  fair {my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
        edges [Edge...], best_total, best_spread},
+ total_prices {method, model_version, fair_total, best_under, best_over,
+               quotes [{book, side, line, odds, cost_prob, fair_cost, win_prob, push_prob, loss_prob, ev_roi, updated_at}]},
  alerts [alert_key...], run_id}
 ```
 
@@ -496,3 +498,9 @@ Local dev: `.env` (python-dotenv), never committed.
 
 ## 15. Risks (carried from design + judges)
 Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cutoff 62–67, alt 900/1000, alt-vs-heat override); anti-bot from Actions IPs (BetOnline CF, FanDuel Akamai) → Playwright fallback, low cadence, dark-book alerts, Odds API gap-fill; ToS (Kalshi/FanDuel/Novig deprecation) → private site, no republishing; team-name canonicalization across 6+ books for ~135 FBS + FCS → alias tables + rapidfuzz + unresolved alerts; CF free cron budget/10 ms CPU → Workers Paid; weather semantic shifts (mm vs in, curated vs computed vol/orientation) → keep `*_static` columns and validate via backtest before promoting v2; Open-Meteo non-commercial tier, NBM no gusts, HRRR 18 h, NWS 7 d → stitching with source/lead stamps + confidence gate; Edge semantics now market-relative → documented in UI; state integrity → R2 fetch fails job on transient error, D1 second source; stadium build deps (shapely, timezonefinder, Overpass limits) → preseason PR workflow with overrides; pip installs need user approval per CLAUDE.md.
+
+### Total price comparison
+
+The Best price column ranks fresh main-line unders by estimated ROI per dollar at risk; the drawer compares both sides. ROI = P(win) / cost + P(push) - 1, with cost from executable American odds including quoted vig and known exchange taker fees. Fair cost = P(win) / (1 - P(push)). Execution cost is not devigged. Integer sportsbook totals refund the stake; half points have no push. A discrete logistic score CDF is anchored on the active model fair total and consensus probability, with local slope from PTS_PROB_TOTAL. Push mass is the difference between adjacent half-point CDF values. This is an explicitly labeled estimate, not calibrated football key-number frequencies. Quotes older than one hour and games already started are not ranked. Thin consensus has no comparison. All-negative comparisons retain a negative EV label. Slippage and size-specific fee rounding are excluded. Existing fair/edge and alert selection rules are unchanged.
+
+Polymarket US uses the public gateway.polymarket.us /v2/leagues/{nfl,cfb}/events endpoint with bounded pagination and raw capture before parsing. Only full-game total, spread and winner market types are accepted. Long execution uses bestAskQuote, opposite execution uses 1-bestBidQuote. feeCoefficient * p * (1-p) is added before converting to American odds; midpoint probabilities remain separate for consensus. Integer exchange strikes are excluded until their settlement semantics are supported. BOOK_POLYMARKET_US_ENABLED controls the feed.

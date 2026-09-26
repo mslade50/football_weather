@@ -32,7 +32,7 @@ from typing import Any
 from pipeline.contracts import Edge, GameLine
 from pipeline.model import config as C
 
-EXCHANGE_BOOKS = {"kalshi", "novig", "prophetx"}
+EXCHANGE_BOOKS = {"kalshi", "novig", "prophetx", "polymarket_us"}
 DEFAULT_BOOK_WEIGHT = 0.5
 LEGACY_NOW_BOOK: dict[str, str] = {"nfl": "betonline", "cfb": "fanduel"}
 CALIBRATION_PATH = Path(__file__).resolve().parents[2] / "data" / "calibration.json"

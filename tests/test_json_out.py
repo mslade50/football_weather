@@ -222,6 +222,21 @@ def test_card_fair_block_from_gamefair_and_legacy_derived():
     assert row["total_now"] == 38.0 and row["gs_fg_pct"] == card["impact"]["v1"]["gs_fg_pct"]
 
 
+def test_card_includes_fresh_total_comparisons_from_active_fair():
+    from dataclasses import replace
+
+    from pipeline.model.fair import evaluate_game
+
+    lines = [replace(ln, scraped_at=datetime.now(timezone.utc)) for ln in _lines()]
+    gf = evaluate_game("nfl", GID, lines, gs_fg_pct=-2, away_fg_pct=0)
+    card = _card(lines=lines, fair=gf)
+    prices = card["total_prices"]
+    assert prices["fair_total"] == card["fair"]["fair_total"]
+    assert {q["side"] for q in prices["quotes"]} == {"over", "under"}
+    assert prices["best_under"]["book"] in card["odds"]
+    assert json.loads(json.dumps(json_out.sanitize(card), allow_nan=False))["total_prices"]["best_over"]
+
+
 def test_card_without_stadium_or_forecast_is_still_complete():
     impact = compute_impact_v1(sport="cfb", month=11, temp_fg=None, wind_fg=None, rain_fg_mm=None, travel_alt_m=None,
                                away_temp=None, home_temp=None, roof_state=None)

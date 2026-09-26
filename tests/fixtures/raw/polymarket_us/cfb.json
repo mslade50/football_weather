@@ -1,0 +1,124 @@
+{
+  "events": [
+    {
+      "id": "110560",
+      "slug": "cfb-tentch-woff-2026-09-26",
+      "title": "Tennessee Tech vs. Wofford",
+      "active": true,
+      "closed": false,
+      "startTime": "2026-09-26T17:30:00Z",
+      "live": false,
+      "ended": false,
+      "markets": [
+        {
+          "id": "1054176",
+          "slug": "tsc-cfb-tentch-woff-2026-09-26-total-45pt5",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_total",
+          "line": 45.5,
+          "marketSides": [
+            {
+              "description": "Over",
+              "long": true,
+              "tradable": true
+            },
+            {
+              "description": "Under",
+              "long": false,
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.4700",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.4900",
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "1052129",
+          "slug": "asc-cfb-tentch-woff-2026-09-26-neg-13pt5",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_spread",
+          "line": -13.5,
+          "marketSides": [
+            {
+              "description": "-13.50",
+              "long": true,
+              "team": {
+                "name": "Tennessee Tech",
+                "ordering": "away"
+              },
+              "tradable": true
+            },
+            {
+              "description": "+13.50",
+              "long": false,
+              "team": {
+                "name": "Wofford",
+                "ordering": "home"
+              },
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.5100",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.5150",
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "812016",
+          "slug": "aec-cfb-tentch-woff-2026-09-26",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_winner",
+          "marketSides": [
+            {
+              "description": "Golden Eagles",
+              "long": true,
+              "team": {
+                "name": "Tennessee Tech",
+                "ordering": "away"
+              },
+              "tradable": true
+            },
+            {
+              "description": "Terriers",
+              "long": false,
+              "team": {
+                "name": "Wofford",
+                "ordering": "home"
+              },
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.8300",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.8350",
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

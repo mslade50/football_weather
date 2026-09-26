@@ -65,7 +65,7 @@ let HK = 0;
 
 const BOOK_LABELS = {
   pinnacle: "Pinnacle", fanduel: "FanDuel", draftkings: "DraftKings", betonline: "BetOnline",
-  betcris: "Betcris", novig: "NoVig", prophetx: "ProphetX", kalshi: "Kalshi", consensus: "Consensus",
+  betcris: "Betcris", novig: "NoVig", polymarket_us: "Polymarket US", prophetx: "ProphetX", kalshi: "Kalshi", consensus: "Consensus",
 };
 const bookLabel = (b) => BOOK_LABELS[b] || b;
 

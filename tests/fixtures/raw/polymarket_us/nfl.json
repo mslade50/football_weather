@@ -1,0 +1,161 @@
+{
+  "events": [
+    {
+      "id": "111297",
+      "slug": "nfl-kc-mia-2026-09-27",
+      "title": "KC Chiefs vs MIA Dolphins",
+      "active": true,
+      "closed": false,
+      "startTime": "2026-09-27T17:00:00Z",
+      "markets": [
+        {
+          "id": "897917",
+          "slug": "tsc-nfl-kc-mia-2026-09-27-total-45pt5",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_total",
+          "line": 45.5,
+          "marketSides": [
+            {
+              "description": "Over",
+              "long": true,
+              "tradable": true
+            },
+            {
+              "description": "Under",
+              "long": false,
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.4850",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.4900",
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "825226",
+          "slug": "asc-nfl-kc-mia-2026-09-27-neg-10pt5",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_spread",
+          "line": -10.5,
+          "marketSides": [
+            {
+              "description": "-10.50",
+              "long": true,
+              "team": {
+                "name": "Kansas City Chiefs",
+                "ordering": "away"
+              },
+              "tradable": true
+            },
+            {
+              "description": "+10.50",
+              "long": false,
+              "team": {
+                "name": "Miami Dolphins",
+                "ordering": "home"
+              },
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.4900",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.4950",
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "825195",
+          "slug": "aec-nfl-kc-mia-2026-09-27",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_full_game_winner",
+          "marketSides": [
+            {
+              "description": "Chiefs",
+              "long": true,
+              "team": {
+                "name": "Kansas City Chiefs",
+                "ordering": "away"
+              },
+              "tradable": true
+            },
+            {
+              "description": "Dolphins",
+              "long": false,
+              "team": {
+                "name": "Miami Dolphins",
+                "ordering": "home"
+              },
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.8500",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.8550",
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "826278",
+          "slug": "asc-nfl-kc-mia-2026-09-27-1h-pos-14pt5",
+          "active": true,
+          "closed": false,
+          "sportsMarketType": "football_team_first_half_spread",
+          "line": 14.5,
+          "marketSides": [
+            {
+              "description": "+14.50",
+              "long": true,
+              "team": {
+                "name": "Kansas City Chiefs",
+                "ordering": "away"
+              },
+              "tradable": true
+            },
+            {
+              "description": "-14.50",
+              "long": false,
+              "team": {
+                "name": "Miami Dolphins",
+                "ordering": "home"
+              },
+              "tradable": true
+            }
+          ],
+          "ep3Status": "OPEN",
+          "hidden": false,
+          "feeCoefficient": 0.0695,
+          "bestBidQuote": {
+            "value": "0.9700",
+            "currency": "USD"
+          },
+          "bestAskQuote": {
+            "value": "0.9900",
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

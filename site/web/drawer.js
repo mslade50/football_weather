@@ -57,6 +57,20 @@ function backtestRows(g) {
   return rows;
 }
 
+function totalPriceTable(g) {
+  const quotes = totalPriceQuotes(g);
+  if (!quotes.length) return '<p class="muted">No fresh total prices with a usable fair.</p>';
+  const rows = quotes.map((quote) => `<tr><td>${esc(bookLabel(quote.book))}</td><td>${totalPriceLabel(quote)}</td>`
+    + `<td>${pricePercent(quote.cost_prob)}</td><td>${pricePercent(quote.fair_cost)}</td>`
+    + `<td>${pricePercent(quote.win_prob)}</td><td>${pricePercent(quote.push_prob)}</td>`
+    + `<td>${roiLabel(quote.ev_roi)}</td></tr>`).join("");
+  return '<p class="muted">Estimated return per dollar staked, including quoted vig and known taker fees. '
+    + 'Pushes return the stake. Main totals only; excludes slippage and size-specific fee rounding. '
+    + 'Exact-score probabilities are model estimates, not calibrated key-number frequencies.</p>'
+    + '<table class="kv"><thead><tr><th>Book</th><th>Offer</th><th>Cost</th><th>Fair cost</th>'
+    + `<th>Win</th><th>Push</th><th>Est. EV</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 function oddsTable(g) {
   const c = g.consensus || {}, f = g.fair || {};
   const books = ["consensus", ...BOOKS.filter((b) => (g.odds || {})[b])];
@@ -353,6 +367,7 @@ function openDrawer(gameId) {
       <div><h3>Game Info</h3>${gameInfoTable(g)}</div>
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
+    <h3>Total price comparison</h3><div style="overflow:auto">${totalPriceTable(g)}</div>
     <h3>Odds by book (${g.sport === "cfb" ? "totals T−6d; spreads open" : "open"} → now)</h3><div style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>

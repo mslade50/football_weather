@@ -124,11 +124,12 @@ BOOK_REGISTRY: dict[str, tuple[str, str]] = {
     "kalshi": ("pipeline.odds.kalshi", "KalshiScraper"),
     "novig": ("pipeline.odds.novig", "NovigScraper"),
     "prophetx": ("pipeline.odds.prophetx", "ProphetXScraper"),
+    "polymarket_us": ("pipeline.odds.polymarket_us", "PolymarketUSScraper"),
     "betonline": ("pipeline.odds.betonline", "BetOnlineScraper"),
     "draftkings": ("pipeline.odds.draftkings", "DraftKingsScraper"),
 }
 PLAYWRIGHT_BOOKS = ("betonline",)
-HTTPX_BOOKS = ("pinnacle", "betcris", "fanduel", "kalshi", "novig", "prophetx")
+HTTPX_BOOKS = ("pinnacle", "betcris", "fanduel", "kalshi", "novig", "prophetx", "polymarket_us")
 BOOK_ORDER = HTTPX_BOOKS + PLAYWRIGHT_BOOKS
 # Golf's SIM_BOOKS: a book at 0 rows while >=2 of these report is "dark", not "no market".
 CRITICAL_BOOKS = frozenset({"pinnacle", "betonline", "betcris", "fanduel"})

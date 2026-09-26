@@ -42,6 +42,7 @@ BOOK_REGISTRY: dict[str, tuple[str, str]] = {
     "novig": ("pipeline.odds.novig", "NovigScraper"),
     "pinnacle": ("pipeline.odds.pinnacle", "PinnacleScraper"),
     "prophetx": ("pipeline.odds.prophetx", "ProphetXScraper"),
+    "polymarket_us": ("pipeline.odds.polymarket_us", "PolymarketUSScraper"),
     "betonline": ("pipeline.odds.betonline", "BetOnlineScraper"),
     "draftkings": ("pipeline.odds.draftkings", "DraftKingsScraper"),
 }

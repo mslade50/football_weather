@@ -88,6 +88,7 @@ env:
   BOOK_BETCRIS_ENABLED: ${{ vars.BOOK_BETCRIS_ENABLED || '1' }}
   BOOK_FANDUEL_ENABLED: ${{ vars.BOOK_FANDUEL_ENABLED || '1' }}
   BOOK_KALSHI_ENABLED: ${{ vars.BOOK_KALSHI_ENABLED || '1' }}
+  BOOK_POLYMARKET_US_ENABLED: ${{ vars.BOOK_POLYMARKET_US_ENABLED || '1' }}
   BOOK_NOVIG_ENABLED: ${{ vars.BOOK_NOVIG_ENABLED || '1' }}
   BOOK_PROPHETX_ENABLED: ${{ vars.BOOK_PROPHETX_ENABLED || '1' }}
   # Model driving edges/alerts (ARCH §7.5). Stays v1 until the calibrate promotion rule is met;

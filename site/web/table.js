@@ -131,6 +131,40 @@ function bookTotalCell(g, bk) {
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
+function totalPriceQuotes(g, side = null) {
+  if ((parseTs(g.kickoff_utc)?.getTime() || 0) <= Date.now()) return [];
+  return ((g.total_prices || {}).quotes || []).filter((quote) => {
+    const age = Date.now() - (parseTs(quote.updated_at)?.getTime() || 0);
+    return (!side || quote.side === side) && (!STATE.book || quote.book === STATE.book)
+      && age >= 0 && age <= 3600000 && isNum(quote.ev_roi);
+  }).sort((a, b) => b.ev_roi - a.ev_roi);
+}
+function pricePercent(value) { return isNum(value) ? `${(Number(value) * 100).toFixed(1)}%` : "—"; }
+function roiLabel(value) { return `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`; }
+function totalPriceLabel(quote) {
+  return `${quote.side === "under" ? "U" : "O"} ${fmtTotal(quote.line)} · ${fmtOdds(quote.odds)}`;
+}
+function bestPriceCell(g) {
+  const quote = totalPriceQuotes(g, "under")[0];
+  if (!quote) return '<td class="muted" title="No fresh price with a usable fair total">—</td>';
+  const hk = ++HK;
+  HOVER[hk] = {
+    label: `Best under price · ${gameLabel(g)}`,
+    lines: [
+      ["offer", `${bookLabel(quote.book)} · ${totalPriceLabel(quote)}`],
+      ["cost incl. vig/fees", pricePercent(quote.cost_prob)],
+      ["fair cost (excl. pushes)", pricePercent(quote.fair_cost)],
+      ["estimated win / push", `${pricePercent(quote.win_prob)} / ${pricePercent(quote.push_prob)}`],
+      ["estimated ROI", `${roiLabel(quote.ev_roi)} per dollar staked`],
+      ["model", "Discrete score estimate; exact-score probabilities are not calibrated"],
+      ["scope", "Displayed main totals; excludes slippage and size-specific fee rounding"],
+      ["updated", fmtShortET(quote.updated_at)],
+    ],
+  };
+  return `<td class="book best-price" data-hk="${hk}">${esc(bookLabel(quote.book))}<span class="sub">${totalPriceLabel(quote)}</span>`
+    + `<span class="sub">Est. EV ${roiLabel(quote.ev_roi)}${quote.ev_roi <= 0 ? " · no +EV" : ""}</span></td>`;
+}
+
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
@@ -146,6 +180,8 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Signal", "Impact tier + combined flags", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus total baseline → now (CFB baseline = kickoff minus 6 days; NFL = first-seen open; Pinnacle-weighted)", cons("total_now")],
+    ["Best price", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
+      (g) => totalPriceQuotes(g, "under")[0]?.ev_roi ?? -Infinity, bestPriceCell],
   ];
   for (const bk of books) {
     if (withSpreads) {
