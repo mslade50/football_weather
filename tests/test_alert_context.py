@@ -65,3 +65,84 @@ def test_alert_run_loads_wind_history_and_formats_record(tmp_path):
     text = next(candidate.text for candidate in run.candidates if candidate.family == "edge")
     assert "Stadium wind unders: 1-0-0 W-L-P · n=1 · 2025" in text
     assert "Basis: NFL Wind · closing forecasts/totals · as of 09/18/2026" in text
+    assert "Historical archive unavailable; forecast record covers current feed only" in text
+
+
+def test_archived_history_is_used_without_current_feed_and_actuals_stay_separate(tmp_path):
+    import json
+
+    c = card()
+    c["stadium"]["stadium_id"] = "gillette-stadium"
+    past = history_row("archived")
+    archive = {"schema_version": 1, "games": [past, past], "actual_games": [
+        dict(past, wind_fc=0, wind_act=15, under_result="P"),
+        dict(past, game_id="calm", wind_act=14.99),
+        dict(past, game_id="other", stadium_id="other", wind_act=20),
+        dict(past, game_id="closed", roof_state="closed", wind_act=20),
+    ]}
+    (tmp_path / "wind-history-v1.json").write_text(json.dumps(archive), encoding="utf-8")
+    run = A.run_alerts(_ctx(), {"nfl": [c]}, tmp_path, dry_run=True, now=NOW, cfg=CFG)
+    text = next(x.text for x in run.candidates if x.family == "edge")
+    assert "Stadium wind unders: 1-0-0 W-L-P · n=1 · 2025" in text
+    assert "Actual-wind unders: 0-0-1 W-L-P · n=1 · 2025" in text
+    assert "ERA5 wind ≥15 mph · closing totals · descriptive, not forecast signals" in text
+    assert "archive unavailable" not in text
+    result = stadium_wind_history(c, {"games": [history_row("new", season=2026)]}, now=NOW, archive=archive)
+    assert result["n"] == 2
+    assert result["seasons"] == [2025, 2026]
+    assert result["actual"]["n"] == 1
+    # The current feed wins when it also contains an archived game, even if its
+    # corrected forecast no longer qualifies. Never count it from the older copy.
+    result = stadium_wind_history(c, {"games": [dict(past, wind_fc=1)]}, now=NOW, archive=archive)
+    assert result["n"] == 0
+    archive["schema_version"] = 99
+    result = stadium_wind_history(c, None, now=NOW, archive=archive)
+    assert result["status"] == "unavailable"
+
+
+def test_history_export_uses_closing_grade_not_alert_grade():
+    from scripts.export_wind_history import normalize_row
+
+    raw = {"game_id": "past", "close_total": 44, "actual_total": 44,
+           "close_result": "P", "under_result": "W", "wind_fc": 20, "wind_act": 2}
+    normalized = normalize_row(raw, "venue", "outdoors", forecast=True)
+    assert normalized["under_result"] == "P"
+    assert normalized["wind_fc"] == 20
+    assert "wind_act" not in normalized
+    raw["close_result"] = "L"
+    import pytest
+
+    with pytest.raises(ValueError, match="Closing grade mismatch"):
+        normalize_row(raw, "venue", "outdoors", forecast=True)
+
+
+def test_history_export_does_not_guess_ambiguous_venues(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    from pipeline.stadiums.loader import StadiumBook
+    from scripts import export_wind_history as E
+
+    book = StadiumBook(stadiums={"venue-a": SimpleNamespace(stadium_id="venue-a", timezone="America/New_York",
+                                                           roof_type="open")},
+                       cfbd_venue_index={"101": "venue-a"}, name_index={"memorial-stadium": "venue-a"})
+    monkeypatch.setattr(E, "load_stadium_book", lambda **kw: book)
+    schedules, forecasts = [], []
+    for home, venue in [("Home", 101), ("Other", 999)]:
+        schedules.append(dict(season=2025, week=1, homeTeam=home, awayTeam="Away", homeClassification="fbs",
+                              venueId=venue, venue="Memorial Stadium", startDate="2025-09-01T18:00:00Z"))
+        forecasts.append(dict(game_id=f"cfb:2025:1:away@{home.lower()}", sport="cfb", season=2025,
+                              kickoff_utc="2025-09-01T18:00:00Z", wind_fc=20, temp_fc=50, close_lead_h=2,
+                              close_total=40, actual_total=35, close_result="W"))
+    (tmp_path / "git").mkdir()
+    (tmp_path / "git/cfbd_games_2025.json").write_text(json.dumps(schedules), encoding="utf-8")
+    (tmp_path / "git/nflverse_games.csv").write_text("season,week\n", encoding="utf-8")
+    pd.DataFrame(forecasts).to_parquet(tmp_path / "hist_games.parquet")
+    pd.DataFrame([]).to_parquet(tmp_path / "stadium_wx_games.parquet")
+    payload = E.export_history(tmp_path, tmp_path)
+    assert [r["game_id"] for r in payload["games"]] == ["cfb:2025:1:away@home"]
+    assert payload["games"][0]["stadium_id"] == "venue-a"
+    assert payload["meta"]["forecast_skipped"]["unresolved_venue"] == 1
+    json.dumps(payload, allow_nan=False)

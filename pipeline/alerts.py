@@ -730,6 +730,18 @@ def _comparison_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]
                     f"· n={history['n']} · {period}")
         venue = html.escape(str((card.get("stadium") or {}).get("name") or "this stadium"))
         rows.append(f"Basis: {html.escape(history['signal'])} · closing forecasts/totals{as_of} · {venue}")
+    if history.get("status") == "ok" and not history.get("archive_available"):
+        rows.append("Historical archive unavailable; forecast record covers current feed only")
+    actual = history.get("actual") or {}
+    if actual.get("status") == "ok":
+        if actual.get("n"):
+            seasons = actual["seasons"]
+            period = str(seasons[0]) if len(seasons) == 1 else f"{seasons[0]}–{seasons[-1]}"
+            rows.append(f"Actual-wind unders: {actual['wins']}-{actual['losses']}-{actual['pushes']} W-L-P "
+                        f"· n={actual['n']} · {period}")
+        else:
+            rows.append("Actual-wind unders: no graded games in available history")
+        rows.append("Basis: ERA5 wind ≥15 mph · closing totals · descriptive, not forecast signals")
     return rows
 
 
@@ -1654,7 +1666,8 @@ def run_alerts(
     alerts, source = pstate.load_alerts_rehydrated(state_dir, fetch_rows)
     tg = pstate.load_telegram_state(state_dir)
     history = _load_backtest(state_dir / "backtest.json")
-    cards_by_sport = {sport: [dict(card, stadium_wind_history=stadium_wind_history(card, history, now=now))
+    archive = _load_backtest(state_dir / "wind-history-v1.json")
+    cards_by_sport = {sport: [dict(card, stadium_wind_history=stadium_wind_history(card, history, now=now, archive=archive))
                              for card in cards] for sport, cards in cards_by_sport.items()}
     cands = collect_candidates(ctx, cards_by_sport, alerts, cfg, now, new_keys_by_sport=new_keys_by_sport,
                                heartbeat_ts=_heartbeat_ts(state_dir), prev_meta_ts=_prev_meta_ts(state_dir))

@@ -121,6 +121,8 @@ def test_alert_history_is_read_only_optional_context(text: str, name: str):
     step = _step(text, name)
     assert 'r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote' in step
     assert "::warning::Wind history unavailable" in step
+    assert 'r2 object get "$R2_BUCKET/backtest/wind-history-v1.json" --file=data/state/wind-history-v1.json --remote' in step
+    assert "::warning::Historical wind archive unavailable" in step
     assert "r2 object put" not in step
 
 
