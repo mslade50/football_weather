@@ -1,0 +1,361 @@
+{
+  "generated_at": "2026-09-26T03:06:16Z",
+  "stale_after_seconds": 1500,
+  "tier": "today",
+  "feed_ok": true,
+  "last_good_at": "2026-09-26T03:06:16Z",
+  "feed_fetched_at": "2026-09-26T03:06:02Z",
+  "version": 1,
+  "league": {
+    "id": 2,
+    "name": "COLLEGE FOOTBALL",
+    "sport": "FOOTBALL"
+  },
+  "games": [
+    {
+      "id": 7368137,
+      "parent": null,
+      "starts_at": "2026-09-26T09:00:00Z",
+      "period_no": 0,
+      "period": "Game",
+      "home": "Louisville",
+      "visitor": "Wake Forest",
+      "title": null,
+      "live": false,
+      "markets": {
+        "moneyline": {
+          "home": {
+            "line": null,
+            "price": -476,
+            "status": "open",
+            "status_since": "2026-09-21T14:05:11Z",
+            "opener": {
+              "line": null,
+              "price": -504,
+              "at": "2026-09-21T14:05:11Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": 28
+            }
+          },
+          "visitor": {
+            "line": null,
+            "price": 368,
+            "status": "open",
+            "status_since": "2026-09-21T14:05:11Z",
+            "opener": {
+              "line": null,
+              "price": 387,
+              "at": "2026-09-21T14:05:11Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": -19
+            }
+          }
+        },
+        "spread": {
+          "home": {
+            "line": "-12.50",
+            "price": -111,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "-13.00",
+              "price": -108,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "0.50",
+              "price": -3
+            }
+          },
+          "visitor": {
+            "line": "12.50",
+            "price": -109,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "13.00",
+              "price": -112,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-0.50",
+              "price": 3
+            }
+          }
+        },
+        "total": {
+          "over": {
+            "line": "57.50",
+            "price": -110,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "58.00",
+              "price": -112,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-0.50",
+              "price": 2
+            }
+          },
+          "under": {
+            "line": "57.50",
+            "price": -110,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "58.00",
+              "price": -108,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-0.50",
+              "price": -2
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 7368143,
+      "parent": null,
+      "starts_at": "2026-09-26T15:00:00Z",
+      "period_no": 0,
+      "period": "Game",
+      "home": "Old Dominion",
+      "visitor": "James Madison",
+      "title": null,
+      "live": false,
+      "markets": {
+        "moneyline": {
+          "home": {
+            "line": null,
+            "price": 187,
+            "status": "open",
+            "status_since": "2026-09-21T14:05:11Z",
+            "opener": {
+              "line": null,
+              "price": 181,
+              "at": "2026-09-21T14:05:11Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": 6
+            }
+          },
+          "visitor": {
+            "line": null,
+            "price": -224,
+            "status": "open",
+            "status_since": "2026-09-21T14:05:11Z",
+            "opener": {
+              "line": null,
+              "price": -216,
+              "at": "2026-09-21T14:05:11Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": -8
+            }
+          }
+        },
+        "spread": {
+          "home": {
+            "line": "6.00",
+            "price": -109,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "4.50",
+              "price": -111,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "1.50",
+              "price": 2
+            }
+          },
+          "visitor": {
+            "line": "-6.00",
+            "price": -111,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "-4.50",
+              "price": -109,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-1.50",
+              "price": -2
+            }
+          }
+        },
+        "total": {
+          "over": {
+            "line": "44.50",
+            "price": -113,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "48.00",
+              "price": -108,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-3.50",
+              "price": -5
+            }
+          },
+          "under": {
+            "line": "44.50",
+            "price": -107,
+            "status": "open",
+            "status_since": "2026-09-21T00:02:28Z",
+            "opener": {
+              "line": "48.00",
+              "price": -112,
+              "at": "2026-09-21T00:02:28Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-3.50",
+              "price": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 4977179,
+      "parent": null,
+      "starts_at": "2026-08-29T09:00:00Z",
+      "period_no": 0,
+      "period": "Game",
+      "home": "TCU",
+      "visitor": "North Carolina",
+      "title": "Aviva Stadium - Dublin, Ireland",
+      "live": true,
+      "markets": {
+        "moneyline": {
+          "home": {
+            "line": null,
+            "price": 107,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": null,
+              "price": -310,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": 417
+            }
+          },
+          "visitor": {
+            "line": null,
+            "price": -131,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": null,
+              "price": 251,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": -382
+            }
+          }
+        },
+        "spread": {
+          "home": {
+            "line": "2.00",
+            "price": -128,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": "-8.00",
+              "price": -113,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "10.00",
+              "price": -15
+            }
+          },
+          "visitor": {
+            "line": "-2.00",
+            "price": 102,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": "8.00",
+              "price": -107,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-10.00",
+              "price": 209
+            }
+          }
+        },
+        "total": {
+          "over": {
+            "line": "32.00",
+            "price": -114,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": "46.50",
+              "price": -113,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-14.50",
+              "price": -1
+            }
+          },
+          "under": {
+            "line": "32.00",
+            "price": -110,
+            "status": "unavailable",
+            "status_since": "2026-09-22T17:20:02Z",
+            "opener": {
+              "line": "46.50",
+              "price": -107,
+              "at": "2026-08-26T00:08:14Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-14.50",
+              "price": -3
+            }
+          }
+        }
+      }
+    }
+  ]
+}

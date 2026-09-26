@@ -26,9 +26,10 @@ parsers); ``odds/merge.py`` resolves it against the schedule ``Game``.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -44,6 +45,7 @@ PAGES: dict[str, tuple[str, ...]] = {
     "nfl": ("nfl", "nfl-preseason"),
     "cfb": ("college-football",),
 }
+PUBLIC_LEAGUES = {"nfl": 1, "cfb": 2}
 
 _START_RE = re.compile(r"START\s+(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([ap]m)\s*PT", re.IGNORECASE)
 _SCRIPT_START_RE = re.compile(r"var\s+game(\d+)_start\s*=\s*new\s+Date\('(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
@@ -276,4 +278,94 @@ def dedupe_games(games: list[BetcrisGame]) -> list[BetcrisGame]:
             continue
         seen.add(g.game_id)
         out.append(g)
+    return out
+
+
+def _public_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.astimezone(timezone.utc) if dt.tzinfo is not None else None
+
+
+def _public_number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def parse_public(payload: dict, sport: str, *, now: datetime,
+                 market: str | None = None, run_id: str | None = None) -> list[GameLine]:
+    """Betcris's public /assets/odds/v1 league JSON -> open pregame prices.
+
+    Keep the upstream observation time, not our download time. The publisher
+    retains closed games and partial-game markets, so neither is current odds.
+    Legacy HTML parsing above remains available for archived raw captures.
+    """
+    if sport not in PUBLIC_LEAGUES:
+        raise ValueError(f"unknown sport {sport!r}")
+    if not isinstance(payload, dict) or payload.get("feed_ok") is not True:
+        raise ValueError("Betcris public feed is unavailable")
+    if payload.get("version") != 1:
+        raise ValueError("Betcris public feed has an unsupported schema version")
+    league = payload.get("league")
+    if not isinstance(league, dict) or league.get("id") != PUBLIC_LEAGUES[sport]:
+        raise ValueError(f"Betcris public feed is not the {sport} full-game league")
+    observed = _public_timestamp(payload.get("feed_fetched_at"))
+    ttl = _public_number(payload.get("stale_after_seconds"))
+    if (observed is None or ttl is None or ttl <= 0
+            or not timedelta(0) <= now - observed <= timedelta(seconds=min(ttl, 9000))):
+        raise ValueError("Betcris public feed has a stale or invalid observation timestamp")
+    games = payload.get("games")
+    if not isinstance(games, list):
+        raise ValueError("Betcris public feed is missing its games list")
+    out: list[GameLine] = []
+    for game in games:
+        if (not isinstance(game, dict) or game.get("live") is not False
+                or game.get("period_no") != 0 or game.get("parent") is not None):
+            continue
+        start = _public_timestamp(game.get("starts_at"))
+        if start is None:
+            continue
+        # v1 publishes Pacific wall time with a Z suffix. Cross-checked against
+        # ESPN: JMU @ ODU 2026-09-26 15:00 is 22:00 UTC; NFL 10:00 is 17:00 UTC.
+        # Use the zone, not a fixed offset, so winter and UTC day rollover work.
+        kickoff = start.replace(tzinfo=PT).astimezone(timezone.utc)
+        if kickoff <= now:
+            continue
+        home, away = game.get("home"), game.get("visitor")
+        if not isinstance(home, str) or not home.strip() or not isinstance(away, str) or not away.strip():
+            continue
+        gid = f"{sport}:raw:{kickoff:%Y-%m-%dT%H:%M}:{_slug(away)}@{_slug(home)}"
+        markets = game.get("markets")
+        if not isinstance(markets, dict):
+            continue
+        for source_market, target_market, sides in (
+            ("moneyline", "ml", {"home": "home", "visitor": "away"}),
+            ("spread", "spread", {"home": "home", "visitor": "away"}),
+            ("total", "total", {"over": "over", "under": "under"}),
+        ):
+            quotes = markets.get(source_market)
+            if (market is not None and market != target_market) or not isinstance(quotes, dict):
+                continue
+            for source_side, side in sides.items():
+                quote = quotes.get(source_side)
+                if not isinstance(quote, dict) or quote.get("status") != "open":
+                    continue
+                price = _public_number(quote.get("price"))
+                line = _public_number(quote.get("line")) if target_market != "ml" else None
+                if price is None or abs(price) < 100 or not price.is_integer():
+                    continue
+                if target_market != "ml" and line is None:
+                    continue
+                out.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=target_market,
+                                    side=side, line=line, odds=int(price), scraped_at=observed,
+                                    source_id=f"public:{game.get('id')}", run_id=run_id))
     return out

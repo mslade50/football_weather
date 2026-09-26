@@ -6,7 +6,9 @@ Fixtures captured live 2026-08-23 and trimmed to 20 games each
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import copy
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,75 @@ from pipeline.contracts import GameLine
 from pipeline.odds.parsers import betcris as p
 
 FIX = Path(__file__).parent / "fixtures" / "raw" / "betcris"
+
+
+@pytest.fixture
+def public_cfb():
+    return json.loads((FIX / "cfb_public.json").read_text(encoding="utf-8"))
+
+
+PUBLIC_NOW = datetime(2026, 9, 26, 3, 20, tzinfo=timezone.utc)
+
+
+def test_public_cfb_uses_actual_prices_and_pacific_kickoff(public_cfb):
+    lines = p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, run_id="public")
+    jmu = [ln for ln in lines if "james-madison@old-dominion" in ln.game_id]
+    assert len(jmu) == 6
+    # ESPN independently lists 22:00 UTC. This feed's starts_at is Pacific wall
+    # time mislabeled Z (15:00); the legacy viewer also used Pacific time.
+    assert {ln.game_id for ln in jmu} == {"cfb:raw:2026-09-26T22:00:james-madison@old-dominion"}
+    under = next(ln for ln in jmu if ln.side == "under")
+    assert (under.line, under.odds) == (44.5, -107)
+    assert under.scraped_at.isoformat().replace("+00:00", "Z") == public_cfb["feed_fetched_at"]
+    assert under.run_id == "public" and under.book == "betcris"
+    assert {ln.market for ln in p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, market="ml")} == {"ml"}
+
+
+def test_public_nfl_preserves_utc_date_rollover():
+    payload = json.loads((FIX / "nfl_public.json").read_text(encoding="utf-8"))
+    lines = p.parse_public(payload, "nfl", now=PUBLIC_NOW)
+    assert len(lines) == 12  # two full games; excludes half-game and past unavailable rows
+    assert {ln.game_id for ln in lines} == {
+        "nfl:raw:2026-09-27T17:00:seattle-seahawks@washington-commanders",
+        "nfl:raw:2026-09-28T00:20:los-angeles-rams@denver-broncos",
+    }
+
+
+@pytest.mark.parametrize("change", [
+    {"feed_ok": False}, {"version": 2}, {"feed_fetched_at": None}, {"feed_fetched_at": "invalid"},
+    {"feed_fetched_at": "2026-09-25T03:00:00Z"},
+    {"feed_fetched_at": "2026-09-26T04:00:00Z"},
+    {"league": {"id": 108}}, {"games": {}},
+])
+def test_public_rejects_bad_or_stale_feed(public_cfb, change):
+    public_cfb.update(change)
+    with pytest.raises(ValueError):
+        p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW)
+
+
+@pytest.mark.parametrize("change", [{"live": True}, {"period_no": 1}, {"period_no": None},
+                                   {"parent": 123}, {"starts_at": "invalid"}])
+def test_public_skips_live_partial_and_invalid_games(public_cfb, change):
+    game = copy.deepcopy(public_cfb["games"][0])
+    game.update(change)
+    public_cfb["games"] = [game]
+    assert p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW) == []
+
+
+@pytest.mark.parametrize("change", [{"status": "suspended"}, {"status": "unavailable"},
+                                   {"price": None}, {"price": 0}, {"line": "NaN"}])
+def test_public_skips_invalid_quote_without_inventing_opposite_side(public_cfb, change):
+    game = copy.deepcopy(public_cfb["games"][0])
+    game["markets"] = {"total": {"under": {"line": "44.50", "price": -107, "status": "open", **change}}}
+    public_cfb["games"] = [game]
+    assert p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW) == []
+
+
+def test_public_excludes_games_after_kickoff_even_if_live_flag_is_late(public_cfb):
+    kickoff = datetime(2026, 9, 26, 22, tzinfo=timezone.utc)
+    public_cfb["games"] = [g for g in public_cfb["games"] if g["home"] == "Old Dominion"]
+    public_cfb["feed_fetched_at"] = kickoff.isoformat()
+    assert p.parse_public(public_cfb, "cfb", now=kickoff + timedelta(seconds=1)) == []
 
 
 @pytest.fixture(scope="module")
