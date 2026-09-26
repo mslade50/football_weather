@@ -53,10 +53,12 @@ class BetcrisScraper(BaseScraper):
         self.run_id = run_id
         self.season = season
         self.last_games: list[BetcrisGame] = []
+        self.fetch_errors: dict[str, str] = {}
 
     async def fetch_pages(self, sport: str) -> dict[str, str]:
         """{page_slug: html} for every viewer page that feeds ``sport``."""
         pages: dict[str, str] = {}
+        self.fetch_errors.clear()
         async with httpx.AsyncClient(
             base_url=BASE_URL,
             headers=HEADERS,
@@ -83,11 +85,13 @@ class BetcrisScraper(BaseScraper):
             try:
                 resp = await client.get(path)
                 resp.raise_for_status()
+                self.fetch_errors.pop(slug, None)
                 return resp.text
             except Exception as e:  # noqa: BLE001
                 # str(httpx.ReadTimeout) is empty — always name the exception type.
                 logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
                                f"{type(e).__name__}: {e}")
+                self.fetch_errors[slug] = f"{type(e).__name__}: {e}".rstrip(": ")
                 if attempt < FETCH_ATTEMPTS:
                     await asyncio.sleep(FETCH_BACKOFF_S * attempt)
         return None
