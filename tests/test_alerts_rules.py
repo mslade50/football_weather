@@ -216,9 +216,9 @@ def test_best_book_churn_keeps_one_stable_play_identity():
                    _edge(book="betcris", line=40.0, edge_pts=5.4)])
     update = A.followup_candidates(better, alerts, CFG, NOW + timedelta(hours=5))
     assert len(update) == 1 and update[0].family == "move"
-    assert "Best price: Under 38 (−110) · BetOnline → Under 40 (−110) · Betcris" in update[0].text
+    assert "Play price: Under 38 (−110) · BetOnline → Under 40 (−110) · Betcris" in update[0].text
     assert "Line:" not in update[0].text
-    assert "Best price:" in update[0].summary and "BetOnline → Under 40" in update[0].summary
+    assert "Play price:" in update[0].summary and "BetOnline → Under 40" in update[0].summary
 
 
 def test_consensus_entry_synthesised_when_no_under_edge():

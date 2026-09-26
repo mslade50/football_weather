@@ -194,6 +194,11 @@ jobs:
               exit 1
             fi
           done
+      - name: Fetch wind-signal history
+        run: |
+          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote; then
+            echo '::warning::Wind history unavailable; alerts will label it unavailable'
+          fi
       - name: Build board
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
@@ -312,6 +317,11 @@ jobs:
               exit 1
             fi
           done
+      - name: Fetch wind-signal history (playwright)
+        run: |
+          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote; then
+            echo '::warning::Wind history unavailable; alerts will label it unavailable'
+          fi
       - name: Build board (BetOnline)
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}

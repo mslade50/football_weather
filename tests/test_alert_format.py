@@ -39,6 +39,9 @@ def test_edge_message_is_a_compact_scan_first_play():
         "Why:",
         "• Value: +3.4 pts above fair 34.6",
         "• Wind: 18 mph",
+        "Best price: unavailable (no fresh comparison)",
+        "Best exchange: unavailable (no fresh comparison)",
+        "Stadium wind unders: history unavailable",
         "Week open: Under 38 (?) · BetOnline",
         "Kalshi now: unavailable",
         "NoVig now: unavailable",
@@ -114,7 +117,7 @@ def test_edge_message_spread_side_sign():
     lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
     assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
     assert lines[3:6] == ["Why:", "• Value: +1.5 pts above fair −4.5", "• Wind: 18 mph"]
-    assert len(lines) == 10
+    assert len(lines) == 11
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
@@ -198,6 +201,9 @@ def test_update_closed_and_forecast_messages_are_concise():
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Line: Under 38 → 39 · BetOnline −110",
         "Value: +3.4 → +4.4 pts",
+        "Best price: unavailable (no fresh comparison)",
+        "Best exchange: unavailable (no fresh comparison)",
+        "Stadium wind unders: history unavailable",
         "Week open: Under 38 (?) · BetOnline",
         "Kalshi now: unavailable",
         "NoVig now: unavailable",
@@ -223,7 +229,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert wx_lines[2] == "Forecast: fair total 34.6 → 36.1"
     assert wx_lines[3] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
     assert wx_lines[4] == "<b>Play: Under 38 (−110) · BetOnline</b>"
-    assert len(wx_lines) == 9
+    assert len(wx_lines) == 12
 
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
@@ -232,7 +238,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
     assert lines[3] == "<b>Play: Under 38 (−110) · BetOnline</b>"
     assert lines[4:7] == ["Why:", "• Value: +3.4 pts above fair 34.6", "• Wind: 17 mph"]
-    assert len(lines) == 11
+    assert len(lines) == 14
 
 
 def test_openers_and_ops_and_digest_format():

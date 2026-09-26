@@ -100,8 +100,8 @@ function oddsTable(g) {
 function gameInfoTable(g) {
   const st = g.stadium || {}, wx = g.weather || {};
   const rows = [
-    ["Date", esc(g.date_label || fmtET(g.kickoff_utc, { fmt: { hour: undefined, minute: undefined }, tz: false }))],
-    ["Time", `${esc(g.time_label || "")} ET${g.kickoff_local ? ` · local ${esc(String(g.kickoff_local).slice(11, 16))} ${esc(g.tz || "")}` : ""}`],
+    ["Date", esc(fmtET(g.kickoff_utc, { fmt: { hour: undefined, minute: undefined }, tz: false }))],
+    ["Time (Eastern)", esc(fmtET(g.kickoff_utc, { fmt: { month: undefined, day: undefined } }))],
     ["Orientation", isNum(st.orient_deg) ? `${Math.round(Number(st.orient_deg))}° ${esc(st.orient || "")}` : esc(st.orient || "—")],
     ["Wind Impact", esc(st.wind_impact_static || "—")],
     ["Wind_dir", `${esc(wx.wind_dir_1h || "—")} / ${esc(wx.wind_dir_2h || "—")}${isNum(wx.wind_dir_deg) ? ` (${Math.round(Number(wx.wind_dir_deg))}°)` : ""}`],
@@ -126,7 +126,7 @@ function hourlyStrip(g) {
   const hasBand = h.some((p) => isNum(p.p10) && isNum(p.p90));
   const head = `<tr><th></th>${h.map((p) => `<th>${esc(fmtET(p.t, { tz: false, fmt: { month: undefined, day: undefined } }))}</th>`).join("")}</tr>`;
   const line = (k, f) => `<tr><td>${esc(k)}</td>${h.map((p) => `<td>${f(p)}</td>`).join("")}</tr>`;
-  return `<h3>Hourly (kickoff −1h … +4h)${hasBand ? ' <span class="sub">band = ensemble P10–P90</span>' : ""}</h3>`
+  return `<h3>Hourly · ET (kickoff −1h … +4h)${hasBand ? ' <span class="sub">band = ensemble P10–P90</span>' : ""}</h3>`
     + `<div class="chart" id="hourly-chart"></div><span class="chart-note" id="hourly-note"></span>`
     + `<div style="overflow:auto"><table class="kv">${head}`
     + line("Temp", (p) => fmtNum(p.temp, 0))
@@ -356,7 +356,7 @@ function openDrawer(gameId) {
     ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
     : "";
   document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
-    + `<span class="sub">${esc(kickoffLabel(g))} ET · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
+    + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
   const books = BOOKS.filter((b) => (g.odds || {})[b]);
   if (!books.includes(DRAWER.book)) DRAWER.book = "";
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }

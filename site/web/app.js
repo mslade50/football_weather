@@ -121,11 +121,6 @@ function fmtET(s, opts = {}) {
     hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: opts.tz === false ? undefined : "short", ...opts.fmt,
   }).format(d);
 }
-function fmtLocal(s) {
-  const d = parseTs(s);
-  if (!d) return "";
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short" }).format(d);
-}
 // "7/9 4:28p" (ET) for compact hover / history lists
 function fmtShortET(s) {
   const d = parseTs(s);
@@ -134,10 +129,9 @@ function fmtShortET(s) {
     timeZone: "America/New_York", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
   }).format(d).replace(", ", " ").replace(/\s?AM/, "a").replace(/\s?PM/, "p");
 }
-// Kickoff label: prefer pipeline date_label/time_label (ET), else derive from kickoff_utc.
+// Derive from UTC so even older snapshots with venue-local labels display in ET.
 function kickoffLabel(g) {
-  if (g.date_label || g.time_label) return `${g.date_label || ""} ${g.time_label || ""}`.trim();
-  return fmtET(g.kickoff_utc, { tz: false });
+  return fmtET(g.kickoff_utc, { fmt: { weekday: "short" } });
 }
 function gameLabel(g) {
   const a = (g.away && (g.away.short || g.away.name)) || g.away_id || "?";

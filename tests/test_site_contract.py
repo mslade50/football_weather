@@ -57,7 +57,7 @@ def test_index_references_exist() -> None:
             continue
         assert (WEB / urlsplit(ref).path).is_file(), f"index.html references missing file: {ref}"
     for js in JS_FILES:
-        assert f'src="{js}"' in html, f"index.html must load {js}"
+        assert js in [urlsplit(ref).path for ref in refs], f"index.html must load {js}"
     for vendor in ("vendor/maplibre-gl.js", "vendor/maplibre-gl.css", "vendor/uPlot.iife.min.js", "vendor/uPlot.min.css"):
         assert vendor in html
 
@@ -161,7 +161,8 @@ def test_backtest_tab_wiring() -> None:
     /data/backtest.json, reachable from the shell and rendered by app.js."""
     html = (WEB / "index.html").read_text(encoding="utf-8")
     assert 'data-view="backtest"' in html and 'id="backtestwrap"' in html
-    assert html.index('src="alerts.js"') < html.index('src="backtest.js"') < html.index('src="app.js"')
+    scripts = [urlsplit(ref).path for ref in re.findall(r'<script src="([^"]+)"', html)]
+    assert scripts.index("alerts.js") < scripts.index("backtest.js") < scripts.index("app.js")
     bt = (WEB / "backtest.js").read_text(encoding="utf-8")
     assert "data/backtest.json" in bt
     for fn in ("function loadBacktest", "function renderBacktest", "function backtestMatch", "function backtestHover",

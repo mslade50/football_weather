@@ -146,6 +146,27 @@ def test_card_has_every_required_key_and_labels():
     json.dumps(card, allow_nan=False)
 
 
+@pytest.mark.parametrize("stamp,date,time", [
+    ("2026-09-27T17:00:00+00:00", "SUN 09/27", "01:00 PM"),
+    ("2026-09-28T02:00:00+00:00", "SUN 09/27", "10:00 PM"),
+    ("2026-12-06T21:00:00+00:00", "SUN 12/06", "04:00 PM"),
+])
+def test_eastern_display_labels_preserve_venue_local_weather_time(monkeypatch, stamp, date, time):
+    from dataclasses import replace
+
+    original_weather = _card()["weather"]["hourly"]
+    game = _game()
+    utc = datetime.fromisoformat(stamp)
+    local = utc.astimezone(ZoneInfo("America/Los_Angeles"))
+    game = replace(game, kickoff_utc=utc, kickoff_local=local, tz="America/Los_Angeles")
+    monkeypatch.setattr(f"{__name__}._game", lambda: game)
+    out = _card()
+    assert (out["date_label"], out["time_label"]) == (date, time)
+    assert out["kickoff_local"] == local.isoformat()
+    assert out["tz"] == "America/Los_Angeles"
+    assert out["weather"]["hourly"] == original_weather
+
+
 def test_card_odds_block_uses_openers_and_derives_home_line():
     card = _card()
     bo = card["odds"]["betonline"]

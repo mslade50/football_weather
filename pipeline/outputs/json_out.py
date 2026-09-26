@@ -36,7 +36,7 @@ from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
 from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
 from pipeline.model.total_prices import compare_totals
-from utils.timeutil import date_label, time_label, to_tz, utc_iso
+from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
 
 PathLike = Union[str, Path]
 
@@ -452,8 +452,8 @@ def build_card(
         "kickoff_utc": game.kickoff_utc,
         "kickoff_local": kickoff_local.isoformat(),
         "tz": tz,
-        "date_label": date_label(kickoff_local),
-        "time_label": time_label(kickoff_local),
+        "date_label": date_label(to_et(game.kickoff_utc)),
+        "time_label": time_label(to_et(game.kickoff_utc)),
         "home": _team_block(home_team, game.home_id),
         "away": _team_block(away_team, game.away_id),
         "neutral": bool(game.neutral),

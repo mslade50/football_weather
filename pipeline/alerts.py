@@ -14,7 +14,7 @@ Telegram is an action channel, not a mirror of the board:
   above fair. Low/no-value/unpriced games remain on the board.
 * UPDATE: at most one per game/run, prioritised CLOSED → tier change → line
   move → forecast move. Best-book changes update the same parent and are labeled
-  as best-price changes. Betting notifications stop at kickoff.
+  as play-price changes. Betting notifications stop at kickoff.
 * CLOSED: the signal/value/price no longer meets the actionable gate.
 * SYSTEM: disabled by default so Telegram remains an action channel for bets.
   Operators can explicitly opt in with ``TELEGRAM_SYSTEM_ALERTS=1``; issues are
@@ -57,6 +57,7 @@ from typing import Any, Optional
 
 from pipeline import state as pstate
 from pipeline.model import config as model_config
+from pipeline.model.wind_history import stadium_wind_history
 from utils.env import load_repo_dotenv
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
 
@@ -93,8 +94,10 @@ FAMILY_PRIORITY = {"edge": 0, "wx": 1, "move": 2, "gone": 3, "openers": 4, "ops"
 
 BOOK_LABELS = {
     "betonline": "BetOnline", "betcris": "Betcris", "fanduel": "FD", "draftkings": "DK", "kalshi": "Kalshi",
-    "novig": "Novig", "prophetx": "ProphetX", "pinnacle": "Pinnacle", "consensus": "Consensus",
+    "novig": "Novig", "prophetx": "ProphetX", "polymarket_us": "Polymarket US",
+    "pinnacle": "Pinnacle", "consensus": "Consensus",
 }
+PRICE_EXCHANGES = {"novig", "kalshi", "prophetx", "polymarket_us"}
 CENTS_BOOKS = {"kalshi"}   # contract prices in cents
 SPORT_LABEL = {"nfl": "NFL", "cfb": "CFB"}
 MINUS = "−"
@@ -690,6 +693,46 @@ def book_ladder(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
 # ---- formatters --------------------------------------------------------------------------
 
+def _comparison_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
+    rows = []
+    if edge.get("market") == "total":
+        now = now_utc()
+        quotes = []
+        kickoff = _dt(card.get("kickoff_utc"))
+        for q in (card.get("total_prices") or {}).get("quotes", []):
+            updated = _dt(q.get("updated_at"))
+            if (q.get("side") == edge.get("side") and _num(q.get("ev_roi")) is not None
+                    and updated and timedelta(0) <= now - updated <= timedelta(hours=1)
+                    and kickoff and kickoff > now):
+                quotes.append(q)
+        quotes.sort(key=lambda q: (-q["ev_roi"], q["book"]))
+        for label, choices in (("Best price", quotes),
+                               ("Best exchange", [q for q in quotes if q["book"] in PRICE_EXCHANGES])):
+            if not choices:
+                rows.append(f"{label}: unavailable (no fresh comparison)")
+                continue
+            q = choices[0]
+            name = "NoVig" if q["book"] == "novig" else _book_label(q["book"])
+            rows.append(f"{label}: {html.escape(name)} · {str(q['side']).title()} {_fmt_line(q['line'])} "
+                        f"({_fmt_odds(q['odds'])}) · est. EV {_fmt_signed(q['ev_roi'] * 100)}%"
+                        + (" · no +EV" if q["ev_roi"] <= 0 else ""))
+    history = card.get("stadium_wind_history") or {}
+    stamp = _dt(history.get("as_of"))
+    as_of = f" · as of {to_et(stamp):%m/%d/%Y}" if stamp else ""
+    if history.get("status") != "ok":
+        rows.append("Stadium wind unders: history unavailable")
+    elif not history.get("n"):
+        rows.append(f"Stadium wind unders: no graded {html.escape(history['signal'])} games in available history{as_of}")
+    else:
+        seasons = history["seasons"]
+        period = str(seasons[0]) if len(seasons) == 1 else f"{seasons[0]}–{seasons[-1]}"
+        rows.append(f"Stadium wind unders: {history['wins']}-{history['losses']}-{history['pushes']} W-L-P "
+                    f"· n={history['n']} · {period}")
+        venue = html.escape(str((card.get("stadium") or {}).get("name") or "this stadium"))
+        rows.append(f"Basis: {html.escape(history['signal'])} · closing forecasts/totals{as_of} · {venue}")
+    return rows
+
+
 def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
     """Stored weekly baseline and current exchange quotes for the alerted side."""
     market, side = edge.get("market"), edge.get("side")
@@ -744,6 +787,7 @@ def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEF
         *_alert_heading("PLAY", card, "🎯"),
         _brief_bet(card, edge),
         *_why_lines(card, edge),
+        *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
     ]
@@ -770,7 +814,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         }
         old_bet = re.sub(r"</?b>", "", _brief_bet(card, old_edge))
         new_bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
-        change = f"Best price: {old_bet} → {new_bet}"
+        change = f"Play price: {old_bet} → {new_bet}"
     else:
         change = (f"Line: {_side_label(edge, card).title()} {_fmt_line(rec.get('last_line'), signed)} → "
                   f"{_fmt_line(edge.get('line'), signed)} · {_book_label(edge.get('book'))} "
@@ -780,6 +824,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         change,
         (f"Value: {_fmt_signed(rec.get('last_edge'))} → {_fmt_signed(edge.get('edge_pts'))} pts{fair_change}"),
         *_special_driver_lines(card),
+        *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
     ]
@@ -812,6 +857,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
         f"Signal: <b>{html.escape(old)} → {html.escape(new)}</b>",
         _brief_bet(card, edge, label="Play"),
         *_why_lines(card, edge),
+        *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
     ]
@@ -830,6 +876,7 @@ def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, An
         f"Weather: wind {old_w} → {new_w} mph · rain {old_r} → {new_r} mm",
         _brief_bet(card, edge, label="Play"),
         *_special_driver_lines(card),
+        *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
     ]
@@ -1167,7 +1214,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                         }
                         old_bet = re.sub(r"</?b>", "", _brief_bet(card, previous))
                         new_bet = re.sub(r"</?b>", "", _brief_bet(card, e))
-                        move_summary = (f"🔄 {html.escape(_matchup(card))} · Best price: {old_bet} → {new_bet} "
+                        move_summary = (f"🔄 {html.escape(_matchup(card))} · Play price: {old_bet} → {new_bet} "
                                         f"· value {_fmt_signed(pts_now)} pts")
                     else:
                         move_summary = (f"🔄 {html.escape(_matchup(card))} · {_side_label(e, card).title()} "
@@ -1606,6 +1653,9 @@ def run_alerts(
     state_dir = Path(state_dir)
     alerts, source = pstate.load_alerts_rehydrated(state_dir, fetch_rows)
     tg = pstate.load_telegram_state(state_dir)
+    history = _load_backtest(state_dir / "backtest.json")
+    cards_by_sport = {sport: [dict(card, stadium_wind_history=stadium_wind_history(card, history, now=now))
+                             for card in cards] for sport, cards in cards_by_sport.items()}
     cands = collect_candidates(ctx, cards_by_sport, alerts, cfg, now, new_keys_by_sport=new_keys_by_sport,
                                heartbeat_ts=_heartbeat_ts(state_dir), prev_meta_ts=_prev_meta_ts(state_dir))
     live = enabled and not dry_run

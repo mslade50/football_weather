@@ -1,5 +1,5 @@
 "use strict";
-// Header: sport/week label, "Updated HH:MM ET (viewer tz) · next run ~HH:MM", book chips
+// Header: sport/week label, Eastern update / next-run times, book chips
 // from meta.books, degradation banners, run-health statusbar.
 
 function renderHeader(meta) {
@@ -14,8 +14,7 @@ function renderHeader(meta) {
   const upd = document.getElementById("updated");
   if (meta.last_updated) {
     const et = fmtET(meta.last_updated);
-    const local = fmtLocal(meta.last_updated);
-    upd.textContent = `Updated ${et}` + (local && !et.includes(local) ? ` (${local})` : "");
+    upd.textContent = `Updated ${et}`;
     upd.title = `run_id ${meta.run_id || "?"}` + (meta.git_sha ? ` · ${String(meta.git_sha).slice(0, 7)}` : "")
       + (meta.model_version ? ` · model ${meta.model_version}` : "");
   } else {

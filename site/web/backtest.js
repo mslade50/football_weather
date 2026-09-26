@@ -362,7 +362,7 @@ function gamesSectionHtml(rows) {
     const res = isNum(row.total_actual) ? `${fmtTotal(row.total_actual)}${row.under_hit === true ? ' <span class="mv up">U</span>' : row.under_hit === false ? ' <span class="mv dn">O</span>' : ""}` : "—";
     const clv = isNum(row.clv_pts) ? `<span class="mv ${row.clv_pts >= 0 ? "up" : "dn"}">${row.clv_pts >= 0 ? "+" : ""}${Number(row.clv_pts).toFixed(1)}</span>` : "—";
     return `<tr class="bt-game${row.game_id ? " link" : ""}" data-game="${esc(row.game_id || "")}" data-bucket="${row.bucket_id ?? ""}">`
-      + `<td class="left">${esc(row.date_label || (row.kickoff_utc ? fmtShortET(row.kickoff_utc) : "—"))}${row.week != null ? ` <span class="sub">wk ${esc(row.week)}</span>` : ""}</td>`
+      + `<td class="left">${esc(row.kickoff_utc ? fmtShortET(row.kickoff_utc) : row.date_label || "—")}${row.week != null ? ` <span class="sub">wk ${esc(row.week)}</span>` : ""}</td>`
       + `<td class="left">${esc(row.sport.toUpperCase())}</td><td class="left game">${esc(row.away)} @ ${esc(row.home)}</td><td class="left">${esc(row.stadium)}</td>`
       + `<td>${fmtNum(row.wind_fg, 1)} → ${fmtNum(row.wind_actual, 1)}</td><td>${fmtNum(row.temp_fg, 0)} → ${fmtNum(row.temp_actual, 0)}</td>`
       + `<td>${fmtNum(row.rain_fg, 1)}${isNum(row.rain_actual) ? ` → ${fmtNum(row.rain_actual, 1)}` : ""}</td>`

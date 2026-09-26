@@ -116,6 +116,14 @@ def test_r2_state_get_loop_fails_on_non_nosuchkey(text: str, name: str):
     assert "continue-on-error" not in step
 
 
+@pytest.mark.parametrize("name", ["Fetch wind-signal history", "Fetch wind-signal history (playwright)"])
+def test_alert_history_is_read_only_optional_context(text: str, name: str):
+    step = _step(text, name)
+    assert 'r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote' in step
+    assert "::warning::Wind history unavailable" in step
+    assert "r2 object put" not in step
+
+
 @pytest.mark.parametrize("name", ["Push to R2", "Push to R2 (playwright)"])
 def test_r2_put_loop_pushes_meta_last_with_retries(text: str, name: str):
     step = _step(text, name)
