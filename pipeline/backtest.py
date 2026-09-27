@@ -479,13 +479,14 @@ class D1Data:
     stadiums: list[dict[str, Any]] = field(default_factory=list)
     teams: list[dict[str, Any]] = field(default_factory=list)
     weather_history: list[dict[str, Any]] = field(default_factory=list)
+    runs: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def empty(self) -> bool:
         return not (self.games or self.odds_history or self.closings or self.alerts)
 
 
-D1_TABLES = ("games", "odds_history", "closings", "alerts", "stadiums", "teams", "weather_history")
+D1_TABLES = ("games", "odds_history", "closings", "alerts", "stadiums", "teams", "weather_history", "runs")
 
 
 def snapshot_keys(d1: D1Data, limit: int = 120, *, now: Optional[datetime] = None) -> list[str]:
@@ -496,6 +497,7 @@ def snapshot_keys(d1: D1Data, limit: int = 120, *, now: Optional[datetime] = Non
     """
     now = ensure_utc(now or now_utc())
     kicks = {g.get("game_id"): _dt(g.get("kickoff_utc")) for g in d1.games}
+    finished = {r.get("run_id"): _dt(r.get("finished_at")) for r in d1.runs}
     keys, closing = set(), {}
     for row in [*d1.weather_history, *d1.odds_history]:
         gid, run_id = str(row.get("game_id") or ""), str(row.get("run_id") or "")
@@ -506,6 +508,8 @@ def snapshot_keys(d1: D1Data, limit: int = 120, *, now: Optional[datetime] = Non
             ts = datetime.strptime(run_id.split("-", 1)[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
         except ValueError:
             continue
+        # Snapshot meta.last_updated is the run finish, not its filename's start.
+        ts = finished.get(run_id) or ts
         key = f"snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json"
         keys.add(key)
         if kicks.get(gid) and ts < kicks[gid] <= now and (gid not in closing or ts > closing[gid][0]):

@@ -309,9 +309,11 @@ def test_mirror_keeps_older_closing_snapshots_even_when_recent_budget_is_full():
     d1 = bt.D1Data(games=[{"game_id": old, "kickoff_utc": "2025-09-01T18:00:00Z"},
                          {"game_id": new, "kickoff_utc": "2025-09-08T18:00:00Z"}],
                    weather_history=[{"game_id": old, "run_id": "20250901T170000Z-old"},
+                                    {"game_id": old, "run_id": "20250901T175900Z-crossed-kickoff"},
                                     {"game_id": old, "run_id": "20250901T190000Z-post"},
                                     {"game_id": new, "run_id": "20250908T170000Z-new"},
-                                    {"game_id": new, "run_id": "20250908T190000Z-post"}])
+                                    {"game_id": new, "run_id": "20250908T190000Z-post"}],
+                   runs=[{"run_id": "20250901T175900Z-crossed-kickoff", "finished_at": "2025-09-01T18:01:00Z"}])
     keys = bt.snapshot_keys(d1, limit=1, now=KICK)
     assert keys == ["snapshots/nfl/2025/1/20250901T170000Z-old.json",
                     "snapshots/nfl/2025/2/20250908T170000Z-new.json"]

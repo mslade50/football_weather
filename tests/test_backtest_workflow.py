@@ -97,7 +97,7 @@ def test_backtest_state_fetch_is_readonly_and_fails_on_non_nosuchkey(bt: str):
 
 def test_backtest_exports_d1_and_runs_module(bt: str):
     exp = _step(bt, "Export D1 tables")
-    assert "D1_TABLES: games odds_history closings alerts stadiums teams weather_history" in bt
+    assert "D1_TABLES: games odds_history closings alerts stadiums teams weather_history runs" in bt
     # {table}.json in the `d1 execute --json` shape that pipeline.backtest.load_export_dir reads
     assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --json --command "SELECT * FROM $t" > "data/d1_export/$t.json"' in exp
     run = _step(bt, "Run backtest")

@@ -64,7 +64,7 @@ env:
   DIGEST_SPORT: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 13 * * 0' && 'cfb') || (github.event_name == 'schedule' && 'nfl') || inputs.digest_sport || 'all' }}
   # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
   STATE_FILES: alerts closings history wx_history openers
-  D1_TABLES: games odds_history closings alerts stadiums teams weather_history
+  D1_TABLES: games odds_history closings alerts stadiums teams weather_history runs
   # newest snapshot objects mirrored per run (one `wrangler r2 object get` each)
   SNAPSHOT_MAX: "120"
   # Network enrichment is best-effort. Reserve time for publishing the report/artifacts.
