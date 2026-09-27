@@ -40,11 +40,12 @@ function historyRowsHtml(rows, bets) {
     const signal = tier === "Unknown" ? "Unknown" : tier === "No" ? "No signal" : r.signal_label;
     const plays = bets.filter(b => b.game_id === r.game_id);
     const score = isNum(r.away_score) && isNum(r.home_score) ? `${r.away_score}–${r.home_score}` : "Pending";
+    const result = r.under_result || (!isNum(r.total_close) ? "No closing total" : "Pending");
     return `<tr><td class="left">${esc(r.away)} @ ${esc(r.home)}<span class="history-sub">${esc(fmtShortET(r.kickoff_utc))}</span></td>`
       + `<td class="left">${esc(r.stadium)}</td><td>${esc(signal)}${r.signal_at ? `<span class="history-sub">${esc(fmtShortET(r.signal_at))}</span>` : ""}</td>`
       + `<td>${fmtNum(r.wind_fg, 1)}</td><td>${fmtNum(r.wind_actual, 1)}</td><td>${fmtNum(r.temp_fg, 0)}</td>`
       + `<td>${fmtTotal(r.total_open)}</td><td>${fmtTotal(r.total_close)}<span class="history-sub">${esc(bookLabel(r.ref_book || ""))}</span></td>`
-      + `<td>${esc(score)}<span class="history-sub">Total ${fmtTotal(r.total_actual)}</span></td><td>${esc(r.under_result || "Pending")}</td>`
+      + `<td>${esc(score)}<span class="history-sub">Total ${fmtTotal(r.total_actual)}</span></td><td>${esc(result)}</td>`
       + `<td class="left">${plays.length ? plays.map(historicalPlay).join("<br>") : "No recorded play"}</td></tr>`;
   }).join("");
 }
@@ -92,6 +93,6 @@ async function renderHistoricalTable() {
   document.getElementById("historyinfo").innerHTML = `${rows.length} ${rows.length === 1 ? "game" : "games"} · Under at close W–L–P: <b>${historicalRecord(rows)}</b>`
     + ` · Signal: ${historicalRecord(signalRows)} · No signal: ${historicalRecord(noRows)} · Unknown signal: ${rows.filter(r => historicalTier(r) === "Unknown").length}`
     + `<br>Signals are the last saved pregame snapshot; Unknown means no verified snapshot. Wind is mph. Closing-under results are separate from actual alerted plays.`
-    + `<br>Results as of ${esc(data.generated_at ? fmtShortET(data.generated_at) + " ET" : "unavailable")}; updated by the scheduled backtest. Pending means no settled result is available.`;
+    + `<br>Results as of ${esc(data.generated_at ? fmtShortET(data.generated_at) + " ET" : "unavailable")}; updated by the scheduled backtest. Pending means no settled result is available; games without a closing total cannot be graded.`;
   writeHash();
 }
