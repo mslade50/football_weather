@@ -74,7 +74,7 @@ cd site/worker && npx wrangler dev
 
 | Path | Purpose |
 |---|---|
-| `pipeline/build.py` | orchestrator: `python -m pipeline.build --sport nfl|cfb|all --scope full|light|odds|weather` |
+| `pipeline/build.py` | orchestrator: `python -m pipeline.build --sport nfl|cfb|all --scope full|light|odds|weather|exchanges` |
 | `pipeline/contracts.py` | frozen dataclasses: Game, Stadium, Team, WeatherForecast, GameLine, Edge, Degradation, RunMeta |
 | `pipeline/model/` | `config.py` constants, `impact.py` v1/v2, `signals.py`, `fair.py` |
 | `pipeline/odds/` | per-book scrapers (`BaseScraper`) + pure `parsers/` |

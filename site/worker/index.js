@@ -11,7 +11,7 @@ const DATA_PREFIX = "/data/";
 const API_PREFIX = "/api/";
 const AUTH_REALM = "football-board";
 const SPORTS = new Set(["nfl", "cfb", "all"]);
-const SCOPES = new Set(["weather", "light", "full"]);
+const SCOPES = new Set(["weather", "light", "full", "exchanges"]);
 const HISTORY_ROW_CAP = 2000;
 const RUNS_DEFAULT_LIMIT = 20;
 const RUNS_MAX_LIMIT = 100;
@@ -302,7 +302,7 @@ async function refreshRoute(url, request, env, identity) {
   const scope = String(body.scope || url.searchParams.get("scope") || "light");
   const force = body.force === true || url.searchParams.get("force") === "1";
   if (!SPORTS.has(sport) || !SCOPES.has(scope)) {
-    return jsonResponse({ ok: false, error: "sport must be nfl|cfb|all and scope weather|light|full" }, 400);
+    return jsonResponse({ ok: false, error: "sport must be nfl|cfb|all and scope weather|light|full|exchanges" }, 400);
   }
   // Forced refreshes skip the dedup (an active run is usually a ~20s gate-skip);
   // pipeline.yml's concurrency group queues rather than races.

@@ -63,6 +63,17 @@ def test_books_for_scope():
         books_for_scope("full", ["nosuchbook"])
 
 
+def test_exchange_scope_scrapes_only_enabled_exchanges(monkeypatch):
+    exchanges = ["kalshi", "novig", "prophetx", "polymarket_us"]
+    for book in exchanges:
+        monkeypatch.setenv(f"BOOK_{book.upper()}_ENABLED", "1")
+    assert books_for_scope("exchanges") == exchanges
+    assert books_for_scope("exchanges", ["betonline", "fanduel", "novig"]) == ["novig"]
+    monkeypatch.setenv("BOOK_PROPHETX_ENABLED", "0")
+    assert books_for_scope("exchanges") == ["kalshi", "novig", "polymarket_us"]
+    assert build.parse_args(["--scope", "exchanges"]).scope == "exchanges"
+
+
 # ---- gather with return_exceptions -----------------------------------------------
 
 class _Ok:

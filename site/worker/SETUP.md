@@ -197,7 +197,9 @@ GitHub Actions cron is standard `0=Sun`. The unit test
 | `GET /api/runs?limit=20` | viewer | D1 `runs` (limit ≤100) |
 | `GET /api/status` | viewer | D1 `runs` (20) + R2 heartbeat + meta summary |
 | `GET /auth/me` | viewer | `{username, role, can_refresh}` |
-| `POST /refresh {sport, scope, force}` | **admin** | `workflow_dispatch` pipeline.yml (`sport` nfl/cfb/all, `scope` weather/light/full); body must be `content-type: application/json` (CSRF guard, 415 otherwise); skipped when a run is already active unless `force` |
+| `POST /refresh {sport, scope, force}` | **admin** | `workflow_dispatch` pipeline.yml (`sport` nfl/cfb/all, `scope` weather/light/full/exchanges); body must be `content-type: application/json` (CSRF guard, 415 otherwise); skipped when a run is already active unless `force` |
+
+The header's **Refresh lines** button requests `full` for the selected sport (all enabled sportsbook/exchange feeds, including BetOnline). **Refresh exchanges** requests `exchanges` (only enabled Kalshi, NoVig, ProphetX and Polymarket US feeds; no sportsbook scrape or Playwright job). Both use the normal schedule/weather/model rebuild and publish, preserve original timestamps on carried quotes, and reload the page when new data appears. Buttons require an admin login and respect existing provider enable flags. Refresh polling waits up to 20 minutes for queued runs; it does not imply instant prices.
 
 ## 9. Optional: upgrade to Cloudflare Access (email OTP) instead of the password
 

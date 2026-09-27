@@ -6,6 +6,7 @@
 Scopes:
     weather  schedule/stadiums/weather/impact only (Phase 1 behaviour; odds columns NaN)
     light    weather + every httpx book (no Playwright)
+    exchanges weather + enabled exchange books only
     full     light + Playwright books (BetOnline)
     odds     weather + only the books given by ``--books`` (default: all books);
              used by the Playwright CI job to re-write the legacy files with BetOnline lines
@@ -94,7 +95,7 @@ from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 logger = logging.getLogger(__name__)
 
 SPORTS_ALL = ("nfl", "cfb")
-SCOPES = ("weather", "light", "full", "odds")
+SCOPES = ("weather", "light", "full", "odds", "exchanges")
 DEFAULT_OUT_DIR = REPO_ROOT / "data"
 DEFAULT_STATE_DIR = REPO_ROOT / "data" / "state"
 DEFAULT_BOARD_DIR = REPO_ROOT / "data" / "board"
@@ -130,6 +131,7 @@ BOOK_REGISTRY: dict[str, tuple[str, str]] = {
 }
 PLAYWRIGHT_BOOKS = ("betonline",)
 HTTPX_BOOKS = ("pinnacle", "betcris", "fanduel", "kalshi", "novig", "prophetx", "polymarket_us")
+EXCHANGE_BOOKS = ("kalshi", "novig", "prophetx", "polymarket_us")
 BOOK_ORDER = HTTPX_BOOKS + PLAYWRIGHT_BOOKS
 # Golf's SIM_BOOKS: a book at 0 rows while >=2 of these report is "dark", not "no market".
 CRITICAL_BOOKS = frozenset({"pinnacle", "betonline", "betcris", "fanduel"})
@@ -193,6 +195,8 @@ def books_for_scope(scope: str, books: Sequence[str] | None = None) -> list[str]
         return []
     if scope == "light":
         pool: tuple[str, ...] = HTTPX_BOOKS
+    elif scope == "exchanges":
+        pool = EXCHANGE_BOOKS
     else:
         pool = BOOK_ORDER
     if books:

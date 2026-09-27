@@ -56,7 +56,7 @@ on:
           - nfl
           - cfb
       scope:
-        description: 'Build scope: weather (no odds), light (httpx books), full (light + BetOnline via Playwright)'
+        description: 'Build scope: weather, light (API books), full (all books), exchanges (exchange books only)'
         type: choice
         required: false
         default: full
@@ -64,6 +64,7 @@ on:
           - weather
           - light
           - full
+          - exchanges
       force:
         description: 'Bypass the kickoff-horizon gate and the publish content floor'
         type: boolean

@@ -39,7 +39,7 @@ Two jobs: **A `light`** (httpx books + weather + model + edges + alerts + publis
 football_weather/
   pipeline/
     __init__.py
-    build.py                 # orchestrator; CLI --sport nfl|cfb|all --scope full|light|odds|weather --print --no-alerts --dry-run --force
+    build.py                 # orchestrator; CLI --sport nfl|cfb|all --scope full|light|odds|weather|exchanges --print --no-alerts --dry-run --force
     contracts.py             # pydantic frozen models: Game, Stadium, Team, WeatherForecast, OddsQuote(GameLine), Edge, Degradation, RunMeta
     gate_check.py            # httpx-only: prints skip|scrape + need_playwright; fail-open
     run_context.py           # run_id, git_sha, clocks (utc/ET), stage timers

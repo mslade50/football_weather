@@ -58,6 +58,7 @@ def test_dispatch_inputs(text: str):
         assert key in text
     assert "- nfl" in text and "- cfb" in text and "- all" in text
     assert "- weather" in text and "- light" in text and "- full" in text
+    assert "- exchanges" in text
 
 
 def test_concurrency_queues_rather_than_cancels(text: str):

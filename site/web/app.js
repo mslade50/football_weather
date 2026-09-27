@@ -343,8 +343,8 @@ function setupRefresh(auth) {
   document.querySelectorAll("[data-admin-refresh]").forEach((btn) => { btn.hidden = !isAdmin; });
   if (!isAdmin) return;
   const buttons = [
-    { btn: document.getElementById("lightrefreshbtn"), scope: "light", note: "Re-scraping API books… new data in ~1–2 min" },
-    { btn: document.getElementById("refreshbtn"), scope: "full", note: "Full run… new data in ~3–5 min" },
+    { btn: document.getElementById("lightrefreshbtn"), scope: "exchanges", note: "Refreshing exchange lines… the page will reload when new data is published" },
+    { btn: document.getElementById("refreshbtn"), scope: "full", note: "Refreshing all lines… the page will reload when new data is published" },
   ].filter((b) => b.btn);
   const setDisabled = (v) => buttons.forEach(({ btn }) => { btn.disabled = v; });
   buttons.forEach(({ btn, scope, note }) => {
@@ -369,7 +369,7 @@ function setupRefresh(auth) {
 }
 function pollForNewData(baseline, reenable, msg) {
   let tries = 0;
-  const MAX = 28;
+  const MAX = 80; // Up to 20 minutes for queued runs and the full board publish.
   const iv = setInterval(async () => {
     tries++;
     try {
