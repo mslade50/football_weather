@@ -57,6 +57,7 @@ const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
   signal: "", book: "", minEdge: null, showDomes: true, showWatch: true, game: null,
   preset: null,   // Signals preset id (signals.js PRESETS) — filters Table + maps while set
+  tableMode: "live",
 };
 let BOOKS = [];
 let LAST_UPDATED = null;
@@ -213,6 +214,8 @@ function readHash() {
   if (params.get("book")) STATE.book = params.get("book");
   if (params.get("minEdge")) STATE.minEdge = parseFloat(params.get("minEdge"));
   STATE.preset = params.get("preset") || null;
+  STATE.tableMode = params.get("past") === "1" ? "history" : "live";
+  if (typeof readHistoricalHash === "function") readHistoricalHash(params);
 }
 function writeHash() {
   const params = new URLSearchParams();
@@ -223,6 +226,7 @@ function writeHash() {
   if (STATE.book) params.set("book", STATE.book);
   if (STATE.minEdge != null) params.set("minEdge", STATE.minEdge);
   if (STATE.preset) params.set("preset", STATE.preset);
+  if (typeof writeHistoricalHash === "function") writeHistoricalHash(params);
   const next = "#" + params.toString();
   if (location.hash !== next) history.replaceState(null, "", next);
 }
@@ -238,6 +242,12 @@ function render() {
   const view = STATE.view;
   const isMap = view === "map", isAlerts = view === "alerts", isStatus = view === "status", isSignals = view === "signals";
   const isBacktest = view === "backtest";
+  const isHistorical = view === "table" && STATE.tableMode === "history";
+  document.getElementById("tablemodebar").style.display = view === "table" ? "" : "none";
+  document.getElementById("tablemode").value = STATE.tableMode;
+  document.getElementById("historybar").style.display = isHistorical ? "" : "none";
+  document.getElementById("historyinfo").style.display = isHistorical ? "" : "none";
+  document.getElementById("statusbar").style.display = isHistorical ? "none" : "";
   const isGames = !isAlerts && !isStatus && !isBacktest;
   document.getElementById("tablewrap").style.display = isGames && !isMap ? "" : "none";
   document.getElementById("mapwrap").style.display = isMap ? "" : "none";
@@ -247,11 +257,11 @@ function render() {
   if (btWrap) btWrap.style.display = isBacktest ? "" : "none";
   document.getElementById("statuswrap").style.display = isStatus ? "" : "none";
   const ctl = document.querySelector(".controls:not(.alertctl)");
-  if (ctl) ctl.style.display = isGames ? "" : "none";
+  if (ctl) ctl.style.display = isGames && !isHistorical ? "" : "none";
   const pc = document.getElementById("presetchip");
   if (pc) {
     const preset = typeof activePreset === "function" ? activePreset() : null;
-    pc.style.display = preset && !isSignals ? "" : "none";
+    pc.style.display = preset && !isSignals && !isHistorical ? "" : "none";
     if (preset) pc.innerHTML = `<span class="dot" style="background:${FLAG_COLORS[preset.flag] || "#8b949e"}"></span>${esc(preset.label)} ✕`;
   }
   writeHash();
@@ -259,6 +269,7 @@ function render() {
   if (isBacktest) { renderBacktest(); return; }
   if (isStatus) { renderStatus(); return; }
   if (isSignals) { renderSignals(); return; }
+  if (isHistorical) { renderHistoricalTable(); return; }
   const rows = currentGames();
   document.getElementById("rowcount").textContent = rows.length ? `${rows.length} games` : "";
   if (isMap) renderMap(rows); else renderTable(rows);
@@ -434,6 +445,7 @@ async function boot() {
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchView(t.dataset.view, t.dataset.sport)));
   document.getElementById("sport").addEventListener("change", (e) => setSport(e.target.value));
   document.getElementById("week").addEventListener("change", (e) => { STATE.week = e.target.value || null; render(); });
+  document.getElementById("tablemode").addEventListener("change", e => { STATE.tableMode = e.target.value; STATE.sort = null; render(); });
   document.getElementById("signal").addEventListener("change", (e) => { STATE.signal = e.target.value; render(); });
   document.getElementById("book").addEventListener("change", (e) => { STATE.book = e.target.value; render(); });
   document.getElementById("minedge").addEventListener("input", (e) => {

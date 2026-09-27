@@ -47,6 +47,15 @@ GitHub Actions pipeline.yml            Cloudflare
   book / line-history uPlot (fair overlay + alert markers). `site/worker/` is
   the Worker (auth, R2/D1 proxy, cron dispatch) with D1 migrations.
 
+In **Table → Past weeks**, choose a sport, season and week to review saved
+pregame signals, forecast/actual wind, opening/closing totals, scores and
+W–L–P outcomes. The signal is the last archived pregame board signal; missing
+snapshots show **Unknown**, not **No signal**. Under-at-close results and
+actual alerted-play results are separate. Coverage follows the saved game
+archive; the older aggregate stadium records do not imply game-level signal
+history. Results refresh with the Sunday/Tuesday backtest job; **Reload
+results** fetches its latest output without starting a new grading job.
+
 ## Local run
 
 ```

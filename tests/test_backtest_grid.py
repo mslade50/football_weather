@@ -292,6 +292,31 @@ def test_row_from_snapshots_close_and_leads():
     assert bt.finalize_row(r).clv_status == "Positive" and r.under_result is None
 
 
+def test_recorded_signal_uses_last_pregame_card_and_unknown_is_not_no():
+    snaps = _snaps()
+    snaps[0][1]["signal"] = {"label": "High Impact", "level": "High"}
+    snaps[-2][1]["signal"] = {"label": "No", "level": "No"}
+    snaps[-1][1]["signal"] = {"label": "Very High Impact", "level": "Very High"}
+    row = bt.row_from_snapshots("cfb:2026:5:a@b", snaps)
+    assert row.signal_label == "No"
+    assert row.signal_at == "2026-10-03T18:30:00Z"
+    assert bt.row_from_snapshots("cfb:2026:5:a@b", snaps[-1:]).signal_label is None
+    assert bt.row_from_snapshots("cfb:2026:5:a@b", _snaps()).signal_label is None
+
+
+def test_mirror_keeps_older_closing_snapshots_even_when_recent_budget_is_full():
+    old, new = "nfl:2025:1:a@b", "nfl:2025:2:c@d"
+    d1 = bt.D1Data(games=[{"game_id": old, "kickoff_utc": "2025-09-01T18:00:00Z"},
+                         {"game_id": new, "kickoff_utc": "2025-09-08T18:00:00Z"}],
+                   weather_history=[{"game_id": old, "run_id": "20250901T170000Z-old"},
+                                    {"game_id": old, "run_id": "20250901T190000Z-post"},
+                                    {"game_id": new, "run_id": "20250908T170000Z-new"},
+                                    {"game_id": new, "run_id": "20250908T190000Z-post"}])
+    keys = bt.snapshot_keys(d1, limit=1, now=KICK)
+    assert keys == ["snapshots/nfl/2025/1/20250901T170000Z-old.json",
+                    "snapshots/nfl/2025/2/20250908T170000Z-new.json"]
+
+
 def test_build_rows_merges_d1_and_snapshots_and_filters_by_kickoff():
     d1 = bt.D1Data(games=[{"game_id": "cfb:2026:5:a@b", "sport": "cfb", "season": 2026, "week": 5, "kickoff_utc": "2026-10-03T19:30:00Z",
                            "home_id": "b", "away_id": "a", "stadium_id": "s1", "gs_fg": -2.5},

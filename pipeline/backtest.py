@@ -317,6 +317,10 @@ class GameRow:
     src_forecast: Optional[str] = None
     src_actual: Optional[str] = None
     src_result: Optional[str] = None
+    # Saved board signal, never inferred from today's rules or the result.
+    signal_label: Optional[str] = None
+    signal_level: Optional[str] = None
+    signal_at: Optional[str] = None
 
     @property
     def spread_abs(self) -> Optional[float]:
@@ -439,6 +443,13 @@ def row_from_snapshots(game_id: str, snaps: Sequence[tuple[datetime, Mapping[str
         spread_close=_num(cons.get("spread_now")), ref_book=cons.get("ref_book"),
         src_forecast=f"snapshot:{utc_iso(ts_close)}",
     )
+    # The legacy forecast fallback can use a post-kickoff card when no pregame
+    # snapshot exists. That must never become a claimed pregame signal.
+    if kick is not None and ts_close < kick:
+        signal = close.get("signal") or {}
+        r.signal_label = signal.get("label") or signal.get("level")
+        r.signal_level = signal.get("level")
+        r.signal_at = utc_iso(ts_close) if r.signal_label else None
     for n in LEADS:
         target = 24.0 * n
         best: Optional[tuple[float, Mapping[str, Any]]] = None
@@ -475,6 +486,34 @@ class D1Data:
 
 
 D1_TABLES = ("games", "odds_history", "closings", "alerts", "stadiums", "teams", "weather_history")
+
+
+def snapshot_keys(d1: D1Data, limit: int = 120, *, now: Optional[datetime] = None) -> list[str]:
+    """Retain each game's last pregame snapshot before filling with recent runs.
+
+    Closing snapshots are mandatory even if their count exceeds the recent-run
+    budget; otherwise older weeks silently lose their recorded signals.
+    """
+    now = ensure_utc(now or now_utc())
+    kicks = {g.get("game_id"): _dt(g.get("kickoff_utc")) for g in d1.games}
+    keys, closing = set(), {}
+    for row in [*d1.weather_history, *d1.odds_history]:
+        gid, run_id = str(row.get("game_id") or ""), str(row.get("run_id") or "")
+        parts = gid.split(":")
+        if len(parts) != 4 or parts[0] not in {"nfl", "cfb"} or not run_id or "/" in run_id or "\\" in run_id:
+            continue
+        try:
+            ts = datetime.strptime(run_id.split("-", 1)[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        key = f"snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json"
+        keys.add(key)
+        if kicks.get(gid) and ts < kicks[gid] <= now and (gid not in closing or ts > closing[gid][0]):
+            closing[gid] = (ts, key)
+    selected = {key for _, key in closing.values()}
+    newest = sorted(keys - selected, key=lambda k: k.rsplit("/", 1)[1], reverse=True)
+    selected.update(newest[:max(0, limit - len(selected))])
+    return sorted(selected)
 
 
 def load_export_dir(export_dir: PathLike) -> D1Data:

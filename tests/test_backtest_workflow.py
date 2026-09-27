@@ -109,8 +109,8 @@ def test_backtest_exports_d1_and_runs_module(bt: str):
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in run
     mirror = _step(bt, "Mirror snapshots from R2 (wrangler, read-only)")
     # keys rebuilt from the D1 export (game_id + run_id), fetched with the pipeline.yml get loop
-    assert 'snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json' in mirror
-    assert 'for t in ("weather_history", "odds_history"):' in mirror
+    assert 'from pipeline.backtest import load_export_dir, snapshot_keys' in mirror
+    assert 'snapshot_keys(load_export_dir("data/d1_export")' in mirror
     assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/$key" --file="$DEST" --remote 2>&1' in mirror
     assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in mirror
     assert "exit 1" in mirror and "::error::R2 snapshot fetch failed" in mirror

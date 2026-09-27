@@ -24,6 +24,10 @@ header .refreshbtn.fast { border-color: rgba(46,150,90,.55); color: var(--best-t
 header .refreshbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 header .refreshbtn:disabled { opacity: .55; cursor: default; }
 header .refreshmsg { color: var(--muted); font-size: 12px; }
+.history-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 18px; }
+.history-toolbar label { display: flex; align-items: center; gap: 6px; }
+.history-note { padding: 6px 18px 12px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.history-sub { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 
 /* book status chips green/amber/red from meta.books */
 .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; cursor: help;

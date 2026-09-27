@@ -130,27 +130,17 @@ jobs:
         # are rebuilt from the D1 export just made: every (game_id, run_id) in
         # weather_history / odds_history names the snapshot that run wrote (game_id =
         # sport:season:week:away@home, run_id = the snapshot stem). Newest SNAPSHOT_MAX runs
-        # only (one wrangler call per object); older weeks are carried by the D1 tables.
+        # plus each game's last pregame snapshot, so old weeks retain saved signals.
         # Same get loop as pipeline.yml: NoSuchKey -> skipped, ANY other failure -> exit 1.
         run: |
           mkdir -p data/snapshots
           python - <<'PY'
-          import json, os
+          import os
           from pathlib import Path
-          keys = set()
-          for t in ("weather_history", "odds_history"):
-              p = Path("data/d1_export") / f"{t}.json"
-              if not p.is_file():
-                  continue
-              for block in json.loads(p.read_text(encoding="utf-8")) or []:
-                  for row in block.get("results") or []:
-                      gid, run_id = str(row.get("game_id") or ""), str(row.get("run_id") or "")
-                      parts = gid.split(":")
-                      if len(parts) == 4 and run_id:
-                          keys.add(f"snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json")
-          newest = sorted(keys, key=lambda k: k.rsplit("/", 1)[1], reverse=True)[: int(os.environ.get("SNAPSHOT_MAX", "120"))]
-          Path("data/snapshot_keys.txt").write_text("\n".join(newest) + ("\n" if newest else ""), encoding="utf-8")
-          print(f"{len(keys)} snapshot key(s) referenced by D1, mirroring {len(newest)}")
+          from pipeline.backtest import load_export_dir, snapshot_keys
+          keys = snapshot_keys(load_export_dir("data/d1_export"), int(os.environ.get("SNAPSHOT_MAX", "120")))
+          Path("data/snapshot_keys.txt").write_text("\n".join(keys) + ("\n" if keys else ""), encoding="utf-8")
+          print(f"Mirroring {len(keys)} snapshots, including last pregame snapshots for older weeks")
           PY
           n=0
           while read -r key; do
