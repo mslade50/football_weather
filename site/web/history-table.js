@@ -72,7 +72,7 @@ async function renderHistoricalTable() {
   for (const [id, key] of [["history-season", "season"], ["history-week", "week"], ["history-signal", "signal"]]) {
     document.getElementById(id).addEventListener("change", e => { HIST[key] = e.target.value; if (key === "season") HIST.week = null; render(); });
   }
-  document.getElementById("history-sport").addEventListener("change", e => { STATE.sport = e.target.value; HIST.season = HIST.week = null; render(); });
+  document.getElementById("history-sport").addEventListener("change", e => { HIST.season = HIST.week = null; setSport(e.target.value); });
   document.getElementById("history-search").addEventListener("change", e => { HIST.q = e.target.value; render(); });
   document.getElementById("history-reload").addEventListener("click", async e => { e.target.disabled = true; await loadBacktest(true); render(); });
   const rows = historicalGames(data, STATE.sport, HIST.season, HIST.week, HIST.signal, HIST.q);
