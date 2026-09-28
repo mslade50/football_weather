@@ -5,6 +5,44 @@ from pipeline.model.wind_history import stadium_wind_history
 from tests.test_alerts_rules import CFG, NOW, _ctx, _edge, card
 
 
+def test_signal_entry_matches_fresh_roi_best_price_even_with_negative_edge():
+    c = card(signal="Low (Wind)", sport="cfb")
+    c["total_prices"] = {"quotes": [
+        dict(book="novig", side="under", line=46.5, odds=108, ev_roi=-.02, updated_at=NOW.isoformat()),
+        dict(book="betcris", side="under", line=47.5, odds=-125, ev_roi=-.04, updated_at=NOW.isoformat()),
+        dict(book="stale", side="under", line=55, odds=110, ev_roi=.5,
+             updated_at=(NOW - timedelta(hours=2)).isoformat()),
+    ]}
+    c["fair"]["fair_total"] = 48
+    signal = A.edge_candidates(c, {}, CFG, now=NOW)[0]
+    assert (signal.record["last_book"], signal.record["last_line"], signal.record["last_edge"]) == ("novig", 46.5, -1.5)
+    assert "Best price: NoVig · Under 46.5 (+108)" in signal.text
+    assert "Best exchange: NoVig · Under 46.5 (+108)" in signal.text
+
+
+def test_priced_signal_without_model_then_price_outage_stays_active():
+    from tests.test_alerts_rules import _fresh, _live
+
+    c = card(signal="Low (Wind)", sport="cfb")
+    c["total_prices"] = {"quotes": []}
+    c["fair"] = {}
+    c["odds"] = {"novig": {"total": dict(line=49, under=-110, updated_at=NOW.isoformat())}}
+    alerts, tg = _fresh()
+    initial = A.edge_candidates(c, alerts, CFG, now=NOW)
+    assert initial[0].record["last_line"] == 49
+    assert initial[0].record["last_fair"] is None
+    _live(initial, alerts, tg)
+    outage = A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=2))
+    assert len(outage) == 1 and outage[0].family == "wx"
+    assert "weather signal remains active" in outage[0].text
+    assert "NoVig now: unavailable (quote stale or timestamp missing)" in outage[0].text
+    _live(outage, alerts, tg, now=NOW + timedelta(hours=2))
+    assert A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=2, minutes=1)) == []
+    c["odds"]["novig"]["total"]["updated_at"] = (NOW + timedelta(hours=3)).isoformat()
+    returned = A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=3))
+    assert len(returned) == 1 and "Price now available" in returned[0].text
+
+
 def test_best_prices_use_roi_same_side_freshness_and_all_four_exchanges(monkeypatch):
     monkeypatch.setattr(A, "now_utc", lambda: NOW)
     c = card()

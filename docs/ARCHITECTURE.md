@@ -438,23 +438,28 @@ Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minu
 Transport: `utils/telegram.py` `send_message` (HTML). Dedup: `alerts.json` `{sent:{key:ts}}` copied from golf `board/state.py`, ALERTS_CAP 500, mark ONLY after successful send, R2 round-trip, mirrored to D1 `alerts`; rehydrate from D1 if R2 missing. Every sent alert also appended to `alerts_feed.json`.
 
 Families and keys:
-1. **PLAY / EDGE record** `edge|{season}|{week}|{game_id}|total|under|best|{model_version}` — one game-level notification identity independent of the current best book or a v1→v2 model promotion. The default gate is signal tier **Mid or higher**, a real posted book/price, and `edge_pts >= 1.0`; nothing new is sent at or after kickoff. Low, unpriced, consensus-only, and already-priced weather stays visible on the board instead of paging Telegram. `TELEGRAM_MIN_TIER` and `TELEGRAM_MIN_EDGE_PTS` tune the gate. Message:
+1. **SIGNAL / EDGE record** `edge|{season}|{week}|{game_id}|total|under|best|{model_version}` — one game-level notification identity independent of the current best book or a v1→v2 model promotion. The default gate is signal tier **Low or higher**, including CFB Low Wind; nothing new is sent at or after kickoff. Missing prices, missing fair totals, and zero/negative edges never veto weather notifications. `TELEGRAM_MIN_TIER` can raise the weather minimum; `TELEGRAM_MIN_EDGE_PTS` is no longer used. Current total prices use fresh ROI rankings (vig, estimated push probabilities and fair total); without a valid comparison a fresh posted price may be shown with comparison unavailable. Stale or missing quotes are labeled unavailable. Message:
 ```
-🎯 <b>PLAY · MID · NFL W3</b>
+🎯 <b>SIGNAL · MID · NFL W3</b>
 <b>SEA @ NE</b> · Sun 1:00p ET
 <b>Under 38 (−110) · BetOnline</b>
-Why:
-• Value: +3.4 pts above fair 34.6
-• Wind: 18 mph
+Weather: Wind: 18 mph
+Price context: +3.4 pts above estimated fair 34.6
+Best price: BetOnline · Under 38 (−110) · est. EV +4.0%
+Best exchange: unavailable (no fresh comparison)
+Stadium wind unders: history unavailable
+Week open: Under 39 (−110) · BetOnline
+Kalshi now: unavailable
+NoVig now: unavailable
 <a href="...">Details & all prices</a>
 ```
-   Full forecast/model detail and the price ladder remain on the linked board. When CFB's altitude-plus-warmth rule contributes to the signal, its bullet shows the elevation climb and kickoff temperature explicitly.
-2. **UPDATE / CLOSED** on the one open play parent only and only before kickoff. A run emits at most one follow-up per game, in this order: CLOSED (signal below the gate, value below the gate, or no actionable price), signal-tier change/reactivation, line move, forecast move. Line buckets are 1.5 total / 1.0 spread with a 4-hour cooldown; forecast buckets are 2.0 points. A simultaneous signal/fair/line change becomes one UPDATE, not three messages. A material change caused by switching books is labeled `Best price`, not presented as a one-book line move. Legacy book/model-keyed parents are collapsed.
+   Full forecast/model detail and the price ladder remain on the linked board. When CFB's altitude-plus-warmth rule contributes to the signal, its weather line shows the elevation climb and kickoff temperature explicitly.
+2. **UPDATE / CLOSED** on the one unsettled signal parent only and only before kickoff. A run emits at most one follow-up per game, in this order: CLOSED (weather no longer qualifies), signal-tier change/reactivation, quote availability, line move, forecast move. Price changes alone never close a signal. Closed signals can reactivate on the same parent; distinct transitions can notify again without duplicating the original entry. Line buckets are 1.5 total / 1.0 spread with a 4-hour cooldown; forecast buckets are 2.0 points. A simultaneous signal/fair/line change becomes one UPDATE, not three messages. A material change caused by switching books is labeled `Best price`, not presented as a one-book line move. Legacy book/model-keyed parents are collapsed. `first_signal_at`, `first_signal_label`, and `first_signal_{line,odds,book,fair,edge}` in R2 alert state preserve the first observed qualifying snapshot across quiet hours and send retries. The separate frozen `first_sent_at` / `first_line` / `first_odds` remain the actual delivered entry used for bet grading; an unpriced notification is not graded as a bet. Observation metadata is also retained for unsent signals in R2 `first_signals`; D1 recovery preserves delivered entries but cannot reconstruct unsent observations.
 3. **OPENER DIGEST** is off by default (`TELEGRAM_INCLUDE_OPENERS=1` opts in), because a newly posted book and a PLAY for the same game were redundant.
 4. **SYSTEM**: off by default. Provider fallbacks, scrape-volume/data-health warnings, CI failures, and Worker dispatch failures remain visible in board status and service logs without paging Telegram. `TELEGRAM_SYSTEM_ALERTS=1` opts into at most one grouped message: in-run warnings collapse by component and the pipeline workflow has one run-level failure owner rather than per-job duplicates.
 5. **WEEKLY POST-MORTEM** (CFB Sunday, NFL Tuesday, from backtest.yml): one scan-friendly Telegram message with first alerted price/edge, same-book close and CLV, W/L/P and units, plus first forecast → final forecast → actual wind for every play. If Telegram fails or every game cannot fit clearly, SMTP sends the complete report. The dashboard carries full weekly detail and season rollups.
 
-Rate/quiet: at most three individual messages, then one bounded SUMMARY per destination chat (default `TELEGRAM_MAX_PER_RUN=4`); a summary that cannot list every item ends with an explicit `+N more — see board` rather than splitting into more messages. Quiet hours 23:00–07:00 ET queue Mid alerts in `telegram_state.json`; the morning run rebuilds queued messages from the current card, drops resolved or started games, and never sends stale prices. High/Very High, CLOSED, kickoff <3 h, and scrape-volume incidents bypass quiet hours. A deliberately tighter cap defers excess fresh plays to the next run. Optional routing `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` falls back to `TELEGRAM_CHAT_ID`. `--flush` is an explicitly labeled stored-snapshot escape hatch and discards started games; normal morning runs should be preferred. `--no-alerts` and `--dry-run` print instead of sending.
+Rate/quiet: at most three individual messages, then one bounded SUMMARY per destination chat (default `TELEGRAM_MAX_PER_RUN=4`); a summary that cannot list every item ends with an explicit `+N more — see board` rather than splitting into more messages. Quiet hours 23:00–07:00 ET queue Low/Mid alerts in `telegram_state.json`; the morning run rebuilds queued messages from the current card, drops resolved or started games, and never sends stale prices. High/Very High, CLOSED, kickoff <3 h, and scrape-volume incidents bypass quiet hours. A deliberately tighter cap defers excess fresh plays to the next run. Optional routing `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` falls back to `TELEGRAM_CHAT_ID`. `--flush` is an explicitly labeled stored-snapshot escape hatch and discards started games; normal morning runs should be preferred. `--no-alerts` and `--dry-run` print instead of sending.
 
 ## 11. Frontend spec (`site/web/`)
 

@@ -97,8 +97,7 @@ env:
   ALERT_MODEL: ${{ vars.ALERT_MODEL || 'v1' }}
   # Telegram is an action channel. These repo variables can relax/tighten the
   # defaults without a code deploy.
-  TELEGRAM_MIN_TIER: ${{ vars.TELEGRAM_MIN_TIER || 'mid' }}
-  TELEGRAM_MIN_EDGE_PTS: ${{ vars.TELEGRAM_MIN_EDGE_PTS || '1.0' }}
+  TELEGRAM_MIN_TIER: ${{ vars.TELEGRAM_MIN_TIER || 'low' }}
   TELEGRAM_MAX_PER_RUN: ${{ vars.TELEGRAM_MAX_PER_RUN || '4' }}
   TELEGRAM_INCLUDE_OPENERS: ${{ vars.TELEGRAM_INCLUDE_OPENERS || '0' }}
   # SYSTEM paging is deliberately off unless an operator explicitly opts in.
