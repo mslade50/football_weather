@@ -109,3 +109,52 @@ def test_pagination_raw_capture_and_no_silent_truncation(monkeypatch):
     with pytest.raises(ValueError, match="repeated"):
         asyncio.run(scraper.PolymarketUSScraper().scrape("nfl", capture=lambda *args: captures.append(args)))
     assert len(captures) == 2
+
+
+def test_overlapping_pages_keep_new_events_and_latest_quotes(monkeypatch):
+    first = fixture()["events"][0]
+    second = copy.deepcopy(first)
+    second["id"] = "second"
+    updated = copy.deepcopy(second)
+    updated["title"] = "latest snapshot"
+    third = copy.deepcopy(first)
+    third["id"] = "third"
+    pages = [[first, second], [updated, third], [third]]
+    offsets = []
+    def handler(request):
+        offsets.append(int(request.url.params["offset"]))
+        return httpx.Response(200, json={"events": pages[len(offsets)-1]})
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper, "PAGE_SIZE", 2)
+    monkeypatch.setattr(scraper.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
+    received = []
+    monkeypatch.setattr(scraper.parser, "parse", lambda payload, *args, **kw: received.extend(payload["events"]) or [])
+    asyncio.run(scraper.PolymarketUSScraper().scrape("nfl"))
+    assert offsets == [0, 2, 4]
+    assert [e["id"] for e in received] == [first["id"], "second", "third"]
+    assert received[1]["title"] == "latest snapshot"
+
+
+@pytest.mark.parametrize("missing_id", [None, ""])
+def test_pagination_rejects_unidentifiable_events(monkeypatch, missing_id):
+    raw = fixture()
+    raw["events"][0]["id"] = missing_id
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper.httpx, "AsyncClient", lambda **kw: real_client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=raw)), **kw))
+    with pytest.raises(ValueError, match="omitted event IDs"):
+        asyncio.run(scraper.PolymarketUSScraper().scrape("nfl"))
+
+
+def test_pagination_limit_does_not_publish_partial_slate(monkeypatch):
+    def handler(request):
+        raw = fixture()
+        raw["events"][0]["id"] = request.url.params["offset"]
+        return httpx.Response(200, json=raw)
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper, "PAGE_SIZE", 1)
+    monkeypatch.setattr(scraper, "MAX_PAGES", 2)
+    monkeypatch.setattr(scraper.httpx, "AsyncClient", lambda **kw: real_client(
+        transport=httpx.MockTransport(handler), **kw))
+    with pytest.raises(ValueError, match="safety limit"):
+        asyncio.run(scraper.PolymarketUSScraper().scrape("nfl"))

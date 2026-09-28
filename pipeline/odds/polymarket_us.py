@@ -25,7 +25,7 @@ class PolymarketUSScraper(BaseScraper):
             raise ValueError(f"unknown sport {sport}")
         if os.getenv("BOOK_POLYMARKET_US_ENABLED", "1") == "0":
             return []
-        events, seen = [], set()
+        events = {}
         url = f"{BASE_URL}/v2/leagues/{sport}/events"
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for page in range(MAX_PAGES):
@@ -38,13 +38,17 @@ class PolymarketUSScraper(BaseScraper):
                 if not isinstance(batch, list):
                     raise ValueError("Polymarket US response missing events")
                 ids = {e.get("id") for e in batch}
-                if batch and (None in ids or len(ids) != len(batch) or ids & seen):
-                    raise ValueError("Polymarket US pagination repeated or omitted event IDs")
-                seen.update(ids)
-                events.extend(batch)
+                if batch and (None in ids or "" in ids):
+                    raise ValueError("Polymarket US pagination omitted event IDs")
+                new_ids = ids - events.keys()
+                # Live ordering can move games across page boundaries. Keep the
+                # latest copy without rejecting the rest of a valid slate.
+                events.update((e["id"], e) for e in batch)
                 if len(batch) < PAGE_SIZE:
                     break
+                if not new_ids:
+                    raise ValueError("Polymarket US pagination repeated without progress")
             else:
                 raise ValueError("Polymarket US pagination exceeded safety limit")
-        lines = parser.parse({"events": events}, sport, scraped_at=datetime.now(timezone.utc), run_id=run_id)
+        lines = parser.parse({"events": list(events.values())}, sport, scraped_at=datetime.now(timezone.utc), run_id=run_id)
         return [ln for ln in lines if market is None or ln.market == market]
