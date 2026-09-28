@@ -444,7 +444,6 @@ Families and keys:
 <b>SEA @ NE</b> · Sun 1:00p ET
 <b>Under 38 (−110) · BetOnline</b>
 Weather: Wind: 18 mph
-Price context: +3.4 pts above estimated fair 34.6
 Best price: BetOnline · Under 38 (−110) · est. EV +4.0%
 Best exchange: unavailable (no fresh comparison)
 Stadium wind unders: history unavailable

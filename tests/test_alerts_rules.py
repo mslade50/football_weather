@@ -386,7 +386,7 @@ def test_signal_gone_closes_record_and_suppresses_move():
     assert [x.family for x in c] == ["gone"] and c[0].bypass_quiet
     assert c[0].key == f"gone|{EKEY}|1"
     assert "Reason: Signal Mid Impact → No Impact" in c[0].text
-    assert "Was: Under 38 · Now: 35 (+0.4 pts vs fair)" in c[0].text
+    assert "Was: Under 38 · Now: 35" in c[0].text
     out, _, _ = _live(c, alerts, tg)
     assert out.n_sent == 1
     rec = pstate.get_alert_record(alerts, EKEY)
@@ -399,7 +399,7 @@ def test_value_below_one_point_reports_line_move_without_closing():
     alerts = _with_open_edge()
     c = A.followup_candidates(card([_edge(line=35.0, edge_pts=0.4)]), alerts, CFG, NOW)
     assert [x.family for x in c] == ["move"]
-    assert "Value: +3.4 → +0.4 pts" in c[0].text
+    assert "Line: Under 38 → 35" in c[0].text
 
 
 def test_signal_change_key_message_and_no_duplicate():
@@ -463,7 +463,7 @@ def test_forecast_move_bucket_on_fair_line():
     moved = card([_edge(fair_line=36.6, edge_pts=1.4)], wind=13.0, rain=0.0)
     c = A.followup_candidates(moved, alerts, CFG, NOW)
     assert [x.key for x in c] == [f"wx|{EKEY}|1"]
-    assert "Forecast: fair total 34.6 → 36.6" in c[0].text
+    assert "Weather: wind 18 → 13 mph" in c[0].text
     assert "18 → 13 mph" in c[0].text and "0.8 → 0 mm" in c[0].text
     out, _, _ = _live(c, alerts, tg)
     assert out.n_sent == 1

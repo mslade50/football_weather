@@ -37,7 +37,6 @@ def test_edge_message_is_a_compact_scan_first_play():
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "<b>Under 38 (−110) · BetOnline</b>",
         "Weather: Wind: 18 mph",
-        "Price context: +3.4 pts above estimated fair 34.6",
         "Best price: unavailable (no fresh comparison)",
         "Best exchange: unavailable (no fresh comparison)",
         "Stadium wind unders: history unavailable",
@@ -51,24 +50,24 @@ def test_edge_message_is_a_compact_scan_first_play():
     assert "Books:" not in text and "Gillette Stadium" not in text
 
 
-def test_edge_message_keeps_value_honest_and_handles_missing_lines():
+def test_edge_message_omits_fair_estimates_and_handles_missing_lines():
     c = card([_edge(edge_pts=-0.6, edge_prob=-0.012, fair_line=38.6)], signal="Low (Rain)")
     text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
     assert text.splitlines()[0] == "🎯 <b>SIGNAL · LOW · NFL W3</b>"
-    assert "Price context: −0.6 pts above estimated fair 38.6" in text and "Weather: Wind: 18 mph" in text
+    assert "fair" not in text.lower() and "Weather: Wind: 18 mph" in text
     zero = A.format_edge(c, dict(_edge(), edge_pts=0.0, edge_prob=0.0), BOARD)
-    assert "Price context: 0.0 pts above estimated fair 34.6" in zero and "Weather: Wind: 18 mph" in zero
-    # consensus-synthesised entries (consensus.total_now vs fair.fair_total): line + fair, or nothing posted
+    assert "fair" not in zero.lower() and "Weather: Wind: 18 mph" in zero
+    # Internal estimates remain available, but are not displayed in notifications.
     c["fair"]["fair_total"] = 38.6
     cons = A.consensus_entry(c)
     assert cons["edge_pts"] == -1.1 and cons["line"] == 37.5 and cons["fair_line"] == 38.6
     assert "<b>Under · no posted price available</b>" in A.format_edge(c, cons, BOARD)
-    assert "Price context: −1.1 pts above estimated fair 38.6" in A.format_edge(c, cons, BOARD)
+    assert "fair" not in A.format_edge(c, cons, BOARD)
     c["consensus"]["total_now"] = None
     assert "<b>Under · no posted price available</b>" in A.format_edge(c, A.consensus_entry(c), BOARD)
     c["consensus"]["total_now"] = 37.5
     c["fair"]["fair_total"] = None
-    assert "Price context: ? pts above estimated fair ?" in A.format_edge(c, A.consensus_entry(c), BOARD)
+    assert "fair" not in A.format_edge(c, A.consensus_entry(c), BOARD)
 
 
 def test_books_ladder_best_first_kalshi_cents_and_tie_by_odds():
@@ -115,8 +114,8 @@ def test_edge_message_spread_side_sign():
     c["odds"] = {"betonline": {"spread": {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}}}
     lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
     assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
-    assert lines[3:5] == ["Weather: Wind: 18 mph", "Price context: +1.5 pts above estimated fair −4.5"]
-    assert len(lines) == 10
+    assert lines[3] == "Weather: Wind: 18 mph"
+    assert len(lines) == 9
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
@@ -128,7 +127,7 @@ def test_edge_message_escapes_html_and_handles_missing_fields():
     text = A.format_edge(c, dict(_edge(), book="book <x>&"), BOARD)
     assert "<b>A&amp;M &lt;script&gt; @ NE</b>" in text
     assert "Book &lt;X&gt;&amp;" in text
-    assert "Price context: +3.4 pts above estimated fair 34.6" in text and "Weather: Wind: ? mph" in text
+    assert "fair" not in text.lower() and "Weather: Wind: ? mph" in text
     assert "<script" not in text
     assert f"week=3&amp;game={GID}" in text
 
@@ -155,7 +154,7 @@ def test_edge_message_names_cfb_altitude_warmth_mid_trigger():
 
     text = A.format_edge(c, edge, BOARD)
     altitude = "Weather: Altitude + warmth: +3,135 ft climb · 78°F"
-    assert "Price context: +1.0 pts above estimated fair 52.5" in text
+    assert "fair" not in text
     assert altitude in text and "Weather: wind 6.7 mph" not in text
 
     rec = {"last_signal": "Low Impact", "last_line": 52.5, "last_edge": 0.0, "last_fair": 52.5,
@@ -172,7 +171,7 @@ def test_edge_message_uses_active_alert_model_block(monkeypatch):
     c["fair"]["fair_total_v2"] = 33.9
     monkeypatch.setattr(C, "ALERT_MODEL", "v2")
     text = A.format_edge(c, _edge(), BOARD)
-    assert text.splitlines()[3:5] == ["Weather: Wind: 18 mph", "Price context: +3.4 pts above estimated fair 34.6"]
+    assert text.splitlines()[3] == "Weather: Wind: 18 mph"
     c["impact"]["v2"]["components"] = {"rain": 4.0, "wind": 1.0}
     assert A.format_edge(c, _edge(), BOARD).splitlines()[3] == "Weather: Rain: 0.8 mm"
     # openers digest reads the same block
@@ -199,7 +198,6 @@ def test_update_closed_and_forecast_messages_are_concise():
         "🔄 <b>UPDATE · MID · NFL W3</b>",
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Line: Under 38 → 39 · BetOnline −110",
-        "Value: +3.4 → +4.4 pts",
         "Best price: unavailable (no fresh comparison)",
         "Best exchange: unavailable (no fresh comparison)",
         "Stadium wind unders: history unavailable",
@@ -215,20 +213,19 @@ def test_update_closed_and_forecast_messages_are_concise():
         "⛔ <b>CLOSED · NFL W3</b>",
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Reason: Signal High Impact → No Impact",
-        "Was: Under 38 · Now: 35 (+0.4 pts vs fair)",
+        "Was: Under 38 · Now: 35",
         f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
     ]
     neg = A.format_gone(gone_card, rec, dict(gone_card["fair"]["edges"][0], edge_pts=-0.2, edge_prob=None), BOARD)
-    assert "Was: Under 38 · Now: 35 (−0.2 pts vs fair)" in neg
+    assert "Was: Under 38 · Now: 35" in neg
 
     c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=13.0, rain=0.0)
     wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
     wx_lines = wx.splitlines()
     assert wx_lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
-    assert wx_lines[2] == "Forecast: fair total 34.6 → 36.1"
-    assert wx_lines[3] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
-    assert wx_lines[4] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
-    assert len(wx_lines) == 12
+    assert wx_lines[2] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
+    assert wx_lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
+    assert len(wx_lines) == 11
 
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
@@ -236,8 +233,11 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
     assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
     assert lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
-    assert lines[4:6] == ["Weather: Wind: 17 mph", "Price context: +3.4 pts above estimated fair 34.6"]
-    assert len(lines) == 13
+    assert lines[4] == "Weather: Wind: 17 mph"
+    assert len(lines) == 12
+    for message in (move, gone, neg, wx, chg):
+        assert "fair" not in message.lower()
+        assert "Value:" not in message
 
 
 def test_openers_and_ops_and_digest_format():

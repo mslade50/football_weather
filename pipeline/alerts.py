@@ -429,11 +429,8 @@ def _driver_phrase(card: dict[str, Any]) -> str:
     return f"Signal: {flags[0]}" if flags else f"Weather: {_wx_numbers(card)}"
 
 
-def _why_lines(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
-    return [
-        f"Weather: {html.escape(_driver_phrase(card))}",
-        f"Price context: {_fmt_signed(edge.get('edge_pts'))} pts above estimated fair {_fmt_line(edge.get('fair_line'))}",
-    ]
+def _why_lines(card: dict[str, Any]) -> list[str]:
+    return [f"Weather: {html.escape(_driver_phrase(card))}"]
 
 
 def _special_driver_lines(card: dict[str, Any]) -> list[str]:
@@ -803,7 +800,7 @@ def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEF
     lines = [
         *_alert_heading("SIGNAL", card, "🎯"),
         _brief_bet(card, edge),
-        *_why_lines(card, edge),
+        *_why_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
@@ -815,10 +812,6 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
                 board_url: str = DEFAULT_BOARD_URL) -> str:
     market = edge.get("market")
     signed = market == "spread"
-    old_fair, new_fair = _num(rec.get("last_fair")), _num(edge.get("fair_line"))
-    fair_change = ""
-    if old_fair is not None and new_fair is not None and abs(new_fair - old_fair) >= 0.05:
-        fair_change = f" · fair {_fmt_line(old_fair, signed)} → {_fmt_line(new_fair, signed)}"
     old_book = str(rec.get("last_book") or rec.get("book") or "")
     new_book = str(edge.get("book") or "")
     if old_book and new_book and old_book != new_book:
@@ -839,7 +832,6 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
     lines = [
         *_alert_heading("UPDATE", card, "🔄"),
         change,
-        (f"Value: {_fmt_signed(rec.get('last_edge'))} → {_fmt_signed(edge.get('edge_pts'))} pts{fair_change}"),
         *_special_driver_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
@@ -859,7 +851,7 @@ def format_gone(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         *_alert_heading("CLOSED", card, "⛔", tier=""),
         f"Reason: {html.escape(reason)}",
         (f"Was: {_side_label(edge, card).title()} {_fmt_line(rec.get('first_line'), signed)} · "
-         f"Now: {_fmt_line(edge.get('line'), signed)} ({_fmt_signed(edge.get('edge_pts'))} pts vs fair)"),
+         f"Now: {_fmt_line(edge.get('line'), signed)}"),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -873,7 +865,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
         *_alert_heading("UPDATE", card, "🔄"),
         notice or f"Signal: <b>{html.escape(old)} → {html.escape(new)}</b>",
         _brief_bet(card, edge, label="Current price"),
-        *_why_lines(card, edge),
+        *_why_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
         _details_link(board_url, card),
@@ -883,13 +875,10 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
 
 def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
     wx = card.get("weather") or {}
-    market = edge.get("market")
-    signed = market == "spread"
     old_w, new_w = _fmt_line(rec.get("last_wind")), _fmt_line(wx.get("wind_fg"))
     old_r, new_r = _fmt_line(rec.get("last_rain")), _fmt_line(wx.get("rain_fg"))
     lines = [
         *_alert_heading("UPDATE", card, "🔄"),
-        f"Forecast: fair {market} {_fmt_line(rec.get('last_fair'), signed)} → {_fmt_line(edge.get('fair_line'), signed)}",
         f"Weather: wind {old_w} → {new_w} mph · rain {old_r} → {new_r} mm",
         _brief_bet(card, edge, label="Current price"),
         *_special_driver_lines(card),
