@@ -1,5 +1,7 @@
 "use strict";
 
+let executionSearch = "";
+
 function executionGames() {
   return (DATA.games[STATE.sport] || []).filter(g => Date.parse(g.kickoff_utc) > Date.now()
     && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || ""))
@@ -17,17 +19,37 @@ function renderExecution() {
     <p class="sub">Preview only · No orders sent. Choose a game to compare available exchange prices and size.</p>
     <div class="execution-controls execution-picker">
       <label>Sport <select id="execution-sport"><option value="nfl">NFL</option><option value="cfb">CFB</option></select></label>
-      <label>Game <select id="execution-game" class="execution-game-select" ${games.length ? "" : "disabled"}>
-        ${games.length ? games.map(g => `<option value="${esc(g.game_id)}" ${g === game ? "selected" : ""}>${esc(gameLabel(g))} · ${esc(kickoffLabel(g))}</option>`).join("")
-          : '<option value="">No upcoming games</option>'}
-      </select></label>
+      <label>Search games <input id="execution-search" type="search" placeholder="Team name or abbreviation…" autocomplete="off" value="${esc(executionSearch)}" aria-controls="execution-game" aria-describedby="execution-search-status"></label>
+      <label>Game <select id="execution-game" class="execution-game-select"></select></label>
     </div>
+    <p id="execution-search-status" class="sub" role="status"></p>
     ${game ? `<p>${esc(gameLabel(game))} · ${esc(kickoffLabel(game))}</p>${executionPreviewPanel(game)}`
       : '<p class="sub">No upcoming games are available for this sport. Select another sport or refresh lines.</p>'}`;
   const sport = document.getElementById("execution-sport");
   sport.value = STATE.sport;
-  sport.addEventListener("change", () => { STATE.executionGame = null; setSport(sport.value); });
-  document.getElementById("execution-game").addEventListener("change", event => {
+  sport.addEventListener("change", () => { executionSearch = ""; STATE.executionGame = null; setSport(sport.value); });
+  const picker = document.getElementById("execution-game");
+  const search = document.getElementById("execution-search");
+  function filterGames() {
+    executionSearch = search.value;
+    const words = executionSearch.toLowerCase().replaceAll("-", " ").trim().split(/\s+/).filter(Boolean);
+    const matches = games.filter(g => {
+      const names = [g.home?.name, g.home?.short, g.home?.team_id, g.home_id,
+        g.away?.name, g.away?.short, g.away?.team_id, g.away_id].filter(Boolean).join(" ").toLowerCase().replaceAll("-", " ");
+      return words.every(word => names.includes(word));
+    });
+    const selected = matches.some(g => g.game_id === STATE.executionGame);
+    picker.innerHTML = (selected ? "" : `<option value="">${matches.length ? "Select a matching game…" : words.length ? "No matching games" : "No upcoming games"}</option>`)
+      + matches.map(g => `<option value="${esc(g.game_id)}">${esc(gameLabel(g))} · ${esc(kickoffLabel(g))}</option>`).join("");
+    picker.value = selected ? STATE.executionGame : "";
+    picker.disabled = !matches.length;
+    document.getElementById("execution-search-status").textContent = words.length
+      ? `${matches.length} matching game${matches.length === 1 ? "" : "s"}. ${matches.length ? "Select a result to choose your game." : "Try another team name or clear the search."}` : "";
+  }
+  search.addEventListener("input", filterGames);
+  filterGames();
+  picker.addEventListener("change", event => {
+    if (!event.target.value) return;
     STATE.executionGame = event.target.value;
     renderExecution();
   });

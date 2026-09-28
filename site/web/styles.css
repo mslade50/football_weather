@@ -22,6 +22,7 @@
 #executionwrap h2 { margin: 0 0 8px; font-size: 20px; }
 #executionwrap h3 { margin: 0 0 12px; }
 .execution-picker { margin-top: 20px; }
+.execution-picker #execution-search { width: min(260px, calc(100vw - 64px)); }
 .execution-picker .execution-game-select { width: min(600px, calc(100vw - 64px)); }
 #execution-tab { font: inherit; font-weight: 600; }
 .tabs { overflow-x: auto; }
