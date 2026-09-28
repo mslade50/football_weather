@@ -111,11 +111,13 @@ test('Market validation rejects unknown fees, opposite outcomes, other kickoffs 
   await assert.rejects(kalshiDepth(game.execution_markets[0], game, async () => Response.json({}, { headers: { age: '60' } })), /cached/);
 });
 
-test('Preview endpoint requires board auth, validates inputs, uses server mappings and rejects order writes', async () => {
-  const env = { BOARD_PASSWORD: 'viewer', ODDS: { get: async () => ({ json: async () => [game] }) } };
-  const auth = { Authorization: `Basic ${Buffer.from('user:viewer').toString('base64')}` };
+test('Preview endpoint requires admin auth, validates inputs, uses server mappings and rejects order writes', async () => {
+  const env = { BOARD_PASSWORD: 'viewer', BOARD_ADMIN_PASSWORD: 'admin-secret', ODDS: { get: async () => ({ json: async () => [game] }) } };
+  const auth = { Authorization: `Basic ${Buffer.from('mslade:admin-secret').toString('base64')}` };
   const url = `https://board.test/api/execution-preview?game_id=${encodeURIComponent(game.game_id)}&line=57.5&budget=500&max_price=.99`;
   assert.equal((await handleFetch(new Request(url), env)).status, 401);
+  const viewer = { Authorization: `Basic ${Buffer.from('user:viewer').toString('base64')}` };
+  assert.equal((await handleFetch(new Request(url, { headers: viewer }), env)).status, 403);
   assert.equal((await handleFetch(new Request(url, { headers: auth, method: 'POST' }), env)).status, 405);
   for (const bad of ['budget=NaN', 'budget=-500', 'budget=10001', 'line=57', 'max_price=1.1']) {
     const u = new URL(url), [key, value] = bad.split('=');
@@ -132,6 +134,17 @@ test('Preview endpoint requires board auth, validates inputs, uses server mappin
     assert.deepEqual([...new Set(result.allocations.map(a => a.book))], ['kalshi', 'polymarket_us']);
     assert.ok(result.spend <= 500);
   } finally { globalThis.fetch = original; }
+});
+
+test('Execution game picker includes upcoming games regardless of table filters and excludes started games', () => {
+  const ctx = vm.createContext({ Date, STATE: { sport: 'cfb', week: 'other', signal: 'High' },
+    DATA: { games: { cfb: [game, { ...game, game_id: 'live', status: 'live' },
+      { ...game, game_id: 'old', kickoff_utc: '2020-01-01' },
+      { ...game, game_id: 'later', kickoff_utc: '2030-10-03T01:00:00Z' }], nfl: [] } } });
+  vm.runInContext(readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
+  assert.equal(vm.runInContext('JSON.stringify(executionGames().map(g => g.game_id))', ctx), JSON.stringify([game.game_id, 'later']));
+  vm.runInContext('STATE.sport = "nfl"', ctx);
+  assert.equal(vm.runInContext('executionGames().length', ctx), 0);
 });
 
 test('Preview UI defaults to $500, exact totals, escapes venue errors, and has no execution button', () => {

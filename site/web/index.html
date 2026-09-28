@@ -6,7 +6,7 @@
 <title>Football Weather Board</title>
 <link rel="stylesheet" href="vendor/maplibre-gl.css" />
 <link rel="stylesheet" href="vendor/uPlot.min.css" />
-<link rel="stylesheet" href="styles.css?v=history-table-1" />
+<link rel="stylesheet" href="styles.css?v=execution-tab-1" />
 </head>
 <body>
   <header>
@@ -32,6 +32,7 @@
     <div class="tab" data-view="alerts">Alerts</div>
     <div class="tab" data-view="backtest">Backtest</div>
     <div class="tab" data-view="status">Status</div>
+    <button class="tab" data-view="execution" id="execution-tab" type="button" hidden>Execution</button>
   </div>
   <div id="tablemodebar" class="history-toolbar">
     <label>Table view <select id="tablemode"><option value="live">Current games</option><option value="history">Past weeks</option></select></label>
@@ -73,6 +74,7 @@
   <div id="alertswrap" class="view-pane" style="display:none"></div>
   <div id="backtestwrap" class="view-pane" style="display:none"></div>
   <div id="statuswrap" class="view-pane" style="display:none"></div>
+  <div id="executionwrap" class="view-pane" style="display:none"></div>
   <div id="hovercard"></div>
   <aside id="drawer" class="drawer" hidden>
     <div class="drawer-head">
@@ -87,11 +89,11 @@
   <script src="table.js"></script>
   <script src="signals.js"></script>
   <script src="map.js"></script>
-  <script src="execution-preview.js?v=1"></script>
-  <script src="drawer.js?v=execution-preview-1"></script>
+  <script src="execution-preview.js?v=execution-tab-1"></script>
+  <script src="drawer.js?v=execution-tab-1"></script>
   <script src="alerts.js"></script>
   <script src="backtest.js?v=history-table-1"></script>
   <script src="history-table.js?v=history-table-3"></script>
-  <script src="app.js?v=history-table-1"></script>
+  <script src="app.js?v=execution-tab-1"></script>
 </body>
 </html>

@@ -57,8 +57,9 @@ const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
   signal: "", book: "", minEdge: null, showDomes: true, showWatch: true, game: null,
   preset: null,   // Signals preset id (signals.js PRESETS) — filters Table + maps while set
-  tableMode: "live",
+  tableMode: "live", executionGame: null,
 };
+let IS_ADMIN = false;
 let BOOKS = [];
 let LAST_UPDATED = null;
 let HOVER = {};
@@ -215,6 +216,7 @@ function readHash() {
   if (params.get("minEdge")) STATE.minEdge = parseFloat(params.get("minEdge"));
   STATE.preset = params.get("preset") || null;
   STATE.tableMode = params.get("past") === "1" ? "history" : "live";
+  STATE.executionGame = params.get("execution_game") || null;
   if (typeof readHistoricalHash === "function") readHistoricalHash(params);
 }
 function writeHash() {
@@ -222,6 +224,7 @@ function writeHash() {
   params.set("sport", STATE.sport); params.set("view", STATE.view);
   if (STATE.week != null) params.set("week", STATE.week);
   if (STATE.game) params.set("game", STATE.game);
+  if (STATE.executionGame) params.set("execution_game", STATE.executionGame);
   if (STATE.signal) params.set("signal", STATE.signal);
   if (STATE.book) params.set("book", STATE.book);
   if (STATE.minEdge != null) params.set("minEdge", STATE.minEdge);
@@ -233,6 +236,7 @@ function writeHash() {
 
 // ── render dispatch ───────────────────────────────────────────────────────
 function render() {
+  if (STATE.view === "execution" && !IS_ADMIN) STATE.view = "table";
   HOVER = {}; HK = 0;
   document.querySelectorAll(".tab").forEach((t) => {
     const active = t.dataset.view === STATE.view && (t.dataset.view !== "map" || t.dataset.sport === STATE.sport);
@@ -241,14 +245,14 @@ function render() {
   document.getElementById("sport").value = STATE.sport;
   const view = STATE.view;
   const isMap = view === "map", isAlerts = view === "alerts", isStatus = view === "status", isSignals = view === "signals";
-  const isBacktest = view === "backtest";
+  const isBacktest = view === "backtest", isExecution = view === "execution";
   const isHistorical = view === "table" && STATE.tableMode === "history";
   document.getElementById("tablemodebar").style.display = view === "table" ? "" : "none";
   document.getElementById("tablemode").value = STATE.tableMode;
   document.getElementById("historybar").style.display = isHistorical ? "" : "none";
   document.getElementById("historyinfo").style.display = isHistorical ? "" : "none";
-  document.getElementById("statusbar").style.display = isHistorical ? "none" : "";
-  const isGames = !isAlerts && !isStatus && !isBacktest;
+  document.getElementById("statusbar").style.display = isHistorical || isExecution ? "none" : "";
+  const isGames = !isAlerts && !isStatus && !isBacktest && !isExecution;
   document.getElementById("tablewrap").style.display = isGames && !isMap ? "" : "none";
   document.getElementById("mapwrap").style.display = isMap ? "" : "none";
   document.getElementById("signalsbar").style.display = isSignals ? "" : "none";
@@ -256,6 +260,8 @@ function render() {
   const btWrap = document.getElementById("backtestwrap");
   if (btWrap) btWrap.style.display = isBacktest ? "" : "none";
   document.getElementById("statuswrap").style.display = isStatus ? "" : "none";
+  document.getElementById("executionwrap").style.display = isExecution ? "" : "none";
+  if (isExecution) closeDrawer();
   const ctl = document.querySelector(".controls:not(.alertctl)");
   if (ctl) ctl.style.display = isGames && !isHistorical ? "" : "none";
   const pc = document.getElementById("presetchip");
@@ -265,6 +271,7 @@ function render() {
     if (preset) pc.innerHTML = `<span class="dot" style="background:${FLAG_COLORS[preset.flag] || "#8b949e"}"></span>${esc(preset.label)} ✕`;
   }
   writeHash();
+  if (isExecution) { renderExecution(); return; }
   if (isAlerts) { renderAlerts(); return; }
   if (isBacktest) { renderBacktest(); return; }
   if (isStatus) { renderStatus(); return; }
@@ -406,7 +413,7 @@ function startMetaPoll() {
     try {
       const m = await fetchJson("data/meta.json?t=" + Date.now());
       // reload only when a newer run landed and the user isn't reading a drawer
-      if (m && m.last_updated && LAST_UPDATED && m.last_updated !== LAST_UPDATED && document.getElementById("drawer").hidden) {
+      if (m && m.last_updated && LAST_UPDATED && m.last_updated !== LAST_UPDATED && STATE.view !== "execution" && document.getElementById("drawer").hidden) {
         location.reload();
       }
     } catch (_) { /* ignore */ }
@@ -424,6 +431,8 @@ async function boot() {
     fetch(`auth/me${bust}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   DATA.meta = meta || {};
+  IS_ADMIN = auth?.role === "admin";
+  document.getElementById("execution-tab").hidden = !IS_ADMIN;
   DATA.games.nfl = normalizeGames(nfl);
   DATA.games.cfb = normalizeGames(cfb);
   // No sport in the URL and the default sport has no games on the board (NFL before its
@@ -461,7 +470,7 @@ async function boot() {
   window.addEventListener("hashchange", () => {
     const before = STATE.game;
     readHash();
-    if (STATE.game && STATE.game !== before) openDrawer(STATE.game);
+    if (STATE.view !== "execution" && STATE.game && STATE.game !== before) openDrawer(STATE.game);
     render();
   });
 
@@ -471,7 +480,7 @@ async function boot() {
   setupRefresh(auth);
   startMetaPoll();
   render();
-  if (STATE.game) openDrawer(STATE.game);
+  if (STATE.view !== "execution" && STATE.game) openDrawer(STATE.game);
   // warm the alert feed so drawer markers / timelines are ready (Alerts tab reuses the cache)
   if (STATE.view !== "alerts") loadAlerts().catch(() => {});
   // warm the backtest grid so hover Record / ROI is ready; re-render once it lands

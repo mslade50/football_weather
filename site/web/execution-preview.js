@@ -1,5 +1,39 @@
 "use strict";
 
+function executionGames() {
+  return (DATA.games[STATE.sport] || []).filter(g => Date.parse(g.kickoff_utc) > Date.now()
+    && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || ""))
+    .sort((a, b) => Date.parse(a.kickoff_utc) - Date.parse(b.kickoff_utc));
+}
+
+function renderExecution() {
+  const host = document.getElementById("executionwrap");
+  if (!IS_ADMIN) { host.innerHTML = ""; return; }
+  const games = executionGames();
+  const game = games.find(g => g.game_id === STATE.executionGame) || games[0];
+  STATE.executionGame = game?.game_id || null;
+  writeHash();
+  host.innerHTML = `<h2>Execution</h2>
+    <p class="sub">Preview only · No orders sent. Choose a game to compare available exchange prices and size.</p>
+    <div class="execution-controls execution-picker">
+      <label>Sport <select id="execution-sport"><option value="nfl">NFL</option><option value="cfb">CFB</option></select></label>
+      <label>Game <select id="execution-game" class="execution-game-select" ${games.length ? "" : "disabled"}>
+        ${games.length ? games.map(g => `<option value="${esc(g.game_id)}" ${g === game ? "selected" : ""}>${esc(gameLabel(g))} · ${esc(kickoffLabel(g))}</option>`).join("")
+          : '<option value="">No upcoming games</option>'}
+      </select></label>
+    </div>
+    ${game ? `<p>${esc(gameLabel(game))} · ${esc(kickoffLabel(game))}</p>${executionPreviewPanel(game)}`
+      : '<p class="sub">No upcoming games are available for this sport. Select another sport or refresh lines.</p>'}`;
+  const sport = document.getElementById("execution-sport");
+  sport.value = STATE.sport;
+  sport.addEventListener("change", () => { STATE.executionGame = null; setSport(sport.value); });
+  document.getElementById("execution-game").addEventListener("change", event => {
+    STATE.executionGame = event.target.value;
+    renderExecution();
+  });
+  if (game) setupExecutionPreview(game);
+}
+
 function executionPreviewPanel(g) {
   const lines = [...new Set((g.execution_markets || []).map(r => r.line)
     .concat(Object.values(g.odds || {}).map(b => b.total?.line)))]

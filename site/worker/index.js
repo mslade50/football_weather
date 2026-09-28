@@ -401,7 +401,10 @@ export async function handleFetch(request, env) {
 
   if (url.pathname === "/refresh") return refreshRoute(url, request, env, identity);
 
-  if (url.pathname === "/api/execution-preview") return executionPreviewRoute(request, env);
+  if (url.pathname === "/api/execution-preview") {
+    if (identity.role !== "admin") return jsonResponse({ ok: false, error: "Admin access required" }, 403);
+    return executionPreviewRoute(request, env);
+  }
 
   if (url.pathname.startsWith(API_PREFIX)) return apiRoute(url, request, env, identity);
 

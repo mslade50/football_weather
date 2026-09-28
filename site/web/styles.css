@@ -18,6 +18,14 @@
 .execution-result .kv td { white-space: nowrap; }
 .execution-venues { padding-left: 18px; }
 .execution-expired { color: var(--warn); font-weight: 600; }
+#executionwrap { max-width: 1120px; margin: 0 auto; padding: 20px 18px 30px; }
+#executionwrap h2 { margin: 0 0 8px; font-size: 20px; }
+#executionwrap h3 { margin: 0 0 12px; }
+.execution-picker { margin-top: 20px; }
+.execution-picker .execution-game-select { width: min(600px, calc(100vw - 64px)); }
+#execution-tab { font: inherit; font-weight: 600; }
+.tabs { overflow-x: auto; }
+.tab { flex-shrink: 0; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.4 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }

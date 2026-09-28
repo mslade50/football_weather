@@ -464,7 +464,9 @@ Rate/quiet: at most three individual messages, then one bounded SUMMARY per dest
 
 ### Execution preview
 
-The game drawer includes a read-only, on-demand under-total depth preview. The
+The admin-only Execution tab includes a sport/game selector and a read-only,
+on-demand under-total depth preview. Its API also requires admin authentication.
+The game list includes upcoming games independently of table filters. The
 budget ($1–$10,000) includes taker fees; the user chooses an exact half-point
 total and a maximum all-in cost per $1 payout. No orders, account connections,
 fund transfers, or balance queries are implemented. This is a public liquidity

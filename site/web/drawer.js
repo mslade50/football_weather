@@ -368,7 +368,6 @@ function openDrawer(gameId) {
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
     <h3>Total price comparison</h3><div style="overflow:auto">${totalPriceTable(g)}</div>
-    ${executionPreviewPanel(g)}
     <h3>Odds by book (${g.sport === "cfb" ? "totals T−6d; spreads open" : "open"} → now)</h3><div style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>
@@ -382,7 +381,6 @@ function openDrawer(gameId) {
     <div class="chart" id="hist-chart"></div>
     <h3>Alerts</h3><div id="drawer-alerts" class="sub">${(g.alerts || []).length ? "loading…" : "none sent for this game"}</div>`;
   d.hidden = false;
-  setupExecutionPreview(g);
   document.getElementById("hist-market").value = DRAWER.market;
   document.getElementById("hist-book").value = DRAWER.book;
   document.getElementById("hist-market").addEventListener("change", (e) => { DRAWER.market = e.target.value; loadHistory(g); });
