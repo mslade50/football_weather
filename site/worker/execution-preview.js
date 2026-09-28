@@ -71,7 +71,7 @@ async function getJson(url, fetchImpl) {
   const freshUrl = new URL(url);
   freshUrl.searchParams.set("_preview", crypto.randomUUID());
   const response = await fetchImpl(freshUrl.toString(), { method: "GET", headers: { Accept: "application/json", "Cache-Control": "no-cache" },
-    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
+    cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error(`Depth service returned HTTP ${response.status}`);
   if (numeric(response.headers.get("age")) > 5) throw new Error("Exchange returned a cached snapshot");
   return response.json();

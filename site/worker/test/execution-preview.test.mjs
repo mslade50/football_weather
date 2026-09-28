@@ -47,6 +47,19 @@ test('Preview converts opposing bids to under asks and reads current venue fee c
   assert.ok(calls.every(c => c.options.method === 'GET' && !c.options.headers.Authorization));
 });
 
+test('Depth requests use Workers-compatible manual redirects and reject redirect responses', async () => {
+  const fetcher = exchangeFetch();
+  const workerFetch = async (url, options) => {
+    assert.equal(options.redirect, 'manual');
+    return fetcher(url, options);
+  };
+  await kalshiDepth(game.execution_markets[0], game, workerFetch);
+  await assert.rejects(polymarketDepth(game.execution_markets[1], game, async (url, options) => {
+    assert.equal(options.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { location: 'https://other.test/' } });
+  }), /HTTP 302/);
+});
+
 test('Allocation walks fee-inclusive depth across venues without exceeding the budget', () => {
   // A cheaper headline price loses after fees: .49 + .10*.49*.51 = .51499 > .50.
   const result = allocateDepth([
