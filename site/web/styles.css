@@ -7,6 +7,17 @@
   --tier-no: #2ea043; --tier-low-wind: #2f81f7; --tier-low-rain: #d0d7de; --tier-low-temp: #e5484d;
   --tier-mid: #f0883e; --tier-high: #a371f7; --tier-veryhigh: #8b0000;
 }
+.execution-preview { margin: 18px 0; padding: 14px; border: 1px solid var(--accent); border-radius: 8px; }
+.execution-preview h3 { margin-top: 0; }
+.execution-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.execution-controls label { display: flex; flex-direction: column; gap: 5px; }
+.execution-controls input, .execution-controls select { width: 130px; padding: 7px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; }
+.execution-result { margin-top: 12px; }
+.execution-scroll { overflow-x: auto; }
+.execution-result .kv th { text-align: left; white-space: nowrap; }
+.execution-result .kv td { white-space: nowrap; }
+.execution-venues { padding-left: 18px; }
+.execution-expired { color: var(--warn); font-weight: 600; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.4 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }

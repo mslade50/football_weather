@@ -269,6 +269,23 @@ def _opener(openers: dict, key: str) -> dict:
     return pstate.get_opener(openers, key) or {}
 
 
+def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
+    """Retain canonical, exact-line identities for on-demand public depth previews.
+
+    No prices or model estimates here. The Worker revalidates each market and
+    fetches depth before pricing a preview. Integer totals need push support.
+    """
+    markets = {}
+    for ln in lines:
+        if (ln.book not in {"kalshi", "polymarket_us"} or ln.market != "total"
+                or ln.side != "under" or not ln.source_id or ln.line is None
+                or not math.isfinite(ln.line) or ln.line % 1 != 0.5):
+            continue
+        key = (ln.book, ln.source_id, ln.line)
+        markets[key] = {"book": ln.book, "source_id": ln.source_id, "line": ln.line}
+    return [markets[k] for k in sorted(markets)]
+
+
 def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[str, dict[str, Any]]:
     """``{book: {spread, total, ml}}`` from this game's MAIN lines + the openers store."""
     per_book: dict[str, dict[str, dict[str, GameLine]]] = {}
@@ -469,6 +486,7 @@ def build_card(
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
         "total_prices": compare_totals(sport, lines, fair),
+        "execution_markets": execution_markets(lines),
         "alerts": list(alerts),
         "run_id": run_id,
     }

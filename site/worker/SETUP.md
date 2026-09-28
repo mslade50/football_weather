@@ -196,6 +196,7 @@ GitHub Actions cron is standard `0=Sun`. The unit test
 | `GET /api/alerts?sport&season&week` | viewer | D1 `alerts` (≤500) |
 | `GET /api/runs?limit=20` | viewer | D1 `runs` (limit ≤100) |
 | `GET /api/status` | viewer | D1 `runs` (20) + R2 heartbeat + meta summary |
+| `GET /api/execution-preview?game_id&line&budget&max_price` | viewer | Current R2 game identity + live public Kalshi/Polymarket US depth; read-only simulation |
 | `GET /auth/me` | viewer | `{username, role, can_refresh}` |
 | `POST /refresh {sport, scope, force}` | **admin** | `workflow_dispatch` pipeline.yml (`sport` nfl/cfb/all, `scope` weather/light/full/exchanges); body must be `content-type: application/json` (CSRF guard, 415 otherwise); skipped when a run is already active unless `force` |
 

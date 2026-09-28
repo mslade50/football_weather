@@ -64,6 +64,19 @@ def _lines() -> list[GameLine]:
     ]
 
 
+def test_execution_markets_keep_exact_alternate_ids_without_model_prices():
+    from dataclasses import replace
+
+    base = replace(_ln("kalshi", "total", "under", 57.5), source_id="KXNFLTOTAL-26SEP27SEANE-58")
+    rows = [base, replace(base, side="over"), replace(base, line=58.5, source_id="alternate", is_main=False),
+            replace(base, book="polymarket_us", source_id="poly-total-57pt5"),
+            replace(base, line=57), replace(base, source_id=None), replace(base, book="betonline")]
+    result = json_out.execution_markets(rows)
+    assert len(result) == 3
+    assert {r["line"] for r in result} == {57.5, 58.5}
+    assert all(set(r) == {"book", "source_id", "line"} for r in result)
+
+
 def _openers() -> dict:
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "total", "under", 39.0, -110),

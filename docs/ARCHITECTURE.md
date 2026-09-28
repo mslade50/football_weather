@@ -462,6 +462,47 @@ Rate/quiet: at most three individual messages, then one bounded SUMMARY per dest
 
 ## 11. Frontend spec (`site/web/`)
 
+### Execution preview
+
+The game drawer includes a read-only, on-demand under-total depth preview. The
+budget ($1–$10,000) includes taker fees; the user chooses an exact half-point
+total and a maximum all-in cost per $1 payout. No orders, account connections,
+fund transfers, or balance queries are implemented. This is a public liquidity
+simulation, not a trade authorization or a reserved quote.
+
+`GameCard.execution_markets` retains canonical Kalshi and Polymarket US market
+identifiers for main and alternate half-point totals. The Worker resolves IDs
+from the current server-side card, never client-supplied market IDs. It fetches
+live metadata, fee parameters and full depth using GET only, rejects closed or
+unverified contracts, and converts over/YES bids into under/NO asks. A failed
+venue is reported separately. Novig, ProphetX and 4CX remain explicitly
+unavailable until their depth/account integration is verified.
+
+The router walks levels in ascending fee-adjusted unit cost, simulates whole
+contracts, and rounds each level's estimated debit up to cents. It enforces the
+total budget and all-in price ceiling using integer microdollars. Remaining
+funds stay unallocated when depth, limits or contract granularity prevent a
+fill. Fees are estimates, including conservative rounding, with no deferred
+rebates. Kalshi's quadratic taker rate is 0.07 times its live series multiplier;
+Polymarket US supplies its live `feeCoefficient`. Unknown fee models fail
+closed. Snapshots expire 15 seconds after fetching starts; new input invalidates
+the displayed allocation. Identical point totals do not imply identical
+postponement rules: the combined payout assumes a normally completed game and
+the UI exposes venue settlement terms.
+
+References: [Kalshi order book](https://docs.kalshi.com/api-reference/market/get-market-orderbook),
+[Kalshi fee rounding](https://docs.kalshi.com/getting_started/fee_rounding),
+[Polymarket US depth](https://docs.polymarket.us/api-reference/markets/get-market-book),
+[Polymarket US fees](https://docs.polymarket.us/fees).
+
+Before enabling execution, add authenticated adapters and balance/eligibility
+checks, reconcile order and fill state durably (including ambiguous timeouts),
+validate venue contract units and settlement differences, and test in sandbox.
+Any first live order or account funding requires the user's specific approval.
+Novig's `clientId` is not an idempotency key; a blind retry creates another order.
+
+### Existing board views
+
 Vanilla JS, no build step. Copy golf `index.html` CSS shell + `app.js` scaffolding (fetch `data/*.json?bust`, `auth/me`, meta polling → reload, table sort/filter, hover cards). Vendored MapLibre GL JS/CSS + uPlot. Basemap: OpenFreeMap style URL (no key); fallback option Protomaps PMTiles in R2 range-served by Worker.
 
 Views (tabs, URL hash state `#sport=nfl&week=3&view=map&game=...&signal=...&book=...&minEdge=...`): **NFL Map**, **CFB Map**, **Signals** (preset filters replacing combined_signals.py), **Table**, **Alerts**, **Backtest**, **Status**.

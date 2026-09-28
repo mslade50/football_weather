@@ -7,6 +7,8 @@
 // scheduled(): CF cron -> heartbeat to R2, then cron -> {sport, scope} via
 // CRON_PLAN with America/New_York trimming, then dispatch pipeline.yml.
 
+import { executionPreviewRoute } from "./execution-preview.js";
+
 const DATA_PREFIX = "/data/";
 const API_PREFIX = "/api/";
 const AUTH_REALM = "football-board";
@@ -398,6 +400,8 @@ export async function handleFetch(request, env) {
   }
 
   if (url.pathname === "/refresh") return refreshRoute(url, request, env, identity);
+
+  if (url.pathname === "/api/execution-preview") return executionPreviewRoute(request, env);
 
   if (url.pathname.startsWith(API_PREFIX)) return apiRoute(url, request, env, identity);
 
