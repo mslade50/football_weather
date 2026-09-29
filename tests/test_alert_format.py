@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from pipeline import alerts as A
 from pipeline import state as pstate
 from pipeline.model import config as C
@@ -33,7 +35,7 @@ def test_edge_message_is_a_compact_scan_first_play():
     text = A.format_edge(c, _edge(), BOARD)
     lines = text.split("\n")
     assert lines == [
-        "🎯 <b>SIGNAL · MID · NFL W3</b>",
+        "🌬️ <b>SIGNAL · MID · NFL W3</b>",
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "<b>Under 38 (−110) · BetOnline</b>",
         "Weather: Wind: 18 mph",
@@ -54,7 +56,7 @@ def test_edge_message_is_a_compact_scan_first_play():
 def test_edge_message_omits_fair_estimates_and_handles_missing_lines():
     c = card([_edge(edge_pts=-0.6, edge_prob=-0.012, fair_line=38.6)], signal="Low (Rain)")
     text = A.format_edge(c, c["fair"]["edges"][0], BOARD)
-    assert text.splitlines()[0] == "🎯 <b>SIGNAL · LOW · NFL W3</b>"
+    assert text.splitlines()[0] == "🌧️ <b>SIGNAL · LOW · NFL W3</b>"
     assert "fair" not in text.lower() and "Weather: Wind: 18 mph" in text
     zero = A.format_edge(c, dict(_edge(), edge_pts=0.0, edge_prob=0.0), BOARD)
     assert "fair" not in zero.lower() and "Weather: Wind: 18 mph" in zero
@@ -196,7 +198,7 @@ def test_update_closed_and_forecast_messages_are_concise():
            "last_wind": 18.0, "last_rain": 0.8, "last_signal": "High Impact"}
     move = A.format_move(c, rec, e, "away from fair", BOARD)
     assert move.splitlines() == [
-        "🔄 <b>UPDATE · MID · NFL W3</b>",
+        "🌬️ <b>UPDATE · MID · NFL W3</b>",
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Line: Under 38 → 39 · BetOnline −110",
         "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm",
@@ -224,7 +226,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=13.0, rain=0.0)
     wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
     wx_lines = wx.splitlines()
-    assert wx_lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
+    assert wx_lines[0] == "🌬️ <b>UPDATE · MID · NFL W3</b>"
     assert wx_lines[2] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
     assert wx_lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
     assert len(wx_lines) == 12
@@ -232,7 +234,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
     lines = chg.splitlines()
-    assert lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
+    assert lines[0] == "🌬️ <b>UPDATE · MID · NFL W3</b>"
     assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
     assert lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
     assert lines[4] == "Weather: Wind: 17 mph"
@@ -285,7 +287,28 @@ def test_candidate_summary_includes_weather_without_link():
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
     assert "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm" in c.summary and "<a " not in c.summary
     # The summary includes tier, matchup, price, kickoff, and complete weather.
-    assert c.summary == "🎯 MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\nForecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm"
+    assert c.summary == "🌬️ MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\nForecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm"
+
+
+@pytest.mark.parametrize("drivers,expected", [
+    (["rain"], "🌧️"), (["wind"], "🌬️"), (["temperature"], "🌡️"),
+    (["heat"], "🔥"), (["cold"], "🥶"), (["altitude_warmth"], "⛰️ 🔥"),
+    (["rain", "wind", "rain"], "🌧️ 🌬️"),
+])
+def test_signal_trigger_icons_are_consistent_in_alerts_and_open_summaries(drivers, expected):
+    c = card()  # Wind model impact stays largest even for a rain-triggered signal.
+    c["signal"]["drivers"] = drivers
+    assert A.format_edge(c, _edge()).startswith(expected + " <b>SIGNAL")
+    assert A._play_summary(c, _edge()).startswith(expected + " MID")
+    assert A.format_signal_change(c, {"last_signal": "Low Impact"}, _edge()).startswith(expected + " <b>UPDATE")
+    pages = A.open_signal_summaries({"nfl": [c]}, A.Config(), NOW)
+    assert f"1. {expected} MID" in pages[0].text
+
+
+def test_unknown_signal_icon_has_a_neutral_fallback():
+    c = card(signal=None)
+    c["impact"] = {}
+    assert A._emoji_for(c) == "📈"
 
 
 def test_kickoff_label_and_helpers():

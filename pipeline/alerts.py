@@ -451,7 +451,7 @@ def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
     bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
     size = _quote_liquidity(next((q for q in _total_quotes(card, "under")
                                  if q["book"] == edge.get("book") and q["line"] == edge.get("line")), edge))
-    return (f"🎯 {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
+    return (f"{_emoji_for(card)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
             + "".join(f"\n{line}" for line in _liquidity_context(card)))
 
 
@@ -476,11 +476,22 @@ def _components(card: dict[str, Any]) -> dict[str, float]:
 
 
 def _emoji_for(card: dict[str, Any]) -> str:
+    icons = {"wind": "🌬️", "rain": "🌧️", "cold": "🥶", "cold_away": "🥶", "heat": "🔥", "heat_away": "🔥",
+             "temperature": "🌡️", "alt": "⛰️", "altitude_warmth": "⛰️ 🔥"}
+    # Use what triggered the signal, not a larger but non-triggering model component.
+    drivers = (card.get("signal") or {}).get("drivers") or []
+    selected = list(dict.fromkeys(icons[d] for d in drivers if d in icons))
+    if selected:
+        return " ".join(selected)
+    label = (_signal_label(card) or "").lower()
+    for word, driver in (("rain", "rain"), ("wind", "wind"), ("temp", "temperature")):
+        if word in label:
+            return icons[driver]
     comps = _components(card)
     if not comps:
         return "📈"
     top = max(comps, key=lambda k: comps[k])
-    return {"wind": "🌬", "rain": "🌧", "cold": "🥶", "cold_away": "🥶", "heat": "🔥", "heat_away": "🔥", "alt": "⛰"}.get(top, "📈")
+    return icons.get(top, "📈")
 
 
 def _wx_line(card: dict[str, Any]) -> str:
@@ -837,7 +848,7 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
     """Weather notification with optional price/model context, not an instruction to bet."""
     lines = [
-        *_alert_heading("SIGNAL", card, "🎯"),
+        *_alert_heading("SIGNAL", card, _emoji_for(card)),
         _brief_bet(card, edge),
         *_why_lines(card),
         *_comparison_context(card, edge),
@@ -869,7 +880,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
                   f"{_fmt_line(edge.get('line'), signed)} · {_book_label(edge.get('book'))} "
                   f"{_fmt_odds(edge.get('odds'))}")
     lines = [
-        *_alert_heading("UPDATE", card, "🔄"),
+        *_alert_heading("UPDATE", card, _emoji_for(card)),
         change,
         *_special_driver_lines(card),
         *_comparison_context(card, edge),
@@ -901,7 +912,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
     """The weather tier changed; this replaces any same-run market/weather updates."""
     old, new = str(rec.get("last_signal") or "?"), _signal_label(card) or "?"
     lines = [
-        *_alert_heading("UPDATE", card, "🔄"),
+        *_alert_heading("UPDATE", card, _emoji_for(card)),
         notice or f"Signal: <b>{html.escape(old)} → {html.escape(new)}</b>",
         _brief_bet(card, edge, label="Current price"),
         *_why_lines(card),
@@ -917,7 +928,7 @@ def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, An
     old_w, new_w = _fmt_line(rec.get("last_wind")), _fmt_line(wx.get("wind_fg"))
     old_r, new_r = _fmt_line(rec.get("last_rain")), _fmt_line(wx.get("rain_fg"))
     lines = [
-        *_alert_heading("UPDATE", card, "🔄"),
+        *_alert_heading("UPDATE", card, _emoji_for(card)),
         f"Weather: wind {old_w} → {new_w} mph · rain {old_r} → {new_r} mm",
         _brief_bet(card, edge, label="Current price"),
         *_special_driver_lines(card),
@@ -1289,7 +1300,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                     game_id=game_id, tier=slug_now, kickoff_utc=kick,
                     record={**base, "family": "wx", "status": "open", "notification_active": True,
                             "signal_revision": revision},
-                    summary=(f"🔄 {html.escape(_matchup(card))} · {html.escape(str(last_sig))} → "
+                    summary=(f"{_emoji_for(card)} {html.escape(_matchup(card))} · {html.escape(str(last_sig))} → "
                              f"{html.escape(label_now)} · {re.sub(r'</?b>', '', _brief_bet(card, e))}"),
                 ))
                 continue
@@ -1330,10 +1341,10 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                         }
                         old_bet = re.sub(r"</?b>", "", _brief_bet(card, previous))
                         new_bet = re.sub(r"</?b>", "", _brief_bet(card, e))
-                        move_summary = (f"🔄 {html.escape(_matchup(card))} · Play price: {old_bet} → {new_bet} "
+                        move_summary = (f"{_emoji_for(card)} {html.escape(_matchup(card))} · Play price: {old_bet} → {new_bet} "
                                         f"· value {_fmt_signed(pts_now)} pts")
                     else:
-                        move_summary = (f"🔄 {html.escape(_matchup(card))} · {_side_label(e, card).title()} "
+                        move_summary = (f"{_emoji_for(card)} {html.escape(_matchup(card))} · {_side_label(e, card).title()} "
                                         f"{_fmt_line(last_line)} → {_fmt_line(line_now)} · value "
                                         f"{_fmt_signed(pts_now)} pts")
                     out.append(Candidate(
@@ -1359,7 +1370,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                         key, "wx", card.get("sport") or "", format_wx_move(card, rec, e, cfg.board_url),
                         game_id=game_id, tier=slug_now, kickoff_utc=kick,
                         record={**base, "family": "wx", "status": "open", "notification_active": True},
-                        summary=(f"🔄 {html.escape(_matchup(card))} · fair {_fmt_line(last_fair)} → "
+                        summary=(f"{_emoji_for(card)} {html.escape(_matchup(card))} · fair {_fmt_line(last_fair)} → "
                                  f"{_fmt_line(fair_now)} · value {_fmt_signed(pts_now)} pts"),
                     ))
     for candidate in out:
