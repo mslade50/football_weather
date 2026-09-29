@@ -129,6 +129,8 @@ def parse_event(
                     prob_raw=prob,
                     is_main=is_main,
                     source_id=f"{event.get('id')}:{m.get('id')}",
+                    outcome_ids={SIDE_BY_TYPE[x["type"]]: x["id"] for x in m.get("outcomes") or []
+                                 if x.get("type") in {"Over", "Under"} and x.get("id")},
                     scraped_at=scraped_at,
                     run_id=run_id,
                 )

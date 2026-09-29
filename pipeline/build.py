@@ -1315,7 +1315,7 @@ def stage_odds(
                 value["available"] = False
         for ln in main_lines + pseudo:
             last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": utc_iso(ln.scraped_at) if ln.scraped_at else now,
-                            "available": True, "source_id": ln.source_id}
+                            "available": True, "source_id": ln.source_id, "outcome_ids": ln.outcome_ids}
         pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
@@ -1363,7 +1363,7 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
         try:
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
                                 odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at,
-                                source_id=val.get("source_id")))
+                                source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {}))
         except (TypeError, ValueError):
             continue
     return out

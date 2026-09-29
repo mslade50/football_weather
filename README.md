@@ -97,6 +97,18 @@ cd site/worker && npx wrangler dev
 | `tests/fixtures/legacy/` | frozen copies of the old `nfl_weather.csv` / `cfb_weather*.xlsx` (column contract fixtures only) |
 | `.github/workflows/` | `pipeline.yml` (build + publish), `deploy.yml` (Worker), `backtest.yml` |
 
+## Execution preview and liquidity
+
+The admin execution preview and Telegram liquidity ladder read Novig's public
+v3 catalog and order book without a key. A fresh exchange scrape retains the
+typed outcome IDs needed to verify each market; older snapshots must be refreshed.
+Novig contracts pay **1¢**, versus $1 at Kalshi/Polymarket US. The allocation uses
+native contract quantities, per-market fees (no pregame fee for `WHEN_LIVE`),
+and conservative cent rounding per price level. Only half-point full-game totals
+are included; unknown size or identity never counts toward the $500 ladder.
+Novig submission is manual. The preview checklist is temporary, does not save
+or verify fills, and sends no orders. All exchanges remain preview-only.
+
 ## Secrets
 
 Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:

@@ -201,6 +201,8 @@ class GameLine(_AsDict):
     source_id: Optional[str] = None
     scraped_at: Optional[datetime] = None
     run_id: Optional[str] = None
+    # Typed total outcomes retained for public depth; display names are not identities.
+    outcome_ids: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")

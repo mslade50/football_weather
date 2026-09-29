@@ -711,7 +711,8 @@ def _quote_liquidity(quote: dict[str, Any]) -> str:
     if quote.get("book") not in PRICE_EXCHANGES:
         return ""
     if quote.get("liquidity_status") == "verified":
-        return f" · {quote['liquidity_shares']:,} shares / ${quote['liquidity_dollars']:,.2f} available incl. fees"
+        unit = "contracts (1¢ payout each)" if quote.get("book") == "novig" else "shares"
+        return f" · {quote['liquidity_shares']:,} {unit} / ${quote['liquidity_dollars']:,.2f} available incl. fees"
     return " · size unverified (not counted toward $500)"
 
 
@@ -724,13 +725,15 @@ def _liquidity_context(card: dict[str, Any]) -> list[str]:
     stamp = _dt(snapshot.get("checked_at"))
     rows = [f"Exchange depth · {to_et(stamp):%I:%M:%S %p %Z} · $500 budget incl. fees" if stamp else "Exchange depth · $500 budget incl. fees"]
     for i, fill in enumerate(snapshot["allocations"], 1):
+        unit = "contracts" if fill["book"] == "novig" else "shares"
+        manual = " · manual submission in Novig; 1¢ payout per contract" if fill["book"] == "novig" else ""
         p = fill["all_in_price"]
         odds = round(-100 * p / (1 - p) if p >= .5 else 100 * (1 - p) / p)
         rows.append(f"{i}) {_book_label(fill['book'])} U{_fmt_line(fill['line'])} ({_fmt_odds(odds)} all-in): "
-                    f"{fill['available_shares']:,} shares / ${fill['available_dollars']:,.2f} available; "
-                    f"use {fill['quantity']:,} shares / ${fill['spend']:,.2f}")
+                    f"{fill['available_shares']:,} {unit} / ${fill['available_dollars']:,.2f} available; "
+                    f"use {fill['quantity']:,} {unit} / ${fill['spend']:,.2f}{manual}")
     rows.append(f"Verified coverage: ${snapshot['spend']:,.2f} / $500; ${snapshot['unspent']:,.2f} unallocated")
-    rows.append("Ranked by estimated return across listed totals; whole shares. Unverified venues excluded; size can change.")
+    rows.append("Ranked by estimated return across listed totals; whole native contracts. Unverified venues excluded; size can change.")
     return rows
 
 

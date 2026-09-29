@@ -183,6 +183,7 @@ def test_allowlisted_market_responses_preserve_main_and_alternates(sport: str) -
                     assert row.line == (market["strike"] if row.side == "home" else -market["strike"])
                 elif row.market == "total":
                     assert row.line == market["strike"]
+                    assert row.outcome_ids == {o["type"].lower(): o["id"] for o in market["outcomes"]}
                 else:
                     assert row.line is None
     assert json.dumps(payload, sort_keys=True) == before

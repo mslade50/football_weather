@@ -505,7 +505,8 @@ def test_carry_forward_lines_only_for_unscraped_books():
     now = datetime(2026, 9, 25, 21, 45, tzinfo=timezone.utc)
     quoted = now - timedelta(minutes=10)
     last[f"{KC_BUF}|total|under|fanduel"] = {"line": 47.5, "odds": -108, "ts": quoted.isoformat(),
-                                           "available": True, "source_id": "total-market-123"}
+                                           "available": True, "source_id": "total-market-123",
+                                           "outcome_ids": {"under": "u", "over": "o"}}
     last[f"{KC_BUF}|spread|home|betonline"] = {"line": -2.5, "odds": -110, "ts": "t"}   # scraped now: not carried
     last[f"{KC_BUF}|total|under|consensus"] = {"line": 47.5, "odds": -110, "ts": "t"}   # pseudo book: never
     last["nfl:2026:1:den@lv|total|under|fanduel"] = {"line": 40.0, "odds": -110, "ts": "t"}  # inactive game
@@ -515,6 +516,7 @@ def test_carry_forward_lines_only_for_unscraped_books():
     assert [(ln.book, ln.market, ln.side, ln.line, ln.odds, ln.is_main) for ln in got] == [("fanduel", "total", "under", 47.5, -108, True)]
     assert got[0].scraped_at == quoted
     assert got[0].source_id == "total-market-123"
+    assert got[0].outcome_ids == {"under": "u", "over": "o"}
 
 
 @pytest.mark.parametrize("fields", [

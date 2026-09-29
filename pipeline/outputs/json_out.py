@@ -278,12 +278,14 @@ def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
     """
     markets = {}
     for ln in lines:
-        if (ln.book not in {"kalshi", "polymarket_us"} or ln.market != "total"
+        if (ln.book not in {"kalshi", "polymarket_us", "novig"} or ln.market != "total"
                 or ln.side != "under" or not ln.source_id or ln.line is None
                 or not math.isfinite(ln.line) or ln.line % 1 != 0.5):
             continue
         key = (ln.book, ln.source_id, ln.line)
         markets[key] = {"book": ln.book, "source_id": ln.source_id, "line": ln.line}
+        if ln.book == "novig":
+            markets[key]["outcome_ids"] = ln.outcome_ids
     return [markets[k] for k in sorted(markets)]
 
 

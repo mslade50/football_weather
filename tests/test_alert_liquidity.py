@@ -64,6 +64,24 @@ def test_missing_node_or_stale_depth_never_invents_size(monkeypatch):
     assert "alert_liquidity" not in c
 
 
+def test_novig_alert_formats_native_cent_contracts_and_manual_submission(monkeypatch):
+    c = sample()
+    c["total_prices"]["quotes"][0]["book"] = "novig"
+    c["execution_markets"][0]["book"] = "novig"
+    c["odds"] = {"novig": {"total": dict(line=46.5, under=100, updated_at=NOW.isoformat())}}
+    snap = snapshot()
+    snap["quotes"][0].update(book="novig", liquidity_shares=600, contract_value=.01)
+    snap["allocations"][0].update(book="novig", quantity=600, available_shares=600, contract_value=.01)
+    monkeypatch.setattr(L.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=json.dumps({c["game_id"]: snap})))
+    monkeypatch.setattr(L, "now_utc", lambda: NOW)
+    L.enrich_liquidity([c])
+    for text in [A.format_edge(c, A._play_edge(c)), A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text]:
+        assert "600 contracts (1¢ payout each) / $2.40 available incl. fees" in text
+        assert "use 600 contracts / $2.40" in text
+        assert "manual submission in Novig" in text
+        assert "$497.60 unallocated" in text
+
+
 def test_empty_verified_book_cannot_return_through_posted_quote_fallback():
     c = sample()
     c["total_prices"]["quotes"][0]["liquidity_status"] = "empty"

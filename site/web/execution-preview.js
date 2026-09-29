@@ -85,15 +85,26 @@ const executionBookLabel = book => book === "4cx" ? "4CX" : bookLabel(book);
 function executionResultHtml(result) {
   const p = result.average_price;
   const odds = p == null ? "—" : fmtOdds(Math.round(p >= .5 ? -100 * p / (1 - p) : 100 * (1 - p) / p));
-  const rows = result.allocations.map(a => `<tr><td>${esc(bookLabel(a.book))}</td><td>${a.quantity}</td>
+  const rows = result.allocations.map(a => `<tr><td>${esc(bookLabel(a.book))}${a.book === "novig" ? " · manual" : ""}</td><td>${a.quantity.toLocaleString()}${a.book === "novig" ? " (1¢ each)" : " ($1 each)"}</td>
     <td>${executionCents(a.ask)}</td><td>${executionMoney(a.fees)}</td><td>${executionMoney(a.spend)}</td>
     <td>${executionCents(a.all_in_price)}</td></tr>`).join("");
   return `<p><b>${result.allocations.length ? `Under ${result.line} · ${executionMoney(result.spend)} estimated spend · ${odds} effective odds`
     : "No liquidity available within this price limit"}</b></p>
     <p>${executionMoney(result.fees)} fees · ${executionMoney(result.unspent)} unspent · ${executionMoney(result.payout_if_win)} payout if it wins
       (${executionMoney(result.profit_if_win)} profit)</p>
-    <p>Average all-in ${executionCents(p)} · worst all-in ${executionCents(result.worst_price)} · limit ${executionCents(result.max_price)}</p>
-    ${rows ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange</th><th>Contracts</th><th>Ask</th><th>Fees</th><th>Spend</th><th>All-in</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}
+    <p>Per $1 payout: average all-in ${executionCents(p)} · worst all-in ${executionCents(result.worst_price)} · limit ${executionCents(result.max_price)}</p>
+    ${rows ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange</th><th>Contracts</th><th>Ask / $1 payout</th><th>Fees</th><th>Spend</th><th>All-in / $1 payout</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}
+    ${result.allocations.some(a => a.book === "novig") ? `<section aria-label="Novig manual submission">
+      <h3>Novig · submit manually</h3>
+      <p>In <a href="https://novig.com/" target="_blank" rel="noopener noreferrer">Novig</a>, select this game and Under ${result.line}.
+        Check the available price and size again before submitting each allocation:</p>
+      <ul>${result.allocations.filter(a => a.book === "novig").map(a => `<li>${a.quantity.toLocaleString()} contracts
+        (${executionMoney(a.payout_if_win)} payout if it wins) · limit price ${(a.ask * 100).toFixed(1)}%
+        · stake ${executionMoney(a.principal)} · estimated fees ${executionMoney(a.fees)}.</li>`).join("")}</ul>
+      <label class="chk"><input type="checkbox" id="novig-fill-confirmed"> I checked Novig and confirmed all these fills.</label>
+      <p id="novig-fill-status">Pending your confirmation · no order has been sent by this dashboard.</p>
+      <p class="sub">This checklist is local to this preview and resets when you refresh. It does not verify or save fills.</p>
+    </section>` : ""}
     <p class="execution-age">Fetched ${esc(fmtET(result.fetched_at))}. Snapshot expires in 15 seconds; refresh before relying on it.</p>
     <ul class="execution-venues">${result.venues.map(v => `<li><b>${esc(executionBookLabel(v.book))}</b>: ${v.status === "available"
       ? `${v.depth_levels} live price levels` : esc(v.reason || "No available size")}</li>`).join("")}</ul>
@@ -128,6 +139,12 @@ function setupExecutionPreview(g) {
       if (current !== revision || !host.isConnected) return;
       if (!response.ok || !result.ok) throw new Error(result.error || "Preview unavailable");
       host.innerHTML = executionResultHtml(result);
+      const confirmation = host.querySelector("#novig-fill-confirmed");
+      confirmation?.addEventListener("change", () => {
+        host.querySelector("#novig-fill-status").textContent = confirmation.checked
+          ? "Fills reported by you · not verified with the exchange."
+          : "Pending your confirmation · no order has been sent by this dashboard.";
+      });
       const expire = () => {
         if (current !== revision || !host.isConnected) return;
         const note = host.querySelector(".execution-age");

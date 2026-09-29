@@ -77,6 +77,18 @@ def test_execution_markets_keep_exact_alternate_ids_without_model_prices():
     assert all(set(r) == {"book", "source_id", "line"} for r in result)
 
 
+def test_novig_typed_outcomes_survive_schedule_mapping_and_board_export():
+    from dataclasses import replace
+
+    from pipeline.odds.merge import _flip_line, _rekey
+
+    outcomes = {"over": "over-id", "under": "under-id"}
+    row = replace(_ln("novig", "total", "under", 46.5), source_id="event:market", outcome_ids=outcomes)
+    for mapped in (_flip_line(row, GID), _rekey(row, GID)):
+        assert json_out.execution_markets([mapped]) == [
+            {"book": "novig", "source_id": "event:market", "line": 46.5, "outcome_ids": outcomes}]
+
+
 def _openers() -> dict:
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "total", "under", 39.0, -110),

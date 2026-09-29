@@ -13,6 +13,7 @@
 .execution-controls label { display: flex; flex-direction: column; gap: 5px; }
 .execution-controls input, .execution-controls select { width: 130px; padding: 7px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; }
 .execution-result { margin-top: 12px; }
+.execution-result a { color: var(--accent); }
 .execution-scroll { overflow-x: auto; }
 .execution-result .kv th { text-align: left; white-space: nowrap; }
 .execution-result .kv td { white-space: nowrap; }

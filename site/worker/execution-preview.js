@@ -2,6 +2,7 @@
 // submits an order, or reserves funds. Do not reuse a preview as an order ticket.
 const KALSHI = "https://api.elections.kalshi.com/trade-api/v2";
 const POLY = "https://gateway.polymarket.us/v1";
+const NOVIG = "https://api.novig.com/v3/public/catalog";
 const SCALE = 1000000n;
 const CENT = 10000n;
 export const PREVIEW_TTL_MS = 15000;
@@ -22,10 +23,11 @@ const dollars = n => Number(n) / Number(SCALE);
 // Each displayed slice is priced as a separate taker limit order. Round its
 // total debit UP to cents (also conservative for Poly's half-even fee rounding).
 // No speculative weekly rebates. Whole contracts only in this first preview.
-export function sliceCost(price, quantity, coefficient) {
+export function sliceCost(price, quantity, coefficient, contractValue = 1) {
   const p = fixed(price), q = BigInt(quantity), r = fixed(coefficient);
-  const principal = p * q;
-  const fee = ceilDiv(r * p * (SCALE - p) * q, SCALE * SCALE);
+  const value = fixed(contractValue);
+  const principal = ceilDiv(p * q * value, SCALE);
+  const fee = ceilDiv(r * p * (SCALE - p) * q * value, SCALE * SCALE * SCALE);
   const total = ceilDiv(principal + fee, CENT) * CENT;
   return { total, principal, fee: total - principal };
 }
@@ -33,35 +35,38 @@ export function sliceCost(price, quantity, coefficient) {
 export function allocateDepth(venues, budget, maxPrice) {
   let remaining = fixed(budget);
   const limit = fixed(maxPrice);
-  const slices = venues.flatMap(v => v.levels.map(l => ({ ...l, book: v.book, coefficient: v.coefficient })))
+  const slices = venues.flatMap(v => v.levels.map(l => ({ ...l, book: v.book, coefficient: v.coefficient,
+    contract_value: v.contract_value ?? 1 })))
     .sort((a, b) => (a.price + a.coefficient * a.price * (1 - a.price))
       - (b.price + b.coefficient * b.price * (1 - b.price)) || a.book.localeCompare(b.book));
   const allocations = [];
-  let principal = 0n, fees = 0n, quantity = 0;
+  let principal = 0n, fees = 0n, payout = 0n;
   for (const level of slices) {
     let lo = 0, hi = Math.floor(level.quantity);
     // A level above the all-in ceiling cannot become eligible by increasing size.
     if (level.price + level.coefficient * level.price * (1 - level.price) > maxPrice) continue;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      if (sliceCost(level.price, mid, level.coefficient).total <= remaining) lo = mid;
+      if (sliceCost(level.price, mid, level.coefficient, level.contract_value).total <= remaining) lo = mid;
       else hi = mid - 1;
     }
     if (!lo) continue;
-    const cost = sliceCost(level.price, lo, level.coefficient);
-    if (cost.total > limit * BigInt(lo)) continue;
+    const cost = sliceCost(level.price, lo, level.coefficient, level.contract_value);
+    const levelPayout = fixed(level.contract_value) * BigInt(lo);
+    if (cost.total * SCALE > limit * levelPayout) continue;
     remaining -= cost.total;
     principal += cost.principal;
     fees += cost.fee;
-    quantity += lo;
+    payout += levelPayout;
     allocations.push({ book: level.book, quantity: lo, ask: level.price,
+      contract_value: level.contract_value, payout_if_win: dollars(levelPayout),
       principal: dollars(cost.principal), fees: dollars(cost.fee), spend: dollars(cost.total),
-      all_in_price: dollars(cost.total) / lo });
+      all_in_price: dollars(cost.total) / dollars(levelPayout) });
   }
   const spend = dollars(principal + fees);
   return { allocations, spend, principal: dollars(principal), fees: dollars(fees),
-    unspent: dollars(remaining), payout_if_win: quantity, profit_if_win: quantity - spend,
-    average_price: quantity ? spend / quantity : null,
+    unspent: dollars(remaining), payout_if_win: dollars(payout), profit_if_win: dollars(payout) - spend,
+    average_price: payout ? spend / dollars(payout) : null,
     worst_price: allocations.length ? Math.max(...allocations.map(a => a.all_in_price)) : null };
 }
 
@@ -77,7 +82,7 @@ async function getJson(url, fetchImpl) {
   return response.json();
 }
 
-function depth(rows, priceOf, quantityOf) {
+function depth(rows, priceOf, quantityOf, maxQuantity = 1000000) {
   if (!Array.isArray(rows)) throw new Error("Order-book depth missing");
   const levels = new Map();
   for (const row of rows) {
@@ -88,7 +93,7 @@ function depth(rows, priceOf, quantityOf) {
     const key = Math.round(price * 1000000);
     levels.set(key, (levels.get(key) || 0) + quantity);
   }
-  return [...levels].map(([p, q]) => ({ price: p / 1000000, quantity: Math.min(1000000, Math.floor(q)) }))
+  return [...levels].map(([p, q]) => ({ price: p / 1000000, quantity: Math.min(maxQuantity, Math.floor(q)) }))
     .filter(l => l.quantity > 0).sort((a, b) => a.price - b.price);
 }
 
@@ -144,20 +149,61 @@ export async function polymarketDepth(ref, game, fetchImpl = fetch) {
     rules: m.description, rules_url: "https://docs.polymarket.us/markets/market-rules" };
 }
 
+// https://docs.novig.com/api/concepts/money: a contract pays ONE CENT.
+// Side identities come from the scraper's typed outcomes, never array position
+// or public display names. A half-point TOTAL has no normal-game push.
+export async function novigDepth(ref, game, fetchImpl = fetch) {
+  const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+  if (!new RegExp(`^${uuid}:${uuid}$`, 'i').test(ref.source_id)
+      || !new RegExp(`^${uuid}$`, 'i').test(ref.outcome_ids?.over)
+      || !new RegExp(`^${uuid}$`, 'i').test(ref.outcome_ids?.under)
+      || ref.outcome_ids.over === ref.outcome_ids.under)
+    throw new Error('Novig outcome mapping unavailable; refresh exchange lines');
+  const [eventId, marketId] = ref.source_id.split(':');
+  const [event, market, book] = await Promise.all([
+    getJson(`${NOVIG}/events/${eventId}`, fetchImpl),
+    getJson(`${NOVIG}/markets/${marketId}`, fetchImpl),
+    getJson(`${NOVIG}/markets/${marketId}/book`, fetchImpl),
+  ]);
+  const outcomes = market.outcomes;
+  if (event.eventId !== eventId || event.sport !== 'FOOTBALL'
+      || event.league !== ({ nfl: 'NFL', cfb: 'NCAAF' })[game.sport] || event.status !== 'OPEN_PREGAME'
+      || event.startsTs !== Date.parse(game.kickoff_utc) || event.startsTs <= Date.now()
+      || market.eventId !== eventId || market.marketId !== marketId || market.startsTs !== event.startsTs
+      || market.status !== 'OPEN' || market.marketType !== 'TOTAL' || numeric(market.strike) !== ref.line
+      || ref.line % 1 !== .5 || !['FMV', 'PUSH'].includes(market.voids)
+      || !Array.isArray(outcomes) || outcomes.length !== 2
+      || !Object.values(ref.outcome_ids).every(id => outcomes.some(o => o.outcomeId === id && o.status === 'TBD'))
+      || book.marketId !== marketId || !Number.isSafeInteger(book.seq) || book.seq < 0
+      || !book.orders || Object.keys(book.orders).some(id => !outcomes.some(o => o.outcomeId === id)))
+    throw new Error('Novig market is closed or its total/settlement could not be verified');
+  const rate = numeric(market.fee?.coefficient), charged = market.fee?.charged;
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1 || !['WHEN_LIVE', 'ALWAYS'].includes(charged))
+    throw new Error('Current taker fees unavailable');
+  return { book: 'novig', source_id: ref.source_id, contract_value: .01,
+    coefficient: charged === 'WHEN_LIVE' ? 0 : rate, submission: 'manual',
+    levels: depth(book.orders[ref.outcome_ids.over] ?? [], r => 1 - numeric(r.price),
+      r => Number.isSafeInteger(r.qty) && r.qty > 0 ? r.qty : NaN, 100000000),
+    rules: `Full-game total. Each contract pays $0.01 if it wins. Void settlement: ${market.voids === 'FMV'
+      ? 'fair market value, not a guaranteed refund' : 'refund at fill cost'}. Pregame taker fee schedule: ${charged}.`,
+    rules_url: 'https://docs.novig.com/api/concepts/event-lifecycle' };
+}
+
+export const DEPTH_ADAPTERS = { kalshi: kalshiDepth, polymarket_us: polymarketDepth, novig: novigDepth };
+
 export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = fetch, now = Date.now()) {
   const started = Date.now();
   if (!(Date.parse(game.kickoff_utc) > now) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || ""))
     throw new Error("Pre-game previews only; this game has started or is unavailable");
   const refs = (game.execution_markets || []).filter(r => r.line === line);
   const results = await Promise.all(BOOKS.map(async book => {
-    const reason = { novig: "Trading API depth not connected; public board quotes have no verified size",
-      prophetx: "Production API access not connected", "4cx": "Account and depth access not connected" }[book];
+    const reason = { prophetx: "Depth adapter not connected", "4cx": "Account and depth access not connected" }[book];
     if (reason) return { book, status: "unavailable", reason };
     const matches = refs.filter(r => r.book === book);
     if (matches.length !== 1) return { book, status: "unavailable", reason: matches.length
       ? "Ambiguous market mapping" : "No mapped market at this exact total; refresh exchange lines if needed" };
     try {
-      const v = await (book === "kalshi" ? kalshiDepth : polymarketDepth)(matches[0], game, fetchImpl);
+      const v = await DEPTH_ADAPTERS[book](matches[0], game, fetchImpl);
       return { ...v, status: v.levels.length ? "available" : "empty", fetched_at: new Date().toISOString() };
     } catch (error) {
       return { book, status: "unavailable", reason: error.name === "TimeoutError"
@@ -175,7 +221,8 @@ export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = 
     venues: results.map(({ levels, ...v }) => ({ ...v, depth_levels: levels?.length || 0 })),
     notes: ["Public liquidity simulation; account balances and trading eligibility are not checked. No orders are sent.",
       "Same full-game total only. Payout assumes a normally completed game; postponement and cancellation rules differ by exchange.",
-      "Whole contracts, taker fees rounded up to cents per price level; excludes delayed rebates. Prices are not reserved."] };
+      "Whole native contracts: Novig pays 1¢ each; Kalshi and Polymarket US pay $1 each. Estimated debits rounded up to cents per price level; excludes delayed rebates. Prices are not reserved.",
+      "Novig allocations require manual submission in Novig. A preview is not an order or a confirmed fill."] };
 }
 
 export async function executionPreviewRoute(request, env) {
