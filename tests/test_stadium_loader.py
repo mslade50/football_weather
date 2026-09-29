@@ -133,13 +133,37 @@ def test_dome_zeroes_wind_avg_and_marks_roof(book: StadiumBook) -> None:
     assert rg.roof_state == "dome"
     assert rg.wind_avg == 0.0
     g2 = _game("nfl", "det", "no", "DET00", roof_state="closed")
-    assert book.resolve(g2).roof_state == "closed"  # nflverse per-game roof wins
+    assert book.resolve(g2).roof_state == "dome"  # fixed construction wins
 
 
-def test_retractable_roof_state_left_to_weather(book: StadiumBook) -> None:
+def test_retractable_roof_state_remains_unknown(book: StadiumBook) -> None:
     rg = book.resolve(_game("nfl", "dal", "was", "DAL00"))
     assert rg.stadium is not None and rg.stadium.roof_type == "retractable"
     assert rg.roof_state is None
+
+
+def test_all_nfl_and_college_covered_home_venues(book: StadiumBook) -> None:
+    nfl_domes = {"det", "la", "lac", "lv", "min", "no"}
+    nfl_retractable = {"ari", "atl", "dal", "hou", "ind"}
+    for team in book.teams_for("nfl"):
+        expected = "dome" if team.team_id in nfl_domes else "retractable" if team.team_id in nfl_retractable else "open"
+        assert book.stadium_for_team("nfl", team.team_id).roof_type == expected
+    for team in ("syracuse", "unlv", "ut-san-antonio", "idaho", "idaho-state", "north-dakota",
+                 "north-dakota-state", "northern-arizona", "northern-iowa", "south-dakota", "northern-michigan"):
+        assert book.stadium_for_team("cfb", team).roof_type == "dome", team
+    # The college Minnesota stadium really is outdoors; don't classify by city/team name.
+    assert book.stadium_for_team("cfb", "minnesota").roof_type == "open"
+
+
+def test_venue_aliases_and_neutral_roofs(book: StadiumBook) -> None:
+    assert book.find_stadium("Tottenham Hotspur Stadium").stadium_id == "tottenham-hotspur-stadium"
+    assert book.find_stadium("JMA Wireless Dome").stadium_id == "carrier-dome"
+    assert book.find_stadium("ICCU Dome").stadium_id == "holt-arena"
+    g = _game("cfb", "texas", "oklahoma", "att-stadium", neutral=True)
+    assert book.resolve(g).roof_state is None
+    assert book.resolve(_game("cfb", "texas", "oklahoma", "att-stadium", neutral=True, roof_state="open")).roof_state == "open"
+    assert book.resolve(_game("nfl", "min", "no", "us-bank-stadium", roof_state="outdoors")).roof_state == "dome"
+    assert book.resolve(_game("nfl", "jax", "no", "melbourne-cricket-ground", roof_state="dome")).roof_state == "outdoors"
 
 
 def test_neutral_game_penalises_larger_altitude_side(book: StadiumBook) -> None:

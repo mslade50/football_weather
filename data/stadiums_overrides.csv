@@ -1,4 +1,8 @@
 stadium_id,field,value,note
+superior-dome,roof_type,dome,NMU indoor football venue https://nmuwildcats.com/sports/2021/8/16/information-superior-dome.aspx
+everbank-stadium,aliases,TIAA Bank Field|TIAA Bank Stadium,Tottenham is a separate London venue; never resolve its name to Jacksonville
+carrier-dome,aliases,JMA Wireless Dome|JMA Dome,Current Syracuse venue names; retain the stable stadium ID
+holt-arena,aliases,ICCU Dome,Current Idaho State venue name; retain the stable stadium ID
 melbourne-cricket-ground,roof_type,open,nflverse lists dome; MCG is open-air
 sofi-stadium,roof_type,dome,"fixed translucent roof, open sides; legacy avg_wind=0"
 estadio-banorte,elevation_m,2200,Mexico City altitude drives alt component

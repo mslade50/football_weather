@@ -49,6 +49,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from pipeline.contracts import Degradation, WeatherForecast, WeatherPoint
+from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.ensemble import EnsembleLocation
@@ -81,11 +82,6 @@ FIELDS = ("temp", "wind", "gust", "dir", "precip", "pop")
 ENS_PRECIP_THRESHOLD_MM = 0.1
 MIN_ENSEMBLE_MEMBERS = 10
 NORMAL_P10_Z = 1.2815515655446004
-
-# Retractable-roof heuristic (ARCH §6): closed if any of these hold, else open.
-ROOF_CLOSE_TEMP_F = 40.0
-ROOF_CLOSE_POP = 0.6
-ROOF_CLOSE_WIND_MPH = 20.0
 
 COMPASS_16 = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -410,23 +406,11 @@ def roof_state_for(
     precip_prob: Optional[float],
     wind_fg: Optional[float],
 ) -> Optional[str]:
-    """Schedule-provided roof_state (nflverse) wins; else derive from the stadium's
-    roof_type, with the retractable heuristic (closed if cold / wet / windy)."""
-    if roof_state:
-        return roof_state
-    if roof_type == "dome":
-        return "dome"
-    if roof_type == "open":
-        return "outdoors"
-    if roof_type == "retractable":
-        if (
-            (temp_fg is not None and temp_fg < ROOF_CLOSE_TEMP_F)
-            or (precip_prob is not None and precip_prob > ROOF_CLOSE_POP)
-            or (wind_fg is not None and wind_fg > ROOF_CLOSE_WIND_MPH)
-        ):
-            return "closed"
-        return "open"
-    return None
+    """Resolve venue/game metadata without guessing roof position from weather.
+
+    Weather arguments remain for compatibility with existing callers.
+    """
+    return resolve_roof_state(roof_type, roof_state)
 
 
 def _default_climo() -> Optional[CB.ClimoTable]:
@@ -545,13 +529,13 @@ def build_forecast(
         p90 = CB.blend(stats.wind_p90, cell.wind_p90, lead_hours, "wind", cfg) if stats else None
     wind_vol_fc = (p90 - p10) if (p10 is not None and p90 is not None) else None
 
-    given_roof = roof_state
     roof_state = roof_state_for(roof_state, roof_type, temp_fg, precip_prob, wind_fg)
-    roof_heuristic = given_roof is None and roof_type == "retractable" and roof_state is not None
 
     closed = roof_state in ("dome", "closed")
     if closed:
         cross, head = 0.0, 0.0
+    elif not weather_exposed(roof_type, roof_state):
+        cross, head = None, None
     else:
         cross, head = wind_components(wind_fg, wind_dir_deg, orientation_deg)
 
@@ -600,7 +584,7 @@ def build_forecast(
         regime=regime.label,
         precip_prob_ens=stats.precip_prob_ens if stats else None,
         ensemble=stats,
-        roof_heuristic=roof_heuristic,
+        roof_heuristic=False,
         climo_cell=cell,
         blend_w=w_wind,
     )

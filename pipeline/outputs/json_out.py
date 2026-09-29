@@ -36,6 +36,7 @@ from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
 from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
 from pipeline.model.total_prices import compare_totals
+from pipeline.stadiums.roofs import resolve_roof_state
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
 
 PathLike = Union[str, Path]
@@ -461,6 +462,9 @@ def build_card(
     tz = game.tz or (stadium.timezone if stadium and stadium.timezone else "America/New_York")
     kickoff_local = game.kickoff_local if game.kickoff_local.tzinfo is not None else to_tz(game.kickoff_utc, tz)
     lines = [ln for ln in lines if ln.game_id == game.game_id]
+    roof_state = resolve_roof_state(
+        stadium.roof_type if stadium else None, roof_state or game.roof_state or (fc.roof_state if fc else None),
+    )
     card = {
         "game_id": game.game_id,
         "sport": sport,

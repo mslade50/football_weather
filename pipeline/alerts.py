@@ -61,6 +61,7 @@ from pipeline import state as pstate
 from pipeline.alert_liquidity import enrich_liquidity
 from pipeline.model import config as model_config
 from pipeline.model.wind_history import stadium_wind_history
+from pipeline.stadiums.roofs import weather_exposed
 from utils.env import load_repo_dotenv
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
 
@@ -1069,7 +1070,10 @@ def _tier_at_least(label: Optional[str], minimum: str) -> bool:
 
 
 def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
-    """Weather alone controls notifications. Price and model value are context."""
+    """Exposed-field weather controls notifications. Price/model value is context."""
+    stadium = card.get("stadium") or {}
+    if not weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state")):
+        return False
     return _tier_at_least(_signal_label(card), cfg.min_tier)
 
 

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from pipeline import alerts as A
 from pipeline import state as pstate
 from pipeline.model import fair, signals
@@ -22,6 +24,18 @@ GID = "nfl:2026:3:sea@ne"
 EKEY = f"edge|2026|3|{GID}|total|under|best|v1"
 LEGACY_EKEY = f"edge|2026|3|{GID}|total|under|betonline|v1"
 CFG = A.Config(board_url="https://board.test", chat_default="C0", chat_by_sport={"nfl": "CNFL"})
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+@pytest.mark.parametrize("roof_type,state", [("dome", "outdoors"), ("dome", None),
+                                            ("retractable", None), ("retractable", "closed"),
+                                            ("retractable", "outdoors"), (None, "closed")])
+def test_stale_covered_signals_cannot_alert_or_enter_open_summary(sport, roof_type, state):
+    c = card(sport=sport)
+    c["stadium"].update(roof_type=roof_type, roof_state=state)
+    assert not A.edge_candidates(c, {}, CFG, now=NOW)
+    pages = A.open_signal_summaries({sport: [c]}, CFG, NOW)
+    assert pages and all("No open weather signals" in page.text for page in pages)
 
 
 def _edge(book: str = "betonline", market: str = "total", side: str = "under", line: float = 38.0, odds: int = -110,

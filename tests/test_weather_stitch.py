@@ -393,30 +393,30 @@ def test_nws_only_when_openmeteo_absent_warns():
 # ---------------------------------------------------------------- roof + components
 
 
-def test_roof_state_for_heuristic():
+def test_roof_state_uses_metadata_never_weather():
     assert M.roof_state_for("closed", "retractable", 80.0, 0.0, 5.0) == "closed"    # schedule wins
     assert M.roof_state_for(None, "dome", 80.0, 0.0, 5.0) == "dome"
     assert M.roof_state_for(None, "open", 80.0, 0.0, 5.0) == "outdoors"
-    assert M.roof_state_for(None, "retractable", 39.0, 0.0, 5.0) == "closed"
-    assert M.roof_state_for(None, "retractable", 70.0, 0.61, 5.0) == "closed"
-    assert M.roof_state_for(None, "retractable", 70.0, 0.1, 20.1) == "closed"
-    assert M.roof_state_for(None, "retractable", 70.0, 0.1, 15.0) == "open"
-    assert M.roof_state_for(None, "retractable", None, None, None) == "open"
+    assert M.roof_state_for(None, "retractable", 39.0, 0.0, 5.0) is None
+    assert M.roof_state_for(None, "retractable", 70.0, 0.61, 5.0) is None
+    assert M.roof_state_for(None, "retractable", 70.0, 0.1, 20.1) is None
+    assert M.roof_state_for(None, "retractable", 70.0, 0.1, 15.0) is None
+    assert M.roof_state_for(None, "retractable", None, None, None) is None
     assert M.roof_state_for(None, None, 70.0, 0.1, 15.0) is None
 
 
-def test_build_forecast_retractable_heuristic_and_components():
+def test_build_forecast_unknown_retractable_and_confirmed_open_components():
     t0 = datetime(2026, 9, 6, 17, 0, tzinfo=UTC)
     hrs = [t0 + timedelta(hours=i) for i in range(-1, 5)]
     windy = ParsedLocation(latitude=0, longitude=0, models={M.NBM: _rows(hrs, 25.0, gust=35.0, dir=90.0, pop=10.0)})
     res = M.build_forecast("g", t0, t0 - timedelta(hours=30), windy, orientation_deg=0.0, roof_type="retractable")
-    assert res.forecast.roof_state == "closed" and res.roof_heuristic
-    assert res.forecast.cross_mph == 0.0 and res.forecast.head_mph == 0.0
+    assert res.forecast.roof_state is None and not res.roof_heuristic
+    assert res.forecast.cross_mph is None and res.forecast.head_mph is None
     assert res.forecast.wind_fg == 25.0  # kept for display
 
     calm = ParsedLocation(latitude=0, longitude=0, models={M.NBM: _rows(hrs, 10.0, gust=14.0, dir=90.0, pop=10.0)})
-    res = M.build_forecast("g", t0, t0 - timedelta(hours=30), calm, orientation_deg=0.0, roof_type="retractable")
-    assert res.forecast.roof_state == "open" and res.roof_heuristic
+    res = M.build_forecast("g", t0, t0 - timedelta(hours=30), calm, orientation_deg=0.0, roof_type="retractable", roof_state="open")
+    assert res.forecast.roof_state == "open" and not res.roof_heuristic
     assert res.forecast.cross_mph == pytest.approx(10.0) and res.forecast.head_mph == pytest.approx(0.0, abs=1e-9)
 
     # 45 deg off a N-S field: equal cross/head components

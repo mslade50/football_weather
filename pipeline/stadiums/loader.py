@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.contracts import Degradation, Game, Stadium, Team
+from pipeline.stadiums.roofs import resolve_roof_state
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 MONTH_KEYS = {9: "sep", 10: "oct", 11: "nov", 12: "dec", 1: "jan"}
@@ -214,7 +215,7 @@ class StadiumBook:
                 self.unresolved.append(f"{game.sport}:{tid}")
 
         rg = ResolvedGame(game=game, stadium=stadium, home_team=home, away_team=away, stadium_source=source)
-        rg.roof_state = game.roof_state or _roof_state(stadium)
+        rg.roof_state = resolve_roof_state(stadium.roof_type if stadium else None, game.roof_state)
         if stadium is not None and game.kickoff_local is not None:
             mk = MONTH_KEYS.get(game.kickoff_local.month)
             rg.wind_avg = stadium.avg_wind_by_month.get(mk) if mk else None
@@ -256,12 +257,6 @@ def _degrade(ctx: Any, component: str, reason: str, severity: str) -> Degradatio
         ctx.append(d)
         return d
     return None
-
-
-def _roof_state(stadium: Stadium | None) -> str | None:
-    if stadium is None or stadium.roof_type is None:
-        return None
-    return {"dome": "dome", "open": "outdoors"}.get(stadium.roof_type)  # retractable -> None (weather heuristic)
 
 
 def _home_elev(book: StadiumBook, sport: str, team: Team | None) -> float | None:

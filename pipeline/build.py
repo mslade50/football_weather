@@ -89,6 +89,7 @@ from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
+from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
@@ -1402,20 +1403,23 @@ def build_record(
 
     if roof_state is None:
         roof_state = game.roof_state or (fc.roof_state if fc else None)
-    if roof_state is None and stadium is not None and stadium.roof_type == "dome":
-        roof_state = "dome"
+    roof_type = stadium.roof_type if stadium else None
+    roof_state = resolve_roof_state(roof_type, roof_state)
+    exposed = weather_exposed(roof_type, roof_state)
     is_dome = roof_state in ("dome", "closed") or (stadium is not None and stadium.is_dome)
 
     temp_fg = fc.temp_fg if fc else None
     wind_fg = fc.wind_fg if fc else None
     rain_fg = fc.rain_fg_mm if fc else None
+    # Keep the outside forecast for display; it cannot drive covered-field signals.
+    signal_temp, signal_wind, signal_rain = (temp_fg, wind_fg, rain_fg) if exposed else (None, None, None)
 
     impact = compute_impact_v1(
         sport=sport,
         month=now_et().month,  # rain suppression keys on the RUN month (legacy generator clock)
-        temp_fg=temp_fg,
-        wind_fg=wind_fg,
-        rain_fg_mm=rain_fg,
+        temp_fg=signal_temp,
+        wind_fg=signal_wind,
+        rain_fg_mm=signal_rain,
         travel_alt_m=travel_alt,
         away_temp=away_temp,
         home_temp=home_temp,
@@ -1430,13 +1434,13 @@ def build_record(
 
     odds = dict(odds or {})
     if sport == "nfl":
-        sig = signals.nfl_signal(wind_fg, temp_fg, rain_fg)
+        sig = signals.nfl_signal(signal_wind, signal_temp, signal_rain)
     else:
         sig = signals.cfb_signal(
-            wind_fg, temp_fg, rain_fg, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
+            signal_wind, signal_temp, signal_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
         )
     flags = signals.combined_flags(
-        sport, wind_fg, temp_fg, signal_open_spread, travel_alt, home_temp, away_temp
+        sport, signal_wind, signal_temp, signal_open_spread, travel_alt, home_temp, away_temp
     )
 
     rec = LegacyRecord(
@@ -1552,6 +1556,11 @@ def _compute_v2(ctx: RunContext, sport: str, game: Game, rg: Any, fc: WeatherFor
     Computed for every game regardless of ALERT_MODEL; failures degrade to None."""
     st: Stadium | None = rg.stadium if rg is not None else None
     extras = extras or {}
+    roof_type = st.roof_type if st else None
+    roof_state = resolve_roof_state(
+        roof_type, (rg.roof_state if rg else None) or game.roof_state or (fc.roof_state if fc else None),
+    )
+    weather = fc if weather_exposed(roof_type, roof_state) else None
     try:
         fair_mod = _import("pipeline.model.fair")
         conf = None
@@ -1560,11 +1569,11 @@ def _compute_v2(ctx: RunContext, sport: str, game: Game, rg: Any, fc: WeatherFor
                                        st.wind_vol_static if st else None)
         return compute_impact_v2(
             sport,
-            fc.temp_fg if fc else None,
-            fc.wind_fg if fc else None,
-            fc.gust_fg if fc else None,
-            fc.rain_fg_mm if fc else None,
-            fc.precip_prob if fc else None,
+            weather.temp_fg if weather else None,
+            weather.wind_fg if weather else None,
+            weather.gust_fg if weather else None,
+            weather.rain_fg_mm if weather else None,
+            weather.precip_prob if weather else None,
             rg.travel_alt if rg is not None else None,
             rg.home_temp if rg is not None else None,
             rg.away_temp if rg is not None else None,
@@ -1572,9 +1581,8 @@ def _compute_v2(ctx: RunContext, sport: str, game: Game, rg: Any, fc: WeatherFor
             wind_dir_fg=fc.wind_dir_fg if fc else None,
             orientation_deg=st.orientation_deg if st else None,
             weakest_wind_effect=st.weakest_wind_effect if st else None,
-            precip_prob_ens=extras.get("precip_prob_ens"),
-            roof_state=(rg.roof_state if rg is not None else None) or game.roof_state or (fc.roof_state if fc else None)
-            or ("dome" if impact_v1.roof_closed else None),
+            precip_prob_ens=extras.get("precip_prob_ens") if weather else None,
+            roof_state=roof_state,
             conf=conf,
         )
     except Exception as exc:  # noqa: BLE001

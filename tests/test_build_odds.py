@@ -3,6 +3,7 @@ return_exceptions, provisional-id matching, consensus, legacy odds columns, open
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,9 +26,51 @@ from pipeline.build import (
 )
 from pipeline.contracts import Game, GameLine, WeatherForecast
 from pipeline.model import signals
+from pipeline.stadiums.loader import load_stadium_book
 
 KC_BUF = "nfl:2026:1:buf@kc"
 KICK = datetime(2026, 9, 13, 20, 25, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("sport,venue,roof", [
+    ("nfl", "us-bank-stadium", "outdoors"),
+    ("nfl", "nrg-stadium", None),
+    ("nfl", "att-stadium", "closed"),
+    ("cfb", "carrier-dome", None),
+    ("cfb", "allegiant-stadium", None),
+    ("cfb", "alamodome", None),
+    ("cfb", "fargodome", None),
+    ("cfb", "superior-dome", None),
+    ("cfb", "mercedes-benz-stadium", None),
+])
+@pytest.mark.parametrize("temp,wind,rain", [(41, 25, 5), (90, 10, 0)])
+def test_covered_venues_never_generate_outdoor_weather_signals(sport, venue, roof, temp, wind, rain):
+    game = replace(_game(), sport=sport, stadium_id=venue, roof_state=roof)
+    rg = load_stadium_book().resolve(game)
+    fc = WeatherForecast(game_id=game.game_id, source="test", temp_fg=temp, wind_fg=wind,
+                         rain_fg_mm=rain, roof_state=roof)
+    rec, impact, sig, flags = build.build_record(
+        sport, game, rg.stadium, None, None, fc, roof_state=rg.roof_state,
+        signal_open_spread=0, home_temp=45, away_temp=45, travel_alt=1000,
+    )
+    assert sig.level == signals.NO and not sig.drivers and not flags
+    assert impact.gs_fg_pct == 0 and impact.heat_away == 0
+    assert rec.wind_fg == wind and rec.temp_fg == temp and rec.rain_fg == rain
+    v2 = build._compute_v2(build.RunContext(sport=sport), sport, game, rg, fc, impact, {})
+    assert v2 is not None and v2.gs_fg_pct == 0 and v2.heat_away == 0
+    card = build.json_out.build_card(sport, game, rg.stadium, None, None, fc, impact, sig, flags)
+    assert card["signal"]["level"] == signals.NO and card["signal"]["flags"] == []
+    expected_roof = "dome" if rg.stadium.roof_type == "dome" else roof
+    assert card["stadium"]["roof_state"] == expected_roof
+
+
+@pytest.mark.parametrize("venue,roof", [("nrg-stadium", "open"), ("gillette-stadium", None)])
+def test_exposed_venues_keep_weather_signals(venue, roof):
+    game = replace(_game(), stadium_id=venue, roof_state=roof)
+    rg = load_stadium_book().resolve(game)
+    fc = WeatherForecast(game_id=game.game_id, source="test", temp_fg=41, wind_fg=25, rain_fg_mm=5)
+    _, impact, sig, flags = build.build_record("nfl", game, rg.stadium, None, None, fc, roof_state=rg.roof_state)
+    assert sig.level == signals.HIGH and impact.gs_fg_pct < 0 and flags
 
 
 def _game(game_id: str = KC_BUF, away: str = "buf", home: str = "kc", kick: datetime = KICK, neutral: bool = False) -> Game:
