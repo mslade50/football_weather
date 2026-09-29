@@ -58,6 +58,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pipeline import state as pstate
+from pipeline.alert_liquidity import enrich_liquidity
 from pipeline.model import config as model_config
 from pipeline.model.wind_history import stadium_wind_history
 from utils.env import load_repo_dotenv
@@ -447,7 +448,10 @@ def _special_driver_lines(card: dict[str, Any]) -> list[str]:
 def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
     tier = (signal_slug(_signal_label(card)) or "?").replace("_", " ").upper()
     bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
-    return f"🎯 {tier} · {html.escape(_matchup(card))} · {bet} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
+    size = _quote_liquidity(next((q for q in _total_quotes(card, "under")
+                                 if q["book"] == edge.get("book") and q["line"] == edge.get("line")), edge))
+    return (f"🎯 {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
+            + "".join(f"\n{line}" for line in _liquidity_context(card)))
 
 
 def _impact_block(card: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -696,10 +700,37 @@ def _total_quotes(card: dict[str, Any], side: str) -> list[dict[str, Any]]:
     if not kickoff or kickoff <= now:
         return []
     return sorted((q for q in (card.get("total_prices") or {}).get("quotes", [])
-                   if q.get("side") == side and _num(q.get("ev_roi")) is not None
+                   if q.get("side") == side and q.get("liquidity_status") != "empty" and _num(q.get("ev_roi")) is not None
                    and _num(q.get("line")) is not None and _num(q.get("odds")) is not None
                    and _fresh_price(q.get("updated_at"), now)),
                   key=lambda q: (-q["ev_roi"], q["book"]))
+
+
+def _quote_liquidity(quote: dict[str, Any]) -> str:
+    if quote.get("book") not in PRICE_EXCHANGES:
+        return ""
+    if quote.get("liquidity_status") == "verified":
+        return f" · {quote['liquidity_shares']:,} shares / ${quote['liquidity_dollars']:,.2f} available incl. fees"
+    return " · size unverified (not counted toward $500)"
+
+
+def _liquidity_context(card: dict[str, Any]) -> list[str]:
+    snapshot = card.get("alert_liquidity")
+    if not snapshot:
+        if any(q.get("book") in PRICE_EXCHANGES for q in (card.get("total_prices") or {}).get("quotes", [])):
+            return ["Exchange liquidity: unavailable; $500 coverage unverified"]
+        return []
+    stamp = _dt(snapshot.get("checked_at"))
+    rows = [f"Exchange depth · {to_et(stamp):%I:%M:%S %p %Z} · $500 budget incl. fees" if stamp else "Exchange depth · $500 budget incl. fees"]
+    for i, fill in enumerate(snapshot["allocations"], 1):
+        p = fill["all_in_price"]
+        odds = round(-100 * p / (1 - p) if p >= .5 else 100 * (1 - p) / p)
+        rows.append(f"{i}) {_book_label(fill['book'])} U{_fmt_line(fill['line'])} ({_fmt_odds(odds)} all-in): "
+                    f"{fill['available_shares']:,} shares / ${fill['available_dollars']:,.2f} available; "
+                    f"use {fill['quantity']:,} shares / ${fill['spend']:,.2f}")
+    rows.append(f"Verified coverage: ${snapshot['spend']:,.2f} / $500; ${snapshot['unspent']:,.2f} unallocated")
+    rows.append("Ranked by estimated return across listed totals; whole shares. Unverified venues excluded; size can change.")
+    return rows
 
 
 def _comparison_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
@@ -715,7 +746,8 @@ def _comparison_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]
             name = "NoVig" if q["book"] == "novig" else _book_label(q["book"])
             rows.append(f"{label}: {html.escape(name)} · {str(q['side']).title()} {_fmt_line(q['line'])} "
                         f"({_fmt_odds(q['odds'])}) · est. EV {_fmt_signed(q['ev_roi'] * 100)}%"
-                        + (" · no +EV" if q["ev_roi"] <= 0 else ""))
+                        + (" · no +EV" if q["ev_roi"] <= 0 else "") + _quote_liquidity(q))
+        rows.extend(_liquidity_context(card))
     history = card.get("stadium_wind_history") or {}
     stamp = _dt(history.get("as_of"))
     as_of = f" · as of {to_et(stamp):%m/%d/%Y}" if stamp else ""
@@ -913,6 +945,19 @@ def format_ops(title: str, body: str = "") -> str:
     return f"⚠️ <b>{html.escape(title)}</b>" + (f"\n{html.escape(body)}" if body else "")
 
 
+def telegram_pages(text: str, continuation: str = "<b>Signal details · continued</b>") -> list[str]:
+    """Split on complete lines so price ladders are retained and HTML stays intact."""
+    pages, page = [], ""
+    for line in text.splitlines():
+        if len(page) + len(line) + 1 > TELEGRAM_MAX_CHARS:
+            pages.append(page)
+            page = continuation
+        page += ("\n" if page else "") + line
+    if page:
+        pages.append(page)
+    return pages
+
+
 def open_signal_summaries(cards_by_sport: dict[str, Sequence[dict[str, Any]]], cfg: Config,
                           now: datetime) -> list[Candidate]:
     """Full current snapshot for each rebuilt sport, paginated without dropping games."""
@@ -923,15 +968,12 @@ def open_signal_summaries(cards_by_sport: dict[str, Sequence[dict[str, Any]]], c
                   and not re.search(r"final|cancel|postpon|suspend|live|progress", str(c.get("status") or ""), re.I)}
         heading = (f"<b>OPEN SIGNALS · {html.escape(SPORT_LABEL.get(sport, sport.upper()))} · {len(active)}</b>"
                    f"\nAs of {to_et(now).strftime('%a %m/%d %I:%M %p %Z')}")
-        pages, page = [], heading
+        page = heading
         for i, card in enumerate(sorted(active.values(), key=lambda c: c["kickoff_utc"]), 1):
             current = dict(card, _alert_at=utc_iso(now))
             row = f"\n\n{i}. {_play_summary(current, _play_edge(current))}"
-            if len(page) + len(row) > TELEGRAM_MAX_CHARS:
-                pages.append(page)
-                page = heading + " · continued"
             page += row
-        pages.append(page if active else page + "\n\nNo open weather signals.")
+        pages = telegram_pages(page if active else page + "\n\nNo open weather signals.", heading + " · continued")
         for i, text in enumerate(pages, 1):
             summaries.append(Candidate(f"snapshot|{sport}|{utc_iso(now)}|{i}", "snapshot", sport, text))
     return summaries
@@ -999,6 +1041,9 @@ def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
             now = _dt(card.get("_alert_at")) or now_utc()
             for book, markets in (card.get("odds") or {}).items():
                 total = markets.get("total") or {}
+                if any(q.get("book") == book and q.get("side") == "under" and q.get("line") == total.get("line")
+                       and q.get("liquidity_status") == "empty" for q in (card.get("total_prices") or {}).get("quotes", [])):
+                    continue
                 if (_num(total.get("line")) is not None and _num(total.get("under")) is not None
                         and _fresh_price(total.get("updated_at"), now)):
                     quotes.append({"book": book, "line": total["line"], "odds": total["under"]})
@@ -1313,6 +1358,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
     for candidate in out:
         if candidate.family != "gone" and "Forecast:" not in candidate.summary:
             candidate.summary += f"\nForecast: {_wx_numbers(card)}"
+            candidate.summary += "".join(f"\n{line}" for line in _liquidity_context(card))
     return out
 
 
@@ -1622,11 +1668,16 @@ def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, c
             return False
         ok = False
         try:
-            ok = bool(sender(c.text, cfg.chat_for(c.sport) if c.family != "ops" else cfg.chat_default))
+            ok = True
+            for page in telegram_pages(c.text):
+                if not sender(page, cfg.chat_for(c.sport) if c.family != "ops" else cfg.chat_default):
+                    ok = False
+                    break
+                outcome.n_messages += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"alert send failed [{c.key}]: {exc}")
+            ok = False
         if ok:
-            outcome.n_messages += 1
             _mark(c, alerts, now, outcome)
             logger.warning(f"alerted [{c.key}]")
         else:
@@ -1742,6 +1793,7 @@ def run_alerts(
     """Collect → plan → dispatch → persist. With ``enabled=False`` or ``dry_run``
     the candidates are printed with their keys and nothing is sent or marked."""
     cfg = cfg or Config.from_env()
+    supplied_now = now is not None
     now = ensure_utc(now) if now else now_utc()
     state_dir = Path(state_dir)
     alerts, source = pstate.load_alerts_rehydrated(state_dir, fetch_rows)
@@ -1750,6 +1802,11 @@ def run_alerts(
     archive = _load_backtest(state_dir / "wind-history-v1.json")
     cards_by_sport = {sport: [dict(card, stadium_wind_history=stadium_wind_history(card, history, now=now, archive=archive))
                              for card in cards] for sport, cards in cards_by_sport.items()}
+    if enabled and not dry_run:
+        enrich_liquidity([card for cards in cards_by_sport.values() for card in cards
+                          if _qualifying_signal(card, cfg) and (_dt(card.get("kickoff_utc")) or now) > now])
+        if not supplied_now:
+            now = now_utc()
     cands = collect_candidates(ctx, cards_by_sport, alerts, cfg, now, new_keys_by_sport=new_keys_by_sport,
                                heartbeat_ts=_heartbeat_ts(state_dir), prev_meta_ts=_prev_meta_ts(state_dir))
     live = enabled and not dry_run

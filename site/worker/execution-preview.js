@@ -104,7 +104,7 @@ export async function kalshiDepth(ref, game, fetchImpl = fetch) {
   const m = meta.market, s = fee.series;
   if (!m || m.ticker !== ref.source_id || m.status !== "active" || m.market_type !== "binary"
       || m.strike_type !== "greater" || numeric(m.floor_strike) !== ref.line
-      || numeric(m.notional_value_dollars) !== 1 || !/^Over /i.test(m.title || "")
+      || numeric(m.notional_value_dollars) !== 1 || !/^(?:Full Game: )?Over /i.test(m.title || "")
       || !m.rules_primary || !m.rules_secondary)
     throw new Error("Market is closed or its total/settlement could not be verified");
   const multiplier = numeric(s?.fee_multiplier);

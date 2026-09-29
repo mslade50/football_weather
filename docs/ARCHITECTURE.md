@@ -464,6 +464,23 @@ Rate/quiet: at most three individual messages, then one bounded SUMMARY per dest
 
 ### Execution preview
 
+Telegram now enriches qualifying pregame cards with public depth immediately before
+collecting alerts, using `pipeline/alert_liquidity.py` and the Node bridge
+`scripts/alert_liquidity.mjs`. It shares the admin preview's Kalshi/Polymarket US
+market validation and fee math; existing pipeline jobs already install Node.
+Only the main under totals in the fresh price comparison are included. Live top
+prices and sizes replace the corresponding alert quotes together. Known empty
+books cannot become the best quote; unknown sizes are explicitly unverified.
+The ladder walks verified price levels by the existing estimated ROI (each total
+retains its own win probability), up to a $500 fee-inclusive budget, showing
+available shares/dollars and the portion used at each level. Whole-share rounding
+or insufficient depth leaves an explicit unallocated amount. Novig/ProphetX depth
+is not connected and contributes no assumed funds. Requests are read-only and
+bounded; missing Node/API failures preserve weather alerts with size unverified.
+Snapshots older than 60 seconds at enrichment are rejected, and displayed depth
+is timestamped. Long signal messages and open-signal snapshots paginate without
+dropping ladder levels. A partial send is not marked as a completed alert.
+
 The admin-only Execution tab includes a sport/game selector and a read-only,
 on-demand under-total depth preview. Its API also requires admin authentication.
 The game list includes upcoming games independently of table filters. The
