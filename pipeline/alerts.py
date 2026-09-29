@@ -12,10 +12,12 @@ Telegram reports qualifying weather signals; prices provide context:
   churn and model promotion do not mint another notification). The
   default gate includes every Low-or-higher signal, including CFB Low Wind.
   Missing prices, missing fairs, and negative edges never suppress a signal.
-* UPDATE: at most one per game/run, prioritised CLOSED → tier change → price availability → line
+* UPDATE: at most one per game/run, prioritised tier change → price availability → line
   move → forecast move. Best-book changes update the same parent and are labeled
   as play-price changes. Betting notifications stop at kickoff.
-* CLOSED: the weather signal no longer qualifies; prices never close it.
+* Cleared signals close silently in state; prices never close them.
+* OPEN SIGNALS: every enabled rerun sends a fresh, complete snapshot per sport,
+  including unchanged and empty runs. Large snapshots continue across messages.
 * SYSTEM: disabled by default so Telegram remains an action channel for bets.
   Operators can explicitly opt in with ``TELEGRAM_SYSTEM_ALERTS=1``; issues are
   then summarized by component instead of emitted once per affected game.
@@ -35,8 +37,8 @@ Chat routing: ``TELEGRAM_CHAT_ID_NFL`` / ``TELEGRAM_CHAT_ID_CFB`` fall back to
 
 The compact message body shows action, matchup/time, price, and short reason
 bullets. Signal-only drivers such as CFB altitude plus warmth are named
-explicitly. Full forecasts, model details, and the price ladder stay behind the
-board link.
+explicitly. Every signal and summary item includes forecast wind (mph),
+temperature (°F), and rain (mm); missing values are labeled unavailable.
 """
 
 from __future__ import annotations
@@ -139,6 +141,7 @@ class Plan:
     flush: list[dict[str, Any]] = field(default_factory=list)    # queued items released this run
     queued: list[Candidate] = field(default_factory=list)        # parked for quiet hours
     skipped: list[str] = field(default_factory=list)             # already sent
+    silent: list[Candidate] = field(default_factory=list)        # internal signal closures, never sent
 
 
 @dataclass
@@ -430,21 +433,21 @@ def _driver_phrase(card: dict[str, Any]) -> str:
 
 
 def _why_lines(card: dict[str, Any]) -> list[str]:
-    return [f"Weather: {html.escape(_driver_phrase(card))}"]
+    return [f"Weather: {html.escape(_driver_phrase(card))}", f"Forecast: {_wx_numbers(card)}"]
 
 
 def _special_driver_lines(card: dict[str, Any]) -> list[str]:
     """Persistent context worth repeating on UPDATE messages."""
     drivers = {str(d) for d in ((card.get("signal") or {}).get("drivers") or []) if d}
     if "altitude_warmth" in drivers:
-        return [f"Weather: {html.escape(_altitude_phrase(card, warmth=True))}"]
-    return []
+        return [f"Weather: {html.escape(_altitude_phrase(card, warmth=True))}", f"Forecast: {_wx_numbers(card)}"]
+    return [f"Forecast: {_wx_numbers(card)}"]
 
 
 def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
     tier = (signal_slug(_signal_label(card)) or "?").replace("_", " ").upper()
     bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
-    return f"🎯 {tier} · {html.escape(_matchup(card))} · {bet} · {_kick_label(card)}"
+    return f"🎯 {tier} · {html.escape(_matchup(card))} · {bet} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
 
 
 def _impact_block(card: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -561,11 +564,11 @@ def signal_slug(label: Optional[str]) -> Optional[str]:
 
 
 def _wx_numbers(card: dict[str, Any]) -> str:
-    """'wind 18 mph · 41°F · rain 0.8 mm' — the numbers the signal rules read."""
+    """The game-window forecast values used by the signal rules, including zeros."""
     wx = card.get("weather") or {}
-    t = _num(wx.get("temp_fg"))
-    return (f"wind {_fmt_line(wx.get('wind_fg'))} mph · {round(t) if t is not None else '?'}°F · "
-            f"rain {_fmt_line(wx.get('rain_fg'))} mm")
+    def value(key: str, unit: str) -> str:
+        return f"{_fmt_line(wx[key])} {unit}" if _num(wx.get(key)) is not None else "unavailable"
+    return f"wind {value('wind_fg', 'mph')} · temp {value('temp_fg', '°F')} · rain {value('rain_fg', 'mm')}"
 
 
 def _signal_line(card: dict[str, Any]) -> str:
@@ -894,12 +897,11 @@ def format_openers(sport: str, season: Any, week: Any, items: Sequence[tuple[dic
     head = f"<b>📋 {SPORT_LABEL.get(sport, sport.upper())} Wk {week} openers · {len(items)} weather game(s)</b>"
     rows = []
     for card, keys in items:
-        wx = card.get("weather") or {}
         imp = _impact(card)
         books = sorted({k.split("|")[3] for k in keys if len(k.split("|")) == 4})
         cons = card.get("consensus") or {}
         rows.append(
-            f"{html.escape(_matchup(card))} {_kick_label(card)} · wind {_fmt_line(wx.get('wind_fg'))} · "
+            f"{html.escape(_matchup(card))} {_kick_label(card)} · {_wx_numbers(card)} · "
             f"{_fmt_pct(imp.get('gs_fg_pct'))} · tot {_fmt_line(cons.get('total_now'))} sp {_fmt_line(cons.get('spread_now'), True)} · "
             f"{', '.join(_book_label(b) for b in books)}"
         )
@@ -909,6 +911,30 @@ def format_openers(sport: str, season: Any, week: Any, items: Sequence[tuple[dic
 
 def format_ops(title: str, body: str = "") -> str:
     return f"⚠️ <b>{html.escape(title)}</b>" + (f"\n{html.escape(body)}" if body else "")
+
+
+def open_signal_summaries(cards_by_sport: dict[str, Sequence[dict[str, Any]]], cfg: Config,
+                          now: datetime) -> list[Candidate]:
+    """Full current snapshot for each rebuilt sport, paginated without dropping games."""
+    summaries = []
+    for sport, cards in cards_by_sport.items():
+        active = {str(c.get("game_id")): c for c in cards
+                  if _qualifying_signal(c, cfg) and (_dt(c.get("kickoff_utc")) or now) > now
+                  and not re.search(r"final|cancel|postpon|suspend|live|progress", str(c.get("status") or ""), re.I)}
+        heading = (f"<b>OPEN SIGNALS · {html.escape(SPORT_LABEL.get(sport, sport.upper()))} · {len(active)}</b>"
+                   f"\nAs of {to_et(now).strftime('%a %m/%d %I:%M %p %Z')}")
+        pages, page = [], heading
+        for i, card in enumerate(sorted(active.values(), key=lambda c: c["kickoff_utc"]), 1):
+            current = dict(card, _alert_at=utc_iso(now))
+            row = f"\n\n{i}. {_play_summary(current, _play_edge(current))}"
+            if len(page) + len(row) > TELEGRAM_MAX_CHARS:
+                pages.append(page)
+                page = heading + " · continued"
+            page += row
+        pages.append(page if active else page + "\n\nNo open weather signals.")
+        for i, text in enumerate(pages, 1):
+            summaries.append(Candidate(f"snapshot|{sport}|{utc_iso(now)}|{i}", "snapshot", sport, text))
+    return summaries
 
 
 def format_digest(title: str, items: Sequence[str]) -> list[str]:
@@ -1284,6 +1310,9 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                         summary=(f"🔄 {html.escape(_matchup(card))} · fair {_fmt_line(last_fair)} → "
                                  f"{_fmt_line(fair_now)} · value {_fmt_signed(pts_now)} pts"),
                     ))
+    for candidate in out:
+        if candidate.family != "gone" and "Forecast:" not in candidate.summary:
+            candidate.summary += f"\nForecast: {_wx_numbers(card)}"
     return out
 
 
@@ -1458,6 +1487,9 @@ def plan(candidates: Sequence[Candidate], alerts: dict, tg: dict, now: datetime,
         if pstate.alert_sent(alerts, c.key):
             p.skipped.append(c.key)
             continue
+        if c.family == "gone":
+            p.silent.append(c)
+            continue
         if c.family == "edge":
             observed = alerts.setdefault("first_signals", {}).setdefault(str(c.game_id), {
                 "first_signal_at": utc_iso(now), "first_signal_label": c.record.get("last_signal"),
@@ -1584,6 +1616,8 @@ def _mark(c: Candidate, alerts: dict, now: datetime, outcome: Outcome) -> None:
 def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, cfg: Config) -> Callable[[Candidate], bool]:
     """Closure from golf build.py L2494-2502: check marker → send → mark only on success."""
     def _once(c: Candidate) -> bool:
+        if c.family == "gone":
+            return False
         if pstate.alert_sent(alerts, c.key):
             return False
         ok = False
@@ -1606,6 +1640,8 @@ def _send_group(title: str, members: Sequence[Candidate], sender: Sender, alerts
     """One digest per chat; members marked only when their digest message went out."""
     by_chat: dict[Optional[str], list[Candidate]] = {}
     for c in members:
+        if c.family == "gone":
+            continue  # Includes legacy stored queues from before silent closures.
         by_chat.setdefault(cfg.chat_for(c.sport) if c.family != "ops" else cfg.chat_default, []).append(c)
     for chat, group in by_chat.items():
         pending = [c for c in group if not pstate.alert_sent(alerts, c.key)]
@@ -1630,6 +1666,17 @@ def _send_group(title: str, members: Sequence[Candidate], sender: Sender, alerts
 
 def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config) -> Outcome:
     outcome = Outcome()
+    for c in p.silent:
+        # Reconcile state without claiming a message was sent or adding a feed item.
+        keys = [c.record.get("edge_key"), *(c.record.get("related_edge_keys") or [])]
+        for key in keys:
+            parent = pstate.get_alert_record(alerts, key) if key else None
+            if parent is not None:
+                for name in ("last_signal", "last_wind", "last_rain", "signal_revision"):
+                    if name in c.record:
+                        parent[name] = c.record[name]
+                parent.update(status="closed", notification_active=False)
+                outcome.records.append(parent)
     once = _alert_once(sender, alerts, now, outcome, cfg)
     if p.flush:
         _send_group("MORNING SUMMARY", [_from_queue_item(q) for q in p.flush], sender, alerts, now, outcome, cfg)
@@ -1713,7 +1760,20 @@ def run_alerts(
             print(f"    [{c.family}{'/' + c.tier if c.tier else ''}] {c.key}")
         return AlertsRun(cands, Plan(), Outcome(), alerts, tg, source)
     p = plan(cands, alerts, tg, now, cfg)
-    outcome = dispatch(p, alerts, sender or default_sender(), now, cfg)
+    send = sender or default_sender()
+    outcome = dispatch(p, alerts, send, now, cfg)
+    # Every completed rerun gets a current snapshot, including unchanged/empty runs
+    # and quiet hours. Do not queue snapshots or mark them as new betting entries.
+    for snapshot in open_signal_summaries(cards_by_sport, cfg, now):
+        try:
+            ok = bool(send(snapshot.text, cfg.chat_for(snapshot.sport)))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("open-signals summary failed: %s", exc)
+            ok = False
+        if ok:
+            outcome.n_messages += 1
+        else:
+            outcome.failed.append(snapshot)
     pstate.save_alerts(state_dir, alerts)
     pstate.save_telegram_state(state_dir, tg)
     print(f"  alerts: {outcome.n_sent} sent in {outcome.n_messages} message(s), {len(p.queued)} queued, "

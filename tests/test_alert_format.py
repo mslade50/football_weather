@@ -37,6 +37,7 @@ def test_edge_message_is_a_compact_scan_first_play():
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "<b>Under 38 (−110) · BetOnline</b>",
         "Weather: Wind: 18 mph",
+        "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm",
         "Best price: unavailable (no fresh comparison)",
         "Best exchange: unavailable (no fresh comparison)",
         "Stadium wind unders: history unavailable",
@@ -115,7 +116,7 @@ def test_edge_message_spread_side_sign():
     lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
     assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
     assert lines[3] == "Weather: Wind: 18 mph"
-    assert len(lines) == 9
+    assert len(lines) == 10
 
 
 def test_edge_message_escapes_html_and_handles_missing_fields():
@@ -198,6 +199,7 @@ def test_update_closed_and_forecast_messages_are_concise():
         "🔄 <b>UPDATE · MID · NFL W3</b>",
         "<b>SEA @ NE</b> · Sun 1:00p ET",
         "Line: Under 38 → 39 · BetOnline −110",
+        "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm",
         "Best price: unavailable (no fresh comparison)",
         "Best exchange: unavailable (no fresh comparison)",
         "Stadium wind unders: history unavailable",
@@ -225,7 +227,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert wx_lines[0] == "🔄 <b>UPDATE · MID · NFL W3</b>"
     assert wx_lines[2] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
     assert wx_lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
-    assert len(wx_lines) == 11
+    assert len(wx_lines) == 12
 
     c3 = card(signal="Mid Impact", wind=17.0)
     chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
@@ -234,7 +236,7 @@ def test_update_closed_and_forecast_messages_are_concise():
     assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
     assert lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
     assert lines[4] == "Weather: Wind: 17 mph"
-    assert len(lines) == 12
+    assert len(lines) == 13
     for message in (move, gone, neg, wx, chg):
         assert "fair" not in message.lower()
         assert "Value:" not in message
@@ -245,7 +247,7 @@ def test_openers_and_ops_and_digest_format():
     text = A.format_openers("cfb", 2026, 3, [(c, [f"{GID}|total|over|betcris", f"{GID}|spread|home|fanduel"])], BOARD)
     lines = text.split("\n")
     assert lines[0] == "<b>📋 CFB Wk 3 openers · 1 weather game(s)</b>"
-    assert lines[1] == "SEA @ NE Sun 1:00p ET · wind 18 · −6.5% · tot 37.5 sp −3 · Betcris, FD"
+    assert lines[1] == "SEA @ NE Sun 1:00p ET · wind 18 mph · temp 41.2 °F · rain 0.8 mm · −6.5% · tot 37.5 sp −3 · Betcris, FD"
     assert lines[2] == f'<a href="{BOARD}/#sport=cfb&amp;week=3">board</a>'
 
     ops = A.format_ops("Degradation [warn] weather", "open-meteo <503> & retry")
@@ -270,7 +272,7 @@ def test_context_spread_is_the_consensus_spread_not_a_book_line():
     c["consensus"]["spread_now"] = -2.67
     c["consensus"]["spread_src"] = "cris+bol+pin"
     text = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|spread|home|betonline"])], BOARD)
-    assert text.split("\n")[1] == "SEA @ NE Sun 1:00p ET · wind 18 · −6.5% · tot 37.5 sp −2.7 · BetOnline"
+    assert text.split("\n")[1] == "SEA @ NE Sun 1:00p ET · wind 18 mph · temp 41.2 °F · rain 0.8 mm · −6.5% · tot 37.5 sp −2.7 · BetOnline"
     assert "−3.5" not in text
     e = dict(_edge(), market="spread", side="home", line=-3.5, fair_line=-2.9, edge_pts=0.6)
     ladder = A.book_ladder(c, e)
@@ -278,12 +280,12 @@ def test_context_spread_is_the_consensus_spread_not_a_book_line():
     assert A._bet_line(c, e).startswith("<b>NE −3.5 −110 @ BetOnline</b>")
 
 
-def test_candidate_summary_is_one_line_without_link():
+def test_candidate_summary_includes_weather_without_link():
     alerts = pstate.migrate(None, "alerts")
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
-    assert "\n" not in c.summary and "<a " not in c.summary
-    # The summary keeps only the tier, matchup, action, price source, and kickoff.
-    assert c.summary == "🎯 MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET"
+    assert "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm" in c.summary and "<a " not in c.summary
+    # The summary includes tier, matchup, price, kickoff, and complete weather.
+    assert c.summary == "🎯 MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\nForecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm"
 
 
 def test_kickoff_label_and_helpers():

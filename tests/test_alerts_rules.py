@@ -388,7 +388,7 @@ def test_signal_gone_closes_record_and_suppresses_move():
     assert "Reason: Signal Mid Impact → No Impact" in c[0].text
     assert "Was: Under 38 · Now: 35" in c[0].text
     out, _, _ = _live(c, alerts, tg)
-    assert out.n_sent == 1
+    assert out.n_sent == 0 and out.n_messages == 0
     rec = pstate.get_alert_record(alerts, EKEY)
     assert rec["status"] == "closed" and rec["last_signal"] == "No Impact"
     assert pstate.open_edge_records(alerts, GID) == []
@@ -433,7 +433,7 @@ def test_simultaneous_signal_fair_and_line_change_produces_one_message():
     c = A.followup_candidates(changed, alerts, CFG, NOW)
     assert len(c) == 1 and c[0].key == f"wx|{EKEY}|sig-high|1"
     assert "Signal: <b>Mid Impact → High Impact</b>" in c[0].text
-    assert "Line:" not in c[0].text and "Forecast:" not in c[0].text
+    assert "Line:" not in c[0].text and "Forecast: wind 13 mph · temp 41.2 °F · rain 0 mm" in c[0].text
     out, rec, _ = _live(c, alerts, tg)
     assert out.n_sent == 1 and out.n_messages == 1 and len(rec.sent) == 1
 
@@ -450,7 +450,7 @@ def test_legacy_duplicate_parents_collapse_to_one_followup_and_close_together():
     assert len(c) == 1 and c[0].key == f"gone|{EKEY}|1"
     assert c[0].record["related_edge_keys"] == [LEGACY_EKEY]
     out, _, _ = _live(c, alerts, tg)
-    assert out.n_messages == 1
+    assert out.n_messages == 0
     assert pstate.get_alert_record(alerts, EKEY)["status"] == "closed"
     assert pstate.get_alert_record(alerts, LEGACY_EKEY)["status"] == "closed"
 
@@ -698,11 +698,11 @@ def test_run_alerts_dry_run_prints_and_writes_nothing(tmp_path: Path, capsys):
     assert "disabled" in capsys.readouterr().out and run2.candidates and not (tmp_path / "alerts.json").exists()
 
 
-def test_run_alerts_live_persists_and_second_run_is_silent(tmp_path: Path):
+def test_run_alerts_live_persists_and_every_run_sends_current_summary(tmp_path: Path):
     rec = Recorder()
     run = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW, sender=rec,
                        new_keys_by_sport={"nfl": [f"{GID}|total|over|betonline"]})
-    assert run.n_alerts == 1 and len(rec.sent) == 1      # PLAY only; openers are opt-in
+    assert run.n_alerts == 1 and len(rec.sent) == 2      # New signal + current snapshot
     assert run.keys_for(GID) == [EKEY]
     saved = json.loads((tmp_path / "alerts.json").read_text(encoding="utf-8"))
     assert saved["schema_version"] == 1 and len(saved["sent"]) == 1 and len(saved["feed"]) == 1
@@ -710,7 +710,9 @@ def test_run_alerts_live_persists_and_second_run_is_silent(tmp_path: Path):
     rec2 = Recorder()
     run2 = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW + timedelta(hours=1), sender=rec2,
                         new_keys_by_sport={"nfl": [f"{GID}|total|over|betonline"]})
-    assert run2.n_alerts == 0 and rec2.sent == [] and run2.source == "r2"
+    assert run2.n_alerts == 0 and len(rec2.sent) == 1 and run2.source == "r2"
+    assert "OPEN SIGNALS" in rec2.sent[0][0]
+    assert "wind 18 mph · temp 41.2 °F · rain 0.8 mm" in rec2.sent[0][0]
 
 
 def test_first_observation_persists_across_failed_send_and_restart(tmp_path: Path):
@@ -862,3 +864,65 @@ def test_build_alert_stage_failure_is_a_warn_degradation(tmp_path: Path, monkeyp
     ctx = _ctx()
     assert build.run_alert_stage(ctx, [_sport_result([card()], [])], tmp_path, enabled=True, dry_run=False) is None
     assert [d.component for d in ctx.degradations] == ["alerts"] and ctx.degradations[0].severity == "warn"
+
+
+def test_rerun_closes_silently_and_reports_empty_snapshot(tmp_path):
+    first = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW, sender=Recorder())
+    delivered_at = pstate.get_alert_record(first.alerts, EKEY)["last_sent_at"]
+    sender = Recorder()
+    run = A.run_alerts(_ctx(), {"nfl": [card(signal="No Impact")]}, tmp_path, cfg=CFG,
+                       now=NOW + timedelta(hours=1), sender=sender)
+    assert len(sender.sent) == 1 and "No open weather signals" in sender.sent[0][0]
+    assert "CLOSED" not in sender.sent[0][0]
+    parent = pstate.get_alert_record(run.alerts, EKEY)
+    assert parent["status"] == "closed" and parent["last_sent_at"] == delivered_at
+    assert len(run.alerts["feed"]) == 1  # no fabricated delivery for a silent transition
+    again = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG,
+                         now=NOW + timedelta(hours=2), sender=Recorder())
+    assert pstate.get_alert_record(again.alerts, EKEY)["status"] == "open"
+    assert any("active again" in c.text for c in again.outcome.sent)
+
+
+def test_open_snapshot_paginates_all_games_with_weather_and_excludes_inactive():
+    games = []
+    for i in range(55):
+        c = card(game_id=f"game-{i}", wind=0, rain=0)
+        c["away"]["short"] = f"TEAM-{i:02d}"
+        games.append(c)
+    games += [card(game_id="past", kickoff=NOW), card(game_id="resolved", signal="No Impact"),
+              dict(card(game_id="cancelled"), status="cancelled")]
+    pages = A.open_signal_summaries({"nfl": games, "cfb": []}, CFG, NOW)
+    nfl = [c.text for c in pages if c.sport == "nfl"]
+    assert len(nfl) > 1 and all(len(text) <= A.TELEGRAM_MAX_CHARS for text in nfl)
+    text = "\n".join(nfl)
+    for i in range(55):
+        assert text.count(f"TEAM-{i:02d} @") == 1
+    assert text.count("wind 0 mph · temp 41.2 °F · rain 0 mm") == 55
+    assert "see board" not in text and "· 55</b>" in text
+    assert "No open weather signals" in pages[-1].text
+
+
+def test_quiet_rerun_summary_failure_retries_current_data_not_stored_snapshot(tmp_path):
+    quiet = NOW.replace(hour=6)
+    failed = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=quiet, sender=Recorder(False))
+    assert failed.plan.queued and len(failed.outcome.failed) == 1
+    assert failed.outcome.failed[0].family == "snapshot"
+    assert failed.alerts["sent"] == {}
+    sender = Recorder()
+    run = A.run_alerts(_ctx(), {"nfl": [card(wind=20, rain=1.5)]}, tmp_path, cfg=CFG,
+                       now=quiet + timedelta(minutes=10), sender=sender)
+    assert len(sender.sent) == 1 and sender.sent[0][1] == "CNFL"
+    assert "wind 20 mph · temp 41.2 °F · rain 1.5 mm" in sender.sent[0][0]
+    assert run.n_alerts == 0  # snapshot never overwrites original entry/CLV records
+
+
+def test_legacy_closed_queue_never_sends_and_missing_weather_is_explicit():
+    alerts, _ = _fresh()
+    sender, outcome = Recorder(), A.Outcome()
+    A._send_group("MANUAL QUEUE", [A.Candidate("old", "gone", "nfl", "CLOSED")],
+                  sender, alerts, NOW, outcome, CFG)
+    assert sender.sent == [] and outcome.n_messages == 0
+    c = card()
+    c["weather"] = {}
+    for text in (A.format_edge(c, _edge()), A._play_summary(c, _edge())):
+        assert "wind unavailable · temp unavailable · rain unavailable" in text

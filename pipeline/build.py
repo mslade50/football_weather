@@ -1804,7 +1804,7 @@ def run_sport(
 
 def run_alert_stage(ctx: RunContext, results: Sequence[SportResult], state_dir: Path, *, enabled: bool, dry_run: bool,
                     stdout: bool = False, now: datetime | None = None) -> alerts_mod.AlertsRun | None:
-    """Clarity-first PLAY / UPDATE / CLOSED / SYSTEM notifications over this
+    """PLAY / UPDATE / OPEN SIGNALS / SYSTEM notifications over this
     run's GameCards; stamps ``card["alerts"]`` with the open record keys per game.
     Never fatal: a failure is a warn Degradation and the board still publishes."""
     with ctx.stage("alerts"):
