@@ -10,7 +10,7 @@ from pipeline import alerts as A
 from pipeline import state as pstate
 from pipeline.model import config as C
 from pipeline.model import signals
-from tests.test_alerts_rules import GID, KICK, NOW, _edge, card
+from tests.test_alerts_rules import CFG, GID, KICK, NOW, _edge, _with_open_edge, card
 
 BOARD = "https://football-board.test.workers.dev"
 
@@ -286,8 +286,10 @@ def test_candidate_summary_includes_weather_without_link():
     alerts = pstate.migrate(None, "alerts")
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
     assert "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm" in c.summary and "<a " not in c.summary
-    # The summary includes tier, matchup, price, kickoff, and complete weather.
-    assert c.summary == "🌬️ MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\nForecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm"
+    # The summary includes the current bet, weekly opener, and complete weather.
+    assert c.summary == ("🌬️ MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\n"
+                         "Week open: Under 38 (?) · BetOnline\n"
+                         "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm")
 
 
 @pytest.mark.parametrize("drivers,expected", [
@@ -486,3 +488,52 @@ def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
     rows = A._price_context(c, _edge(book="novig", market="spread", side="away"))
     assert rows == ["Week open: Sea +2.5 (?) · Novig", "Kalshi now: unavailable",
                     "NoVig now: Sea +3.5 (+105)"]
+
+
+@pytest.mark.parametrize("sport,label", [("nfl", "Week open"), ("cfb", "Week open (T−6d)")])
+def test_weekly_opener_survives_snapshots_and_signal_overflow(sport, label):
+    c = card(sport=sport)
+    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    expected = f"{label}: Under 41.5 (−105) · BetOnline"
+    signal = A.edge_candidates(c, {}, CFG, now=NOW)[0]
+    snapshot = A.open_signal_summaries({sport: [c]}, CFG, NOW)[0]
+    for text in (signal.text, signal.summary, snapshot.text,
+                 *A.format_digest("SUMMARY", [signal.summary])):
+        assert text.count(expected) == 1
+
+
+@pytest.mark.parametrize("change", ["tier", "line", "weather", "outage"])
+def test_weekly_opener_survives_update_overflow(change):
+    c = card()
+    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    if change == "tier":
+        c["signal"]["label"] = "High Impact"
+    elif change == "line":
+        c["fair"]["edges"] = [_edge(line=40)]
+    elif change == "weather":
+        c["fair"]["edges"] = [_edge(fair_line=37)]
+    else:
+        c["fair"]["edges"] = []
+    update = A.followup_candidates(c, _with_open_edge(), CFG, NOW)[0]
+    expected = "Week open: Under 41.5 (−105) · BetOnline"
+    assert update.text.count(expected) == 1
+    assert update.summary.count(expected) == 1
+
+
+def test_weekly_opener_keeps_reference_price_when_best_book_has_no_opener():
+    c = card()
+    c["consensus"].update(ref_book="betonline", total_open=41.5)
+    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    edge = _edge(book="novig")
+    assert A._price_context(c, edge)[0] == "Week open: Under 41.5 (−105) · BetOnline"
+    c["sport"] = "cfb"
+    c["consensus"]["ref_book"] = "fanduel"
+    c["odds"]["fanduel"] = {"total": {"open_line": 44.5, "open_under": -115}}
+    assert A._price_context(c, edge)[0] == "Week open (T−6d): Under 44.5 (−115) · FD"
+
+
+def test_snapshot_does_not_invent_missing_opening_price():
+    c = card()
+    c["odds"] = {}
+    text = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
+    assert "Week open: unavailable" in text

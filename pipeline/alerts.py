@@ -451,7 +451,8 @@ def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
     bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
     size = _quote_liquidity(next((q for q in _total_quotes(card, "under")
                                  if q["book"] == edge.get("book") and q["line"] == edge.get("line")), edge))
-    return (f"{_emoji_for(card)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}\nForecast: {_wx_numbers(card)}"
+    return (f"{_emoji_for(card)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}"
+            f"\n{_price_context(card, edge)[0]}\nForecast: {_wx_numbers(card)}"
             + "".join(f"\n{line}" for line in _liquidity_context(card)))
 
 
@@ -722,29 +723,25 @@ def _quote_liquidity(quote: dict[str, Any]) -> str:
     if quote.get("book") not in PRICE_EXCHANGES:
         return ""
     if quote.get("liquidity_status") == "verified":
-        unit = "contracts (1¢ payout each)" if quote.get("book") == "novig" else "shares"
-        return f" · {quote['liquidity_shares']:,} {unit} / ${quote['liquidity_dollars']:,.2f} available incl. fees"
-    return " · size unverified (not counted toward $500)"
+        return f" · ${quote['liquidity_dollars']:,.2f} available"
+    return " · size unverified"
 
 
 def _liquidity_context(card: dict[str, Any]) -> list[str]:
     snapshot = card.get("alert_liquidity")
     if not snapshot:
         if any(q.get("book") in PRICE_EXCHANGES for q in (card.get("total_prices") or {}).get("quotes", [])):
-            return ["Exchange liquidity: unavailable; $500 coverage unverified"]
+            return ["Liquidity: unverified"]
         return []
     stamp = _dt(snapshot.get("checked_at"))
-    rows = [f"Exchange depth · {to_et(stamp):%I:%M:%S %p %Z} · $500 budget incl. fees" if stamp else "Exchange depth · $500 budget incl. fees"]
+    rows = ["Liquidity · fees included" + (f" · {to_et(stamp):%I:%M %p %Z}" if stamp else "")]
     for i, fill in enumerate(snapshot["allocations"], 1):
-        unit = "contracts" if fill["book"] == "novig" else "shares"
-        manual = " · manual submission in Novig; 1¢ payout per contract" if fill["book"] == "novig" else ""
+        manual = " · manual" if fill["book"] == "novig" else ""
         p = fill["all_in_price"]
         odds = round(-100 * p / (1 - p) if p >= .5 else 100 * (1 - p) / p)
-        rows.append(f"{i}) {_book_label(fill['book'])} U{_fmt_line(fill['line'])} ({_fmt_odds(odds)} all-in): "
-                    f"{fill['available_shares']:,} {unit} / ${fill['available_dollars']:,.2f} available; "
-                    f"use {fill['quantity']:,} {unit} / ${fill['spend']:,.2f}{manual}")
-    rows.append(f"Verified coverage: ${snapshot['spend']:,.2f} / $500; ${snapshot['unspent']:,.2f} unallocated")
-    rows.append("Ranked by estimated return across listed totals; whole native contracts. Unverified venues excluded; size can change.")
+        rows.append(f"{i}) {_book_label(fill['book'])} U{_fmt_line(fill['line'])} ({_fmt_odds(odds)}): "
+                    f"${fill['available_dollars']:,.2f} available · use ${fill['spend']:,.2f}{manual}")
+    rows.append(f"$500 coverage: ${snapshot['spend']:,.2f} · ${snapshot['unspent']:,.2f} remaining")
     return rows
 
 
@@ -827,6 +824,17 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
     baseline = quote(opening, book, opener=True)
     source = _book_label(book)
+    if baseline == "unavailable" and market == "total":
+        # A best-book change or price outage must not hide a stored weekly opener.
+        reference = (card.get("consensus") or {}).get("ref_book")
+        primary = "fanduel" if card.get("sport") == "cfb" else "betonline"
+        for venue in dict.fromkeys((reference, primary)):
+            if not venue or venue == book:
+                continue
+            baseline = quote((books.get(venue) or {}).get(market) or {}, venue, opener=True)
+            if baseline != "unavailable":
+                source = _book_label(venue)
+                break
     if baseline == "unavailable" and market in ("total", "spread"):
         opening_line = (card.get("consensus") or {}).get(f"{market}_open")
         baseline = quote({"open_line": opening_line}, CONSENSUS_BOOK, opener=True)
@@ -1375,6 +1383,9 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                     ))
     for candidate in out:
         if candidate.family != "gone" and "Forecast:" not in candidate.summary:
+            opening_edge = {"market": candidate.record["market"], "side": candidate.record["side"],
+                            "book": candidate.record["last_book"]}
+            candidate.summary += f"\n{_price_context(card, opening_edge)[0]}"
             candidate.summary += f"\nForecast: {_wx_numbers(card)}"
             candidate.summary += "".join(f"\n{line}" for line in _liquidity_context(card))
     return out

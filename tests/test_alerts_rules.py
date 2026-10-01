@@ -542,7 +542,8 @@ def test_morning_summary_uses_current_price_not_overnight_snapshot():
     current = A.edge_candidates(card([_edge(line=39.0, edge_pts=4.4)]), alerts, CFG)[0]
     out, rec, p = _live([current], alerts, tg, now=MORNING)
     assert len(p.flush) == 1 and out.n_messages == 1
-    assert "Under 39" in rec.sent[0][0] and "Under 38" not in rec.sent[0][0]
+    assert "Under 39 (−110)" in rec.sent[0][0] and "Under 38 (−110)" not in rec.sent[0][0]
+    assert "Week open: Under 38 (?) · BetOnline" in rec.sent[0][0]
     assert pstate.get_alert_record(alerts, EKEY)["first_line"] == 39.0
 
 

@@ -43,11 +43,17 @@ def test_bridge_updates_price_and_size_together_without_mutating_source_quotes(m
     assert c["odds"]["polymarket_us"]["total"]["under"] == 150
     assert old_books["polymarket_us"]["total"]["under"] == 100
     text = A.format_edge(c, A._play_edge(c))
-    assert "6 shares / $2.40 available incl. fees" in text
-    assert "use 6 shares / $2.40" in text
-    assert "$497.60 unallocated" in text
+    assert "$2.40 available" in text
+    assert "use $2.40" in text
+    assert "$497.60 remaining" in text
+    assert "shares" not in text and "Ranked by" not in text
     summary = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
-    assert "6 shares / $2.40" in summary and "rain 0.8 mm" in summary
+    assert "$2.40 available" in summary and "rain 0.8 mm" in summary
+    assert A._liquidity_context(c) == [
+        "Liquidity · fees included · 11:00 AM EDT",
+        "1) Polymarket US U46.5 (+150): $2.40 available · use $2.40",
+        "$500 coverage: $2.40 · $497.60 remaining",
+    ]
 
 
 def test_missing_node_or_stale_depth_never_invents_size(monkeypatch):
@@ -57,7 +63,7 @@ def test_missing_node_or_stale_depth_never_invents_size(monkeypatch):
     monkeypatch.setattr(L.subprocess, "run", missing)
     L.enrich_liquidity([c])
     assert "size unverified" in A.format_edge(c, A._play_edge(c))
-    assert "coverage unverified" in A.format_edge(c, A._play_edge(c))
+    assert "Liquidity: unverified" in A.format_edge(c, A._play_edge(c))
     monkeypatch.setattr(L.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=json.dumps({c["game_id"]: snapshot()})))
     monkeypatch.setattr(L, "now_utc", lambda: NOW + timedelta(minutes=2))
     L.enrich_liquidity([c])
@@ -76,10 +82,9 @@ def test_novig_alert_formats_native_cent_contracts_and_manual_submission(monkeyp
     monkeypatch.setattr(L, "now_utc", lambda: NOW)
     L.enrich_liquidity([c])
     for text in [A.format_edge(c, A._play_edge(c)), A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text]:
-        assert "600 contracts (1¢ payout each) / $2.40 available incl. fees" in text
-        assert "use 600 contracts / $2.40" in text
-        assert "manual submission in Novig" in text
-        assert "$497.60 unallocated" in text
+        assert "$2.40 available · use $2.40 · manual" in text
+        assert "contracts" not in text
+        assert "$497.60 remaining" in text
 
 
 def test_empty_verified_book_cannot_return_through_posted_quote_fallback():
