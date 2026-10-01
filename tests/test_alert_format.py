@@ -464,6 +464,7 @@ def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
 def test_alert_price_context_uses_weekly_opener_and_each_exchange_line():
     c = card()
     c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["weekly_total_open"].update(line=41.5, under=-105)
     c["odds"]["kalshi"] = {"total": {"line": 39.5, "under": -108, "over": 120}}
     c["odds"]["novig"] = {"total": {"line": 40.0, "under": -115, "over": 105}}
     expected = ["Week open: Under 41.5 (−105) · BetOnline",
@@ -474,14 +475,15 @@ def test_alert_price_context_uses_weekly_opener_and_each_exchange_line():
     over = A._price_context(c, _edge(side="over"))
     assert over[1:] == ["Kalshi now: Over 39.5 (45¢)", "NoVig now: Over 40 (+105)"]
     c["sport"] = "cfb"
-    assert A._price_context(c, _edge())[0].startswith("Week open (T−6d):")
+    assert A._price_context(c, _edge())[0] == "Week open: Under 41.5 (−105) · BetOnline"
 
 
 def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
     c = card()
     c["odds"] = {"kalshi": {"total": {"line": 40.5, "over": -110}}}
     c["consensus"]["total_open"] = 43.5
-    assert A._price_context(c, _edge()) == ["Week open: Under 43.5 (?) · reference",
+    c["weekly_total_open"].update(line=43.5, under=None)
+    assert A._price_context(c, _edge()) == ["Week open: Under 43.5 (?) · BetOnline",
                                             "Kalshi now: unavailable", "NoVig now: unavailable"]
     c["odds"] = {"novig": {"spread": {"home_line": -3.5, "away_odds": 105,
                                         "open_line": -2.5, "open_odds": -120}}}
@@ -490,11 +492,12 @@ def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
                     "NoVig now: Sea +3.5 (+105)"]
 
 
-@pytest.mark.parametrize("sport,label", [("nfl", "Week open"), ("cfb", "Week open (T−6d)")])
-def test_weekly_opener_survives_snapshots_and_signal_overflow(sport, label):
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+def test_weekly_opener_survives_snapshots_and_signal_overflow(sport):
     c = card(sport=sport)
     c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
-    expected = f"{label}: Under 41.5 (−105) · BetOnline"
+    c["weekly_total_open"].update(line=41.5, under=-105)
+    expected = "Week open: Under 41.5 (−105) · BetOnline"
     signal = A.edge_candidates(c, {}, CFG, now=NOW)[0]
     snapshot = A.open_signal_summaries({sport: [c]}, CFG, NOW)[0]
     for text in (signal.text, signal.summary, snapshot.text,
@@ -506,6 +509,7 @@ def test_weekly_opener_survives_snapshots_and_signal_overflow(sport, label):
 def test_weekly_opener_survives_update_overflow(change):
     c = card()
     c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["weekly_total_open"].update(line=41.5, under=-105)
     if change == "tier":
         c["signal"]["label"] = "High Impact"
     elif change == "line":
@@ -520,20 +524,22 @@ def test_weekly_opener_survives_update_overflow(change):
     assert update.summary.count(expected) == 1
 
 
-def test_weekly_opener_keeps_reference_price_when_best_book_has_no_opener():
+def test_weekly_opener_always_uses_betonline_regardless_of_best_book_or_consensus():
     c = card()
     c["consensus"].update(ref_book="betonline", total_open=41.5)
     c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["weekly_total_open"].update(line=41.5, under=-105)
     edge = _edge(book="novig")
     assert A._price_context(c, edge)[0] == "Week open: Under 41.5 (−105) · BetOnline"
     c["sport"] = "cfb"
     c["consensus"]["ref_book"] = "fanduel"
     c["odds"]["fanduel"] = {"total": {"open_line": 44.5, "open_under": -115}}
-    assert A._price_context(c, edge)[0] == "Week open (T−6d): Under 44.5 (−115) · FD"
+    assert A._price_context(c, edge)[0] == "Week open: Under 41.5 (−105) · BetOnline"
 
 
 def test_snapshot_does_not_invent_missing_opening_price():
     c = card()
+    c["weekly_total_open"] = None
     c["odds"] = {}
     text = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
     assert "Week open: unavailable" in text

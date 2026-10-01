@@ -489,6 +489,7 @@ def build_card(
         "impact": _impact_block(impact, impact_v2, model_version),
         "signal": _signal_block(signal, flags),
         "odds": odds_block(game.game_id, lines, openers),
+        "weekly_total_open": (openers.get("weekly_totals") or {}).get(game.game_id),
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
         "total_prices": compare_totals(sport, lines, fair),

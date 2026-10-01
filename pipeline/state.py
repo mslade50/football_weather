@@ -273,6 +273,10 @@ def prune_openers(openers: dict, active_game_ids: Iterable[str]) -> int:
     stale = [k for k in store if _key_game_id(k) not in active]
     for k in stale:
         del store[k]
+    weekly = openers.get("weekly_totals") or {}
+    for game_id in list(weekly):
+        if game_id not in active:
+            del weekly[game_id]
     return len(stale)
 
 

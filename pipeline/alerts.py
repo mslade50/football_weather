@@ -795,8 +795,13 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
     if market not in ("total", "spread", "ml"):
         return []
     books = card.get("odds") or {}
-    book = str(edge.get("book") or CONSENSUS_BOOK)
-    opening = (books.get(book) or {}).get(market) or {}
+    book = "betonline" if market == "total" else str(edge.get("book") or CONSENSUS_BOOK)
+    if market == "total":
+        weekly = card.get("weekly_total_open") or {}
+        opening = {"open_line": weekly.get("line"), "open_under": weekly.get("under"),
+                   "open_over": weekly.get("over")}
+    else:
+        opening = (books.get(book) or {}).get(market) or {}
 
     def quote(data: dict[str, Any], venue: str, *, opener: bool = False) -> str:
         if market == "total":
@@ -824,24 +829,11 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
     baseline = quote(opening, book, opener=True)
     source = _book_label(book)
-    if baseline == "unavailable" and market == "total":
-        # A best-book change or price outage must not hide a stored weekly opener.
-        reference = (card.get("consensus") or {}).get("ref_book")
-        primary = "fanduel" if card.get("sport") == "cfb" else "betonline"
-        for venue in dict.fromkeys((reference, primary)):
-            if not venue or venue == book:
-                continue
-            baseline = quote((books.get(venue) or {}).get(market) or {}, venue, opener=True)
-            if baseline != "unavailable":
-                source = _book_label(venue)
-                break
-    if baseline == "unavailable" and market in ("total", "spread"):
+    if baseline == "unavailable" and market == "spread":
         opening_line = (card.get("consensus") or {}).get(f"{market}_open")
         baseline = quote({"open_line": opening_line}, CONSENSUS_BOOK, opener=True)
         source = "reference"
-    # CFB totals use the board's six-days-before-kickoff baseline.
-    label = "Week open (T−6d)" if card.get("sport") == "cfb" and market == "total" else "Week open"
-    rows = [f"{label}: {baseline}" + (f" · {source}" if baseline != "unavailable" else "")]
+    rows = [f"Week open: {baseline}" + (f" · {source}" if baseline != "unavailable" else "")]
     for venue, name in (("kalshi", "Kalshi"), ("novig", "NoVig")):
         data = (books.get(venue) or {}).get(market) or {}
         now = _dt(card.get("_alert_at")) or now_utc()

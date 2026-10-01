@@ -99,6 +99,16 @@ def _openers() -> dict:
     return op
 
 
+def test_weekly_alert_opener_exports_even_without_current_betonline_quotes():
+    op = _openers()
+    weekly = {"book": "betonline", "line": 40.5, "under": -105, "over": -115,
+              "ts": "2026-09-21T01:00:00Z"}
+    op["weekly_totals"] = {GID: weekly}
+    card = json_out.build_card("nfl", _game(), None, None, None, None, None, None, [], openers=op)
+    assert card["weekly_total_open"] == weekly
+    assert card["odds"] == {}
+
+
 def _consensus() -> dict:
     return {(GID, "spread"): ConsensusLine(-3.0, -110, 3, "pinnacle", "home"),
             (GID, "total"): ConsensusLine(38.0, -110, 3, "betonline", "under")}

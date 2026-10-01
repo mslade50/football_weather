@@ -64,6 +64,7 @@ def card(edges: list[dict[str, Any]] | None = None, *, weather_driven: bool = Tr
                     "precip_prob": 0.2, "wind_vol_fc": 6.0, "cross_mph": 15.0},
         "impact": {"v1": {"gs_fg_pct": gs, "away_fg_pct": 0.0, "components": {"wind": 6.5, "rain": 0.0, "cold": 0.0}}},
         "odds": {"betonline": {"total": {"line": 38.0, "over": -110, "under": -110, "open_line": 38.0}}},
+        "weekly_total_open": {"book": "betonline", "line": 38.0, "under": None, "over": None},
         "consensus": {"total_now": 37.5, "spread_now": -3.0, "ref_book": "pinnacle", "n_books": 6, "thin": thin},
         "fair": {"fair_total": 34.6, "fair_spread": -2.9, "confidence": 0.72, "weather_driven": weather_driven,
                  "edges": edges},

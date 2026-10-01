@@ -84,6 +84,7 @@ from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
 from pipeline.model import signals
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
+from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
 from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
@@ -1298,12 +1299,15 @@ def stage_odds(
         before_keys = set(openers.get("openers") or {})
         added = pstate.record_openers(openers, main_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
+        record_weekly_totals(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
         opener_update_keys = (
             retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
             if sport == "cfb" else []
         )
         new_keys = sorted(set(openers.get("openers") or {}) - before_keys)
-        pruned = pstate.prune_openers(openers, _active_for(openers.get("openers") or {}, sport, active_ids))
+        opener_active = (_active_for(openers.get("openers") or {}, sport, active_ids)
+                         | _active_for(openers.get("weekly_totals") or {}, sport, active_ids))
+        pruned = pstate.prune_openers(openers, opener_active)
         last = archive.setdefault("last", {})
         # consensus spread rides along as book='consensus' (history / D1 / closings), never carried forward
         pseudo = consensus_spread_lines(consensus, sport, ctx.now_utc, ctx.run_id)
