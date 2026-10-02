@@ -71,7 +71,7 @@ import os
 import re
 import shutil
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -91,6 +91,7 @@ from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, wr
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
+from pipeline.weather import point_handoff, screening, selective
 from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
@@ -283,6 +284,8 @@ def _fetch_point_batches(
     *,
     batch_size: int,
     source_prefix: str,
+    point_windows: Mapping[tuple[float, float], tuple[datetime, datetime]] | None = None,
+    received: Callable[[list[tuple[float, float]]], None] | None = None,
     **kwargs: Any,
 ) -> tuple[dict[tuple[float, float], Any], list[tuple[int, int, Exception]]]:
     """Fetch independent point batches and retain every successful batch.
@@ -295,12 +298,16 @@ def _fetch_point_batches(
     failures: list[tuple[int, int, Exception]] = []
     for batch_index, offset in enumerate(range(0, len(points), batch_size)):
         batch = list(points[offset : offset + batch_size])
+        batch_kwargs = dict(kwargs)
+        if point_windows is not None:
+            batch_kwargs["start"] = min(point_windows[point][0] for point in batch)
+            batch_kwargs["end"] = max(point_windows[point][1] for point in batch)
         try:
             parsed = list(
                 fetcher(
                     batch,
                     source_prefix=f"{source_prefix}_batch{batch_index:02d}",
-                    **kwargs,
+                    **batch_kwargs,
                 )
             )
             if len(parsed) != len(batch):
@@ -308,6 +315,8 @@ def _fetch_point_batches(
                     f"provider returned {len(parsed)} locations for {len(batch)} points"
                 )
             fetched.update(zip(batch, parsed, strict=True))
+            if received is not None:
+                received(batch)
         except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
             failures.append((batch_index, len(batch), exc))
     return fetched, failures
@@ -316,6 +325,7 @@ def _fetch_point_batches(
 def stage_weather(
     ctx: RunContext, sport: str, games: list[Game], stadiums: dict[str, Stadium], raw: RawStore, roof_states: dict[str, str | None],
     extras: dict[str, dict[str, Any]] | None = None,
+    state_dir: Path | None = None,
 ) -> dict[str, WeatherForecast]:
     """Deterministic forecast + ensemble (Phase 5) + NWS -> merged WeatherForecast per game.
     ``extras`` (if given) collects per-game merge side-outputs: ``precip_prob_ens``,
@@ -345,8 +355,17 @@ def stage_weather(
     intl_pts = [pt for pt in by_point if pt not in conus_pts]
     kickoffs = [g.kickoff_utc for g in games]
     start, end = om_mod.window_for(kickoffs)
-    om_by_point: dict[tuple[float, float], Any] = {}
+    point_hours = {point: {merge_mod.hour_floor(g.kickoff_utc) + timedelta(hours=i) for g in group for i in range(-1, 5)}
+                   for point, group in by_point.items()}
+    reused = point_handoff.read(ctx.weather_state.get("reuse_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states, point_hours)
+    point_stamps = {point: reused[point][2] if point in reused else now for point in by_point}
+    budget_kwargs: dict[str, Any] = {}
+    if callable(getattr(om_mod, "RequestBudget", None)):
+        ctx.request_budgets.setdefault("openmeteo", om_mod.RequestBudget())
+        budget_kwargs["budget"] = ctx.request_budgets["openmeteo"]
+    om_by_point: dict[tuple[float, float], Any] = {point: value[0] for point, value in reused.items() if value[0] is not None}
     for pts, models, prefix in ((conus_pts, om_mod.CONUS_MODELS, "openmeteo_conus"), (intl_pts, om_mod.INTL_MODELS, "openmeteo_intl")):
+        pts = [point for point in pts if point not in reused]
         if not pts:
             continue
         fetched, failures = _fetch_point_batches(
@@ -358,6 +377,8 @@ def stage_weather(
             end=end,
             models=models,
             capture=capture,
+            received=lambda batch: point_stamps.update({point: ctx.now_utc for point in batch}),
+            **budget_kwargs,
         )
         om_by_point.update(fetched)
         if failures:
@@ -369,81 +390,19 @@ def stage_weather(
                 "warn",
             )
 
-    # Full ensemble members are primary.  A 429 retries the affected locations
-    # through Open-Meteo's much lighter precomputed mean + spread API so weather
-    # uncertainty survives without repeating the expensive member request.
-    ens_by_point: dict[tuple[float, float], Any] = {}
-    ens_mean_by_point: dict[tuple[float, float], Any] = {}
-    all_pts = conus_pts + intl_pts
-    fetch_ens = getattr(om_mod, "fetch_ensemble", None)
-    if callable(fetch_ens) and all_pts:
-        fetched_ens, failures = _fetch_point_batches(
-            all_pts,
-            fetch_ens,
-            batch_size=om_mod.BATCH_SIZE,
-            source_prefix="openmeteo_ensemble",
-            start=start,
-            end=end,
-            capture=capture,
-        )
-        ens_by_point.update(fetched_ens)
-        if failures:
-            rate_limited = [failure for failure in failures if "429" in str(failure[2])]
-            other_failures = [failure for failure in failures if failure not in rate_limited]
-            rate_limited_pts: list[tuple[float, float]] = []
-            for batch_index, size, _ in rate_limited:
-                offset = batch_index * om_mod.BATCH_SIZE
-                rate_limited_pts.extend(all_pts[offset : offset + size])
-
-            fallback_failures: list[tuple[int, int, Exception]] = []
-            fetch_ens_mean = getattr(om_mod, "fetch_ensemble_mean", None)
-            if rate_limited_pts and callable(fetch_ens_mean):
-                fetched_mean, fallback_failures = _fetch_point_batches(
-                    rate_limited_pts,
-                    fetch_ens_mean,
-                    batch_size=om_mod.BATCH_SIZE,
-                    source_prefix="openmeteo_ensemble_mean_fallback",
-                    start=start,
-                    end=end,
-                    capture=capture,
-                )
-                ens_mean_by_point.update(fetched_mean)
-
-            recovered = len(ens_mean_by_point)
-            if recovered:
-                ctx.degrade(
-                    "weather",
-                    f"{sport}: full ensemble rate limited for {len(rate_limited_pts)} locations; "
-                    f"recovered {recovered} with ensemble mean + spread",
-                    "info",
-                )
-            unresolved = len(rate_limited_pts) - recovered + sum(size for _, size, _ in other_failures)
-            if unresolved:
-                detail = (
-                    fallback_failures[0][2]
-                    if fallback_failures
-                    else other_failures[0][2]
-                    if other_failures
-                    else rate_limited[0][2]
-                )
-                ctx.degrade(
-                    "weather",
-                    f"{sport}: ensemble unavailable for {unresolved}/{len(all_pts)} locations after fallback; "
-                    f"wind volatility uses static fallback ({detail})",
-                    "warn",
-                )
-    else:
-        ctx.degrade("weather", f"{sport}: ensemble client unavailable; wind_vol falls back to static", "warn")
-
-    nws_by_point: dict[tuple[float, float], Any] = {}
+    nws_by_point: dict[tuple[float, float], Any] = {point: value[1] for point, value in reused.items()}
     nws_failures: list[tuple[tuple[float, float], Exception]] = []
     cache = nws_mod.PointsCache()
     nws_h = merge_mod.NWS_HORIZON_H
     for pt in conus_pts:
+        if pt in reused:
+            continue
         if not any((g.kickoff_utc - now).total_seconds() / 3600.0 <= nws_h for g in by_point[pt]):
             continue
         try:
             nws_by_point[pt] = nws_mod.fetch_hourly(pt[0], pt[1], cache=cache, capture=capture)
+            if pt not in om_by_point:
+                point_stamps[pt] = ctx.now_utc
         except Exception as exc:  # noqa: BLE001
             nws_failures.append((pt, exc))
     if nws_failures:
@@ -458,31 +417,84 @@ def stage_weather(
     except OSError:
         pass
 
-    fc: dict[str, WeatherForecast] = {}
-    for pt, pt_games in by_point.items():
-        for g in pt_games:
-            st = stadiums[g.game_id]
+    point_handoff.write(ctx.weather_state.get("write_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states,
+                        point_hours, om_by_point, nws_by_point, point_stamps)
+
+    # First merge fresh point data only. Screening never inspects members or
+    # ensemble-dependent confidence. Existing open signals remain eligible.
+    active = set()
+    previous = {}
+    if state_dir is not None:
+        for record in pstate.load_alerts(state_dir).get("records", {}).values():
+            if record.get("family") == "edge" and record.get("notification_active"):
+                active.add(record.get("game_id"))
+        previous = d1_out.load_wx_last(state_dir).get("last", {})
+    decisions = {}
+    screen_clock = ctx.now_utc
+    def merged(game, point, clock, ensemble=None):
+        stadium = stadiums[game.game_id]
+        return merge_mod.build_forecast(
+            game.game_id, game.kickoff_utc, clock, om_by_point.get(point), nws_by_point.get(point),
+            orientation_deg=stadium.orientation_deg, roof_state=roof_states.get(game.game_id), run_id=ctx.run_id,
+            ens=ensemble, roof_type=stadium.roof_type, expect_ensemble=ensemble is not None,
+            report_source_degradations=False,
+        )
+    for point, point_games in by_point.items():
+        for game in point_games:
             try:
-                res = merge_mod.build_forecast(
-                    g.game_id, g.kickoff_utc, now, om_by_point.get(pt), nws_by_point.get(pt),
-                    orientation_deg=st.orientation_deg, roof_state=roof_states.get(g.game_id), run_id=ctx.run_id,
-                    ens=ens_by_point.get(pt), ens_mean=ens_mean_by_point.get(pt), roof_type=st.roof_type,
-                    expect_ensemble=pt in ens_by_point or pt in ens_mean_by_point,
-                    report_source_degradations=False,
+                provisional = merged(game, point, screen_clock)
+            except Exception as exc:  # noqa: BLE001
+                ctx.degrade("weather", f"{game.game_id}: point merge failed: {exc}", "warn")
+                continue
+            decisions[game.game_id] = screening.screen(
+                sport, dataclasses.replace(provisional.forecast, run_time=point_stamps[point]), om_by_point.get(point),
+                game.kickoff_utc, roof_state=roof_states.get(game.game_id), active=game.game_id in active,
+                previous=previous.get(game.game_id), now=screen_clock,
+                blend_cfg=merge_mod._default_blend_cfg(),
+            )
+    selected_points = [point for point in by_point if any(decisions[g.game_id].eligible for g in by_point[point] if g.game_id in decisions)]
+    selected_games = {point: [g for g in by_point[point] if g.game_id in decisions and decisions[g.game_id].eligible] for point in selected_points}
+    windows = {point: om_mod.window_for([g.kickoff_utc for g in group]) for point, group in selected_games.items()}
+    hours = {point: {merge_mod.hour_floor(g.kickoff_utc) + timedelta(hours=i) for g in group for i in range(-1, 5)}
+             for point, group in selected_games.items()}
+    selected_points.sort(key=lambda point: min((decisions[g.game_id].priority, g.kickoff_utc) for g in selected_games[point]))
+    ensembles, coverage = selective.members(
+        ctx, om_mod, selected_points, windows, hours, capture, _fetch_point_batches, state_dir=state_dir, sport=sport,
+    )
+    ctx.degrade("weather", f"{sport}: full-member screen selected {sum(d.eligible for d in decisions.values())}/{len(games)} games at {len(selected_points)} locations", "info")
+    fc: dict[str, WeatherForecast] = {}
+    clock = ctx.now_utc  # recompute lead/climatology weights after source retrieval
+    for point, point_games in by_point.items():
+        for game in point_games:
+            if game.game_id not in decisions:
+                continue
+            decision = decisions[game.game_id]
+            try:
+                result = merged(game, point, clock, ensembles.get(point) if decision.eligible else None)
+                stats = result.ensemble
+                trace = coverage.get(point, {}) if decision.eligible else {}
+                status = ("not_sampled_closed_roof" if not decision.eligible and "confirmed_closed_roof" in decision.reasons else
+                          "not_sampled_below_signal_buffer" if not decision.eligible else
+                          "unavailable_degraded" if stats is None else
+                          "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
+                          or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
+                          else "full_members")
+                fc[game.game_id] = dataclasses.replace(
+                    result.forecast, run_time=point_stamps[point],
+                    ensemble_status=status, ensemble_eligible=decision.eligible, ensemble_screen_reasons=list(decision.reasons),
+                    ensemble_models=stats.models if stats else [], ensemble_members=stats.n_members if stats else 0,
+                    ensemble_fetched_at=trace.get("fetched_at", {}), ensemble_source_versions=trace.get("source_versions", {}),
+                    ensemble_cached_sources=trace.get("cached_sources", []),
                 )
             except Exception as exc:  # noqa: BLE001
-                ctx.degrade("weather", f"{g.game_id}: merge failed: {exc}", "warn")
+                ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")
                 continue
-            for d in res.degradations:
-                ctx.degradations.append(d)
-            fc[g.game_id] = res.forecast
+            ctx.degradations.extend(result.degradations)
+            if decision.eligible and status != "full_members":
+                ctx.degrade("weather", f"{game.game_id}: selected ensemble {status}; source/member coverage remains explicit", "warn")
             if extras is not None:
-                extras[g.game_id] = {
-                    "precip_prob_ens": getattr(res, "precip_prob_ens", None),
-                    "roof_heuristic": bool(getattr(res, "roof_heuristic", False)),
-                    "ensemble": getattr(res, "ensemble", None) is not None,
-                    "ensemble_source": getattr(getattr(res, "ensemble", None), "method", None),
-                }
+                extras[game.game_id] = {"precip_prob_ens": result.precip_prob_ens, "roof_heuristic": result.roof_heuristic,
+                    "ensemble": stats is not None, "ensemble_source": stats.method if stats else None}
     ctx.count("weather", sport, len(fc))
     nws_only = [
         forecast
@@ -1712,7 +1724,7 @@ def run_sport(
 
     wx_extras: dict[str, dict[str, Any]] = {}
     with ctx.stage(f"{sport}.weather"):
-        forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras)
+        forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras, state_dir=state_dir)
 
     odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
     if books:
@@ -2053,9 +2065,12 @@ def build(
     publish: bool = False,
     merge_into_r2: bool = False,
     force: bool = False,
+    weather_handoff_dir: Path | None = None,
+    reuse_weather_dir: Path | None = None,
 ) -> int:
     ctx = RunContext(sport="all" if len(sports) > 1 else sports[0], scope=scope, dry_run=dry_run,
                      run_id=run_id or "", **({"started_at": started_at} if started_at else {}))
+    ctx.weather_state.update(write_point_dir=weather_handoff_dir, reuse_point_dir=reuse_weather_dir)
     try:
         book_list = books_for_scope(scope, books)
     except ValueError as exc:
@@ -2151,6 +2166,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--merge-into-r2", dest="merge_into_r2", action="store_true",
                    help="Playwright job: fetch R2 state first, then build + publish (meta last)")
     p.add_argument("--force", action="store_true", help="skip the publish content floor")
+    p.add_argument("--weather-handoff-dir", type=Path, help="save raw point inputs for this workflow's dependent job")
+    p.add_argument("--reuse-weather-dir", type=Path, help="reuse matching same-workflow raw point inputs only")
     return p.parse_args(argv)
 
 
@@ -2179,6 +2196,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         publish=args.publish,
         merge_into_r2=args.merge_into_r2,
         force=args.force,
+        weather_handoff_dir=args.weather_handoff_dir,
+        reuse_weather_dir=args.reuse_weather_dir,
     )
 
 

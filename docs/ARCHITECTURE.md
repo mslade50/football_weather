@@ -267,6 +267,8 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  travel_alt, home_temp, away_temp,
  weather {temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg, precip_prob,
           precip_prob_ens, wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
+          ensemble_status, ensemble_eligible, ensemble_screen_reasons[], ensemble_models[], ensemble_members,
+          ensemble_fetched_at {ifs, gefs}, ensemble_source_versions {ifs, gefs}, ensemble_cached_sources[],
           wind_fg_raw, temp_fg_raw, blend_w, climo_wind, climo_temp,   (climatology shrinkage, §6: *_fg are BLENDED)
           hourly [{t, temp, wind, gust, dir, precip, pop, p10, p90}]  (kickoff-1h .. kickoff+4h)},
  impact {v1 {gs_fg_pct, away_fg_pct, components {wind, cold, heat, rain, alt, heat_away, cold_away}},

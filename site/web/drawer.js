@@ -26,7 +26,18 @@ function closeDrawer() {
 
 const kv = (rows) => `<table class="kv">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("")}</table>`;
 const pct = (v) => (isNum(v) ? `${Number(v).toFixed(1)}%` : "—");
-const yesno = (v) => (v == null ? "—" : String(v));
+const yesno = (v) => (v == null ? "-" : String(v));
+
+function uncertaintyLabel(wx) {
+  const labels = {
+    full_members: "Full ensemble",
+    partial_members_degraded: "Partial ensemble coverage",
+    unavailable_degraded: "Ensemble unavailable",
+    not_sampled_below_signal_buffer: "Below wind/rain screening buffer",
+    not_sampled_closed_roof: "Closed roof; ensemble not sampled",
+  };
+  return esc(labels[wx.ensemble_status] || "-");
+}
 
 function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};
@@ -38,7 +49,9 @@ function weatherTable(g) {
     ["Impact", isDome(g) ? "dome / closed (0)" : `${pct(v1.gs_fg_pct)} · away ${pct(v1.away_fg_pct)}`],
     ...(v2 ? [["Impact v2", `${pct(v2.gs_fg_pct)} · away ${pct(v2.away_fg_pct)}${isNum(v2.conf) ? ` · conf ${Number(v2.conf).toFixed(2)}` : ""}`]] : []),
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
-    ["Relative Wind", isNum(wx.wind_diff) ? `${Number(wx.wind_diff) >= 0 ? "+" : ""}${fmtNum(wx.wind_diff, 1)} vs avg ${fmtNum(st.avg_wind_month ?? st.avg_wind, 1)}` : "—"],
+    ["Forecast uncertainty", uncertaintyLabel(wx)],
+    ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
+    ["Relative Wind", isNum(wx.wind_diff) ? `${Number(wx.wind_diff) >= 0 ? "+" : ""}${fmtNum(wx.wind_diff, 1)} vs avg ${fmtNum(st.avg_wind_month ?? st.avg_wind, 1)}` : "-"],
     ["Cross / Head", isNum(wx.cross_mph) || isNum(wx.head_mph) ? `${fmtNum(wx.cross_mph, 1)} / ${fmtNum(wx.head_mph, 1)} mph` : "—"],
     ["Home_t", fmtNum(g.home_temp, 0)],
     ["Away_t", fmtNum(g.away_temp, 0)],

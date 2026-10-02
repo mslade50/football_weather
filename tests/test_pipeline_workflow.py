@@ -13,7 +13,7 @@ import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "pipeline.yml"
 STATE_FILES = ("openers", "history", "wx_history", "archive_last", "wx_last", "alerts", "scrape_baseline",
-               "telegram_state", "cf_heartbeat", "closings", "status")
+               "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache")
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +38,7 @@ def _job(text: str, name: str) -> str:
 
 
 def test_schedule_backstop_is_off_the_minute(text: str):
-    assert "'17 9,14,20 * * *'" in text
+    assert "'17 9 * * *'" in text
 
 
 def test_schedule_in_season_cadence(text: str):
@@ -214,7 +214,47 @@ def test_legacy_files_uploaded_to_r2_legacy_prefix(text: str):
 
 
 def test_state_steps_never_continue_on_error(text: str):
-    assert "continue-on-error" not in text
+    for name in ("Fetch board state from R2", "Fetch board state from R2 (playwright)", "Push to R2", "Push to R2 (playwright)"):
+        assert "continue-on-error" not in _step(text, name)
+
+
+def test_same_workflow_raw_weather_handoff(text: str):
+    upload = _step(text, "Upload same-workflow weather inputs")
+    download = _step(text, "Download same-workflow weather inputs")
+    assert "weather-points-${{ github.run_id }}-${{ github.run_attempt }}" in upload
+    assert "weather-points-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    assert "--weather-handoff-dir data/weather-points" in _step(text, "Build board")
+    assert "--reuse-weather-dir data/weather-reuse" in _step(text, "Build board (BetOnline)")
+    assert "retention-days: 1" in upload
+    assert "continue-on-error: true" in download
+
+
+def test_cron_union_preserved_without_duplicate_ticks(text: str):
+    import re
+    from collections import Counter
+
+    def numbers(field, last):
+        values = set()
+        for part in field.split(","):
+            span, _, step = part.partition("/")
+            bounds = (0, last) if span == "*" else tuple(map(int, span.split("-"))) if "-" in span else (int(span), int(span))
+            values.update(range(bounds[0], bounds[1] + 1, int(step or "1")))
+        return values
+
+    def ticks(crons):
+        result = Counter()
+        for cron in crons:
+            minute, hour, _, _, day = cron.split()
+            for d in numbers(day, 6):
+                for h in numbers(hour, 23):
+                    for m in numbers(minute, 59):
+                        result[d, h, m] += 1
+        return result
+
+    old = ticks(["17 9,14,20 * * *", "17 14,20 * * 2,3", "17 12-23/2 * * 4,5", "17 10-23 * * 6", "17 10-21 * * 0", "47 16,19,23 * * 0", "17 22,23 * * 1,4"])
+    new = ticks(re.findall(r"- cron: '([^']+)'", text))
+    assert set(new) == set(old)
+    assert max(new.values()) == 1
 
 
 def test_telegram_on_failure(text: str):

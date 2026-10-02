@@ -20,9 +20,11 @@ from typing import Any, Optional
 
 import httpx
 
+from pipeline.weather.member_cache import METADATA_BASE, SOURCES, version
 from pipeline.weather.parsers.ensemble import EnsembleLocation, parse_ensemble
 from pipeline.weather.parsers.ensemble_mean import EnsembleMeanLocation, parse_ensemble_mean
 from pipeline.weather.parsers.openmeteo import ParsedLocation, parse_forecast
+from pipeline.weather.rate_limit import ENSEMBLE_BATCH_SIZE, RequestBudget
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
@@ -52,6 +54,17 @@ RETRIES = 3
 # capture(source_name, payload, url)
 CaptureFn = Callable[[str, Any, str], None]
 Point = tuple[float, float]
+
+
+def _request_kwargs(
+    budget: Optional[RequestBudget], capture: Optional[CaptureFn], source: str,
+) -> dict[str, Any]:
+    if budget is None:
+        return {}
+    kwargs: dict[str, Any] = {"budget": budget}
+    if capture is not None:
+        kwargs["capture_error"] = lambda payload, url: capture(f"{source}_error", payload, url)
+    return kwargs
 
 
 def _fmt_hour(dt: datetime) -> str:
@@ -86,16 +99,23 @@ def build_params(
     return params
 
 
-def _get_json(client: httpx.Client, url: str, params: dict[str, str]) -> tuple[Any, str]:
+def _get_json(
+    client: httpx.Client, url: str, params: dict[str, str], budget: Optional[RequestBudget] = None,
+    capture_error: Optional[Callable[[Any, str], None]] = None,
+) -> tuple[Any, str]:
     last_exc: Optional[Exception] = None
     for attempt in range(RETRIES):
         try:
+            if budget is not None:
+                budget.acquire(url, params)
             r = client.get(url, params=params)
             # Retrying a rate-limited multi-location request immediately only
             # extends the outage and increases provider load. Let the caller
             # preserve other successful batches and use NWS/static fallbacks.
             if r.status_code == 429:
-                raise RuntimeError("open-meteo rate limited (HTTP 429)")
+                reason = budget.rate_limited(r, capture_error) if budget is not None else ""
+                detail = f": {reason}" if reason else ""
+                raise RuntimeError(f"open-meteo rate limited (HTTP 429){detail}")
             if r.status_code >= 500:
                 raise httpx.HTTPStatusError(f"status {r.status_code}", request=r.request, response=r)
             r.raise_for_status()
@@ -116,6 +136,7 @@ def fetch_forecast(
     capture: Optional[CaptureFn] = None,
     client: Optional[httpx.Client] = None,
     source_prefix: str = "openmeteo_forecast",
+    budget: Optional[RequestBudget] = None,
 ) -> list[ParsedLocation]:
     """Fetch and parse forecasts for `points`; batches of <=50. Returns one ParsedLocation per input point (order preserved)."""
     if not points:
@@ -127,7 +148,8 @@ def fetch_forecast(
         for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
             batch = list(points[i : i + BATCH_SIZE])
             params = build_params(batch, start, end, models, forecast_days)
-            payload, url = _get_json(c, FORECAST_URL, params)
+            request_kwargs = _request_kwargs(budget, capture, f"{source_prefix}_{b:02d}")
+            payload, url = _get_json(c, FORECAST_URL, params, **request_kwargs)
             if capture is not None:
                 capture(f"{source_prefix}_{b:02d}", payload, url)
             parsed = parse_forecast(payload)
@@ -154,6 +176,38 @@ def fetch_forecast_raw(
     try:
         payload, _ = _get_json(c, FORECAST_URL, build_params(points[:BATCH_SIZE], start, end, models, forecast_days))
         return payload
+    finally:
+        if own:
+            c.close()
+
+
+def fetch_model_versions(
+    source: str, *, capture: Optional[CaptureFn] = None, budget: Optional[RequestBudget] = None,
+    client: Optional[httpx.Client] = None,
+) -> dict[str, Any]:
+    """Metadata is free of forecast quota; never guess a six-hour cycle id.
+
+    GEFS seamless depends on both 0.25 and 0.5 degree dataset versions. The
+    initialization stamp does not attribute every retained long-range hour.
+    """
+    own = client is None
+    c = client or httpx.Client(timeout=15, headers={"User-Agent": USER_AGENT})
+    versions = {}
+    try:
+        for dataset in SOURCES[source][1]:
+            url = f"{METADATA_BASE}/{dataset}/static/meta.json"
+            response = c.get(url)
+            if response.status_code == 429:
+                reason = budget.rate_limited(response) if budget else "HTTP 429"
+                if capture:
+                    capture(f"ensemble_metadata_{dataset}_error", response.json(), url)
+                raise RuntimeError(f"model metadata restricted: {reason}")
+            response.raise_for_status()
+            body = response.json()
+            if capture:
+                capture(f"ensemble_metadata_{dataset}", body, url)
+            versions[dataset] = version(body, datetime.now(timezone.utc))
+        return versions
     finally:
         if own:
             c.close()
@@ -213,8 +267,9 @@ def fetch_ensemble(
     capture: Optional[CaptureFn] = None,
     client: Optional[httpx.Client] = None,
     source_prefix: str = "openmeteo_ensemble",
+    budget: Optional[RequestBudget] = None,
 ) -> list[EnsembleLocation]:
-    """Ensemble members (ECMWF IFS 0.25 + GEFS) for `points`; batches of <=50, order preserved.
+    """Ensemble members (ECMWF IFS 0.25 + GEFS) for `points`; batches of <=20, order preserved.
 
     Raises on transport failure so the caller can degrade to the static wind_vol."""
     if not points:
@@ -223,10 +278,11 @@ def fetch_ensemble(
     c = client or httpx.Client(timeout=90.0, headers={"User-Agent": USER_AGENT})
     out: list[EnsembleLocation] = []
     try:
-        for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
-            batch = list(points[i : i + BATCH_SIZE])
+        for b, i in enumerate(range(0, len(points), ENSEMBLE_BATCH_SIZE)):
+            batch = list(points[i : i + ENSEMBLE_BATCH_SIZE])
             params = build_ensemble_params(batch, start, end, models, forecast_days)
-            payload, url = _get_json(c, ENSEMBLE_URL, params)
+            request_kwargs = _request_kwargs(budget, capture, f"{source_prefix}_{b:02d}")
+            payload, url = _get_json(c, ENSEMBLE_URL, params, **request_kwargs)
             if capture is not None:
                 capture(f"{source_prefix}_{b:02d}", payload, url)
             parsed = parse_ensemble(payload)
@@ -248,6 +304,7 @@ def fetch_ensemble_mean(
     capture: Optional[CaptureFn] = None,
     client: Optional[httpx.Client] = None,
     source_prefix: str = "openmeteo_ensemble_mean",
+    budget: Optional[RequestBudget] = None,
 ) -> list[EnsembleMeanLocation]:
     """Fetch precomputed GEFS mean/spread as a low-cost 429 fallback.
 
@@ -264,7 +321,8 @@ def fetch_ensemble_mean(
         for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
             batch = list(points[i : i + BATCH_SIZE])
             params = build_ensemble_mean_params(batch, start, end, model, forecast_days)
-            payload, url = _get_json(c, ENSEMBLE_URL, params)
+            request_kwargs = _request_kwargs(budget, capture, f"{source_prefix}_{b:02d}")
+            payload, url = _get_json(c, ENSEMBLE_URL, params, **request_kwargs)
             if capture is not None:
                 capture(f"{source_prefix}_{b:02d}", payload, url)
             parsed = parse_ensemble_mean(payload, model=model)
@@ -288,6 +346,8 @@ __all__ = [
     "ENSEMBLE_MODELS",
     "ENSEMBLE_MEAN_MODEL",
     "BATCH_SIZE",
+    "ENSEMBLE_BATCH_SIZE",
+    "RequestBudget",
     "CaptureFn",
     "window_for",
     "build_params",

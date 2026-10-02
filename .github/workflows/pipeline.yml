@@ -34,7 +34,8 @@ on:
   # UTC backstop ~= old 05:15 / 10:00 / 16:20 ET cadence, off-the-minute (GitHub
   # drops on-the-hour schedules).
   schedule:
-    - cron: '17 9,14,20 * * *'
+    - cron: '17 9 * * *'
+    - cron: '17 14,20 * * 1'       # other days already covered below
     # In-season cadence (ARCH §9.1, mirrored in site/worker/SETUP.md §7). UTC, EDT-based,
     # GitHub DOW 0=Sun. Every schedule run is sport=all scope=full; pipeline.gate_check
     # trims off-season / no-game windows so idle fires cost ~1 minute.
@@ -43,7 +44,8 @@ on:
     - cron: '17 10-23 * * 6'       # Sat hourly 06:17-19:17 ET (CFB)
     - cron: '17 10-21 * * 0'       # Sun hourly 06:17-17:17 ET (NFL)
     - cron: '47 16,19,23 * * 0'    # Sun pre-kickoff 12:47/15:47/19:47 ET
-    - cron: '17 22,23 * * 1,4'     # Mon/Thu night 18:17, 19:17 ET
+    - cron: '17 22,23 * * 1'       # Mon night 18:17, 19:17 ET
+    - cron: '17 23 * * 4'          # Thu 22:17 already covered above
   workflow_dispatch:
     inputs:
       sport:
@@ -115,7 +117,7 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
   # State files that round-trip through R2 board/ (ARCH §5).
-  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status
+  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache
 
 jobs:
   gate:
@@ -222,7 +224,14 @@ jobs:
           # 'full' runs the httpx books here; BetOnline is added by the playwright job.
           LIGHT_SCOPE="$SCOPE"
           [ "$LIGHT_SCOPE" = "full" ] && LIGHT_SCOPE=light
-          python -m pipeline.build --sport "$SPORT" --scope "$LIGHT_SCOPE" --print --run-id "$RUN_ID" ${FORCE:+--force}
+          python -m pipeline.build --sport "$SPORT" --scope "$LIGHT_SCOPE" --print --run-id "$RUN_ID" --weather-handoff-dir data/weather-points ${FORCE:+--force}
+      - name: Upload same-workflow weather inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: weather-points-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/weather-points/
+          retention-days: 1
+          if-no-files-found: warn
       - name: Push to R2
         # Order: raw/ captures, snapshots/, legacy/, board payloads, state files, then
         # meta.json LAST as the commit marker. Each put retries 3x and still fails
@@ -336,6 +345,13 @@ jobs:
           if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote; then
             echo '::warning::Wind history unavailable; alerts will label it unavailable'
           fi
+      - name: Download same-workflow weather inputs
+        # Absent inputs trigger fresh point fetches; state steps still fail closed.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: weather-points-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/weather-reuse/
       - name: Build board (BetOnline)
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
@@ -344,7 +360,7 @@ jobs:
         run: |
           # Refresh BetCRIS here too: the light upload can outlast the short
           # college feed TTL. Do not carry that earlier capture as current odds.
-          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --run-id "$RUN_ID" --merge-into-r2 ${FORCE:+--force}
+          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --run-id "$RUN_ID" --merge-into-r2 --reuse-weather-dir data/weather-reuse ${FORCE:+--force}
       - name: Push to R2 (playwright)
         run: |
           put() {  # put <r2 key> <local file>
