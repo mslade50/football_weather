@@ -27,8 +27,8 @@ def public_cfb():
 PUBLIC_NOW = datetime(2026, 9, 26, 3, 20, tzinfo=timezone.utc)
 
 
-def test_public_cfb_uses_actual_prices_and_pacific_kickoff(public_cfb):
-    lines = p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, run_id="public")
+def test_archived_public_cfb_uses_actual_prices_and_pacific_kickoff(public_cfb):
+    lines = p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, run_id="public", legacy_pacific_starts=True)
     jmu = [ln for ln in lines if "james-madison@old-dominion" in ln.game_id]
     assert len(jmu) == 6
     # ESPN independently lists 22:00 UTC. This feed's starts_at is Pacific wall
@@ -38,12 +38,12 @@ def test_public_cfb_uses_actual_prices_and_pacific_kickoff(public_cfb):
     assert (under.line, under.odds) == (44.5, -107)
     assert under.scraped_at.isoformat().replace("+00:00", "Z") == public_cfb["feed_fetched_at"]
     assert under.run_id == "public" and under.book == "betcris"
-    assert {ln.market for ln in p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, market="ml")} == {"ml"}
+    assert {ln.market for ln in p.parse_public(public_cfb, "cfb", now=PUBLIC_NOW, market="ml", legacy_pacific_starts=True)} == {"ml"}
 
 
 def test_public_nfl_preserves_utc_date_rollover():
     payload = json.loads((FIX / "nfl_public.json").read_text(encoding="utf-8"))
-    lines = p.parse_public(payload, "nfl", now=PUBLIC_NOW)
+    lines = p.parse_public(payload, "nfl", now=PUBLIC_NOW, legacy_pacific_starts=True)
     assert len(lines) == 12  # two full games; excludes half-game and past unavailable rows
     assert {ln.game_id for ln in lines} == {
         "nfl:raw:2026-09-27T17:00:seattle-seahawks@washington-commanders",
