@@ -343,6 +343,12 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 "updated_at": getattr(home or away, "scraped_at", None),
             }
         if entry:
+            for market, values in entry.items():
+                ref = next(iter(markets[market].values()))
+                if ref.source_updated_at is not None:
+                    values["source_updated_at"] = ref.source_updated_at
+                if ref.expires_at is not None:
+                    values["expires_at"] = ref.expires_at
             out[book] = entry
     return out
 

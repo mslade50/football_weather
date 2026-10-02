@@ -12,6 +12,19 @@ Status: **Phase 4** (Worker board live, alerts, Alerts + Status tabs; Streamlit
 retired). Roadmap in `docs/PLAN.md`; design in `docs/ARCHITECTURE.md`; legacy
 audit in `docs/AUDIT.md`; Cloudflare setup in `site/worker/SETUP.md`.
 
+BetCRIS catalog generation is global activity, not a documented confirmation
+of each unchanged league revision. The official widget uses that global clock,
+but the scraper keeps the league's own observation time and rejects stale
+league files. Source timestamps and strict provider/one-hour expiry remain
+separate from local retrieval time. The league's ID, name, and sport are
+validated directly. Provider expiry is retained through archive carry-forward;
+quotes cannot outlive a tighter provider TTL in a later publication.
+
+For data validation without messages, dispatch `pipeline.yml` with
+`safe_refresh=true` and `force=false`. This suppresses Telegram, including
+failure notifications, while keeping normal publication and freshness gates.
+The pipeline does not place orders.
+
 ## Architecture
 
 ```

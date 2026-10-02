@@ -20,6 +20,110 @@ def payload(sport):
 
 
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
+def test_global_generation_cannot_confirm_unobserved_stale_league_payload(sport):
+    data = payload(sport)
+    data["feed_fetched_at"] = (NOW - timedelta(hours=2)).isoformat()
+    data["generated_at"] = NOW.isoformat()
+    data["last_good_at"] = NOW.isoformat()
+    with pytest.raises(ValueError, match="stale"):
+        betcris.parse_public(data, sport, now=NOW)
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+@pytest.mark.parametrize("field,value", [
+    ("id", 999), ("id", True), ("id", "1"), ("name", "OTHER LEAGUE"),
+    ("name", None), ("sport", "SOCCER"), ("sport", None),
+])
+def test_payload_must_identify_expected_full_game_football_league(sport, field, value):
+    data = payload(sport)
+    data["league"][field] = value
+    with pytest.raises(ValueError, match="full-game league"):
+        betcris.parse_public(data, sport, now=NOW)
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+@pytest.mark.parametrize("timestamp", [None, "invalid", "2026-10-02T20:30:00Z"])
+def test_generated_time_does_not_replace_missing_invalid_or_future_league_time(sport, timestamp):
+    data = payload(sport)
+    data["feed_fetched_at"] = timestamp
+    data["generated_at"] = NOW.isoformat()
+    with pytest.raises(ValueError):
+        betcris.parse_public(data, sport, now=NOW)
+
+
+@pytest.mark.parametrize("version", [True, "1", None, 2])
+def test_public_schema_version_must_be_supported_integer(version):
+    data = payload("nfl")
+    data["version"] = version
+    with pytest.raises(ValueError, match="schema version"):
+        betcris.parse_public(data, "nfl", now=NOW)
+
+
+def test_provider_expiry_and_original_payload_time_survive_archive_and_json(tmp_path, monkeypatch):
+    from pipeline import state
+    from pipeline.outputs.json_out import odds_block
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    data = payload("cfb")
+    raw = data["games"][0]
+    data["games"] = [raw]
+    kick = datetime.fromisoformat(raw["starts_at"].replace("Z", "+00:00"))
+    home = merge.candidate_team_ids("cfb", raw["home"])[0]
+    away = merge.candidate_team_ids("cfb", raw["visitor"])[0]
+    game = Game(game_id=f"cfb:2026:5:{away}@{home}", sport="cfb", season=2026, week=5,
+                kickoff_utc=kick, kickoff_local=kick, tz="UTC", home_id=home, away_id=away, stadium_id=None)
+    rows = merge.merge_odds("cfb", [game], betcris.parse_public(data, "cfb", now=NOW),
+                            now=NOW, save=False).lines
+    monkeypatch.setattr(RunContext, "now_utc", property(lambda self: NOW))
+
+    async def scrape(*args):
+        return {"betcris": rows}, {}
+
+    monkeypatch.setattr(build, "scrape_books", scrape)
+    build.stage_odds(RunContext(sport="cfb", git_sha="test"), "cfb", [game], None,
+                     NullRawStore("cfb", "expiry"), ["betcris"], tmp_path, 2026)
+    archive = state.load_archive_last(tmp_path)
+    observed = rows[0].scraped_at
+    expiry = observed + timedelta(seconds=750)
+    carried = build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry)
+    assert len(carried) == 6 and {r.expires_at for r in carried} == {expiry}
+    assert {r.source_updated_at for r in carried} == {observed}
+    assert build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry + timedelta(seconds=1)) == []
+    values = odds_block(game.game_id, carried, {})["betcris"]
+    assert all(x["updated_at"] == observed and x["expires_at"] == expiry
+               and x["source_updated_at"] == carried[0].source_updated_at for x in values.values())
+
+
+@pytest.mark.parametrize("expiry", [None, "invalid", "2026-10-02T20:28:59Z"])
+def test_archive_with_invalid_or_expired_provider_expiry_is_not_carried(expiry):
+    game_id = "cfb:2026:5:away@home"
+    archive = {"last": {f"{game_id}|ml|home|betcris": {
+        "odds": -110, "line": None, "ts": NOW.isoformat(), "available": True,
+        "expires_at": expiry,
+    }}}
+    assert build.carry_forward_lines(archive, "cfb", {game_id}, ["betonline"], now=NOW) == []
+
+
+def test_source_expiry_survives_neutral_home_away_flip():
+    data = payload("nfl")
+    raw = data["games"][0]
+    data["games"] = [raw]
+    kick = datetime.fromisoformat(raw["starts_at"].replace("Z", "+00:00"))
+    source_home = merge.candidate_team_ids("nfl", raw["home"])[0]
+    source_away = merge.candidate_team_ids("nfl", raw["visitor"])[0]
+    game = Game(game_id=f"nfl:2026:4:{source_home}@{source_away}", sport="nfl", season=2026, week=4,
+                kickoff_utc=kick, kickoff_local=kick, tz="UTC", home_id=source_away,
+                away_id=source_home, stadium_id=None, neutral=True)
+    rows = betcris.parse_public(data, "nfl", now=NOW)
+    result = merge.merge_odds("nfl", [game], rows, now=NOW, save=False)
+    assert len(result.lines) == 6 and not result.unmatched
+    assert {r.source_updated_at for r in result.lines} == {rows[0].source_updated_at}
+    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(hours=1)}
+    assert next(r for r in result.lines if r.market == "ml" and r.side == "home").odds == raw["markets"]["moneyline"]["visitor"]["price"]
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
 def test_current_source_utc_matches_schedule_and_survives_second_publish(sport):
     data = payload(sport)
     rows = betcris.parse_public(data, sport, now=NOW)

@@ -316,13 +316,18 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
         raise ValueError(f"unknown sport {sport!r}")
     if not isinstance(payload, dict) or payload.get("feed_ok") is not True:
         raise ValueError("Betcris public feed is unavailable")
-    if payload.get("version") != 1:
+    if type(payload.get("version")) is not int or payload.get("version") != 1:
         raise ValueError("Betcris public feed has an unsupported schema version")
     league = payload.get("league")
-    if not isinstance(league, dict) or league.get("id") != PUBLIC_LEAGUES[sport]:
+    expected_name = "NFL" if sport == "nfl" else "COLLEGE FOOTBALL"
+    if (not isinstance(league, dict) or type(league.get("id")) is not int
+            or league.get("id") != PUBLIC_LEAGUES[sport]
+            or league.get("name") != expected_name or league.get("sport") != "FOOTBALL"):
         raise ValueError(f"Betcris public feed is not the {sport} full-game league")
     observed = _public_timestamp(payload.get("feed_fetched_at"))
     ttl = _public_number(payload.get("stale_after_seconds"))
+    # Global catalog activity and local download time cannot confirm a retained
+    # league revision. Its own observation clock remains the freshness gate.
     if (observed is None or ttl is None or ttl <= 0
             # Match the board's one-hour carry ceiling, retaining any tighter
             # provider TTL. Otherwise a light scrape can report green NFL odds
@@ -373,5 +378,7 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                     continue
                 out.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=target_market,
                                     side=side, line=line, odds=int(price), scraped_at=observed,
-                                    source_id=f"public:{game.get('id')}", run_id=run_id))
+                                    source_id=f"public:{game.get('id')}", run_id=run_id,
+                                    source_updated_at=observed,
+                                    expires_at=observed + timedelta(seconds=min(ttl, 3600))))
     return out
