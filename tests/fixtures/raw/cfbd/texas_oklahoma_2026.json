@@ -1,0 +1,20 @@
+[
+  {
+    "id": 401856717,
+    "season": 2026,
+    "week": 6,
+    "seasonType": "regular",
+    "startDate": "2026-10-10T19:30:00.000Z",
+    "startTimeTBD": false,
+    "completed": false,
+    "neutralSite": true,
+    "venueId": 499,
+    "venue": "Cotton Bowl",
+    "homeTeam": "Oklahoma",
+    "homeClassification": "fbs",
+    "homePoints": null,
+    "awayTeam": "Texas",
+    "awayClassification": "fbs",
+    "awayPoints": null
+  }
+]

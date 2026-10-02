@@ -254,11 +254,27 @@ def test_missing_stadium_degrades(book: StadiumBook) -> None:
     assert sink and all(isinstance(d, Degradation) for d in sink)
 
 
-def test_neutral_unknown_venue_uses_home_with_warning(book: StadiumBook) -> None:
-    ctx = RunContext(sport="nfl", git_sha="test")
-    rg = book.resolve(_game("nfl", "jax", "hou", "XXX00", neutral=True), ctx)
-    assert rg.stadium is not None and rg.stadium_source == "home_team_neutral_fallback"
-    assert any(d.component == "stadiums" and d.severity == "warn" for d in ctx.degradations)
+@pytest.mark.parametrize("sport,home,away", [("nfl", "jax", "hou"), ("cfb", "oklahoma", "texas")])
+@pytest.mark.parametrize("venue_id", ["XXX00", None])
+def test_neutral_unknown_venue_stays_unresolved_with_warning(book: StadiumBook, sport, home, away, venue_id) -> None:
+    ctx = RunContext(sport=sport, git_sha="test")
+    game = _game(sport, home, away, venue_id, neutral=True)
+    rg = book.resolve(game, ctx)
+    assert rg.stadium is None and rg.stadium_source == "none" and rg.game_loc is None
+    assert rg.wind_avg is None and rg.travel_alt is None and rg.roof_state is None
+    assert game.game_id in book.unresolved
+    assert any(d.component == "stadiums" and d.severity == "warn" and "neutral site" in d.reason for d in ctx.degradations)
+
+    from pipeline.build import stage_weather
+    from pipeline.outputs.raw_out import NullRawStore
+
+    assert stage_weather(ctx, sport, [game], {}, NullRawStore(), {}) == {}
+
+
+@pytest.mark.parametrize("sport,home,away", [("nfl", "jax", "hou"), ("cfb", "oklahoma", "texas")])
+def test_home_unknown_venue_still_resolves_home(book: StadiumBook, sport, home, away) -> None:
+    rg = book.resolve(_game(sport, home, away, "XXX00"))
+    assert rg.stadium is book.stadium_for_team(sport, home) and rg.stadium_source == "home_team"
 
 
 def test_overrides_applied(book: StadiumBook) -> None:
