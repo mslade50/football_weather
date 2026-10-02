@@ -1327,11 +1327,17 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
         # message includes its fair-line delta and absorbs that update.
         last_line = _num(rec.get("last_line"))
         first_line = _num(rec.get("first_line"))
+        # Reactivation/tier/price messages already include the current quote.
+        # An unsent first-entry bucket alone must not repeat that same quote.
+        # Keep genuine odds/book changes eligible under the existing bucket rule.
+        price_changed = (line_now, _num(e.get("odds")), e.get("book")) != (
+            last_line, _num(rec.get("last_odds")), rec.get("last_book") or rec.get("book"),
+        )
         if last_line is not None and first_line is not None:
             mb = move_bucket(rec.get("market") or "total", line_now, first_line)
             last_move = _dt(rec.get("last_move_at"))
             cooled = last_move is None or (now - last_move) >= timedelta(hours=MOVE_COOLDOWN_H)
-            if mb >= 1 and cooled:
+            if mb >= 1 and cooled and price_changed:
                 key = f"move|{ekey}|{mb}"
                 if not pstate.alert_sent(alerts, key):
                     direction = move_direction(rec.get("market") or "total", rec.get("side") or "", line_now, last_line,
@@ -1360,12 +1366,15 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
 
         # FORECAST MOVE, bucketed from the first alerted fair so later material
         # shifts receive distinct keys. It only fires when no higher-priority
-        # update was emitted above.
+        # update was emitted above. Compare with the last delivered fair too:
+        # a higher-priority message may already have communicated this forecast
+        # without consuming the first-entry bucket. Do not rebase that bucket or
+        # mutate first_* fields, which remain the original performance entry.
         last_fair = _num(rec.get("last_fair"))
         first_fair = _num(rec.get("first_fair"))
         if fair_now is not None and last_fair is not None and first_fair is not None:
             wb = int(math.floor(abs(fair_now - first_fair) / WX_STEP + 1e-9))
-            if wb >= 1:
+            if wb >= 1 and fair_now != last_fair:
                 key = f"wx|{ekey}|{wb}"
                 if not pstate.alert_sent(alerts, key):
                     out.append(Candidate(

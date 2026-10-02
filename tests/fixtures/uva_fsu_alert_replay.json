@@ -1,0 +1,100 @@
+{
+  "source": "Production run 37029362058; captured original parent and observed current quote/forecast. Card includes only notification inputs.",
+  "edge_key": "edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1",
+  "light_at": "2026-10-02T15:51:12Z",
+  "playwright_at": "2026-10-02T16:02:23Z",
+  "alerts_before": {
+    "schema_version": 1,
+    "records": {
+      "edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1": {
+        "alert_key": "edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1",
+        "first_sent_at": "2026-09-28T02:05:11Z",
+        "sends": 1,
+        "status": "closed",
+        "first_line": 51.5,
+        "first_odds": 104,
+        "first_fair": 51.27418004241199,
+        "first_edge": 0.23,
+        "family": "edge",
+        "game_id": "cfb:2026:5:virginia@florida-state",
+        "sport": "cfb",
+        "season": 2026,
+        "week": 5,
+        "market": "total",
+        "side": "under",
+        "book": "novig",
+        "tier": "low",
+        "model_version": "v1",
+        "last_line": 51.5,
+        "last_odds": -104,
+        "last_fair": 51.1895950459109,
+        "last_edge": 0.31,
+        "run_id": "20260928T020124Z-gh36368111655-1",
+        "last_wind": 5.787849240305556,
+        "last_rain": 1.7999999999999998,
+        "last_signal": "No Impact",
+        "last_book": "novig",
+        "notification_active": false,
+        "kickoff_utc": "2026-10-03T19:30:00Z",
+        "first_signal_at": "2026-09-28T02:05:11Z",
+        "first_signal_label": "Low (Rain)",
+        "first_signal_line": 51.5,
+        "first_signal_odds": 104,
+        "first_signal_fair": 51.27418004241199,
+        "first_signal_edge": 0.23,
+        "first_signal_book": "novig",
+        "last_sent_at": "2026-09-30T15:58:18Z",
+        "signal_revision": 5
+      }
+    },
+    "sent": {
+      "edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1": "2026-09-28T02:05:11Z",
+      "gone|edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1|1": "2026-09-28T14:54:29Z",
+      "activate|edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1|sig-low|2": "2026-09-29T00:25:32Z",
+      "activate|edge|2026|5|cfb:2026:5:virginia@florida-state|total|under|best|v1|sig-low|4": "2026-09-30T15:58:18Z"
+    },
+    "feed": []
+  },
+  "card": {
+    "game_id": "cfb:2026:5:virginia@florida-state",
+    "sport": "cfb",
+    "season": 2026,
+    "week": 5,
+    "kickoff_utc": "2026-10-03T19:30:00Z",
+    "status": "scheduled",
+    "home": {
+      "name": "Florida State",
+      "short": "FSU"
+    },
+    "away": {
+      "name": "Virginia",
+      "short": "UVA"
+    },
+    "stadium": {
+      "roof_state": "outdoors"
+    },
+    "signal": {
+      "label": "Low (Rain)"
+    },
+    "weather": {
+      "wind_fg": 12.1,
+      "rain_fg": 16.5,
+      "temp_fg": 79.2
+    },
+    "fair": {
+      "fair_total": 47.1225,
+      "edges": [
+        {
+          "market": "total",
+          "side": "under",
+          "book": "novig",
+          "line": 51.5,
+          "odds": 102,
+          "fair_line": 47.1225,
+          "edge_pts": 4.38,
+          "model_version": "v1"
+        }
+      ]
+    }
+  }
+}

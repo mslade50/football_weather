@@ -487,6 +487,104 @@ def test_forecast_move_bucket_on_fair_line():
     assert A.followup_candidates(moved, alerts, CFG, NOW) == []
 
 
+def test_captured_uva_fsu_reactivation_then_unchanged_playwright_is_silent(tmp_path):
+    replay = json.loads((Path(__file__).parent / "fixtures" / "uva_fsu_alert_replay.json").read_text())
+    alerts = replay["alerts_before"]
+    current = replay["card"]
+    ekey = replay["edge_key"]
+    light_at = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
+    playwright_at = datetime.fromisoformat(replay["playwright_at"].replace("Z", "+00:00"))
+    original = {k: v for k, v in alerts["records"][ekey].items() if k.startswith("first_")}
+    tg = pstate.migrate(None, "telegram_state")
+
+    returning = A.followup_candidates(current, alerts, CFG, light_at)
+    assert len(returning) == 1 and returning[0].key.startswith("activate|")
+    out, sent, _ = _live(returning, alerts, tg, now=light_at)
+    assert out.n_messages == 1 and "Weather signal active again" in sent.sent[0][0]
+    assert alerts["records"][ekey]["last_fair"] == 47.1225
+    assert not pstate.alert_sent(alerts, f"wx|{ekey}|2")
+
+    # Replay the light -> R2 -> Playwright boundary; the unsent first-entry bucket
+    # must not repeat the forecast already included in the reactivation message.
+    pstate.save_alerts(tmp_path, alerts)
+    restored = pstate.load_alerts(tmp_path)
+    repeated = A.followup_candidates(current, restored, CFG, playwright_at)
+    out, sent, _ = _live(repeated, restored, tg, now=playwright_at)
+    assert repeated == [] and out.n_messages == 0 and sent.sent == []
+    assert {k: v for k, v in restored["records"][ekey].items() if k.startswith("first_")} == original
+
+    # A changed fair still qualifies under the existing original-entry bucket;
+    # do not impose a new two-point threshold against the last delivered fair.
+    current["fair"]["edges"][0]["fair_line"] = 46.9
+    changed = A.followup_candidates(current, restored, CFG, playwright_at)
+    assert [c.key for c in changed] == [f"wx|{ekey}|2"]
+
+
+@pytest.mark.parametrize("notice", ["reactivation", "tier", "price"])
+def test_higher_priority_message_absorbs_unchanged_price_and_forecast(notice):
+    alerts, tg = _fresh()
+    alerts = _with_open_edge()
+    parent = alerts["records"][EKEY]
+    original = {k: v for k, v in parent.items() if k.startswith("first_")}
+    if notice == "reactivation":
+        parent.update(status="closed", notification_active=False)
+    elif notice == "price":
+        parent.update(last_line=None, last_odds=None)
+    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)],
+                   signal="High Impact" if notice == "tier" else "Mid Impact")
+    update = A.followup_candidates(current, alerts, CFG, NOW)
+    assert len(update) == 1
+    prefix = {"reactivation": "activate|", "tier": "wx|", "price": "price|"}[notice]
+    assert update[0].key.startswith(prefix)
+    out, _, _ = _live(update, alerts, tg)
+    assert out.n_sent == 1
+    assert A.followup_candidates(current, alerts, CFG, NOW + timedelta(hours=5)) == []
+    assert {k: v for k, v in parent.items() if k.startswith("first_")} == original
+
+
+def test_line_move_absorbs_unchanged_forecast_but_changed_forecast_can_follow():
+    alerts, tg = _fresh()
+    alerts = _with_open_edge()
+    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)])
+    update = A.followup_candidates(current, alerts, CFG, NOW)
+    assert [c.key for c in update] == [f"move|{EKEY}|2"]
+    _live(update, alerts, tg)
+    assert A.followup_candidates(current, alerts, CFG, NOW + timedelta(hours=5)) == []
+    current["fair"]["edges"][0]["fair_line"] = 30.5
+    assert [c.key for c in A.followup_candidates(current, alerts, CFG, NOW)] == [f"wx|{EKEY}|2"]
+
+
+@pytest.mark.parametrize("change", ["line", "odds", "book"])
+def test_genuinely_changed_price_after_reactivation_keeps_existing_bucket_rule(change):
+    alerts, tg = _fresh()
+    alerts = _with_open_edge()
+    alerts["records"][EKEY].update(status="closed", notification_active=False)
+    current = card([_edge(line=41.0, fair_line=34.6, edge_pts=6.4)])
+    _live(A.followup_candidates(current, alerts, CFG, NOW), alerts, tg)
+    assert not pstate.alert_sent(alerts, f"move|{EKEY}|2")
+    edge = current["fair"]["edges"][0]
+    edge[{"line": "line", "odds": "odds", "book": "book"}[change]] = {
+        "line": 41.5, "odds": 102, "book": "novig",
+    }[change]
+    assert [c.key for c in A.followup_candidates(current, alerts, CFG, NOW)] == [f"move|{EKEY}|2"]
+
+
+def test_failed_reactivation_does_not_advance_last_delivered_baseline():
+    alerts, tg = _fresh()
+    alerts = _with_open_edge()
+    parent = alerts["records"][EKEY]
+    parent.update(status="closed", notification_active=False)
+    before = dict(parent)
+    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)])
+    returning = A.followup_candidates(current, alerts, CFG, NOW)
+    out, _, _ = _live(returning, alerts, tg, ok=False)
+    assert out.n_sent == 0 and parent == before
+    retry = A.followup_candidates(current, alerts, CFG, NOW)
+    assert [c.key for c in retry] == [c.key for c in returning]
+    _live(retry, alerts, tg)
+    assert A.followup_candidates(current, alerts, CFG, NOW) == []
+
+
 # ---- quiet hours -----------------------------------------------------------------
 
 def test_quiet_hours_window():
