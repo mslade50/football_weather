@@ -95,15 +95,11 @@ def test_public_scrape_captures_raw_and_rejects_unhealthy_feed(tmp_path, monkeyp
     if bad_feed:
         payload["feed_ok"] = False
     raw_text = json.dumps(payload)
-    catalog = {"version": 1, "feed_ok": True, "generated_at": payload["feed_fetched_at"],
-               "leagues": [{"id": 2, "path": "league/2.json", "hash": "0" * 16,
-                            "name": "COLLEGE FOOTBALL", "sport": "FOOTBALL",
-                            "stale_after_seconds": payload["stale_after_seconds"]}]}
     seen_urls = []
 
     async def fetch(self, client, slug, path):
         seen_urls.append(path)
-        return json.dumps(catalog) if path == B.PUBLIC_INDEX_URL else raw_text
+        return raw_text
 
     class Clock(datetime):
         @classmethod
@@ -115,8 +111,7 @@ def test_public_scrape_captures_raw_and_rejects_unhealthy_feed(tmp_path, monkeyp
     raw = RawStore("cfb", "test", base_dir=tmp_path)
     scraper = B.BetcrisScraper(raw_store=raw)
     lines = asyncio.run(scraper.scrape("cfb"))
-    assert seen_urls == [B.PUBLIC_INDEX_URL, B.PUBLIC_URL.format(league=2) + "?v=" + "0" * 16]
-    assert json.loads((raw.run_dir / "betcris_public_index_cfb.json").read_text()) == catalog
+    assert seen_urls == ["https://sportsbook.betcris.com/assets/odds/v1/league/2.json"]
     assert (raw.run_dir / "betcris_public_cfb.json").read_text(encoding="utf-8") == raw_text
     if bad_feed:
         assert lines == []

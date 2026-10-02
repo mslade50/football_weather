@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://lines.bookmaker.eu"
 PUBLIC_URL = "https://sportsbook.betcris.com/assets/odds/v1/league/{league}.json"
-PUBLIC_INDEX_URL = "https://sportsbook.betcris.com/assets/odds/v1/index.json"
 FOOTBALL_PATH = "/en/sports/football/{slug}/"
 FETCH_TIMEOUT_S = 60.0
 FETCH_ATTEMPTS = 3
@@ -111,18 +110,6 @@ class BetcrisScraper(BaseScraper):
         url = PUBLIC_URL.format(league=parser.PUBLIC_LEAGUES[sport])
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True,
                                      timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0)) as client:
-            index_raw = await self._get_with_retry(client, slug, PUBLIC_INDEX_URL)
-            if index_raw is None:
-                return []
-            if self.raw_store is not None:
-                self.raw_store.put(f"betcris_public_index_{sport}", index_raw, url=PUBLIC_INDEX_URL, ext="json")
-            try:
-                catalog = json.loads(index_raw)
-                revision = parser.public_catalog_entry(catalog, sport)["hash"]
-            except ValueError as exc:
-                self.fetch_errors[slug] = str(exc)
-                return []
-            url += f"?v={revision}"
             raw = await self._get_with_retry(client, slug, url)
         if raw is None:
             return []
@@ -130,7 +117,7 @@ class BetcrisScraper(BaseScraper):
             self.raw_store.put(f"betcris_public_{sport}", raw, url=url, ext="json")
         try:
             lines = parser.parse_public(json.loads(raw), sport, now=datetime.now(timezone.utc),
-                                        market=market, run_id=self.run_id, catalog=catalog)
+                                        market=market, run_id=self.run_id)
         except ValueError as exc:
             self.fetch_errors[slug] = str(exc)
             return []

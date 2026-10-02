@@ -203,7 +203,7 @@ class GameLine(_AsDict):
     run_id: Optional[str] = None
     # Typed total outcomes retained for public depth; display names are not identities.
     outcome_ids: dict[str, str] = field(default_factory=dict)
-    # Publisher confirmation and retained payload time are separate for BetCRIS.
+    # Retain upstream observation time and provider expiry across publications.
     source_updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
 
