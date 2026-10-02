@@ -186,7 +186,7 @@ def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
     assert "ref: main" not in pw   # no light-job commit to pick up any more
     assert "python -m playwright install --with-deps chromium" in pw
     build = _step(pw, "Build board (BetOnline)")
-    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline --print --run-id "$RUN_ID" --merge-into-r2' in build
+    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --run-id "$RUN_ID" --merge-into-r2' in build
     assert "contents: write" not in pw
     order = ["Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]

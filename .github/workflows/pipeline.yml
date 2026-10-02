@@ -285,7 +285,7 @@ jobs:
           retention-days: 7
   playwright:
     # BetOnline needs Chromium (Cloudflare pass). Runs AFTER light so it re-scrapes
-    # only the Playwright books, merges them onto the state light just pushed to
+    # BetOnline plus BetCRIS, merges them onto the state light just pushed to
     # R2 (--merge-into-r2), re-writes the legacy files (NFL Spread_now/Total_now)
     # to R2 legacy/ and republishes the board with meta.json last.
     needs: [gate, light]
@@ -342,7 +342,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline --print --run-id "$RUN_ID" --merge-into-r2 ${FORCE:+--force}
+          # Refresh BetCRIS here too: the light upload can outlast the short
+          # college feed TTL. Do not carry that earlier capture as current odds.
+          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --run-id "$RUN_ID" --merge-into-r2 ${FORCE:+--force}
       - name: Push to R2 (playwright)
         run: |
           put() {  # put <r2 key> <local file>
