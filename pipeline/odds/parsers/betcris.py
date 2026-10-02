@@ -302,12 +302,15 @@ def _public_number(value: object) -> float | None:
 
 
 def parse_public(payload: dict, sport: str, *, now: datetime,
-                 market: str | None = None, run_id: str | None = None) -> list[GameLine]:
+                 market: str | None = None, run_id: str | None = None,
+                 legacy_pacific_starts: bool = False) -> list[GameLine]:
     """Betcris's public /assets/odds/v1 league JSON -> open pregame prices.
 
     Keep the upstream observation time, not our download time. The publisher
     retains closed games and partial-game markets, so neither is current odds.
-    Legacy HTML parsing above remains available for archived raw captures.
+    Current JSON kickoff strings carry their actual UTC/offset time. September
+    JSON captures used Pacific wall time mislabeled Z; replay those explicitly
+    with legacy_pacific_starts=True. Legacy HTML parsing retains Pacific time.
     """
     if sport not in PUBLIC_LEAGUES:
         raise ValueError(f"unknown sport {sport!r}")
@@ -321,7 +324,10 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     observed = _public_timestamp(payload.get("feed_fetched_at"))
     ttl = _public_number(payload.get("stale_after_seconds"))
     if (observed is None or ttl is None or ttl <= 0
-            or not timedelta(0) <= now - observed <= timedelta(seconds=min(ttl, 9000))):
+            # Match the board's one-hour carry ceiling, retaining any tighter
+            # provider TTL. Otherwise a light scrape can report green NFL odds
+            # that the subsequent BetOnline publication immediately removes.
+            or not timedelta(0) <= now - observed <= timedelta(seconds=min(ttl, 3600))):
         raise ValueError("Betcris public feed has a stale or invalid observation timestamp")
     games = payload.get("games")
     if not isinstance(games, list):
@@ -334,10 +340,10 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
         start = _public_timestamp(game.get("starts_at"))
         if start is None:
             continue
-        # v1 publishes Pacific wall time with a Z suffix. Cross-checked against
-        # ESPN: JMU @ ODU 2026-09-26 15:00 is 22:00 UTC; NFL 10:00 is 17:00 UTC.
-        # Use the zone, not a fixed offset, so winter and UTC day rollover work.
-        kickoff = start.replace(tzinfo=PT).astimezone(timezone.utc)
+        # October captures match the canonical schedule in UTC, including the
+        # London 13:30 kickoff. Do not add a Pacific offset to current feeds.
+        kickoff = (start.replace(tzinfo=PT).astimezone(timezone.utc)
+                   if legacy_pacific_starts else start)
         if kickoff <= now:
             continue
         home, away = game.get("home"), game.get("visitor")

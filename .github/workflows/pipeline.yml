@@ -65,6 +65,11 @@ on:
           - light
           - full
           - exchanges
+      safe_refresh:
+        description: 'Publish validation data without Telegram messages'
+        type: boolean
+        required: false
+        default: false
       force:
         description: 'Bypass the kickoff-horizon gate and the publish content floor'
         type: boolean
@@ -81,6 +86,7 @@ concurrency:
 env:
   SPORT: ${{ inputs.sport || 'all' }}
   SCOPE: ${{ inputs.scope || 'full' }}
+  TELEGRAM_DISABLED: ${{ inputs.safe_refresh == true && '1' || '0' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
@@ -398,7 +404,7 @@ jobs:
     # One optional page for the whole run. Disabled by default so provider
     # fallbacks and CI failures stay on the dashboard / Actions run, not Telegram.
     needs: [gate, light, playwright]
-    if: ${{ always() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
+    if: ${{ always() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

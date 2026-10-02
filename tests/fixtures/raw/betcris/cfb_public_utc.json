@@ -1,0 +1,246 @@
+{
+  "generated_at": "2026-10-02T20:24:05Z",
+  "stale_after_seconds": 750,
+  "tier": "soon",
+  "feed_ok": true,
+  "last_good_at": "2026-10-02T20:24:05Z",
+  "feed_fetched_at": "2026-10-02T20:24:02Z",
+  "version": 1,
+  "league": {
+    "id": 2,
+    "name": "COLLEGE FOOTBALL",
+    "sport": "FOOTBALL"
+  },
+  "games": [
+    {
+      "id": 7527968,
+      "parent": null,
+      "starts_at": "2026-10-02T23:00:00Z",
+      "period_no": 0,
+      "period": "Game",
+      "home": "Virginia Tech",
+      "visitor": "Pittsburgh",
+      "title": null,
+      "live": false,
+      "markets": {
+        "moneyline": {
+          "home": {
+            "line": null,
+            "price": -123,
+            "status": "open",
+            "status_since": "2026-09-28T14:14:06Z",
+            "opener": {
+              "line": null,
+              "price": -167,
+              "at": "2026-09-28T14:14:06Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": 44
+            }
+          },
+          "visitor": {
+            "line": null,
+            "price": 103,
+            "status": "open",
+            "status_since": "2026-09-28T14:14:06Z",
+            "opener": {
+              "line": null,
+              "price": 145,
+              "at": "2026-09-28T14:14:06Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": -42
+            }
+          }
+        },
+        "spread": {
+          "home": {
+            "line": "-2.00",
+            "price": -106,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "-3.50",
+              "price": -107,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "1.50",
+              "price": 1
+            }
+          },
+          "visitor": {
+            "line": "2.00",
+            "price": -114,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "3.50",
+              "price": -113,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "-1.50",
+              "price": -1
+            }
+          }
+        },
+        "total": {
+          "over": {
+            "line": "54.50",
+            "price": -108,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "52.00",
+              "price": -112,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "2.50",
+              "price": 4
+            }
+          },
+          "under": {
+            "line": "54.50",
+            "price": -112,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "52.00",
+              "price": -108,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "2.50",
+              "price": -4
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 7527969,
+      "parent": null,
+      "starts_at": "2026-10-02T23:00:00Z",
+      "period_no": 0,
+      "period": "Game",
+      "home": "Delaware",
+      "visitor": "Liberty",
+      "title": null,
+      "live": false,
+      "markets": {
+        "moneyline": {
+          "home": {
+            "line": null,
+            "price": 222,
+            "status": "open",
+            "status_since": "2026-09-28T14:14:06Z",
+            "opener": {
+              "line": null,
+              "price": 223,
+              "at": "2026-09-28T14:14:06Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": -1
+            }
+          },
+          "visitor": {
+            "line": null,
+            "price": -270,
+            "status": "open",
+            "status_since": "2026-09-28T14:14:06Z",
+            "opener": {
+              "line": null,
+              "price": -271,
+              "at": "2026-09-28T14:14:06Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": null,
+              "price": 1
+            }
+          }
+        },
+        "spread": {
+          "home": {
+            "line": "7.00",
+            "price": -108,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "7.00",
+              "price": -103,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "0.00",
+              "price": -5
+            }
+          },
+          "visitor": {
+            "line": "-7.00",
+            "price": -112,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "-7.00",
+              "price": -117,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "0.00",
+              "price": 5
+            }
+          }
+        },
+        "total": {
+          "over": {
+            "line": "51.50",
+            "price": -117,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "50.50",
+              "price": -112,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "1.00",
+              "price": -5
+            }
+          },
+          "under": {
+            "line": "51.50",
+            "price": -103,
+            "status": "open",
+            "status_since": "2026-09-28T00:08:08Z",
+            "opener": {
+              "line": "50.50",
+              "price": -108,
+              "at": "2026-09-28T00:08:08Z",
+              "confidence": "trusted"
+            },
+            "movement": {
+              "line": "1.00",
+              "price": 5
+            }
+          }
+        }
+      }
+    }
+  ]
+}

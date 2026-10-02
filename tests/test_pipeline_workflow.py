@@ -61,6 +61,13 @@ def test_dispatch_inputs(text: str):
     assert "- exchanges" in text
 
 
+def test_safe_refresh_disables_messages_without_force_or_cadence_changes(text: str):
+    assert "safe_refresh:" in text
+    assert "TELEGRAM_DISABLED: ${{ inputs.safe_refresh == true && '1' || '0' }}" in text
+    assert "inputs.safe_refresh != true" in _job(text, "notify_failure")
+    assert "FORCE: ${{ inputs.force == true && '1' || '' }}" in text
+
+
 def test_concurrency_queues_rather_than_cancels(text: str):
     assert "group: football-refresh" in text
     assert "cancel-in-progress: false" in text
