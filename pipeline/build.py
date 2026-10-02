@@ -1320,6 +1320,10 @@ def stage_odds(
         for ln in main_lines + pseudo:
             last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": utc_iso(ln.scraped_at) if ln.scraped_at else now,
                             "available": True, "source_id": ln.source_id, "outcome_ids": ln.outcome_ids}
+            if ln.source_updated_at is not None:
+                last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
+            if ln.expires_at is not None:
+                last[ln.key]["expires_at"] = utc_iso(ln.expires_at)
         pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
@@ -1361,13 +1365,17 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
         quoted_at = pstate.parse_utc(val.get("ts"))
         if quoted_at is None or not timedelta(0) <= now - quoted_at <= ODDS_CARRY_MAX_AGE:
             continue
+        expires_at = pstate.parse_utc(val.get("expires_at"))
+        if "expires_at" in val and (expires_at is None or now > expires_at):
+            continue
         odds = val.get("odds")
         if odds is None:
             continue
         try:
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
                                 odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at,
-                                source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {}))
+                                source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {},
+                                source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at))
         except (TypeError, ValueError):
             continue
     return out

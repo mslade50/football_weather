@@ -301,9 +301,27 @@ def _public_number(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def public_catalog_entry(catalog: dict, sport: str) -> dict:
+    """Resolve the exact league revision confirmed by the public widget catalog."""
+    if sport not in PUBLIC_LEAGUES:
+        raise ValueError(f"unknown sport {sport!r}")
+    if (not isinstance(catalog, dict) or catalog.get("version") != 1
+            or catalog.get("feed_ok") is not True or not isinstance(catalog.get("leagues"), list)):
+        raise ValueError("Betcris public catalog is unavailable or invalid")
+    entries = [x for x in catalog["leagues"] if isinstance(x, dict) and x.get("id") == PUBLIC_LEAGUES[sport]]
+    if len(entries) != 1:
+        raise ValueError("Betcris public catalog does not list the requested league")
+    entry = entries[0]
+    if (entry.get("path") != f"league/{PUBLIC_LEAGUES[sport]}.json"
+            or not isinstance(entry.get("hash"), str)
+            or re.fullmatch(r"[0-9a-f]{16}", entry["hash"]) is None):
+        raise ValueError("Betcris public catalog has an invalid league revision")
+    return entry
+
+
 def parse_public(payload: dict, sport: str, *, now: datetime,
                  market: str | None = None, run_id: str | None = None,
-                 legacy_pacific_starts: bool = False) -> list[GameLine]:
+                 legacy_pacific_starts: bool = False, catalog: dict | None = None) -> list[GameLine]:
     """Betcris's public /assets/odds/v1 league JSON -> open pregame prices.
 
     Keep the upstream observation time, not our download time. The publisher
@@ -321,8 +339,21 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     league = payload.get("league")
     if not isinstance(league, dict) or league.get("id") != PUBLIC_LEAGUES[sport]:
         raise ValueError(f"Betcris public feed is not the {sport} full-game league")
-    observed = _public_timestamp(payload.get("feed_fetched_at"))
+    source_updated = _public_timestamp(payload.get("feed_fetched_at"))
+    observed = source_updated
     ttl = _public_number(payload.get("stale_after_seconds"))
+    if catalog is not None:
+        entry = public_catalog_entry(catalog, sport)
+        # The official widget uses catalog.generated_at for freshness while a
+        # league hash can retain an unchanged file indefinitely. Preserve that
+        # file's timestamp; use only the publisher's confirmation, never now.
+        observed = _public_timestamp(catalog.get("generated_at"))
+        catalog_ttl = _public_number(entry.get("stale_after_seconds"))
+        if source_updated is None or ttl is None or catalog_ttl is None or catalog_ttl <= 0:
+            raise ValueError("Betcris public feed has invalid source freshness metadata")
+        ttl = min(ttl, catalog_ttl)
+        if observed is None or source_updated > observed:
+            raise ValueError("Betcris public feed is newer than its confirming catalog")
     if (observed is None or ttl is None or ttl <= 0
             # Match the board's one-hour carry ceiling, retaining any tighter
             # provider TTL. Otherwise a light scrape can report green NFL odds
@@ -373,5 +404,7 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                     continue
                 out.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=target_market,
                                     side=side, line=line, odds=int(price), scraped_at=observed,
-                                    source_id=f"public:{game.get('id')}", run_id=run_id))
+                                    source_id=f"public:{game.get('id')}", run_id=run_id,
+                                    source_updated_at=source_updated if catalog is not None else None,
+                                    expires_at=observed + timedelta(seconds=min(ttl, 3600)) if catalog is not None else None))
     return out

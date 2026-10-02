@@ -276,6 +276,7 @@ def _flip_line(ln: GameLine, game_id: str) -> GameLine:
         sport=ln.sport, game_id=game_id, book=ln.book, market=ln.market, side=side, odds=ln.odds,
         line=ln.line, prob_raw=ln.prob_raw, is_main=ln.is_main, source_id=ln.source_id,
         scraped_at=ln.scraped_at, run_id=ln.run_id, outcome_ids=ln.outcome_ids,
+        source_updated_at=ln.source_updated_at, expires_at=ln.expires_at,
     )
 
 
@@ -284,6 +285,7 @@ def _rekey(ln: GameLine, game_id: str) -> GameLine:
         sport=ln.sport, game_id=game_id, book=ln.book, market=ln.market, side=ln.side, odds=ln.odds,
         line=ln.line, prob_raw=ln.prob_raw, is_main=ln.is_main, source_id=ln.source_id,
         scraped_at=ln.scraped_at, run_id=ln.run_id, outcome_ids=ln.outcome_ids,
+        source_updated_at=ln.source_updated_at, expires_at=ln.expires_at,
     )
 
 

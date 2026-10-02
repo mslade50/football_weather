@@ -12,6 +12,19 @@ Status: **Phase 4** (Worker board live, alerts, Alerts + Status tabs; Streamlit
 retired). Roadmap in `docs/PLAN.md`; design in `docs/ARCHITECTURE.md`; legacy
 audit in `docs/AUDIT.md`; Cloudflare setup in `site/worker/SETUP.md`.
 
+BetCRIS uses the public sportsbook catalog's `generated_at`, feed health,
+listed league revision, and per-league TTL for confirmation, matching the
+[official widget](https://sportsbook.betcris.com/assets/app.f6e7cc24c7.js).
+Unchanged league files retain older timestamps. Quotes expose `updated_at`
+for catalog confirmation, `source_updated_at` for the retained payload time,
+and `expires_at` for the tighter of provider TTL and the board's one-hour
+ceiling. Expiry and source lineage survive schedule matching and later jobs.
+
+For data validation without messages, dispatch `pipeline.yml` with
+`safe_refresh=true` and `force=false`. This suppresses Telegram, including
+failure notifications, while keeping normal publication and freshness gates.
+The pipeline does not place orders.
+
 ## Architecture
 
 ```
