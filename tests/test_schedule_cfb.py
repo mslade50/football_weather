@@ -116,3 +116,45 @@ def test_fetch_uses_cfbd_when_key_present(monkeypatch, cfbd_payload: list, book)
     ctx = RunContext(sport="cfb", git_sha="test")
     games = fetch_cfb_schedule(2025, book=book, api_key="k", ctx=ctx)
     assert len(games) == 4 and not ctx.degradations
+
+
+@pytest.mark.parametrize("venue_id,venue_name", [(499, "Cotton Bowl"), (499, ""), (None, "Cotton Bowl Stadium")])
+def test_red_river_2026_resolves_dallas_by_id_or_name(book, venue_id, venue_name) -> None:
+    payload = json.loads((RAW / "cfbd" / "texas_oklahoma_2026.json").read_text(encoding="utf-8"))
+    payload[0].update(venueId=venue_id, venue=venue_name)
+    game, = parse_cfbd_games(payload, 2026, book=book)
+    assert game.game_id == "cfb:2026:6:texas@oklahoma" and game.source == "cfbd:401856717"
+    assert game.neutral and game.stadium_id == "cotton-bowl"
+    assert game.kickoff_utc == datetime(2026, 10, 10, 19, 30, tzinfo=timezone.utc)
+    assert game.tz == "America/Chicago" and game.kickoff_local.hour == 14
+    ctx = RunContext(sport="cfb", git_sha="test")
+    resolved = book.resolve(game, ctx)
+    assert resolved.stadium_source == "game.stadium_id"
+    assert (resolved.stadium.lat, resolved.stadium.lon) == pytest.approx((32.7795274, -96.7597711))
+    assert resolved.stadium.city == "Dallas" and resolved.roof_state == "outdoors"
+    assert not any(d.component == "stadiums" for d in ctx.degradations)
+
+
+def test_espn_red_river_venue_id_takes_precedence_over_name(book) -> None:
+    payload = {
+        "season": {"type": 2}, "week": {"number": 6},
+        "events": [{"id": "401856717", "competitions": [{
+            "date": "2026-10-10T19:30Z", "neutralSite": True,
+            "venue": {"id": "499", "fullName": "Gaylord Family Oklahoma Memorial Stadium"},
+            "competitors": [
+                {"homeAway": "home", "team": {"location": "Oklahoma"}},
+                {"homeAway": "away", "team": {"location": "Texas"}},
+            ],
+        }]}],
+    }
+    game, = parse_espn_scoreboard(payload, "cfb", season=2026, book=book)
+    assert game.game_id == "cfb:2026:6:texas@oklahoma" and game.source == "espn:401856717"
+    assert game.stadium_id == "cotton-bowl" and game.tz == "America/Chicago"
+    assert game.kickoff_local.hour == 14
+
+
+def test_cfbd_red_river_venue_id_takes_precedence_over_name(book) -> None:
+    payload = json.loads((RAW / "cfbd" / "texas_oklahoma_2026.json").read_text(encoding="utf-8"))
+    payload[0]["venue"] = "Gaylord Family Oklahoma Memorial Stadium"
+    game, = parse_cfbd_games(payload, 2026, book=book)
+    assert game.stadium_id == "cotton-bowl"

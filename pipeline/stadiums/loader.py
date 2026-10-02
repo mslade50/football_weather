@@ -199,15 +199,15 @@ class StadiumBook:
         if stadium is None and home is not None and not game.neutral:
             stadium = self.stadium_for_team(game.sport, game.home_id)
             source = "home_team" if stadium is not None else "none"
-        if stadium is None and home is not None and game.neutral:
-            stadium = self.stadium_for_team(game.sport, game.home_id)
-            source = "home_team_neutral_fallback" if stadium is not None else "none"
-            if stadium is not None:
-                _degrade(ctx, "stadiums", f"{game.game_id}: neutral site {game.stadium_id!r} unknown; using home stadium", "warn")
         if stadium is None:
             # warn (not error): the row is still written with NaN static columns and
             # one unmapped venue must not fail the whole run / page Telegram.
-            _degrade(ctx, "stadiums", f"{game.game_id}: no stadium for {game.stadium_id!r} / home {game.home_id!r}", "warn")
+            reason = (
+                f"{game.game_id}: neutral site {game.stadium_id!r} unknown; location/weather unresolved"
+                if game.neutral else
+                f"{game.game_id}: no stadium for {game.stadium_id!r} / home {game.home_id!r}"
+            )
+            _degrade(ctx, "stadiums", reason, "warn")
             self.unresolved.append(game.game_id)
         for side, t, tid in (("home", home, game.home_id), ("away", away, game.away_id)):
             if t is None:
