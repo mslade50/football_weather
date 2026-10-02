@@ -95,3 +95,47 @@ def test_production_nfl_drop_was_age_gate_not_schedule_mapping():
     data["feed_fetched_at"] = "2026-10-02T16:46:02Z"
     with pytest.raises(ValueError, match="stale"):
         betcris.parse_public(data, "nfl", now=datetime(2026, 10, 2, 17, 53, 39, tzinfo=timezone.utc))
+
+
+def test_final_job_replaces_expired_college_capture_with_new_prices(tmp_path, monkeypatch):
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    data = payload("cfb")
+    raw_game = data["games"][0]
+    kick = datetime.fromisoformat(raw_game["starts_at"].replace("Z", "+00:00"))
+    home = merge.candidate_team_ids("cfb", raw_game["home"])[0]
+    away = merge.candidate_team_ids("cfb", raw_game["visitor"])[0]
+    game = Game(game_id=f"cfb:2026:5:{away}@{home}", sport="cfb", season=2026, week=5,
+                kickoff_utc=kick, kickoff_local=kick, tz="UTC", home_id=home,
+                away_id=away, stadium_id=None)
+    data["games"] = [raw_game]
+    first = merge.merge_odds("cfb", [game], betcris.parse_public(data, "cfb", now=NOW),
+                             now=NOW, save=False).lines
+    later = NOW + timedelta(minutes=35)
+    with pytest.raises(ValueError, match="stale"):
+        betcris.parse_public(data, "cfb", now=later)
+    fresh = copy.deepcopy(data)
+    fresh["feed_fetched_at"] = (later - timedelta(minutes=1)).isoformat()
+    fresh["games"][0]["markets"]["total"]["under"]["price"] = -125
+    second = merge.merge_odds("cfb", [game], betcris.parse_public(fresh, "cfb", now=later),
+                              now=later, save=False).lines
+    clock = [NOW]
+    monkeypatch.setattr(RunContext, "now_utc", property(lambda self: clock[0]))
+    calls = []
+
+    async def scrape(sport, books, raw, run_id, degrade):
+        calls.append(books)
+        return ({"betcris": first} if len(calls) == 1 else
+                {"betonline": [], "betcris": second}), {}
+
+    monkeypatch.setattr(build, "scrape_books", scrape)
+    build.stage_odds(RunContext(sport="cfb", git_sha="test"), "cfb", [game], None,
+                     NullRawStore("cfb", "first"), ["betcris"], tmp_path, 2026)
+    clock[0] = later
+    result = build.stage_odds(RunContext(sport="cfb", git_sha="test"), "cfb", [game], None,
+                              NullRawStore("cfb", "final"), ["betonline", "betcris"], tmp_path, 2026)
+    actual = [r for r in result.lines if r.book == "betcris"]
+    assert len(actual) == 6 and calls[-1] == ["betonline", "betcris"]
+    assert {r.scraped_at for r in actual} == {later - timedelta(minutes=1)}
+    assert next(r for r in actual if r.market == "total" and r.side == "under").odds == -125
