@@ -22,26 +22,20 @@ def payload(sport):
 def catalog(sport, generated=NOW):
     return {"version": 1, "feed_ok": True, "generated_at": generated.isoformat(),
             "leagues": [{"id": betcris.PUBLIC_LEAGUES[sport],
+                         "name": "NFL" if sport == "nfl" else "COLLEGE FOOTBALL", "sport": "FOOTBALL",
                          "path": f"league/{betcris.PUBLIC_LEAGUES[sport]}.json",
                          "hash": "0123456789abcdef", "stale_after_seconds": 750 if sport == "cfb" else 9000}]}
 
 
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
-def test_catalog_confirms_unchanged_payload_without_relabeling_its_timestamp(sport):
+def test_global_catalog_cannot_confirm_unobserved_stale_league_payload(sport):
     data = payload(sport)
     old_payload = NOW - timedelta(hours=2)
     data["feed_fetched_at"] = old_payload.isoformat()
     with pytest.raises(ValueError, match="stale"):
         betcris.parse_public(data, sport, now=NOW)
-    confirmed = NOW - timedelta(minutes=1)
-    rows = betcris.parse_public(data, sport, now=NOW, catalog=catalog(sport, confirmed))
-    assert len(rows) == 12
-    assert {r.scraped_at for r in rows} == {confirmed}
-    assert {r.source_updated_at for r in rows} == {old_payload}
-    assert {r.expires_at for r in rows} == {confirmed + timedelta(seconds=750 if sport == "cfb" else 3600)}
-    assert {(r.market, r.side, r.odds, r.line) for r in rows} == {
-        (r.market, r.side, r.odds, r.line) for r in betcris.parse_public(
-            payload(sport), sport, now=NOW)}
+    with pytest.raises(ValueError, match="stale"):
+        betcris.parse_public(data, sport, now=NOW, catalog=catalog(sport))
 
 
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
@@ -71,6 +65,28 @@ def test_catalog_cannot_renew_quotes_when_confirmation_is_invalid(sport, failure
         betcris.parse_public(data, sport, now=NOW, catalog=index)
 
 
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+@pytest.mark.parametrize("target,field,value", [
+    ("catalog", "name", "OTHER LEAGUE"), ("catalog", "sport", "SOCCER"),
+    ("payload", "id", 999), ("payload", "name", "OTHER LEAGUE"),
+    ("payload", "sport", "SOCCER"),
+])
+def test_catalog_and_payload_identities_must_match(sport, target, field, value):
+    data, index = payload(sport), catalog(sport)
+    (index["leagues"][0] if target == "catalog" else data["league"])[field] = value
+    with pytest.raises(ValueError):
+        betcris.parse_public(data, sport, now=NOW, catalog=index)
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+@pytest.mark.parametrize("timestamp", [None, "invalid", "2026-10-02T20:30:00Z"])
+def test_fresh_catalog_does_not_replace_missing_invalid_or_future_league_time(sport, timestamp):
+    data = payload(sport)
+    data["feed_fetched_at"] = timestamp
+    with pytest.raises(ValueError):
+        betcris.parse_public(data, sport, now=NOW, catalog=catalog(sport))
+
+
 def test_provider_expiry_and_original_payload_time_survive_archive_and_json(tmp_path, monkeypatch):
     from pipeline import state
     from pipeline.outputs.json_out import odds_block
@@ -96,13 +112,14 @@ def test_provider_expiry_and_original_payload_time_survive_archive_and_json(tmp_
     build.stage_odds(RunContext(sport="cfb", git_sha="test"), "cfb", [game], None,
                      NullRawStore("cfb", "catalog"), ["betcris"], tmp_path, 2026)
     archive = state.load_archive_last(tmp_path)
-    carried = build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=NOW + timedelta(seconds=750))
-    assert len(carried) == 6
-    assert {r.source_updated_at for r in carried} == {datetime.fromisoformat(data["feed_fetched_at"].replace("Z", "+00:00"))}
-    assert {r.expires_at for r in carried} == {NOW + timedelta(seconds=750)}
-    assert build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=NOW + timedelta(seconds=751)) == []
+    observed = rows[0].scraped_at
+    expiry = observed + timedelta(seconds=750)
+    carried = build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry)
+    assert len(carried) == 6 and {r.expires_at for r in carried} == {expiry}
+    assert {r.source_updated_at for r in carried} == {observed}
+    assert build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry + timedelta(seconds=1)) == []
     values = odds_block(game.game_id, carried, {})["betcris"]
-    assert all(x["updated_at"] == NOW and x["expires_at"] == NOW + timedelta(seconds=750)
+    assert all(x["updated_at"] == observed and x["expires_at"] == expiry
                and x["source_updated_at"] == carried[0].source_updated_at for x in values.values())
 
 
@@ -120,7 +137,7 @@ def test_catalog_lineage_survives_neutral_home_away_flip():
     result = merge.merge_odds("nfl", [game], rows, now=NOW, save=False)
     assert len(result.lines) == 6 and not result.unmatched
     assert {r.source_updated_at for r in result.lines} == {rows[0].source_updated_at}
-    assert {r.expires_at for r in result.lines} == {NOW + timedelta(hours=1)}
+    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(hours=1)}
     assert next(r for r in result.lines if r.market == "ml" and r.side == "home").odds == raw["markets"]["moneyline"]["visitor"]["price"]
 
 

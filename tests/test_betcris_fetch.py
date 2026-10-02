@@ -97,6 +97,7 @@ def test_public_scrape_captures_raw_and_rejects_unhealthy_feed(tmp_path, monkeyp
     raw_text = json.dumps(payload)
     catalog = {"version": 1, "feed_ok": True, "generated_at": payload["feed_fetched_at"],
                "leagues": [{"id": 2, "path": "league/2.json", "hash": "0" * 16,
+                            "name": "COLLEGE FOOTBALL", "sport": "FOOTBALL",
                             "stale_after_seconds": payload["stale_after_seconds"]}]}
     seen_urls = []
 

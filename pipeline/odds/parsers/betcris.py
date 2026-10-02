@@ -302,7 +302,7 @@ def _public_number(value: object) -> float | None:
 
 
 def public_catalog_entry(catalog: dict, sport: str) -> dict:
-    """Resolve the exact league revision confirmed by the public widget catalog."""
+    """Resolve a catalog revision; global activity does not confirm its freshness."""
     if sport not in PUBLIC_LEAGUES:
         raise ValueError(f"unknown sport {sport!r}")
     if (not isinstance(catalog, dict) or catalog.get("version") != 1
@@ -312,7 +312,10 @@ def public_catalog_entry(catalog: dict, sport: str) -> dict:
     if len(entries) != 1:
         raise ValueError("Betcris public catalog does not list the requested league")
     entry = entries[0]
-    if (entry.get("path") != f"league/{PUBLIC_LEAGUES[sport]}.json"
+    expected_name = "NFL" if sport == "nfl" else "COLLEGE FOOTBALL"
+    if (type(entry.get("id")) is not int or entry.get("name") != expected_name
+            or entry.get("sport") != "FOOTBALL"
+            or entry.get("path") != f"league/{PUBLIC_LEAGUES[sport]}.json"
             or not isinstance(entry.get("hash"), str)
             or re.fullmatch(r"[0-9a-f]{16}", entry["hash"]) is None):
         raise ValueError("Betcris public catalog has an invalid league revision")
@@ -344,16 +347,20 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     ttl = _public_number(payload.get("stale_after_seconds"))
     if catalog is not None:
         entry = public_catalog_entry(catalog, sport)
-        # The official widget uses catalog.generated_at for freshness while a
-        # league hash can retain an unchanged file indefinitely. Preserve that
-        # file's timestamp; use only the publisher's confirmation, never now.
-        observed = _public_timestamp(catalog.get("generated_at"))
+        # The widget uses one global timestamp for every league. The public
+        # schema does not say that each retained revision was checked again.
+        # Validate the catalog, but never renew an old league observation from
+        # global activity or the time our client downloaded these files.
+        catalog_time = _public_timestamp(catalog.get("generated_at"))
         catalog_ttl = _public_number(entry.get("stale_after_seconds"))
         if source_updated is None or ttl is None or catalog_ttl is None or catalog_ttl <= 0:
             raise ValueError("Betcris public feed has invalid source freshness metadata")
         ttl = min(ttl, catalog_ttl)
-        if observed is None or source_updated > observed:
-            raise ValueError("Betcris public feed is newer than its confirming catalog")
+        if (catalog_time is None or not timedelta(0) <= now - catalog_time <= timedelta(seconds=min(ttl, 3600))):
+            raise ValueError("Betcris public catalog has a stale or invalid timestamp")
+        if (type(league.get("id")) is not int or league.get("name") != entry["name"]
+                or league.get("sport") != entry["sport"]):
+            raise ValueError("Betcris public league identity does not match its catalog")
     if (observed is None or ttl is None or ttl <= 0
             # Match the board's one-hour carry ceiling, retaining any tighter
             # provider TTL. Otherwise a light scrape can report green NFL odds
