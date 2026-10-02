@@ -183,8 +183,8 @@ def test_source_transition_during_fetch_discards_unverified_payload(weather, tmp
 def test_later_batch_failure_keeps_earlier_selected_locations_and_attempts_every_game(weather, tmp_path):
     ctx, result = run(weather, tmp_path, count=41)
     assert len(result) == 41
-    assert [len(batch) for source, batch in weather["ensembles"] if source == "ifs"] == [20, 20, 1]
-    assert [len(batch) for source, batch in weather["ensembles"] if source == "gefs"] == [20, 20, 1]
+    assert [len(batch) for source, batch in weather["ensembles"] if source == "ifs"] == [32, 9]
+    assert [len(batch) for source, batch in weather["ensembles"] if source == "gefs"] == [41]
     assert result[games(41)[0][0].game_id].ensemble_status == "full_members"
     assert result[games(41)[0][-1].game_id].ensemble_status == "partial_members_degraded"
     assert all(fc.ensemble_eligible for fc in result.values())

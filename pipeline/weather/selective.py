@@ -42,8 +42,12 @@ def members(
             else:
                 missing.append(point)
         received_at = {}
+        def batch_size(remaining, point_model=model):
+            start = min(windows[point][0] for point in remaining)
+            end = max(windows[point][1] for point in remaining)
+            return budget.batch_size(om.ENSEMBLE_URL, om.build_ensemble_params(remaining[:1], start, end, point_model), om.BATCH_SIZE)
         fetched, failures = fetch_batches(
-            missing, om.fetch_ensemble, batch_size=om.ENSEMBLE_BATCH_SIZE,
+            missing, om.fetch_ensemble, batch_size=batch_size if budget else om.ENSEMBLE_BATCH_SIZE,
             source_prefix=f"openmeteo_selected_{source}", point_windows=windows,
             models=model, capture=capture, **({"budget": budget} if budget else {}),
             received=lambda batch, stamps=received_at: stamps.update({point: ctx.now_utc for point in batch}),

@@ -66,6 +66,21 @@ class RequestBudget:
         self.blocked_until = 0.0
         self.block_reason = ""
 
+    def batch_size(self, url: str, one_point_params: dict[str, str], maximum: int) -> int:
+        """Pack remaining minute headroom; never wait or reserve quota here.
+
+        If even one location cannot fit, plan a safe fresh-minute batch and let
+        acquire() perform the bounded wait. Counts and model fields are unchanged.
+        """
+        per_point = query_weight(url, one_point_params)
+        safe_maximum = min(maximum, int(MINUTE_BUDGET // per_point))
+        if safe_maximum < 1:
+            raise RuntimeError("one location exceeds local minute budget")
+        now = self.clock()
+        used = sum(weight for sent, weight in self.requests if sent > now - 60)
+        remaining = int(max(0, MINUTE_BUDGET - used) // per_point)
+        return max(1, min(safe_maximum, remaining)) if remaining else safe_maximum
+
     def acquire(self, url: str, params: dict[str, str]) -> None:
         cost = query_weight(url, params)
         if cost > MINUTE_BUDGET:

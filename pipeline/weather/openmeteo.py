@@ -24,7 +24,7 @@ from pipeline.weather.member_cache import METADATA_BASE, SOURCES, version
 from pipeline.weather.parsers.ensemble import EnsembleLocation, parse_ensemble
 from pipeline.weather.parsers.ensemble_mean import EnsembleMeanLocation, parse_ensemble_mean
 from pipeline.weather.parsers.openmeteo import ParsedLocation, parse_forecast
-from pipeline.weather.rate_limit import ENSEMBLE_BATCH_SIZE, RequestBudget
+from pipeline.weather.rate_limit import ENSEMBLE_BATCH_SIZE, MINUTE_BUDGET, RequestBudget, query_weight
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
@@ -269,7 +269,7 @@ def fetch_ensemble(
     source_prefix: str = "openmeteo_ensemble",
     budget: Optional[RequestBudget] = None,
 ) -> list[EnsembleLocation]:
-    """Ensemble members (ECMWF IFS 0.25 + GEFS) for `points`; batches of <=20, order preserved.
+    """Full ensemble members in quota-sized batches, preserving point order.
 
     Raises on transport failure so the caller can degrade to the static wind_vol."""
     if not points:
@@ -278,8 +278,15 @@ def fetch_ensemble(
     c = client or httpx.Client(timeout=90.0, headers={"User-Agent": USER_AGENT})
     out: list[EnsembleLocation] = []
     try:
-        for b, i in enumerate(range(0, len(points), ENSEMBLE_BATCH_SIZE)):
-            batch = list(points[i : i + ENSEMBLE_BATCH_SIZE])
+        offset, b = 0, 0
+        while offset < len(points):
+            one = build_ensemble_params(points[offset:offset + 1], start, end, models, forecast_days)
+            size = (budget.batch_size(ENSEMBLE_URL, one, BATCH_SIZE) if budget else
+                    min(BATCH_SIZE, int(MINUTE_BUDGET // query_weight(ENSEMBLE_URL, one))))
+            if size < 1:
+                raise RuntimeError("one location exceeds local minute budget")
+            batch = list(points[offset:offset + size])
+            offset += len(batch)
             params = build_ensemble_params(batch, start, end, models, forecast_days)
             request_kwargs = _request_kwargs(budget, capture, f"{source_prefix}_{b:02d}")
             payload, url = _get_json(c, ENSEMBLE_URL, params, **request_kwargs)
@@ -289,6 +296,7 @@ def fetch_ensemble(
             if len(parsed) != len(batch):
                 raise RuntimeError(f"open-meteo ensemble returned {len(parsed)} locations for {len(batch)} points")
             out.extend(parsed)
+            b += 1
     finally:
         if own:
             c.close()

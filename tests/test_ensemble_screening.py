@@ -43,8 +43,17 @@ def test_no_heat_cold_gust_or_probability_only_selection(fields):
 
 def test_rain_uses_three_hour_total_and_lead_dependent_buffer():
     assert decide(*case(precip=0.5)).reasons == ("game_window_rain",)
-    assert not decide(*case(precip=0.4)).eligible
+    assert decide(*case(precip=0.4)).reasons == ("rain_tail_risk",)
+    assert not decide(*case(precip=0.05)).eligible
     assert decide(*case(lead=144, precip=0.4)).eligible
+
+
+def test_rain_tail_guard_covers_wet_model_when_primary_point_model_is_dry():
+    fc, loc = case()
+    loc.models["aifs"] = [replace(row, precip=0.1, pop=None) for row in loc.models["gfs"]]
+    assert decide(fc, loc).reasons == ("rain_tail_risk",)
+    loc.models["aifs"][0] = replace(loc.models["aifs"][0], precip=0)
+    assert not decide(fc, loc).eligible
 
 
 def test_joint_conditions_same_model_and_hour():

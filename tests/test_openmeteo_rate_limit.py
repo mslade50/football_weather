@@ -58,6 +58,59 @@ def test_batches_are_paced_below_minute_quota_and_oversized_call_is_never_sent()
     assert [t for t, _ in budget.requests] == [0, 60, 120, 180, 240, 300]
 
 
+@pytest.mark.parametrize("models,expected", [("ecmwf_ifs025", 32), ("gfs_seamless", 50), (OM.ENSEMBLE_MODELS, 20)])
+def test_batch_packing_counts_every_requested_member(models, expected):
+    budget = RequestBudget()
+    one = OM.build_ensemble_params([(32.0, -96.0)], models=models)
+    assert budget.batch_size(OM.ENSEMBLE_URL, one, OM.BATCH_SIZE) == expected
+    budget.acquire(OM.ENSEMBLE_URL, OM.build_ensemble_params([(32.0, -96.0)] * expected, models=models))
+
+
+def test_batch_packing_uses_remaining_headroom_then_waits_without_dropping_points():
+    clock = Clock()
+    budget = RequestBudget(clock, clock.sleep)
+    budget.acquire(OM.FORECAST_URL, OM.build_params([(32.0, -96.0)] * 50))
+    remaining, batches = 83, []
+    while remaining:
+        one = OM.build_ensemble_params([(32.0, -96.0)], models="ecmwf_ifs025")
+        size = min(remaining, budget.batch_size(OM.ENSEMBLE_URL, one, 50))
+        budget.acquire(OM.ENSEMBLE_URL, OM.build_ensemble_params([(32.0, -96.0)] * size, models="ecmwf_ifs025"))
+        batches.append(size)
+        remaining -= size
+    assert batches == [22, 32, 29]
+    assert clock.waits == [60.0, 60.0]
+    assert sum(weight for _, weight in budget.requests) == pytest.approx(150 + 83 * 15.3)
+
+
+def test_batch_packing_rejects_impossible_one_location_before_transport():
+    one = OM.build_ensemble_params([(32.0, -96.0)], forecast_days=400)
+    with pytest.raises(RuntimeError, match="one location exceeds"):
+        RequestBudget().batch_size(OM.ENSEMBLE_URL, one, 50)
+    with pytest.raises(RuntimeError, match="one location exceeds"):
+        OM.fetch_ensemble([(32.0, -96.0)], forecast_days=400)
+
+
+def test_full_member_client_packs_quota_and_preserves_response_order(monkeypatch):
+    clock = Clock()
+    budget = RequestBudget(clock, clock.sleep)
+    budget.acquire(OM.FORECAST_URL, OM.build_params([(32.0, -96.0)] * 50))
+    seen = []
+
+    def respond(request):
+        locations = list(map(float, request.url.params["latitude"].split(",")))
+        seen.append((clock.now, len(locations)))
+        assert request.url.params["models"] == "ecmwf_ifs025"
+        assert request.url.params["hourly"] == OM.ENSEMBLE_HOURLY
+        return httpx.Response(200, json=locations)
+
+    monkeypatch.setattr(OM, "parse_ensemble", lambda payload: payload)
+    points = [(float(i), -96.0) for i in range(83)]
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        result = OM.fetch_ensemble(points, models="ecmwf_ifs025", budget=budget, client=client)
+    assert result == [point[0] for point in points]
+    assert seen == [(0, 22), (60, 32), (120, 29)]
+
+
 def test_forecast_and_ensemble_share_quota_including_http_retries(monkeypatch):
     clock = Clock()
     budget = RequestBudget(clock, clock.sleep)

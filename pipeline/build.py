@@ -282,7 +282,7 @@ def _fetch_point_batches(
     points: Sequence[tuple[float, float]],
     fetcher: Callable[..., Sequence[Any]],
     *,
-    batch_size: int,
+    batch_size: int | Callable[[list[tuple[float, float]]], int],
     source_prefix: str,
     point_windows: Mapping[tuple[float, float], tuple[datetime, datetime]] | None = None,
     received: Callable[[list[tuple[float, float]]], None] | None = None,
@@ -296,8 +296,14 @@ def _fetch_point_batches(
     """
     fetched: dict[tuple[float, float], Any] = {}
     failures: list[tuple[int, int, Exception]] = []
-    for batch_index, offset in enumerate(range(0, len(points), batch_size)):
-        batch = list(points[offset : offset + batch_size])
+    offset, batch_index = 0, 0
+    while offset < len(points):
+        remaining = list(points[offset:])
+        size = batch_size(remaining) if callable(batch_size) else batch_size
+        if size < 1:
+            raise ValueError("batch size must be positive")
+        batch = remaining[:size]
+        offset += len(batch)
         batch_kwargs = dict(kwargs)
         if point_windows is not None:
             batch_kwargs["start"] = min(point_windows[point][0] for point in batch)
@@ -319,6 +325,7 @@ def _fetch_point_batches(
                 received(batch)
         except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
             failures.append((batch_index, len(batch), exc))
+        batch_index += 1
     return fetched, failures
 
 
@@ -371,7 +378,9 @@ def stage_weather(
         fetched, failures = _fetch_point_batches(
             pts,
             om_mod.fetch_forecast,
-            batch_size=om_mod.BATCH_SIZE,
+            batch_size=(lambda remaining, point_models=models: budget_kwargs["budget"].batch_size(
+                om_mod.FORECAST_URL, om_mod.build_params(remaining[:1], start, end, point_models), om_mod.BATCH_SIZE))
+                if budget_kwargs else om_mod.BATCH_SIZE,
             source_prefix=prefix,
             start=start,
             end=end,

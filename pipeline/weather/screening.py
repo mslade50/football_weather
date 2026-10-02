@@ -16,7 +16,8 @@ from pipeline.model import config as C
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.merge import hour_floor
 
-VERSION = "joint-wind-rain-v2"
+VERSION = "joint-wind-rain-tail-v3"
+RAIN_TAIL_MM = 0.25  # Small model-window amounts can coexist with >2 mm member tails.
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,8 @@ def screen(
         reasons.append("joint_wind_temperature")
     if any(rain >= rain_threshold for rain in rain_totals):
         reasons.append("game_window_rain")
+    elif any(rain >= RAIN_TAIL_MM for rain in rain_totals):
+        reasons.append("rain_tail_risk")
     if previous and reasons:
         for key, old_key, amount in (("wind_fg", "wind_fg", 2), ("temp_fg", "temp_fg", 5), ("rain_fg_mm", "rain_fg", 0.5)):
             old, current = previous.get(old_key), getattr(forecast, key)
