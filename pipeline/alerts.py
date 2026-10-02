@@ -16,8 +16,8 @@ Telegram reports qualifying weather signals; prices provide context:
   move → forecast move. Best-book changes update the same parent and are labeled
   as play-price changes. Betting notifications stop at kickoff.
 * Cleared signals close silently in state; prices never close them.
-* OPEN SIGNALS: every enabled rerun sends a fresh, complete snapshot per sport,
-  including unchanged and empty runs. Large snapshots continue across messages.
+* OPEN SIGNALS: automatic snapshots are off by default. Operators may restore
+  the full per-run snapshots with ``TELEGRAM_OPEN_SIGNAL_SNAPSHOTS=1``.
 * SYSTEM: disabled by default so Telegram remains an action channel for bets.
   Operators can explicitly opt in with ``TELEGRAM_SYSTEM_ALERTS=1``; issues are
   then summarized by component instead of emitted once per affected game.
@@ -167,6 +167,7 @@ class Config:
     min_tier: str = DEFAULT_MIN_TIER
     include_openers: bool = DEFAULT_INCLUDE_OPENERS
     system_alerts: bool = False
+    open_signal_snapshots: bool = False
 
     @classmethod
     def from_env(cls, env: Optional[dict[str, str]] = None) -> Config:
@@ -194,6 +195,7 @@ class Config:
             min_tier=min_tier,
             include_openers=include_openers,
             system_alerts=system_alerts,
+            open_signal_snapshots=str(e.get("TELEGRAM_OPEN_SIGNAL_SNAPSHOTS") or "0").strip().lower() in ("1", "true", "yes", "on"),
         )
 
     def chat_for(self, sport: Optional[str]) -> Optional[str]:
@@ -1840,9 +1842,10 @@ def run_alerts(
     p = plan(cands, alerts, tg, now, cfg)
     send = sender or default_sender()
     outcome = dispatch(p, alerts, send, now, cfg)
-    # Every completed rerun gets a current snapshot, including unchanged/empty runs
-    # and quiet hours. Do not queue snapshots or mark them as new betting entries.
-    for snapshot in open_signal_summaries(cards_by_sport, cfg, now):
+    # Signal/update candidates already dedupe against persisted state. A complete
+    # snapshot after every stage repeated those plays and bypassed quiet hours.
+    snapshots = open_signal_summaries(cards_by_sport, cfg, now) if cfg.open_signal_snapshots else []
+    for snapshot in snapshots:
         try:
             ok = bool(send(snapshot.text, cfg.chat_for(snapshot.sport)))
         except Exception as exc:  # noqa: BLE001

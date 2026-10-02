@@ -100,6 +100,8 @@ env:
   TELEGRAM_MIN_TIER: ${{ vars.TELEGRAM_MIN_TIER || 'low' }}
   TELEGRAM_MAX_PER_RUN: ${{ vars.TELEGRAM_MAX_PER_RUN || '4' }}
   TELEGRAM_INCLUDE_OPENERS: ${{ vars.TELEGRAM_INCLUDE_OPENERS || '0' }}
+  # Restore legacy per-run snapshots only when explicitly requested.
+  TELEGRAM_OPEN_SIGNAL_SNAPSHOTS: ${{ vars.TELEGRAM_OPEN_SIGNAL_SNAPSHOTS || '0' }}
   # SYSTEM paging is deliberately off unless an operator explicitly opts in.
   TELEGRAM_SYSTEM_ALERTS: ${{ vars.TELEGRAM_SYSTEM_ALERTS || '0' }}
   R2_BUCKET: football-board
