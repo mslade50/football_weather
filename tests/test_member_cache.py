@@ -136,3 +136,19 @@ def test_previous_version_reuse_preserves_original_data_and_enforces_age_hours_s
     assert not cache.previous("ifs", POINT, current, {HOURS[-1] + timedelta(hours=1)}, now=NOW, max_age_h=12)
     assert not cache.previous("ifs", POINT, {"wrong_model": versions()}, set(HOURS), now=NOW, max_age_h=12)
     assert not cache.previous("ifs", POINT, current, set(HOURS), now=NOW, max_age_h=0)
+
+
+def test_current_dataset_initialization_age_is_bounded_even_with_new_publication():
+    data = versions()
+    data["last_run_initialisation_time"] = int((NOW - timedelta(hours=19)).timestamp())
+    with pytest.raises(ValueError, match="dataset initialization"):
+        version(data, NOW)
+
+
+@pytest.mark.parametrize("initialization", [None, "unknown", int((NOW - timedelta(hours=31)).timestamp()), int((NOW + timedelta(hours=1)).timestamp())])
+def test_old_or_unknown_dataset_initialization_cannot_reuse_distant_members(initialization):
+    cache = MemberCache(None, SIG)
+    original = {"ecmwf_ifs025_ensemble": {**versions(), "last_run_initialisation_time": initialization}}
+    current = {"ecmwf_ifs025_ensemble": versions(NOW + timedelta(hours=6))}
+    cache.put("ifs", POINT, original, location(), set(HOURS), NOW)
+    assert cache.previous("ifs", POINT, current, set(HOURS), now=NOW, max_age_h=12) is None

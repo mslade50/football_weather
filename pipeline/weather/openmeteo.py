@@ -294,7 +294,11 @@ def fetch_ensemble(
             payload, url = _get_json(c, ENSEMBLE_URL, params, **request_kwargs)
             if capture is not None:
                 capture(f"{source_prefix}_{b:02d}", payload, url)
-            parsed = parse_ensemble(payload)
+            # A single requested model omits its model suffix in API JSON.
+            # Bind bare control/member fields to the request, never a guessed source.
+            identity = {"ecmwf_ifs025": "ecmwf_ifs025_ensemble", "ecmwf_ifs025_ensemble": "ecmwf_ifs025_ensemble",
+                        "gfs_seamless": "ncep_gefs_seamless", "ncep_gefs_seamless": "ncep_gefs_seamless"}.get(models)
+            parsed = parse_ensemble(payload, model=identity)
             if len(parsed) != len(batch):
                 raise RuntimeError(f"open-meteo ensemble returned {len(parsed)} locations for {len(batch)} points")
             out.extend(parsed)

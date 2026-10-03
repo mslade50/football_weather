@@ -56,7 +56,7 @@ function weatherTable(g) {
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
     ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
-    ["Ensemble initialized", Object.entries(wx.ensemble_source_versions || {}).map(([source, versions]) => {
+    ["Ensemble dataset initialized", Object.entries(wx.ensemble_source_versions || {}).map(([source, versions]) => {
       const times = Object.values(versions || {}).map(v => v?.last_run_initialisation_time).filter(v => isNum(v) && v > 0);
       return times.length ? `${esc(source.toUpperCase())}: ${esc(fmtShortET(new Date(Math.min(...times) * 1000).toISOString()))}` : "";
     }).filter(Boolean).join("; ") || "-"],

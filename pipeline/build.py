@@ -411,7 +411,8 @@ def stage_weather(
                 previous=previous.get(game.game_id), now=screen_clock,
                 blend_cfg=merge_mod._default_blend_cfg(), nws_rows=nws_by_point.get(point) if not point_meta.get(point, {}).get("nws_aged", True) else None, for_refinement=True,
             )
-    refine_points = [point for point, group in by_point.items() if point not in reused and
+    refine_points = [point for point, group in by_point.items() if (point not in reused or
+                     point_meta.get(point, {}).get("stage") not in ("refined_multimodel", "refined_split_fields")) and
                      any(first_pass.needs_refinement(decisions[g.game_id]) for g in group if g.game_id in decisions)]
     first_pass.refine(ctx, sport, om_mod, refine_points, conus_pts, om_by_point, point_stamps, point_meta, start, end,
                       capture, _fetch_point_batches, budget_kwargs, point_hours)

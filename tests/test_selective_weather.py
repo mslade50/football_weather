@@ -411,6 +411,9 @@ def test_supplemental_failure_keeps_first_pass_signal_data_and_timestamp(weather
 
 def test_distant_members_keep_old_versions_until_twelve_hour_expiry(weather, tmp_path):
     weather["clock"] = NOW - timedelta(days=2)
+    for versions in weather["versions"].values():
+        for value in versions.values():
+            value["last_run_initialisation_time"] = int((weather["clock"] - timedelta(hours=4)).timestamp())
     _, first = run(weather, tmp_path)
     old = next(iter(first.values()))
     weather["clock"] += timedelta(hours=3)
@@ -455,3 +458,40 @@ def test_distant_reuse_still_requires_stable_current_source_metadata(weather, tm
     fc = next(iter(result.values()))
     assert fc.ensemble_status == "unavailable_degraded" and fc.wind_p90 is None
     assert fc.ensemble_fetched_at == {} and fc.ensemble_aged_sources == []
+
+
+def test_same_workflow_new_eligible_opener_refines_previously_skipped_points(weather, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_RUN_ID", "opener-change")
+    handoff = tmp_path / "handoff"
+    group, stadiums = games()
+    group = [replace(group[0], sport="cfb")]
+    gid = group[0].game_id
+    def ctx():
+        return RunContext("cfb", git_sha="test-sha")
+    first_ctx = ctx()
+    first_ctx.weather_state["write_point_dir"] = handoff
+    disqualified = {"openers": {f"{gid}|spread|home|consensus": {"line": 20}}}
+    result = build.stage_weather(first_ctx, "cfb", group, stadiums, NullRawStore("cfb", first_ctx.run_id), {},
+                                 state_dir=tmp_path, openers=disqualified)
+    assert not result[gid].ensemble_eligible and len(weather["points"]) == 1
+    second_ctx = ctx()
+    second_ctx.weather_state["reuse_point_dir"] = handoff
+    eligible = {"openers": {f"{gid}|spread|home|consensus": {"line": 8}}}
+    result = build.stage_weather(second_ctx, "cfb", group, stadiums, NullRawStore("cfb", second_ctx.run_id), {},
+                                 state_dir=tmp_path, openers=eligible)
+    assert result[gid].ensemble_eligible and result[gid].point_stage == "refined_multimodel"
+    assert len(weather["points"]) == 2 and len(weather["ensembles"]) == 2
+
+
+def test_same_workflow_nws_issue_age_is_rechecked_before_reuse(weather, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_RUN_ID", "nws-age")
+    handoff = tmp_path / "handoff"
+    weather.update(wind=1, temp=75)
+    nws_provider(weather, monkeypatch, wind=1, temp=75, age_hours=12)
+    _, first = run(weather, tmp_path, handoff=handoff)
+    assert next(iter(first.values())).point_stage == "nws_first_pass" and not weather["points"]
+    weather["clock"] += timedelta(minutes=10)
+    _, second = run(weather, tmp_path, reuse=handoff)
+    fc = next(iter(second.values()))
+    assert fc.point_stage == "refined_multimodel" and len(weather["points"]) == 1
+    assert fc.source != "nws" and not fc.point_aged and not weather["ensembles"]

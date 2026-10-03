@@ -25,6 +25,8 @@ VARIABLES = {
 }
 CONTROL = "control"
 
+_SINGLE_KEY_RE = re.compile(r"^(?P<var>wind_speed_10m|wind_gusts_10m|precipitation)(?:_member(?P<member>\d+))?$")
+
 _KEY_RE = re.compile(r"^(?P<var>wind_speed_10m|wind_gusts_10m|precipitation)(?:_member(?P<member>\d+))?_(?P<model>.+)$")
 
 
@@ -74,7 +76,7 @@ def _num(v: Any) -> Optional[float]:
         return None
 
 
-def parse_ensemble_location(payload: dict[str, Any]) -> EnsembleLocation:
+def parse_ensemble_location(payload: dict[str, Any], model: Optional[str] = None) -> EnsembleLocation:
     hourly = payload.get("hourly") or {}
     loc = EnsembleLocation(
         latitude=float(payload.get("latitude", 0.0)),
@@ -85,27 +87,30 @@ def parse_ensemble_location(payload: dict[str, Any]) -> EnsembleLocation:
     for key, values in hourly.items():
         if key == "time":
             continue
-        m = _KEY_RE.match(key)
+        single = _SINGLE_KEY_RE.match(key)
+        m = single or _KEY_RE.match(key)
         if not m:
             continue
+        if single and not model:
+            raise ValueError("single-model ensemble fields require explicit requested model identity")
         canon = VARIABLES[m.group("var")]
         member = f"member{m.group('member')}" if m.group("member") else CONTROL
-        model = m.group("model")
-        mk = f"{model}:{member}"
+        source_model = model if single else m.group("model")
+        mk = f"{source_model}:{member}"
         mem = loc.members.get(mk)
         if mem is None:
-            mem = loc.members[mk] = Member(model=model, member=member)
+            mem = loc.members[mk] = Member(model=source_model, member=member)
         setattr(mem, canon, [_num(v) for v in values])
     return loc
 
 
-def parse_ensemble(payload: Any) -> list[EnsembleLocation]:
+def parse_ensemble(payload: Any, model: Optional[str] = None) -> list[EnsembleLocation]:
     if isinstance(payload, list):
-        return [parse_ensemble_location(p) for p in payload]
+        return [parse_ensemble_location(p, model=model) for p in payload]
     if isinstance(payload, dict):
         if payload.get("error"):
             raise ValueError(f"open-meteo ensemble error: {payload.get('reason')}")
-        return [parse_ensemble_location(payload)]
+        return [parse_ensemble_location(payload, model=model)]
     raise TypeError(f"unexpected ensemble payload type: {type(payload).__name__}")
 
 

@@ -20,6 +20,8 @@ SOURCES = {"ifs": ("ecmwf_ifs025", ("ecmwf_ifs025_ensemble",)),
            "gefs": ("gfs_seamless", ("ncep_gefs025", "ncep_gefs05"))}
 METADATA_BASE = "https://ensemble-api.open-meteo.com/data"
 SCHEMA = 1
+MAX_CURRENT_DATASET_AGE_H = 18
+MAX_REUSED_DATASET_AGE_H = 30
 CONSISTENCY_SECONDS = 600
 
 
@@ -33,6 +35,8 @@ def version(payload: dict[str, Any], now: datetime) -> dict[str, int]:
     available = value["last_run_availability_time"]
     if value["last_run_initialisation_time"] > available or value["last_run_modification_time"] > clock or available > clock:
         raise ValueError("future/inconsistent model-version metadata")
+    if clock - value["last_run_initialisation_time"] > MAX_CURRENT_DATASET_AGE_H * 3600:
+        raise ValueError("provider dataset initialization overdue/stale")
     if clock - available < CONSISTENCY_SECONDS:
         raise ValueError("model update settling (provider recommends 10 minutes)")
     if clock - available > value["update_interval_seconds"] + 1200:
@@ -141,6 +145,11 @@ class MemberCache:
         entry = self.entries.get(self.key(source, point), {})
         versions = entry.get("versions")
         if not isinstance(versions, dict) or versions == current or versions.keys() != current.keys() or max_age_h <= 0:
+            return None
+        # These are dataset metadata ages, not provenance for every member hour.
+        # An unknown/too-old initialization cannot use the distant reuse path.
+        initializations = [v.get("last_run_initialisation_time") if isinstance(v, dict) else None for v in versions.values()]
+        if any(not isinstance(t, int) or isinstance(t, bool) or not 0 <= now.timestamp() - t <= MAX_REUSED_DATASET_AGE_H * 3600 for t in initializations):
             return None
         hit = self.get(source, point, versions, hours, now=now)
         if hit and 0 <= (now - datetime.fromisoformat(hit[1])).total_seconds() < max_age_h * 3600:

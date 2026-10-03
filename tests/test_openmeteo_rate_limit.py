@@ -103,7 +103,7 @@ def test_full_member_client_packs_quota_and_preserves_response_order(monkeypatch
         assert request.url.params["hourly"] == OM.ENSEMBLE_HOURLY
         return httpx.Response(200, json=locations)
 
-    monkeypatch.setattr(OM, "parse_ensemble", lambda payload: payload)
+    monkeypatch.setattr(OM, "parse_ensemble", lambda payload, **kwargs: payload)
     points = [(float(i), -96.0) for i in range(83)]
     with httpx.Client(transport=httpx.MockTransport(respond)) as client:
         result = OM.fetch_ensemble(points, models="ecmwf_ifs025", budget=budget, client=client)

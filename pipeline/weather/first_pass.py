@@ -49,6 +49,11 @@ def collect(ctx, sport, om, nws, by_point, conus, hours, reused, start, end, cap
     grids = {point: value[1] for point, value in reused.items()}
     stamps = {point: reused[point][2] if point in reused else ctx.now_utc for point in by_point}
     meta = ctx.weather_state.setdefault("point_meta", {})
+    for point in reused:
+        details = meta.get(point, {})
+        details["nws_aged"] = aged({"updateTime": details.get("updated_at")}, ctx.now_utc)
+        if details.get("stage") == "nws_first_pass":
+            details["aged"] = details["nws_aged"]
     cache = nws.PointsCache(path=state_dir / "nws_points.json") if state_dir is not None else nws.PointsCache()
     run_grids = ctx.weather_state.setdefault("run_nws", {})
     for point in conus:
