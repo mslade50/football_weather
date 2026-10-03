@@ -104,8 +104,8 @@ def test_fetch_ensemble_batches_and_captures(monkeypatch, ens_payload: dict):
     captured = []
     pts = [(42.0 + i * 0.01, -71.0) for i in range(60)]
     locs = OM.fetch_ensemble(pts, forecast_days=2, capture=lambda name, payload, url: captured.append(name))
-    assert calls == [50, 10] and len(locs) == 60
-    assert captured == ["openmeteo_ensemble_00", "openmeteo_ensemble_01"]
+    assert calls == [20, 20, 20] and len(locs) == 60
+    assert captured == ["openmeteo_ensemble_00", "openmeteo_ensemble_01", "openmeteo_ensemble_02"]
     assert OM.fetch_ensemble([]) == []
 
 

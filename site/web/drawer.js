@@ -26,7 +26,21 @@ function closeDrawer() {
 
 const kv = (rows) => `<table class="kv">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("")}</table>`;
 const pct = (v) => (isNum(v) ? `${Number(v).toFixed(1)}%` : "—");
-const yesno = (v) => (v == null ? "—" : String(v));
+const yesno = (v) => (v == null ? "-" : String(v));
+
+function uncertaintyLabel(wx) {
+  const labels = {
+    full_members: "Full ensemble",
+    aged_members: "Older verified ensemble (distant game)",
+    partial_members_degraded: "Partial ensemble coverage",
+    unavailable_degraded: "Ensemble unavailable",
+    not_sampled_below_signal_buffer: "Below wind/rain screening buffer",
+    not_sampled_ineligible_signal: "Opening spread outside CFB signal range; ensemble not sampled",
+    not_sampled_point_unavailable: "Point forecast incomplete; ensemble not sampled",
+    not_sampled_closed_roof: "Closed roof; ensemble not sampled",
+  };
+  return esc(labels[wx.ensemble_status] || "-") + ((wx.ensemble_aged_sources || []).length ? `; older ${esc(wx.ensemble_aged_sources.join("/"))}` : "");
+}
 
 function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};
@@ -38,7 +52,15 @@ function weatherTable(g) {
     ["Impact", isDome(g) ? "dome / closed (0)" : `${pct(v1.gs_fg_pct)} · away ${pct(v1.away_fg_pct)}`],
     ...(v2 ? [["Impact v2", `${pct(v2.gs_fg_pct)} · away ${pct(v2.away_fg_pct)}${isNum(v2.conf) ? ` · conf ${Number(v2.conf).toFixed(2)}` : ""}`]] : []),
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
-    ["Relative Wind", isNum(wx.wind_diff) ? `${Number(wx.wind_diff) >= 0 ? "+" : ""}${fmtNum(wx.wind_diff, 1)} vs avg ${fmtNum(st.avg_wind_month ?? st.avg_wind, 1)}` : "—"],
+    ["Forecast coverage", `${esc(({nws_first_pass: "NWS first pass", global_first_pass: "Global first pass (wind/temp/rain)", refined_multimodel: "Detailed model refinement", refined_split_fields: "First-pass signals with added detail fields", unavailable: "Point forecast unavailable"})[wx.point_stage] || "-")}${wx.point_aged ? " — aged or unverified point source" : ""}`],
+    ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
+    ["Forecast uncertainty", uncertaintyLabel(wx)],
+    ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
+    ["Ensemble dataset initialized", Object.entries(wx.ensemble_source_versions || {}).map(([source, versions]) => {
+      const times = Object.values(versions || {}).map(v => v?.last_run_initialisation_time).filter(v => isNum(v) && v > 0);
+      return times.length ? `${esc(source.toUpperCase())}: ${esc(fmtShortET(new Date(Math.min(...times) * 1000).toISOString()))}` : "";
+    }).filter(Boolean).join("; ") || "-"],
+    ["Relative Wind", isNum(wx.wind_diff) ? `${Number(wx.wind_diff) >= 0 ? "+" : ""}${fmtNum(wx.wind_diff, 1)} vs avg ${fmtNum(st.avg_wind_month ?? st.avg_wind, 1)}` : "-"],
     ["Cross / Head", isNum(wx.cross_mph) || isNum(wx.head_mph) ? `${fmtNum(wx.cross_mph, 1)} / ${fmtNum(wx.head_mph, 1)} mph` : "—"],
     ["Home_t", fmtNum(g.home_temp, 0)],
     ["Away_t", fmtNum(g.away_temp, 0)],

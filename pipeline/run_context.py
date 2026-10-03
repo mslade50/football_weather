@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from pipeline.contracts import Degradation
 from utils.timeutil import ET, ensure_utc, now_utc, run_id_for
@@ -48,6 +48,8 @@ class RunContext:
     degradations: list[Degradation] = field(default_factory=list)
     unresolved_names: list[str] = field(default_factory=list)
     counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    request_budgets: dict[str, Any] = field(default_factory=dict, repr=False)
+    weather_state: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self.started_at = ensure_utc(self.started_at)

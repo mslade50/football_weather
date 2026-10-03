@@ -48,7 +48,7 @@ RETRY_SLEEP_S = 5.0
 # State files fetched before a run and pushed after (ARCH §5 state row).
 STATE_FILES: tuple[str, ...] = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
-    "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status",
+    "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
 )
 
 _CONTENT_TYPES = {

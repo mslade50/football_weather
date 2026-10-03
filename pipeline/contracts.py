@@ -177,6 +177,18 @@ class WeatherForecast(_AsDict):
     blend_w: Optional[float] = None
     climo_wind: Optional[float] = None
     climo_temp: Optional[float] = None
+    point_stage: Optional[str] = None
+    point_source_updated_at: dict[str, str] = field(default_factory=dict)
+    point_aged: bool = False
+    ensemble_status: Optional[str] = None
+    ensemble_eligible: Optional[bool] = None
+    ensemble_screen_reasons: list[str] = field(default_factory=list)
+    ensemble_models: list[str] = field(default_factory=list)
+    ensemble_members: int = 0
+    ensemble_fetched_at: dict[str, str] = field(default_factory=dict)
+    ensemble_source_versions: dict[str, Any] = field(default_factory=dict)
+    ensemble_cached_sources: list[str] = field(default_factory=list)
+    ensemble_aged_sources: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:
