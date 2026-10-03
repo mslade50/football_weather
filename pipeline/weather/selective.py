@@ -2,11 +2,57 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pipeline.weather.member_cache import SOURCES, MemberCache, combine, complete, parameter_signature  # noqa: F401
+from pipeline.weather.member_cache import (  # noqa: F401
+    SOURCES,
+    MemberCache,
+    combine,
+    complete,
+    parameter_signature,
+    version,
+)
+
+VERIFIED_SOURCE_SECONDS = 60
+
+
+def _recent_check(ctx: Any, source: str, signature: dict[str, Any]) -> tuple[dict[str, Any], str] | None:
+    """A stable provider check from this build, never a persisted/new-run claim."""
+    check = ctx.weather_state.get("verified_member_sources", {}).get(source)
+    if not check or check.get("identity") != (ctx.run_id, ctx.git_sha, signature):
+        return None
+    try:
+        at = datetime.fromisoformat(check["verified_at"])
+        if at.tzinfo is None or not 0 <= (ctx.now_utc - at).total_seconds() < VERIFIED_SOURCE_SECONDS:
+            return None
+        versions = check["versions"]
+        if set(versions) != set(SOURCES[source][1]):
+            return None
+        # Reapply future, settling, overdue and initialization-age rules now.
+        for data in versions.values():
+            version(data, ctx.now_utc)
+        return deepcopy(versions), check["verified_at"]
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+
+
+def _cache_hits(cache: MemberCache, ctx: Any, source: str, points: list[Any], versions: dict[str, Any], hours: dict[Any, Any]) -> tuple[dict[Any, Any], list[Any]]:
+    hits, missing = {}, []
+    for point in points:
+        hit = cache.get(source, point, versions, hours[point], now=ctx.now_utc)
+        if hit:
+            hits[point] = (*hit, versions)
+            continue
+        old = cache.previous(source, point, versions, hours[point], now=ctx.now_utc,
+                             max_age_h=ctx.weather_state.get("member_max_age", {}).get(point, 0))
+        if old:
+            hits[point] = old
+        else:
+            missing.append(point)
+    return hits, missing
 
 
 def members(
@@ -18,34 +64,36 @@ def members(
         return {}, {}
     budget = ctx.request_budgets.get("openmeteo")
     signature = parameter_signature(om.ENSEMBLE_HOURLY, om.ENSEMBLE_UNIT_PARAMS)
-    if "member_cache" not in ctx.weather_state:
+    if "member_cache" not in ctx.weather_state or ctx.weather_state["member_cache"].parameters != signature:
         ctx.weather_state["member_cache"] = MemberCache(state_dir / "ensemble_cache.json" if state_dir else None, signature)
     cache = ctx.weather_state["member_cache"]
     locations: dict[Any, list[Any]] = {point: [] for point in points}
     coverage = {point: {"fetched_at": {}, "source_versions": {}, "cached_sources": [], "aged_sources": [], "errors": {}} for point in points}
     fetch_versions = getattr(om, "fetch_model_versions", None)
     for source, (model, _) in SOURCES.items():
+        recent = _recent_check(ctx, source, signature)
+        if recent:
+            hits, missing = _cache_hits(cache, ctx, source, points, recent[0], hours)
+            # Any new/extended window requires fresh before/after network checks.
+            if missing or _recent_check(ctx, source, signature) is None:
+                recent = None
         try:
             if not callable(fetch_versions):
                 raise RuntimeError("model-version client unavailable")
-            before = fetch_versions(source, capture=lambda name, payload, url=None: capture(f"{name}_before", payload, url), budget=budget)
+            if recent:
+                before = recent[0]
+                capture(f"ensemble_verified_{source}_reused", {"versions": before, "verified_at": recent[1],
+                        "run_id": ctx.run_id, "git_sha": ctx.git_sha, "parameters": signature, "cache_only": True})
+                ctx.degrade("weather", f"{sport}: {source} cached members use stable provider metadata checked less than 60 seconds ago in this build; original versions/timestamps", "info")
+            else:
+                before = fetch_versions(source, capture=lambda name, payload, url=None: capture(f"{name}_before", payload, url), budget=budget)
         except Exception as exc:  # noqa: BLE001
             for point in points:
                 coverage[point]["errors"][source] = str(exc)
             ctx.degrade("weather", f"{sport}: {source} ensemble source cannot be verified for {len(points)} selected locations: {exc}", "warn")
             continue
-        hits, missing = {}, []
-        for point in points:
-            hit = cache.get(source, point, before, hours[point], now=ctx.now_utc)
-            if hit:
-                hits[point] = (*hit, before)
-            else:
-                previous = cache.previous(source, point, before, hours[point], now=ctx.now_utc,
-                                          max_age_h=ctx.weather_state.get("member_max_age", {}).get(point, 0))
-                if previous:
-                    hits[point] = previous
-                else:
-                    missing.append(point)
+        if not recent:
+            hits, missing = _cache_hits(cache, ctx, source, points, before, hours)
         received_at = {}
         def batch_size(remaining, point_model=model):
             start = min(windows[point][0] for point in remaining)
@@ -60,9 +108,14 @@ def members(
         # Bind both freshly retrieved and reused members to a stable metadata
         # snapshot. A transition/failure never stamps old data as a new cycle.
         try:
-            after = fetch_versions(source, capture=lambda name, payload, url=None: capture(f"{name}_after", payload, url), budget=budget)
-            if before != after:
-                raise RuntimeError("source version changed during retrieval")
+            if not recent:
+                after = fetch_versions(source, capture=lambda name, payload, url=None: capture(f"{name}_after", payload, url), budget=budget)
+                if before != after:
+                    raise RuntimeError("source version changed during retrieval")
+                ctx.weather_state.setdefault("verified_member_sources", {})[source] = {
+                    "identity": (ctx.run_id, ctx.git_sha, deepcopy(signature)),
+                    "versions": deepcopy(after), "verified_at": ctx.now_utc.isoformat(),
+                }
         except Exception as exc:  # noqa: BLE001
             for point in points:
                 coverage[point]["errors"][source] = str(exc)
