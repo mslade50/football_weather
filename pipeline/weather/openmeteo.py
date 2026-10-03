@@ -83,12 +83,13 @@ def build_params(
     end: Optional[datetime] = None,
     models: str = CONUS_MODELS,
     forecast_days: Optional[int] = None,
+    hourly: str = HOURLY,
 ) -> dict[str, str]:
     params: dict[str, str] = {
         "latitude": ",".join(f"{lat:.4f}" for lat, _ in points),
         "longitude": ",".join(f"{lon:.4f}" for _, lon in points),
         "models": models,
-        "hourly": HOURLY,
+        "hourly": hourly,
     }
     params.update(UNIT_PARAMS)
     if start is not None and end is not None:
@@ -137,6 +138,7 @@ def fetch_forecast(
     client: Optional[httpx.Client] = None,
     source_prefix: str = "openmeteo_forecast",
     budget: Optional[RequestBudget] = None,
+    hourly: str = HOURLY,
 ) -> list[ParsedLocation]:
     """Fetch and parse forecasts for `points`; batches of <=50. Returns one ParsedLocation per input point (order preserved)."""
     if not points:
@@ -147,7 +149,7 @@ def fetch_forecast(
     try:
         for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
             batch = list(points[i : i + BATCH_SIZE])
-            params = build_params(batch, start, end, models, forecast_days)
+            params = build_params(batch, start, end, models, forecast_days, hourly)
             request_kwargs = _request_kwargs(budget, capture, f"{source_prefix}_{b:02d}")
             payload, url = _get_json(c, FORECAST_URL, params, **request_kwargs)
             if capture is not None:

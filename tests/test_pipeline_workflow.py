@@ -13,7 +13,7 @@ import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "pipeline.yml"
 STATE_FILES = ("openers", "history", "wx_history", "archive_last", "wx_last", "alerts", "scrape_baseline",
-               "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache")
+               "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache", "nws_points")
 
 
 @pytest.fixture(scope="module")

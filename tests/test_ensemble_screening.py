@@ -41,7 +41,7 @@ def test_no_heat_cold_gust_or_probability_only_selection(fields):
     assert not decide(*case(**fields)).eligible
 
 
-def test_rain_uses_three_hour_total_and_lead_dependent_buffer():
+def test_rain_uses_three_hour_total_without_widening_long_lead_buffer():
     assert decide(*case(precip=0.5)).reasons == ("game_window_rain",)
     assert decide(*case(precip=0.4)).reasons == ("rain_tail_risk",)
     assert not decide(*case(precip=0.05)).eligible
@@ -77,10 +77,11 @@ def test_climatology_weight_applied_to_raw_pair():
     assert decide(fc, loc).eligible
 
 
-def test_lead_buffers_and_cfb_weekday_minimum():
-    assert not decide(*case(wind=5, temp=60)).eligible
-    assert decide(*case(lead=144, wind=5, temp=60)).eligible
-    assert decide(*case(wind=6.79, temp=65), sport="cfb").eligible
+def test_long_lead_does_not_widen_buffer_and_cfb_uses_actual_run_day():
+    assert not decide(*case(wind=4.9, temp=60)).eligible
+    assert not decide(*case(lead=144, wind=4.9, temp=60)).eligible
+    assert not decide(*case(wind=6.30, temp=65), sport="cfb").eligible
+    assert decide(*case(wind=9, temp=65), sport="cfb").eligible
 
 
 def test_no_percentile_or_confidence_in_screen():
@@ -89,7 +90,7 @@ def test_no_percentile_or_confidence_in_screen():
 
 
 @pytest.mark.parametrize("mode", ["missing", "missing_hour", "null_point", "nonfinite", "horizon"])
-def test_unreliable_required_point_data_fail_open(mode):
+def test_unreliable_point_requests_detail_without_claiming_member_eligibility(mode):
     fc, loc = case()
     if mode == "missing":
         loc = None
@@ -101,7 +102,8 @@ def test_unreliable_required_point_data_fail_open(mode):
         fc = replace(fc, wind_fg=float("nan"))
     else:
         fc = replace(fc, lead_hours=400)
-    assert decide(fc, loc).eligible
+    decision = decide(fc, loc)
+    assert not decision.eligible and decision.priority == 2
 
 
 def test_optional_gust_missing_does_not_make_complete_point_unreliable():
@@ -113,7 +115,31 @@ def test_optional_gust_missing_does_not_make_complete_point_unreliable():
 def test_stale_point_and_material_change():
     fc, loc = case()
     now = KO - timedelta(hours=24)
-    assert decide(replace(fc, run_time=now - timedelta(minutes=31)), loc, now=now).eligible
+    assert decide(replace(fc, run_time=now - timedelta(minutes=31)), loc, now=now).priority == 2
     assert not decide(fc, loc, previous={"wind_fg": 20}).eligible
     fc, loc = case(wind=10, temp=60)
     assert "material_point_change" in decide(fc, loc, previous={"wind_fg": 5}).reasons
+
+
+@pytest.mark.parametrize("spread", [-10.01, 10.01, -30, 30])
+def test_cfb_known_disqualified_opener_does_not_request_members(spread):
+    decision = decide(*case(wind=30, temp=30, precip=3), sport="cfb", open_spread=spread)
+    assert decision.reasons == ("cfb_opening_spread_ineligible",) and decision.priority == 3
+    assert decide(*case(), sport="cfb", open_spread=spread, active=True).priority == 0
+
+
+@pytest.mark.parametrize("spread", [-10, 10, 0, None, float("nan")])
+def test_cfb_boundary_or_unknown_opener_retains_near_signal_coverage(spread):
+    assert decide(*case(wind=12, temp=50), sport="cfb", open_spread=spread).eligible
+
+
+def test_nws_purdue_tail_is_sent_to_detail_without_broadening_final_member_buffer():
+    fc, loc = case(wind=5.75, temp=70)
+    assert decide(fc, loc, sport="cfb", for_refinement=True).eligible
+    assert not decide(fc, loc, sport="cfb").eligible
+    assert decide(*case(wind=6.7, temp=66.5), sport="cfb").eligible
+
+
+def test_cfb_combined_wind_flag_uses_its_joint_temperature_boundary():
+    assert "joint_cfb_wind_flag" in decide(*case(wind=14, temp=69), sport="cfb").reasons
+    assert not decide(*case(wind=14, temp=75), sport="cfb").eligible

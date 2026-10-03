@@ -15,7 +15,7 @@ from typing import Any, Optional
 import httpx
 
 from pipeline.weather.parsers import HourlyRow
-from pipeline.weather.parsers.nws import parse_gridpoints
+from pipeline.weather.parsers.nws import grid_meta, parse_gridpoints
 
 BASE_URL = "https://api.weather.gov"
 USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
@@ -128,6 +128,7 @@ def fetch_hourly(
     capture: Optional[CaptureFn] = None,
     client: Optional[httpx.Client] = None,
     source_name: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
 ) -> list[HourlyRow]:
     """Resolve grid, fetch raw gridpoints (captured), parse to hourly rows in F/mph/mm."""
     own = client is None
@@ -141,6 +142,8 @@ def fetch_hourly(
     if capture is not None:
         name = source_name or f"nws_gridpoints_{grid['gridId']}_{grid['gridX']}_{grid['gridY']}"
         capture(name, payload, url)
+    if metadata is not None:
+        metadata.update(grid_meta(payload))
     return parse_gridpoints(payload)
 
 

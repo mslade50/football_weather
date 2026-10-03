@@ -94,7 +94,7 @@ def test_ordinary_refresh_always_fetches_fresh_points_and_reuses_only_verified_r
     weather["clock"] += timedelta(minutes=20)
     weather["wind"] = 13
     _, second = run(weather, tmp_path)
-    assert len(weather["points"]) == 2 and len(weather["ensembles"]) == 2
+    assert len(weather["points"]) == 4 and len(weather["ensembles"]) == 2
     assert second[gid].wind_fg == 13 and second[gid].lead_hours < first[gid].lead_hours
     assert second[gid].run_time == weather["clock"]
     assert second[gid].ensemble_fetched_at == first[gid].ensemble_fetched_at
@@ -104,6 +104,83 @@ def test_ordinary_refresh_always_fetches_fresh_points_and_reuses_only_verified_r
     assert block["ensemble_members"] == 82 and block["ensemble_fetched_at"] == first[gid].ensemble_fetched_at
     dump_json(tmp_path / "weather.json", block)
     assert json.loads((tmp_path / "weather.json").read_text())["ensemble_members"] == 82
+
+
+def nws_provider(state, monkeypatch, *, wind=1, temp=75, rain=0, age_hours=0):
+    def fetch(*args, metadata=None, **kwargs):
+        metadata.update(updateTime=(state["clock"] - timedelta(hours=age_hours)).isoformat())
+        return [HourlyRow(t=t, wind=wind, temp=temp, gust=wind + 2, dir=180, precip=rain, pop=20) for t in HOURS]
+    monkeypatch.setattr(nws, "fetch_hourly", fetch)
+
+
+def test_complete_benign_nws_first_pass_makes_no_openmeteo_requests(weather, tmp_path, monkeypatch):
+    nws_provider(weather, monkeypatch)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert weather["points"] == [] and weather["ensembles"] == []
+    assert fc.source == "nws" and fc.point_stage == "nws_first_pass"
+    assert not fc.point_aged and fc.point_source_updated_at == {"nws": NOW.isoformat()}
+    assert fc.ensemble_status == "not_sampled_below_signal_buffer"
+
+
+def test_nws_rain_candidate_refines_once_then_retains_risk_under_dry_point_models(weather, tmp_path, monkeypatch):
+    weather.update(wind=1, temp=75)
+    nws_provider(weather, monkeypatch, rain=.8)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert len(weather["points"]) == 1 and len(weather["ensembles"]) == 2
+    assert fc.point_stage == "refined_multimodel" and fc.ensemble_status == "full_members"
+    assert "game_window_rain" in fc.ensemble_screen_reasons
+
+
+def test_old_nws_publication_is_not_used_in_fresh_global_merge(weather, tmp_path, monkeypatch):
+    weather.update(wind=1, temp=75)
+    nws_provider(weather, monkeypatch, wind=40, temp=20, rain=5, age_hours=13)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert len(weather["points"]) == 1 and not weather["ensembles"]
+    assert fc.wind_fg == 1 and fc.point_stage == "global_first_pass"
+
+
+def test_missing_first_and_detailed_points_do_not_select_members_without_active_alert(weather, tmp_path, monkeypatch):
+    def failed(*args, **kwargs):
+        raise RuntimeError("point provider unavailable")
+    monkeypatch.setattr(OM, "fetch_forecast", failed)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert not weather["ensembles"] and fc.ensemble_status == "not_sampled_point_unavailable"
+    assert fc.point_aged and fc.wind_fg is None
+    (tmp_path / "alerts.json").write_text(json.dumps({"schema_version": 1, "records": {"k": {
+        "family": "edge", "game_id": fc.game_id, "notification_active": True}}}))
+    _, result = run(weather, tmp_path)
+    assert next(iter(result.values())).ensemble_eligible
+    assert len(weather["ensembles"]) == 2
+
+
+def test_nws_is_rechecked_and_new_risk_is_selected_on_next_ordinary_refresh(weather, tmp_path, monkeypatch):
+    nws_provider(weather, monkeypatch)
+    run(weather, tmp_path)
+    assert not weather["points"] and not weather["ensembles"]
+    weather["clock"] += timedelta(minutes=20)
+    nws_provider(weather, monkeypatch, rain=.8)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert fc.ensemble_status == "full_members" and fc.run_time == weather["clock"]
+
+
+def test_lean_fallback_requests_only_signal_fields_at_lower_weight(weather, tmp_path, monkeypatch):
+    weather.update(wind=1, temp=75)
+    original, requests = OM.fetch_forecast, []
+    def fetch(points, **kwargs):
+        requests.append(kwargs)
+        return original(points, **kwargs)
+    monkeypatch.setattr(OM, "fetch_forecast", fetch)
+    run(weather, tmp_path)
+    assert len(requests) == 1
+    params = OM.build_params([(30, -96)], models=requests[0]["models"], hourly=requests[0]["hourly"])
+    assert set(params["hourly"].split(",")) == {"temperature_2m", "wind_speed_10m", "precipitation"}
+    from pipeline.weather.rate_limit import query_weight
+    assert query_weight(OM.FORECAST_URL, params) == 1.5
 
 
 def test_gefs_component_change_refetches_gefs_only_then_ifs_change_refetches_ifs_only(weather, tmp_path):
@@ -199,11 +276,11 @@ def test_same_workflow_raw_point_handoff_preserves_time_reweights_and_ordinary_c
     weather["clock"] += timedelta(minutes=10)
     _, second = run(weather, tmp_path, reuse=handoff)
     a, b = next(iter(first.values())), next(iter(second.values()))
-    assert len(weather["points"]) == 1 and len(weather["ensembles"]) == 2
+    assert len(weather["points"]) == 2 and len(weather["ensembles"]) == 2
     assert b.run_time == a.run_time and b.lead_hours < a.lead_hours
     monkeypatch.setenv("GITHUB_RUN_ID", "124")
     run(weather, tmp_path, reuse=handoff)
-    assert len(weather["points"]) == 2
+    assert len(weather["points"]) == 4
 
 
 def test_cached_members_and_handoff_recompute_climatology_weights_at_current_clock(weather, tmp_path, monkeypatch):
@@ -219,7 +296,7 @@ def test_cached_members_and_handoff_recompute_climatology_weights_at_current_clo
     assert b.blend_w > a.blend_w
     assert b.wind_fg != a.wind_fg and b.wind_p90 != a.wind_p90
     assert b.ensemble_fetched_at == a.ensemble_fetched_at and b.run_time == a.run_time
-    assert len(weather["points"]) == 1 and len(weather["ensembles"]) == 2
+    assert len(weather["points"]) == 2 and len(weather["ensembles"]) == 2
 
 
 @pytest.mark.parametrize("change", ["stale", "future", "attempt", "sha", "venue", "kickoff", "units", "invalid"])
@@ -248,3 +325,133 @@ def test_point_handoff_rejects_incompatible_inputs(weather, tmp_path, monkeypatc
     else:
         (handoff / "nfl.json").write_text("NaN")
     assert not point_handoff.read(handoff, ctx, "nfl", OM, {(30, -96): group}, stadiums, {}, {(30, -96): set(HOURS)})
+
+
+@pytest.mark.parametrize("spread,expected", [(20, False), (10, True), (None, True)])
+def test_cfb_uses_current_consensus_opener_and_preserves_active_alert(weather, tmp_path, spread, expected):
+    group, stadiums = games()
+    group = [replace(group[0], sport="cfb")]
+    gid = group[0].game_id
+    openers = {"openers": {}}
+    if spread is not None:
+        openers["openers"][f"{gid}|spread|home|betcris"] = {"line": spread}
+    ctx = RunContext("cfb", git_sha="test-sha")
+    result = build.stage_weather(ctx, "cfb", group, stadiums, NullRawStore("cfb", ctx.run_id), {},
+                                 state_dir=tmp_path, openers=openers)
+    fc = result[gid]
+    assert fc.ensemble_eligible is expected
+    if not expected:
+        assert len(weather["points"]) == 1 and not weather["ensembles"]
+        assert fc.ensemble_status == "not_sampled_ineligible_signal"
+        (tmp_path / "alerts.json").write_text(json.dumps({"schema_version": 1, "records": {"k": {
+            "family": "edge", "game_id": gid, "notification_active": True}}}))
+        ctx = RunContext("cfb", git_sha="test-sha")
+        result = build.stage_weather(ctx, "cfb", group, stadiums, NullRawStore("cfb", ctx.run_id), {},
+                                     state_dir=tmp_path, openers=openers)
+        assert result[gid].ensemble_eligible and len(weather["ensembles"]) == 2
+
+
+def test_cfb_captures_new_openers_before_weather_selection(weather, tmp_path, monkeypatch):
+    current = {"openers": {"new": {"line": 20}}}
+    calls = []
+    monkeypatch.setattr(build, "stage_stadiums", lambda *a: None)
+    monkeypatch.setattr(build, "stage_schedule", lambda *a: ([], []))
+    def odds(*args, **kwargs):
+        calls.append("odds")
+        return SimpleNamespace(openers=current)
+    class StopAfterWeather(Exception):
+        pass
+    def wx(*args, **kwargs):
+        assert calls == ["odds"] and kwargs["openers"] is current
+        raise StopAfterWeather
+    monkeypatch.setattr(build, "stage_odds", odds)
+    monkeypatch.setattr(build, "stage_weather", wx)
+    with pytest.raises(StopAfterWeather):
+        build.run_sport(RunContext("cfb"), "cfb", NullRawStore("cfb", "test"), 2026, state_dir=tmp_path)
+
+
+def test_global_candidate_fetches_only_missing_fields_without_restamping_signals(weather, tmp_path, monkeypatch):
+    from pipeline.weather import first_pass as FP
+    requests = []
+    def fetch(points, **kwargs):
+        requests.append(kwargs)
+        fields = kwargs["hourly"]
+        if fields == FP.EXTRA_HOURLY:
+            weather["clock"] += timedelta(seconds=5)
+        rows = [HourlyRow(t=t, wind=99 if fields == FP.EXTRA_HOURLY else 12,
+                          temp=99 if fields == FP.EXTRA_HOURLY else 50, precip=99 if fields == FP.EXTRA_HOURLY else 0,
+                          gust=20 if fields == FP.EXTRA_HOURLY else None, dir=180 if fields == FP.EXTRA_HOURLY else None,
+                          pop=0 if fields == FP.EXTRA_HOURLY else None) for t in HOURS]
+        return [ParsedLocation(*point, models={model: rows for model in kwargs["models"].split(",")}) for point in points]
+    monkeypatch.setattr(OM, "fetch_forecast", fetch)
+    ctx, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert [x["hourly"] for x in requests] == [FP.HOURLY, FP.EXTRA_HOURLY]
+    assert fc.wind_fg == 12 and fc.temp_fg == 50 and fc.rain_fg_mm == 0 and fc.gust_fg == 20
+    assert fc.run_time == NOW and fc.point_stage == "refined_split_fields"
+    assert ctx.weather_state["point_meta"][(30, -96)]["details_fetched_at"] == weather["clock"].isoformat()
+    from pipeline.weather.rate_limit import query_weight
+    assert query_weight(OM.FORECAST_URL, OM.build_params([(30, -96)], hourly=FP.EXTRA_HOURLY)) == 1.5
+
+
+def test_supplemental_failure_keeps_first_pass_signal_data_and_timestamp(weather, tmp_path, monkeypatch):
+    from pipeline.weather import first_pass as FP
+    def fetch(points, **kwargs):
+        if kwargs["hourly"] == FP.EXTRA_HOURLY:
+            weather["clock"] += timedelta(seconds=5)
+            raise RuntimeError("detail request failed")
+        rows = [HourlyRow(t=t, wind=12, temp=50, precip=0) for t in HOURS]
+        return [ParsedLocation(*point, models={model: rows for model in kwargs["models"].split(",")}) for point in points]
+    monkeypatch.setattr(OM, "fetch_forecast", fetch)
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert fc.wind_fg == 12 and fc.temp_fg == 50 and fc.run_time == NOW and fc.gust_fg is None
+    assert fc.point_stage == "global_first_pass" and fc.ensemble_eligible
+
+
+def test_distant_members_keep_old_versions_until_twelve_hour_expiry(weather, tmp_path):
+    weather["clock"] = NOW - timedelta(days=2)
+    _, first = run(weather, tmp_path)
+    old = next(iter(first.values()))
+    weather["clock"] += timedelta(hours=3)
+    for values in weather["versions"].values():
+        for value in values.values():
+            value["snapshot"] = 2
+    _, second = run(weather, tmp_path)
+    aged = next(iter(second.values()))
+    assert len(weather["ensembles"]) == 2 and aged.ensemble_status == "aged_members"
+    assert aged.ensemble_aged_sources == ["ifs", "gefs"] and aged.ensemble_fetched_at == old.ensemble_fetched_at
+    assert aged.ensemble_source_versions == old.ensemble_source_versions
+    assert aged.run_time == weather["clock"]  # point receipt is fresh; members keep their own older receipt
+    weather["clock"] += timedelta(hours=9)
+    _, third = run(weather, tmp_path)
+    fresh = next(iter(third.values()))
+    assert len(weather["ensembles"]) == 4 and fresh.ensemble_status == "full_members"
+    assert fresh.ensemble_aged_sources == [] and fresh.ensemble_source_versions != old.ensemble_source_versions
+
+
+@pytest.mark.parametrize("mode", ["near", "active"])
+def test_near_or_active_games_refetch_changed_cycles_immediately(weather, tmp_path, mode):
+    weather["clock"] = NOW - timedelta(days=2 if mode == "active" else 1)
+    _, first = run(weather, tmp_path)
+    gid = next(iter(first))
+    weather["clock"] += timedelta(hours=1)
+    for values in weather["versions"].values():
+        for value in values.values():
+            value["snapshot"] = 2
+    if mode == "active":
+        (tmp_path / "alerts.json").write_text(json.dumps({"schema_version": 1, "records": {"k": {
+            "family": "edge", "game_id": gid, "notification_active": True}}}))
+    _, result = run(weather, tmp_path)
+    assert len(weather["ensembles"]) == 4 and result[gid].ensemble_aged_sources == []
+
+
+def test_distant_reuse_still_requires_stable_current_source_metadata(weather, tmp_path):
+    weather["clock"] = NOW - timedelta(days=2)
+    run(weather, tmp_path)
+    weather["clock"] += timedelta(hours=1)
+    weather["fail"].update({"meta_ifs", "meta_gefs"})
+    _, result = run(weather, tmp_path)
+    fc = next(iter(result.values()))
+    assert fc.ensemble_status == "unavailable_degraded" and fc.wind_p90 is None
+    assert fc.ensemble_fetched_at == {} and fc.ensemble_aged_sources == []

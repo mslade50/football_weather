@@ -29,7 +29,7 @@ def key(point: tuple[float, float]) -> str:
 
 
 def signature(ctx: Any, om: Any) -> Any:
-    return {"schema_version": 1, "cycle": cycle(), "git_sha": ctx.git_sha,
+    return {"schema_version": 2, "strategy": "nws-first-v6", "cycle": cycle(), "git_sha": ctx.git_sha,
             "models": [om.CONUS_MODELS, om.INTL_MODELS], "hourly": om.HOURLY, "units": om.UNIT_PARAMS}
 
 
@@ -58,6 +58,7 @@ def read(directory: Path | None, ctx: Any, sport: str, om: Any, by_point: dict[A
             covered = {r.t for values in (location.models.values() if location else []) for r in values} | {r.t for r in nws}
             if not hours[point].issubset(covered):
                 continue
+            ctx.weather_state.setdefault("point_meta", {})[point] = entry.get("point_meta", {})
             result[point] = location, nws, fetched
         if result:
             ctx.degrade("weather", f"{sport}: reused {len(result)} same-workflow raw point inputs; original timestamps, current lead weights", "info")
@@ -76,7 +77,7 @@ def write(directory: Path | None, ctx: Any, sport: str, om: Any, by_point: dict[
         data = asdict(location) if location is not None else None
         if data:
             data["models"] = {model: [row for row in values if row["t"] in hours[point]] for model, values in data["models"].items()}
-        entries[key(point)] = {"identities": identities(games, stadiums, roofs), "om": data,
+        entries[key(point)] = {"point_meta": ctx.weather_state.get("point_meta", {}).get(point, {}), "identities": identities(games, stadiums, roofs), "om": data,
                                "nws": [asdict(row) for row in nws.get(point, []) if row.t in hours[point]],
                                "fetched_at": stamps[point].isoformat()}
     directory.mkdir(parents=True, exist_ok=True)

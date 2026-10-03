@@ -123,3 +123,16 @@ def test_units_or_parser_signature_changes_invalidate_disk_cache(tmp_path):
     bad = MemberCache(path, SIG)
     assert bad.get("ifs", POINT, versions(), set(HOURS), now=NOW) is None
     assert bad.invalid
+
+
+def test_previous_version_reuse_preserves_original_data_and_enforces_age_hours_source():
+    cache = MemberCache(None, SIG)
+    original = {"ecmwf_ifs025_ensemble": versions()}
+    current = {"ecmwf_ifs025_ensemble": versions(NOW + timedelta(hours=6))}
+    cache.put("ifs", POINT, original, location(), set(HOURS), NOW)
+    hit = cache.previous("ifs", POINT, current, set(HOURS), now=NOW + timedelta(hours=11), max_age_h=12)
+    assert hit == (location(), NOW.isoformat(), original)
+    assert not cache.previous("ifs", POINT, current, set(HOURS), now=NOW + timedelta(hours=12), max_age_h=12)
+    assert not cache.previous("ifs", POINT, current, {HOURS[-1] + timedelta(hours=1)}, now=NOW, max_age_h=12)
+    assert not cache.previous("ifs", POINT, {"wrong_model": versions()}, set(HOURS), now=NOW, max_age_h=12)
+    assert not cache.previous("ifs", POINT, current, set(HOURS), now=NOW, max_age_h=0)

@@ -91,7 +91,7 @@ from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, wr
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
-from pipeline.weather import point_handoff, screening, selective
+from pipeline.weather import first_pass, point_handoff, screening, selective
 from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
@@ -333,6 +333,7 @@ def stage_weather(
     ctx: RunContext, sport: str, games: list[Game], stadiums: dict[str, Stadium], raw: RawStore, roof_states: dict[str, str | None],
     extras: dict[str, dict[str, Any]] | None = None,
     state_dir: Path | None = None,
+    openers: dict[str, Any] | None = None,
 ) -> dict[str, WeatherForecast]:
     """Deterministic forecast + ensemble (Phase 5) + NWS -> merged WeatherForecast per game.
     ``extras`` (if given) collects per-game merge side-outputs: ``precip_prob_ens``,
@@ -345,7 +346,6 @@ def stage_weather(
     if om_mod is None or merge_mod is None or nws_mod is None:
         ctx.degrade("weather", "pipeline.weather modules not importable", "error")
         return {}
-    now = ctx.now_utc
     games = [g for g in games if g.game_id in stadiums]
     if not games:
         return {}
@@ -359,75 +359,19 @@ def stage_weather(
         st = stadiums[g.game_id]
         by_point.setdefault((round(st.lat, 4), round(st.lon, 4)), []).append(g)
     conus_pts = [pt for pt in by_point if _is_conus(stadiums[by_point[pt][0].game_id])]
-    intl_pts = [pt for pt in by_point if pt not in conus_pts]
     kickoffs = [g.kickoff_utc for g in games]
     start, end = om_mod.window_for(kickoffs)
     point_hours = {point: {merge_mod.hour_floor(g.kickoff_utc) + timedelta(hours=i) for g in group for i in range(-1, 5)}
                    for point, group in by_point.items()}
     reused = point_handoff.read(ctx.weather_state.get("reuse_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states, point_hours)
-    point_stamps = {point: reused[point][2] if point in reused else now for point in by_point}
     budget_kwargs: dict[str, Any] = {}
     if callable(getattr(om_mod, "RequestBudget", None)):
         ctx.request_budgets.setdefault("openmeteo", om_mod.RequestBudget())
         budget_kwargs["budget"] = ctx.request_budgets["openmeteo"]
-    om_by_point: dict[tuple[float, float], Any] = {point: value[0] for point, value in reused.items() if value[0] is not None}
-    for pts, models, prefix in ((conus_pts, om_mod.CONUS_MODELS, "openmeteo_conus"), (intl_pts, om_mod.INTL_MODELS, "openmeteo_intl")):
-        pts = [point for point in pts if point not in reused]
-        if not pts:
-            continue
-        fetched, failures = _fetch_point_batches(
-            pts,
-            om_mod.fetch_forecast,
-            batch_size=(lambda remaining, point_models=models: budget_kwargs["budget"].batch_size(
-                om_mod.FORECAST_URL, om_mod.build_params(remaining[:1], start, end, point_models), om_mod.BATCH_SIZE))
-                if budget_kwargs else om_mod.BATCH_SIZE,
-            source_prefix=prefix,
-            start=start,
-            end=end,
-            models=models,
-            capture=capture,
-            received=lambda batch: point_stamps.update({point: ctx.now_utc for point in batch}),
-            **budget_kwargs,
-        )
-        om_by_point.update(fetched)
-        if failures:
-            affected = sum(size for _, size, _ in failures)
-            ctx.degrade(
-                "weather",
-                f"{sport}: open-meteo ({prefix}) unavailable for {affected}/{len(pts)} locations "
-                f"across {len(failures)} batch(es): {failures[0][2]}",
-                "warn",
-            )
-
-    nws_by_point: dict[tuple[float, float], Any] = {point: value[1] for point, value in reused.items()}
-    nws_failures: list[tuple[tuple[float, float], Exception]] = []
-    cache = nws_mod.PointsCache()
-    nws_h = merge_mod.NWS_HORIZON_H
-    for pt in conus_pts:
-        if pt in reused:
-            continue
-        if not any((g.kickoff_utc - now).total_seconds() / 3600.0 <= nws_h for g in by_point[pt]):
-            continue
-        try:
-            nws_by_point[pt] = nws_mod.fetch_hourly(pt[0], pt[1], cache=cache, capture=capture)
-            if pt not in om_by_point:
-                point_stamps[pt] = ctx.now_utc
-        except Exception as exc:  # noqa: BLE001
-            nws_failures.append((pt, exc))
-    if nws_failures:
-        ctx.degrade(
-            "weather",
-            f"{sport}: NWS unavailable for {len(nws_failures)}/{len(conus_pts)} locations: "
-            f"{nws_failures[0][1]}",
-            "warn",
-        )
-    try:
-        cache.save()
-    except OSError:
-        pass
-
-    point_handoff.write(ctx.weather_state.get("write_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states,
-                        point_hours, om_by_point, nws_by_point, point_stamps)
+    om_by_point, nws_by_point, point_stamps, point_meta = first_pass.collect(
+        ctx, sport, om_mod, nws_mod, by_point, conus_pts, point_hours, reused, start, end,
+        capture, _fetch_point_batches, state_dir, budget_kwargs,
+    )
 
     # First merge fresh point data only. Screening never inspects members or
     # ensemble-dependent confidence. Existing open signals remain eligible.
@@ -438,14 +382,20 @@ def stage_weather(
             if record.get("family") == "edge" and record.get("notification_active"):
                 active.add(record.get("game_id"))
         previous = d1_out.load_wx_last(state_dir).get("last", {})
+    signal_openers = openers if openers is not None else pstate.load_openers(state_dir) if state_dir is not None else {}
+    opening_spreads = {g.game_id: json_out.consensus_spread_opener(g.game_id, signal_openers)[0] for g in games} if sport == "cfb" else {}
     decisions = {}
     screen_clock = ctx.now_utc
     def merged(game, point, clock, ensemble=None):
         stadium = stadiums[game.game_id]
+        use_nws = (point_meta.get(point, {}).get("stage") not in ("refined_multimodel", "refined_split_fields")
+                   and not point_meta.get(point, {}).get("nws_aged", True)
+                   and first_pass.complete(nws_by_point.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)}))
         return merge_mod.build_forecast(
-            game.game_id, game.kickoff_utc, clock, om_by_point.get(point), nws_by_point.get(point),
+            game.game_id, game.kickoff_utc, clock, None if use_nws else om_by_point.get(point),
+            nws_by_point.get(point) if not point_meta.get(point, {}).get("nws_aged", True) else None,
             orientation_deg=stadium.orientation_deg, roof_state=roof_states.get(game.game_id), run_id=ctx.run_id,
-            ens=ensemble, roof_type=stadium.roof_type, expect_ensemble=ensemble is not None,
+            stadium_id=stadium.stadium_id, ens=ensemble, roof_type=stadium.roof_type, expect_ensemble=ensemble is not None,
             report_source_degradations=False,
         )
     for point, point_games in by_point.items():
@@ -457,15 +407,41 @@ def stage_weather(
                 continue
             decisions[game.game_id] = screening.screen(
                 sport, dataclasses.replace(provisional.forecast, run_time=point_stamps[point]), om_by_point.get(point),
-                game.kickoff_utc, roof_state=roof_states.get(game.game_id), active=game.game_id in active,
+                game.kickoff_utc, roof_state=roof_states.get(game.game_id), active=game.game_id in active, open_spread=opening_spreads.get(game.game_id),
                 previous=previous.get(game.game_id), now=screen_clock,
-                blend_cfg=merge_mod._default_blend_cfg(),
+                blend_cfg=merge_mod._default_blend_cfg(), nws_rows=nws_by_point.get(point) if not point_meta.get(point, {}).get("nws_aged", True) else None, for_refinement=True,
             )
+    refine_points = [point for point, group in by_point.items() if point not in reused and
+                     any(first_pass.needs_refinement(decisions[g.game_id]) for g in group if g.game_id in decisions)]
+    first_pass.refine(ctx, sport, om_mod, refine_points, conus_pts, om_by_point, point_stamps, point_meta, start, end,
+                      capture, _fetch_point_batches, budget_kwargs, point_hours)
+    screen_clock = ctx.now_utc
+    for point, group in by_point.items():
+        for game in group:
+            if game.game_id not in decisions:
+                continue
+            provisional = merged(game, point, screen_clock)
+            decisions[game.game_id] = screening.screen(
+                sport, dataclasses.replace(provisional.forecast, run_time=point_stamps[point]), om_by_point.get(point),
+                game.kickoff_utc, roof_state=roof_states.get(game.game_id), active=game.game_id in active, open_spread=opening_spreads.get(game.game_id),
+                previous=previous.get(game.game_id), now=screen_clock,
+                blend_cfg=merge_mod._default_blend_cfg(), nws_rows=nws_by_point.get(point) if not point_meta.get(point, {}).get("nws_aged", True) else None,
+            )
+    point_handoff.write(ctx.weather_state.get("write_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states,
+                        point_hours, om_by_point, nws_by_point, point_stamps)
+    ctx.degrade("weather", f"{sport}: cheap first pass refined {len(refine_points)}/{len(by_point)} locations", "info")
     selected_points = [point for point in by_point if any(decisions[g.game_id].eligible for g in by_point[point] if g.game_id in decisions)]
     selected_games = {point: [g for g in by_point[point] if g.game_id in decisions and decisions[g.game_id].eligible] for point in selected_points}
     windows = {point: om_mod.window_for([g.kickoff_utc for g in group]) for point, group in selected_games.items()}
     hours = {point: {merge_mod.hour_floor(g.kickoff_utc) + timedelta(hours=i) for g in group for i in range(-1, 5)}
              for point, group in selected_games.items()}
+    # Cheap points remain fresh each ordinary run. Only distant, inactive games
+    # may reuse covered original members from an older verified source version.
+    max_age = ctx.weather_state.setdefault("member_max_age", {})
+    for point, group in selected_games.items():
+        allowed = 12 if all(decisions[g.game_id].priority != 0 and
+                            (g.kickoff_utc - screen_clock).total_seconds() > 72 * 3600 for g in group) else 0
+        max_age[point] = min(max_age.get(point, allowed), allowed)
     selected_points.sort(key=lambda point: min((decisions[g.game_id].priority, g.kickoff_utc) for g in selected_games[point]))
     ensembles, coverage = selective.members(
         ctx, om_mod, selected_points, windows, hours, capture, _fetch_point_batches, state_dir=state_dir, sport=sport,
@@ -483,23 +459,29 @@ def stage_weather(
                 stats = result.ensemble
                 trace = coverage.get(point, {}) if decision.eligible else {}
                 status = ("not_sampled_closed_roof" if not decision.eligible and "confirmed_closed_roof" in decision.reasons else
+                          "not_sampled_ineligible_signal" if not decision.eligible and "cfb_opening_spread_ineligible" in decision.reasons else
+                          "not_sampled_point_unavailable" if not decision.eligible and decision.priority == 2 else
                           "not_sampled_below_signal_buffer" if not decision.eligible else
                           "unavailable_degraded" if stats is None else
                           "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
                           or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
-                          else "full_members")
+                          else "aged_members" if trace.get("aged_sources") else "full_members")
                 fc[game.game_id] = dataclasses.replace(
                     result.forecast, run_time=point_stamps[point],
+                    point_stage=point_meta.get(point, {}).get("stage", "unavailable"),
+                    point_source_updated_at={"nws": point_meta[point]["updated_at"]} if point_meta.get(point, {}).get("updated_at") else {},
+                    point_aged=point_meta.get(point, {}).get("aged", True),
                     ensemble_status=status, ensemble_eligible=decision.eligible, ensemble_screen_reasons=list(decision.reasons),
                     ensemble_models=stats.models if stats else [], ensemble_members=stats.n_members if stats else 0,
                     ensemble_fetched_at=trace.get("fetched_at", {}), ensemble_source_versions=trace.get("source_versions", {}),
                     ensemble_cached_sources=trace.get("cached_sources", []),
+                    ensemble_aged_sources=trace.get("aged_sources", []),
                 )
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")
                 continue
             ctx.degradations.extend(result.degradations)
-            if decision.eligible and status != "full_members":
+            if decision.eligible and status not in ("full_members", "aged_members"):
                 ctx.degrade("weather", f"{game.game_id}: selected ensemble {status}; source/member coverage remains explicit", "warn")
             if extras is not None:
                 extras[game.game_id] = {"precip_prob_ens": result.precip_prob_ens, "roof_heuristic": result.roof_heuristic,
@@ -519,8 +501,8 @@ def stage_weather(
     if nws_only:
         ctx.degrade(
             "weather",
-            f"{sport}: {len(nws_only)} games used NWS-only weather after Open-Meteo was unavailable",
-            "warn",
+            f"{sport}: {len(nws_only)} games use NWS first-pass forecasts",
+            "info",
         )
     if no_source:
         nearest = min((forecast.lead_hours for forecast in no_source), default=0.0)
@@ -1731,11 +1713,16 @@ def run_sport(
             ctx.unresolved_names.extend(unresolved)
             ctx.degrade("stadiums", f"{sport}: {len(unresolved)} games without stadium", "warn")
 
+    # CFB selection uses the same current opening consensus as its signal model.
+    # Capture newly arriving book openers before weather; unknowns stay eligible.
+    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run) if sport == "cfb" else None
     wx_extras: dict[str, dict[str, Any]] = {}
     with ctx.stage(f"{sport}.weather"):
-        forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras, state_dir=state_dir)
+        forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras, state_dir=state_dir,
+                                  openers=odds.openers if odds is not None else None)
 
-    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
+    if odds is None:
+        odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
     if books:
         carded_ids = {g.game_id for g in games}
         n_priced = len(odds.by_game)

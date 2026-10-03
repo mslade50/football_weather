@@ -22,7 +22,7 @@ def members(
         ctx.weather_state["member_cache"] = MemberCache(state_dir / "ensemble_cache.json" if state_dir else None, signature)
     cache = ctx.weather_state["member_cache"]
     locations: dict[Any, list[Any]] = {point: [] for point in points}
-    coverage = {point: {"fetched_at": {}, "source_versions": {}, "cached_sources": [], "errors": {}} for point in points}
+    coverage = {point: {"fetched_at": {}, "source_versions": {}, "cached_sources": [], "aged_sources": [], "errors": {}} for point in points}
     fetch_versions = getattr(om, "fetch_model_versions", None)
     for source, (model, _) in SOURCES.items():
         try:
@@ -38,9 +38,14 @@ def members(
         for point in points:
             hit = cache.get(source, point, before, hours[point], now=ctx.now_utc)
             if hit:
-                hits[point] = hit
+                hits[point] = (*hit, before)
             else:
-                missing.append(point)
+                previous = cache.previous(source, point, before, hours[point], now=ctx.now_utc,
+                                          max_age_h=ctx.weather_state.get("member_max_age", {}).get(point, 0))
+                if previous:
+                    hits[point] = previous
+                else:
+                    missing.append(point)
         received_at = {}
         def batch_size(remaining, point_model=model):
             start = min(windows[point][0] for point in remaining)
@@ -70,11 +75,13 @@ def members(
             except (ValueError, TypeError, AttributeError, KeyError) as exc:
                 coverage[point]["errors"][source] = f"invalid member response: {exc}"
                 continue
-            hits[point] = (location, fetched_at.isoformat())
-        for point, (location, stamp) in hits.items():
+            hits[point] = (location, fetched_at.isoformat(), before)
+        for point, (location, stamp, actual_versions) in hits.items():
             locations[point].append(location)
             coverage[point]["fetched_at"][source] = stamp
-            coverage[point]["source_versions"][source] = before
+            coverage[point]["source_versions"][source] = actual_versions
+            if actual_versions != before:
+                coverage[point]["aged_sources"].append(source)
             if point not in fetched:
                 coverage[point]["cached_sources"].append(source)
         for point in points:

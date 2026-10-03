@@ -136,6 +136,17 @@ class MemberCache:
             self.entries.pop(self.key(source, point), None)
             return None
 
+    def previous(self, source: str, point: tuple[float, float], current: dict[str, Any], hours: set[datetime], *, now: datetime, max_age_h: float) -> tuple[EnsembleLocation, str, dict[str, Any]] | None:
+        """Explicit age-bounded OLD version reuse; never relabel it as current."""
+        entry = self.entries.get(self.key(source, point), {})
+        versions = entry.get("versions")
+        if not isinstance(versions, dict) or versions == current or versions.keys() != current.keys() or max_age_h <= 0:
+            return None
+        hit = self.get(source, point, versions, hours, now=now)
+        if hit and 0 <= (now - datetime.fromisoformat(hit[1])).total_seconds() < max_age_h * 3600:
+            return hit[0], hit[1], versions
+        return None
+
     @staticmethod
     def validate_source(source: str, location: EnsembleLocation) -> None:
         expected = {"ifs": "ecmwf_ifs025_ensemble", "gefs": "ncep_gefs_seamless"}[source]
