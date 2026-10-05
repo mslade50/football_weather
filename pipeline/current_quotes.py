@@ -5,7 +5,7 @@ import argparse
 import json
 from collections import Counter
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -70,16 +70,27 @@ def expire_meta(meta: dict, now: datetime) -> dict:
     return meta
 
 
-def publication_guard(directory: Path, now: datetime) -> None:
+def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0) -> None:
     """Recheck after raw uploads, immediately before uploading current board JSON."""
-    meta = expire_meta(json.loads((directory / "meta.json").read_text(encoding="utf-8")), now)
+    cutoff = now + timedelta(seconds=window_seconds)
+    original = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
+    meta = expire_meta(original, cutoff)
+    if window_seconds:
+        meta["publication_guard_at"] = now.isoformat()
+        meta["publication_window_seconds"] = window_seconds
+        for degradation in meta.get("degradations", [])[len(original.get("degradations", [])):]:
+            degradation["ts"] = now.isoformat()
+            degradation["reason"] = degradation["reason"].replace("expired quotes excluded", "quotes excluded for expiry within the publication window")
+        for book, status in meta.get("books", {}).items():
+            if status != original.get("books", {}).get(book):
+                status["reason"] = "Quotes expiring within the publication window excluded from current prices"
     cards = []
     for sport in ("nfl", "cfb"):
         path = directory / f"games_{sport}.json"
         if not path.exists():
             continue
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["games"] = [expire_card(c, now) for c in payload["games"]]
+        payload["games"] = [expire_card(c, cutoff) for c in payload["games"]]
         payload["meta"] = {**payload.get("meta", {}), "degradations": meta.get("degradations", [])}
         cards.extend(payload["games"])
         path.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
@@ -147,5 +158,9 @@ def guard_legacy(directory: Path, cards: list[dict]) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--board-dir", type=Path, required=True)
+    parser.add_argument("--publication-window-seconds", type=int, default=0,
+                        help="Withhold quotes expiring during the remaining board/state uploads")
     args = parser.parse_args()
-    publication_guard(args.board_dir, datetime.now(timezone.utc))
+    if not 0 <= args.publication_window_seconds <= 600:
+        parser.error("publication window must be between 0 and 600 seconds")
+    publication_guard(args.board_dir, datetime.now(timezone.utc), window_seconds=args.publication_window_seconds)

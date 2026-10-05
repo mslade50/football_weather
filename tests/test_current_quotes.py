@@ -137,6 +137,40 @@ def test_excel_expiry_preserves_opener_weather_and_other_games(tmp_path):
     workbook.close()
 
 
+@pytest.mark.parametrize("remaining,withheld", [(30, True), (-1, True), (120, False), (121, False)])
+def test_publication_reserves_remaining_upload_time_without_shifting_clocks(tmp_path, remaining, withheld):
+    directory = tmp_path / "board"
+    directory.mkdir()
+    original = card()
+    expiry = NOW + timedelta(seconds=remaining)
+    quote = original["odds"]["betcris"]["total"]
+    quote["expires_at"] = expiry.isoformat()
+    quote["source_updated_at"] = (expiry - timedelta(seconds=300)).isoformat()
+    meta = {"books": {"betcris": {"count": 4, "status": "green"}},
+            "counts": {"betcris": {"nfl": 2, "cfb": 2}}, "quote_expiries": [
+                {"book": "betcris", "sport": "nfl", "market": "total", "count": 2, "expires_at": expiry.isoformat()},
+                {"book": "betcris", "sport": "cfb", "market": "total", "count": 2,
+                 "expires_at": (NOW + timedelta(minutes=30)).isoformat()}]}
+    json_out.dump_json(directory / "meta.json", meta)
+    json_out.dump_json(directory / "games_nfl.json", {"meta": {}, "games": [original]})
+    publication_guard(directory, NOW, window_seconds=120)
+    checked = json.loads((directory / "games_nfl.json").read_text())["games"][0]
+    after = json.loads((directory / "meta.json").read_text())
+    assert checked["odds"]["betcris"]["total"].get("expired", False) is withheld
+    assert checked["odds"]["betcris"]["total"]["expires_at"] == quote["expires_at"]
+    assert checked["odds"]["betcris"]["total"]["source_updated_at"] == quote["source_updated_at"]
+    assert checked["odds"]["betcris"]["total"]["open_line"] == quote["open_line"]
+    assert after["publication_guard_at"] == NOW.isoformat() and after["publication_window_seconds"] == 120
+    assert after["counts"]["betcris"]["cfb"] == 2
+    if withheld:
+        assert after["counts"]["betcris"]["nfl"] == 0 and after["books"]["betcris"]["status"] == "amber"
+        assert after["degradations"][-1]["ts"] == NOW.isoformat()
+        assert "publication window" in after["degradations"][-1]["reason"]
+        assert checked["fair"]["fair_total"] is None
+    else:
+        assert after["books"]["betcris"]["count"] == 4 and not after.get("degradations")
+
+
 def test_compact_board_carries_earliest_current_quote_expiry():
     original = card()
     original.update(season=2026, week=4, kickoff_utc=NOW.isoformat(), date_label="Mon", time_label="2:39", neutral=False)
