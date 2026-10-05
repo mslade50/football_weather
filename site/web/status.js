@@ -45,6 +45,8 @@ function renderBookChips(books) {
 function renderBanners(meta) {
   const el = document.getElementById("banners");
   const degs = (meta.degradations || []).filter((d) => d && (d.severity || "warn") !== "info");
+  if (QUOTES?.refreshOverdue(meta)) degs.push({component: "scheduler", severity: "warn",
+    reason: "Expected refresh is overdue; trigger outcome unknown"});
   el.innerHTML = degs.map((d) => {
     const sev = d.severity === "error" || d.severity === "critical" ? "error" : "warn";
     return `<div class="banner ${sev}">⚠ <b>${esc(d.component || "pipeline")}</b>: ${esc(d.reason || "")}${d.ts ? ` <span class="sub">(${esc(fmtShortET(d.ts))})</span>` : ""}</div>`;
@@ -57,10 +59,11 @@ function renderStatusbar(meta) {
   if (!el) return;
   const books = meta.books || {};
   const names = Object.keys(books).filter((b) => b !== "consensus");
-  if (!names.length && !(meta.degradations || []).length) { el.innerHTML = ""; return; }
+  if (!names.length && !(meta.degradations || []).length && !QUOTES?.refreshOverdue(meta)) { el.innerHTML = ""; return; }
   const red = names.filter((b) => (books[b].status || "green") === "red");
   const amber = names.filter((b) => books[b].status === "amber");
-  const ok = !red.length && !(meta.degradations || []).some((d) => d.severity === "error" || d.severity === "critical");
+  const ok = !red.length && !amber.length && !QUOTES?.refreshOverdue(meta)
+    && !(meta.degradations || []).some((d) => (d.severity || "warn") !== "info");
   const pill = ok ? '<span class="pill ok">✓ OK</span>' : '<span class="pill warn">⚠ Degraded</span>';
   const segs = [];
   if (names.length) segs.push(`<span class="seg">Books <b>${names.length - red.length}/${names.length}</b> reporting</span>`);
@@ -116,13 +119,14 @@ async function loadStatus(force = false) {
   if (STATUS.data && !force) return STATUS.data;
   let data = null;
   try { data = await fetchJson("data/status.json?t=" + Date.now()); } catch (_) { data = null; }
-  if (!data || (!statusRunsOf(data).length && !data.run_id)) {
+  {
     try {
       const j = await fetchJson("api/status");
       if (j && j.ok) {
         const m = j.meta || {};
         data = { ...(data || {}), run_id: m.run_id, last_updated: m.last_updated, git_sha: m.git_sha, next_run_eta: m.next_run_eta,
-          degradations: m.degradations || [], books: m.books || {}, runs: j.runs || [], heartbeat: j.heartbeat || null, source: "api" };
+          degradations: m.degradations || [], books: m.books || {}, runs: j.runs || [], heartbeat: j.heartbeat || null,
+          dispatch: j.dispatch || null, source: "api" };
       }
     } catch (_) { /* neither */ }
   }
@@ -205,12 +209,15 @@ async function renderStatus() {
   const hbAge = ageHours(hbTs);
   const hbClass = hbAge == null || hbAge > 20 ? "warn" : "ok";
   const dataAge = ageHours(lastUpdated);
-  const dataClass = dataAge == null || dataAge > 20 ? "warn" : "ok";
+  const dataClass = dataAge == null || dataAge > 20 || QUOTES?.refreshOverdue(meta) ? "warn" : "ok";
   const timings = sd.stage_timings || latest.stage_timings || latest.stage_timings_json || null;
-  const degs = (Array.isArray(sd.degradations) && sd.degradations.length ? sd.degradations : null)
-    || meta.degradations || parseMaybeJson(latest.degradations_json) || [];
+  const currentMeta = meta.run_id && meta.run_id === (sd.run_id || sd.meta?.run_id);
+  const degs = [...((currentMeta ? meta.degradations : sd.degradations)
+    || meta.degradations || parseMaybeJson(latest.degradations_json) || [])];
+  if (QUOTES?.refreshOverdue(meta)) degs.push({component: "scheduler", severity: "warn",
+    reason: "Expected refresh is overdue; trigger outcome unknown"});
   const unresolved = sd.unresolved_names || meta.unresolved_names || parseMaybeJson(latest.unresolved_json) || [];
-  const books = (sd.books && Object.keys(sd.books).length ? sd.books : null) || meta.books || {};
+  const books = (currentMeta ? meta.books : sd.books) || meta.books || {};
   const unresolvedList = Array.isArray(unresolved) ? unresolved
     : Object.entries(unresolved || {}).flatMap(([bk, names]) => (Array.isArray(names) ? names.map((n) => `${bk}: ${n}`) : []));
   const nextEta = sd.next_run_eta || meta.next_run_eta;
@@ -235,9 +242,9 @@ async function renderStatus() {
         ${kv([
           ["CF Worker tick", hbTs ? `${esc(fmtET(hbTs))} <span class="pill ${hbClass}">${esc(ageLabel(hbTs))}</span>` : `<span class="pill warn">no heartbeat (cf_heartbeat.json missing)</span>`],
           ["Last cron", esc((hb && (hb.cron || hb.last_cron)) || "—")],
-          ["Last dispatch", hb && hb.dispatched != null ? esc(String(hb.dispatched)) : "—"],
-          ["Worker plan", esc((hb && hb.plan && `${hb.plan.sport || ""}/${hb.plan.scope || ""}`) || "—")],
-          ["Stale rule", `<span class="sub">alert when meta or heartbeat > 20 h</span>`],
+          ["Last dispatch", sd.dispatch ? `${esc(fmtET(sd.dispatch.ts))} · ${esc(sd.dispatch.reason || "unknown")}` : "Unknown (no receipt)"],
+          ["Worker plan", esc((sd.dispatch?.plan && `${sd.dispatch.plan.sport || ""}/${sd.dispatch.plan.scope || ""}`) || "—")],
+          ["Stale rule", `<span class="sub">refresh overdue after expected run + 90 min; heartbeat stale after 20 h</span>`],
         ])}
         <h3>Stage timings</h3>
         ${stageTimingsHtml(timings)}

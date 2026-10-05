@@ -71,6 +71,7 @@ import os
 import re
 import shutil
 import sys
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -80,6 +81,7 @@ from typing import Any
 from pipeline import alerts as alerts_mod
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
+from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
 from pipeline.model import signals
@@ -482,6 +484,11 @@ def stage_weather(
                 ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")
                 continue
             ctx.degradations.extend(result.degradations)
+            missing = [name for name, value in (("temperature", fc[game.game_id].temp_fg),
+                       ("wind", fc[game.game_id].wind_fg), ("rainfall", fc[game.game_id].rain_fg_mm))
+                       if not first_pass.finite(value)]
+            if missing:
+                ctx.degrade("weather", f"{game.game_id}: final point forecast incomplete; missing {', '.join(missing)}", "warn")
             if decision.eligible and status not in ("full_members", "aged_members"):
                 ctx.degrade("weather", f"{game.game_id}: selected ensemble {status}; source/member coverage remains explicit", "warn")
             if extras is not None:
@@ -1544,6 +1551,51 @@ class SportResult:
         return [*self.games, *(g for g in self.odds_games if g.game_id not in carded and g.game_id in priced)]
 
 
+def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
+    """Recalculate current prices after elapsed weather/build work. History stays intact."""
+    now = ctx.now_utc
+    removed = [line for line in res.odds.lines if expired(line.expires_at, now)]
+    if not removed:
+        return
+    res.odds.lines = [line for line in res.odds.lines if not expired(line.expires_at, now)]
+    res.odds.by_game = {}
+    for line in res.odds.lines:
+        res.odds.by_game.setdefault(line.game_id, []).append(line)
+    fair_mod = _import("pipeline.model.fair")
+    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines)
+    for book, count in Counter(line.book for line in removed).items():
+        counts = ctx.counts.get(book, {})
+        if res.sport in counts:
+            counts[res.sport] = max(0, counts[res.sport] - count)
+        for market, n in Counter(line.market for line in removed if line.book == book).items():
+            key = f"{res.sport}.{market}"
+            if key in counts:
+                counts[key] = max(0, counts[key] - n)
+    ctx.degrade("odds.expiry", f"{res.sport}: {len(removed)} quotes expired during build; current prices recalculated, historical openers retained", "warn")
+    cards = {c["game_id"]: c for c in res.cards}
+    records = {record.game_id: record for record in res.records}
+    for game in res.games:
+        gid = game.game_id
+        lines = res.odds.by_game.get(gid, [])
+        impact, fc, stadium = res.impacts.get(gid), res.forecasts.get(gid), res.stadiums.get(gid)
+        gf = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, impact, fc, stadium)
+        gf2 = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, res.impacts_v2.get(gid), fc, stadium, "v2")
+        selected = gf2 if model_config.alert_model() == "v2" else gf
+        for target, value in ((res.fairs, selected), (res.fairs_v2, gf2)):
+            target.pop(gid, None)
+            if value is not None:
+                target[gid] = value
+        current = legacy_odds(res.sport, gid, res.odds.by_game, res.odds.consensus, res.odds.openers)
+        if gid in records:
+            records[gid].odds = current
+        card = cards.get(gid)
+        if card is not None:
+            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers)
+            card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
+            card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
+            card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
+
+
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],
                    impact: Any, fc: WeatherForecast | None, stadium: Stadium | None,
                    model_version: str = "v1") -> Any | None:
@@ -1825,6 +1877,7 @@ def run_sport(
     n_ens = sum(1 for e in wx_extras.values() if e.get("ensemble"))
     if forecasts and n_ens == 0:
         ctx.degrade("weather", f"{sport}: no game has ensemble spread; wind_vol_fc static for all", "info")
+    refresh_expired_quotes(ctx, res)
     update_histories(ctx, sport, res, state_dir, ctx.dry_run)
     return res
 
@@ -1951,6 +2004,8 @@ def write_outputs(
     """Board JSON (meta last), snapshots, D1 SQL and the publish manifest
     ``{r2 key: local path}`` (written to ``board_dir/../publish_manifest.json``)."""
     finished = finished_at or ctx.now_utc
+    for result in results:
+        refresh_expired_quotes(ctx, result)
     prev_meta = _load_prev_meta(state_dir)
     cards_by_sport = {r.sport: r.cards for r in results}
     sport_counts = {r.sport: len(r.cards) for r in results}
@@ -1964,8 +2019,12 @@ def write_outputs(
                                   previous=(prev_meta or {}).get("books"))
     seasons = [r.season_week for r in results if r.season_week[0] is not None]
     season, week = min(seasons) if seasons else (None, None)
+    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(line.expires_at))
+                            for result in results for line in result.odds.lines if line.expires_at is not None)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results)})
+                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+                                      "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
+                                                         for (b, s, m, e), n in expiry_groups.items()]})
     hist = pstate.load_history(state_dir)
     wx_hist = json_out.load_wx_history(state_dir)
     alerts_state = alerts_run.alerts if alerts_run is not None else pstate.load_alerts(state_dir)
@@ -1992,6 +2051,8 @@ def write_outputs(
         if k != r2_out.META_KEY:
             manifest[k] = p
     for name in r2_out.STATE_FILES:
+        if name == "cf_heartbeat":
+            continue  # Worker-owned; builds read it but cannot overwrite newer ticks.
         p = Path(state_dir) / f"{name}.json"
         if p.is_file() and f"{r2_out.BOARD_PREFIX}/{name}.json" not in manifest:
             manifest[f"{r2_out.BOARD_PREFIX}/{name}.json"] = p
@@ -2114,6 +2175,8 @@ def build(
             raw.finalize()
             raw_files.update(raw.r2_files())
 
+    for result in results:
+        refresh_expired_quotes(ctx, result)
     alerts_run = run_alert_stage(ctx, results, state_dir, enabled=alerts, dry_run=dry_run, stdout=alerts_stdout) if book_list else None
     clv_run = run_clv_stage(ctx, results, state_dir, dry_run=dry_run, alerts_run=alerts_run) if book_list else None
 
@@ -2123,6 +2186,12 @@ def build(
                                      state_dir=state_dir, d1_sql=d1_sql, raw_files=raw_files, alerts_run=alerts_run,
                                      clv_run=clv_run)
             written.extend(p for k, p in manifest.items() if k.startswith(r2_out.BOARD_PREFIX))
+        # write_outputs rechecks expiry after alerts/CLV; exports use that same
+        # final calculation rather than the earlier per-sport snapshot.
+        for result in results:
+            write_legacy(result.sport, result.records, out_dir, timestamp)
+            if legacy_dir is not None and legacy_dir.resolve() != out_dir.resolve():
+                write_legacy(result.sport, result.records, legacy_dir, timestamp)
         if publish or merge_into_r2:
             with ctx.stage("publish"):
                 publish_outputs(ctx, manifest, state_dir, force=force)

@@ -53,6 +53,8 @@
  */
 
 const DATA = { meta: {}, games: { nfl: [], cfb: [] }, history: null };
+let QUOTES = null, RAW_META = {}, RAW_GAMES = {nfl: [], cfb: []};
+let QUOTE_HEALTH = "";
 const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
   signal: "", book: "", minEdge: null, showDomes: true, showWatch: true, game: null,
@@ -236,6 +238,11 @@ function writeHash() {
 
 // ── render dispatch ───────────────────────────────────────────────────────
 function render() {
+  if (QUOTES) {
+    DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
+    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
+    renderHeader(DATA.meta); renderBanners(DATA.meta); renderStatusbar(DATA.meta);
+  }
   if (STATE.view === "execution" && !IS_ADMIN) STATE.view = "table";
   HOVER = {}; HK = 0;
   document.querySelectorAll(".tab").forEach((t) => {
@@ -422,6 +429,7 @@ function startMetaPoll() {
 
 // ── boot ──────────────────────────────────────────────────────────────────
 async function boot() {
+  QUOTES = await import("./current-quotes.mjs");
   readHash();
   const bust = "?t=" + Date.now();
   const [meta, nfl, cfb, auth] = await Promise.all([
@@ -435,6 +443,8 @@ async function boot() {
   document.getElementById("execution-tab").hidden = !IS_ADMIN;
   DATA.games.nfl = normalizeGames(nfl);
   DATA.games.cfb = normalizeGames(cfb);
+  RAW_META = DATA.meta;
+  RAW_GAMES = {nfl: DATA.games.nfl, cfb: DATA.games.cfb};
   // No sport in the URL and the default sport has no games on the board (NFL before its
   // 10-day window opens, CFB in January): open on the sport that does.
   if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length) {
@@ -450,6 +460,16 @@ async function boot() {
   renderStatusbar(DATA.meta);
   populateWeeks();
   populateBooks();
+  setInterval(() => {
+    const health = JSON.stringify([QUOTES.expireQuoteMeta(RAW_META).quote_expiries,
+      QUOTES.refreshOverdue(RAW_META), ...Object.values(RAW_GAMES).flat().map(c => QUOTES.expireCardQuotes(c).expired_markets)]);
+    if (health === QUOTE_HEALTH) return;
+    QUOTE_HEALTH = health;
+    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
+    if (STATE.view !== "execution") render();
+    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); }
+    if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
+  }, 15000);
 
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchView(t.dataset.view, t.dataset.sport)));
   document.getElementById("sport").addEventListener("change", (e) => setSport(e.target.value));

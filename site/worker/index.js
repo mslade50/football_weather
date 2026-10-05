@@ -8,6 +8,7 @@
 // CRON_PLAN with America/New_York trimming, then dispatch pipeline.yml.
 
 import { executionPreviewRoute } from "./execution-preview.js";
+import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
 
 const DATA_PREFIX = "/data/";
 const API_PREFIX = "/api/";
@@ -247,11 +248,14 @@ async function apiRoute(url, request, env, identity) {
          FROM runs ORDER BY started_at DESC LIMIT ${RUNS_DEFAULT_LIMIT}`,
       ).all();
       const heartbeat = await readR2Json(env, "board/cf_heartbeat.json");
-      const meta = await readR2Json(env, "board/meta.json");
+      const dispatch = await readR2Json(env, "board/cf_dispatch.json");
+      const storedMeta = await readR2Json(env, "board/meta.json");
+      const meta = storedMeta ? expireQuoteMeta(storedMeta) : null;
       return jsonResponse({
         ok: true,
         role: identity.role,
         heartbeat,
+        dispatch,
         meta: meta ? {
           run_id: meta.run_id, last_updated: meta.last_updated, season: meta.season, week: meta.week,
           git_sha: meta.git_sha, next_run_eta: meta.next_run_eta,
@@ -414,6 +418,9 @@ export async function handleFetch(request, env) {
     if (!name) return new Response("not found", { status: 404 });
     const obj = await env.ODDS.get(`board/${name}`);
     if (!obj) return new Response("not found", { status: 404 });
+    if (/^(games_(nfl|cfb)|meta|status|board)\.json$/.test(name)) {
+      return jsonResponse(expirePayload(name, await obj.json()));
+    }
     return new Response(obj.body, {
       headers: {
         "content-type": "application/json; charset=utf-8",
@@ -458,7 +465,9 @@ export async function handleScheduled(event, env) {
       "🚨 SYSTEM · Scheduled refresh blocked"
       + "\nCause: GitHub dispatch token is missing."
       + "\nAction: set GH_DISPATCH_TOKEN in Worker secrets.");
-    return { dispatched: false, trimmed: false, plan };
+    const result = { dispatched: false, trimmed: false, plan, status: null, reason: "dispatch token missing" };
+    await recordDispatch(env, event.cron, fired, result);
+    return result;
   }
   const { ok, status, detail } = await dispatchBoard(env, plan);
   console.log(`scheduled: pipeline.yml dispatch ${plan.sport}/${plan.scope} -> ${status || "exception"}`
@@ -469,7 +478,20 @@ export async function handleScheduled(event, env) {
       + `\nRequest: ${plan.sport}/${plan.scope}`
       + `\nResult: ${status || "exception"} · ${detail || "no detail"}`);
   }
-  return { dispatched: ok, trimmed: false, plan, status };
+  const result = { dispatched: ok, trimmed: false, plan, status,
+    reason: ok ? "GitHub accepted dispatch; workflow completion unverified" : "GitHub dispatch failed" };
+  await recordDispatch(env, event.cron, fired, result);
+  return result;
+}
+
+async function recordDispatch(env, cron, fired, result) {
+  try {
+    // Separate from heartbeat: later heartbeat-only ticks cannot erase receipts.
+    // Do not round-trip this Worker-owned object through pipeline state uploads.
+    await env.ODDS.put("board/cf_dispatch.json", JSON.stringify({schema_version: 1,
+      ts: fired.toISOString(), recorded_at: new Date().toISOString(), cron, ...result}),
+    {httpMetadata: {contentType: "application/json"}});
+  } catch (err) { console.log(`dispatch receipt write failed: ${err}`); }
 }
 
 export default {

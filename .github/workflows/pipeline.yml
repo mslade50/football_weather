@@ -256,6 +256,9 @@ jobs:
               put "snapshots/${p#data/snapshots/}" "$p" "application/json" || exit 1
             done || exit 1
           fi
+          # Raw uploads can outlast feed TTLs. Revalidate current board/legacy
+          # prices immediately before their put loop; consumers enforce expiry too.
+          python -m pipeline.current_quotes --board-dir data/board
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
           # -> R2 legacy/ (ARCH §5); nothing is committed to git.
           [ -f data/nfl_weather.csv ] && put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"
@@ -267,6 +270,7 @@ jobs:
             put "board/$f" "$p" "application/json"
           done
           for f in $STATE_FILES; do
+            [ "$f" = "cf_heartbeat" ] && continue # Worker-owned: never roll back a newer tick.
             [ -f "data/state/$f.json" ] || continue
             put "board/$f.json" "data/state/$f.json" "application/json"
           done
@@ -382,6 +386,7 @@ jobs:
               put "snapshots/${p#data/snapshots/}" "$p" "application/json" || exit 1
             done || exit 1
           fi
+          python -m pipeline.current_quotes --board-dir data/board
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
           # -> R2 legacy/ (ARCH §5); nothing is committed to git.
           [ -f data/nfl_weather.csv ] && put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"
@@ -393,6 +398,7 @@ jobs:
             put "board/$f" "$p" "application/json"
           done
           for f in $STATE_FILES; do
+            [ "$f" = "cf_heartbeat" ] && continue
             [ -f "data/state/$f.json" ] || continue
             put "board/$f.json" "data/state/$f.json" "application/json"
           done
