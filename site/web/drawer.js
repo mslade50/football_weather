@@ -372,11 +372,21 @@ function refreshDrawerQuotes() {
   const g = findGame(STATE.game);
   if (!g) return;
   DRAWER.game = g;
+  renderDrawerTitle(g);
   for (const [id, html] of [["drawer-weather", weatherTable(g)], ["drawer-prices", totalPriceTable(g)],
                            ["drawer-odds", oddsTable(g)]]) {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   }
+}
+
+function renderDrawerTitle(g) {
+  const c = g.consensus || {};
+  const spreadHead = isNum(c.spread_now)
+    ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
+    : "";
+  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
+    + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
 }
 
 function openDrawer(gameId) {
@@ -386,12 +396,7 @@ function openDrawer(gameId) {
   STATE.game = gameId;
   writeHash();
   const d = document.getElementById("drawer");
-  const c = g.consensus || {};
-  const spreadHead = isNum(c.spread_now)
-    ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
-    : "";
-  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
-    + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
+  renderDrawerTitle(g);
   const books = BOOKS.filter((b) => (g.odds || {})[b]);
   if (!books.includes(DRAWER.book)) DRAWER.book = "";
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }

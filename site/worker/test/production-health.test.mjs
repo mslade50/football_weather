@@ -63,6 +63,19 @@ test("health UI labels warning-only weather and thin books as degraded", () => {
   vm.runInContext("renderStatusbar(meta)", context);
   assert.match(el.innerHTML, /Degraded/);
 });
+test("an open drawer stops displaying expired consensus in its title", () => {
+  const title = {innerHTML: ""};
+  const context = vm.createContext({document: {getElementById: () => title}, esc: String,
+    gameLabel: () => "Game", signalPill: () => "", kickoffLabel: () => "Kickoff",
+    isNum: v => v != null && Number.isFinite(v), fmtLine: String, fmtTotal: String});
+  vm.runInContext(readFileSync(new URL("../../web/drawer.js", import.meta.url), "utf8"), context);
+  context.game = {sport: "nfl", week: 5, consensus: {spread_now: 3, total_now: 48}};
+  vm.runInContext("renderDrawerTitle(game)", context);
+  assert.match(title.innerHTML, /spread 3.*total 48/);
+  context.game.consensus = {spread_now: null, total_now: null};
+  vm.runInContext("renderDrawerTitle(game)", context);
+  assert.doesNotMatch(title.innerHTML, /spread 3|total 48/);
+});
 function environment() {
   const data = new Map();
   return {ODDS: {async put(key, value) {data.set(key, value);}, async get(key) {
