@@ -1587,6 +1587,9 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
                 target[gid] = value
         current = legacy_odds(res.sport, gid, res.odds.by_game, res.odds.consensus, res.odds.openers)
         if gid in records:
+            for key in ("spread_open", "odds_open", "total_open", "under_open", "fd_open", "odds_o", "open"):
+                if current.get(key) is None and key in records[gid].odds:
+                    current[key] = records[gid].odds[key]
             records[gid].odds = current
         card = cards.get(gid)
         if card is not None:

@@ -71,6 +71,22 @@ def test_calculation_recomputes_consensus_fair_and_counts(monkeypatch):
     assert len(ctx.degradations) == 1
 
 
+def test_calculation_with_no_live_books_keeps_displayed_historical_opener(monkeypatch):
+    monkeypatch.setattr(RunContext, "now_utc", property(lambda self: NOW))
+    game = Game(GID, "nfl", 2026, 4, NOW + timedelta(days=1), NOW + timedelta(days=1), "UTC", "h", "a", None)
+    line = GameLine("nfl", GID, "betcris", "total", "under", -110, line=48,
+                    scraped_at=NOW - timedelta(minutes=10), expires_at=NOW - timedelta(minutes=1))
+    odds = build.OddsResult([line], {}, {"openers": {}}, {GID: [line]}, [], {"betcris": 1}, scraped=[line])
+    record = LegacyRecord("nfl", "a", "h", game.kickoff_local, game_id=GID)
+    record.odds = {"total_now": 48, "total_open": 47, "under_open": -110}
+    res = build.SportResult("nfl", [record], [], [card()], [game], {}, {}, {}, {}, odds)
+    build.refresh_expired_quotes(RunContext("nfl", git_sha="test"), res)
+    assert record.odds["total_now"] is None
+    assert record.odds["total_open"] == 47 and record.odds["under_open"] == -110
+    assert res.cards[0]["consensus"]["total_now"] is None and not res.cards[0]["fair"]["edges"]
+    assert odds.scraped == [line]
+
+
 def test_publication_after_slow_upload_removes_current_prices_and_keeps_history(tmp_path):
     directory = tmp_path / "board"
     directory.mkdir()
