@@ -578,6 +578,11 @@ Current prices retain upstream `source_updated_at` and `expires_at`. Expired
 quotes are excluded and current consensus/fair comparisons recalculated before
 alerts and board output; historical openers and captured line history are kept.
 After raw uploads, a publication guard rechecks board and legacy current fields.
+The workflow reserves 120 seconds for the remaining board/state puts: quotes
+expiring within that window are withheld with their original expiry and opening
+fields. The guard records its actual check time separately; source clocks are
+never shifted. This covers expiry during the final upload loop while the
+read-time guard continues to enforce expiry if uploads run unusually slowly.
 The authenticated Worker and browser also enforce expiry, preserving opening
 fields but withholding derived current comparisons until a new calculation.
 Runtime `quote_expiries` metadata adjusts book health/counts without renewing

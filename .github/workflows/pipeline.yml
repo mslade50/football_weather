@@ -258,7 +258,7 @@ jobs:
           fi
           # Raw uploads can outlast feed TTLs. Revalidate current board/legacy
           # prices immediately before their put loop; consumers enforce expiry too.
-          python -m pipeline.current_quotes --board-dir data/board
+          python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
           # -> R2 legacy/ (ARCH §5); nothing is committed to git.
           [ -f data/nfl_weather.csv ] && put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"
@@ -386,7 +386,7 @@ jobs:
               put "snapshots/${p#data/snapshots/}" "$p" "application/json" || exit 1
             done || exit 1
           fi
-          python -m pipeline.current_quotes --board-dir data/board
+          python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
           # -> R2 legacy/ (ARCH §5); nothing is committed to git.
           [ -f data/nfl_weather.csv ] && put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"

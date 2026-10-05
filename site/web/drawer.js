@@ -54,7 +54,7 @@ function weatherTable(g) {
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
     ["Forecast coverage", `${esc(({nws_first_pass: "NWS first pass", global_first_pass: "Global first pass (wind/temp/rain)", refined_multimodel: "Detailed model refinement", refined_split_fields: "First-pass signals with added detail fields", unavailable: "Point forecast unavailable"})[wx.point_stage] || "-")}${wx.point_aged ? " — aged or unverified point source" : ""}`],
     ["Missing forecast fields", ["temp_fg", "wind_fg", "rain_fg"].filter(k => !isNum(wx[k])).map(k => ({temp_fg: "temperature", wind_fg: "wind", rain_fg: "rainfall"})[k]).join(", ") || "None"],
-    ...(g.expired_markets?.length ? [["Current prices", "Prices expired; current comparisons unavailable"]] : []),
+    ...(g.expired_markets?.length ? [["Current prices", "Prices excluded for expiry; current comparisons unavailable"]] : []),
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
     ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
