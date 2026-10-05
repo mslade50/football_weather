@@ -53,6 +53,8 @@ function weatherTable(g) {
     ...(v2 ? [["Impact v2", `${pct(v2.gs_fg_pct)} · away ${pct(v2.away_fg_pct)}${isNum(v2.conf) ? ` · conf ${Number(v2.conf).toFixed(2)}` : ""}`]] : []),
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
     ["Forecast coverage", `${esc(({nws_first_pass: "NWS first pass", global_first_pass: "Global first pass (wind/temp/rain)", refined_multimodel: "Detailed model refinement", refined_split_fields: "First-pass signals with added detail fields", unavailable: "Point forecast unavailable"})[wx.point_stage] || "-")}${wx.point_aged ? " — aged or unverified point source" : ""}`],
+    ["Missing forecast fields", ["temp_fg", "wind_fg", "rain_fg"].filter(k => !isNum(wx[k])).map(k => ({temp_fg: "temperature", wind_fg: "wind", rain_fg: "rainfall"})[k]).join(", ") || "None"],
+    ...(g.expired_markets?.length ? [["Current prices", "Prices expired; current comparisons unavailable"]] : []),
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
     ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
@@ -366,6 +368,27 @@ function compassCard(g) {
   return `<div class="compass">${compassSvg(g)}${kv(rows)}</div>`;
 }
 
+function refreshDrawerQuotes() {
+  const g = findGame(STATE.game);
+  if (!g) return;
+  DRAWER.game = g;
+  renderDrawerTitle(g);
+  for (const [id, html] of [["drawer-weather", weatherTable(g)], ["drawer-prices", totalPriceTable(g)],
+                           ["drawer-odds", oddsTable(g)]]) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  }
+}
+
+function renderDrawerTitle(g) {
+  const c = g.consensus || {};
+  const spreadHead = isNum(c.spread_now)
+    ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
+    : "";
+  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
+    + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
+}
+
 function openDrawer(gameId) {
   const g = findGame(gameId);
   if (!g) return;
@@ -373,24 +396,19 @@ function openDrawer(gameId) {
   STATE.game = gameId;
   writeHash();
   const d = document.getElementById("drawer");
-  const c = g.consensus || {};
-  const spreadHead = isNum(c.spread_now)
-    ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
-    : "";
-  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
-    + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
+  renderDrawerTitle(g);
   const books = BOOKS.filter((b) => (g.odds || {})[b]);
   if (!books.includes(DRAWER.book)) DRAWER.book = "";
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }
   destroyWxPlots();
   document.getElementById("drawer-body").innerHTML = `
     <div class="drawer-grid">
-      <div><h3>Weather</h3>${weatherTable(g)}</div>
+      <div><h3>Weather</h3><div id="drawer-weather">${weatherTable(g)}</div></div>
       <div><h3>Game Info</h3>${gameInfoTable(g)}</div>
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
-    <h3>Total price comparison</h3><div style="overflow:auto">${totalPriceTable(g)}</div>
-    <h3>Odds by book (${g.sport === "cfb" ? "totals T−6d; spreads open" : "open"} → now)</h3><div style="overflow:auto">${oddsTable(g)}</div>
+    <h3>Total price comparison</h3><div id="drawer-prices" style="overflow:auto">${totalPriceTable(g)}</div>
+    <h3>Odds by book (${g.sport === "cfb" ? "totals T-6d; spreads open" : "open"} → now)</h3><div id="drawer-odds" style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>
     <div class="chart small" id="drift-chart"></div><span class="chart-note" id="drift-note">loading…</span>

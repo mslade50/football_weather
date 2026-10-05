@@ -108,8 +108,24 @@ def next_backstop(now: datetime) -> datetime:
     n = now.astimezone(timezone.utc)
     for day in (0, 1):
         base = (n + timedelta(days=day)).replace(minute=BACKSTOP_MINUTE, second=0, microsecond=0)
-        for h in BACKSTOP_UTC_HOURS:
-            cand = base.replace(hour=h)
+        weekday = base.weekday()
+        hours = {9}
+        if weekday <= 2:
+            hours.update((14, 20))
+        if weekday in (3, 4):
+            hours.update(range(12, 24, 2))
+        if weekday == 3:
+            hours.add(23)
+        if weekday == 5:
+            hours.update(range(10, 24))
+        if weekday == 6:
+            hours.update(range(10, 22))
+        if weekday == 0:
+            hours.update((22, 23))
+        candidates = [base.replace(hour=h) for h in hours]
+        if weekday == 6:
+            candidates.extend(base.replace(hour=h, minute=47) for h in (16, 19, 23))
+        for cand in sorted(candidates):
             if cand > n:
                 return cand
     return n  # unreachable
@@ -120,7 +136,14 @@ def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
     raw = (env.get("NEXT_RUN_ETA") or "").strip()
     if raw:
         return raw
-    return utc_iso(next_backstop(now))
+    next_time = next_backstop(now)
+    # Existing free-plan Cloudflare dispatch; no new trigger is introduced.
+    if now.month >= 8 or now.month <= 2:
+        midday = now.astimezone(timezone.utc).replace(hour=17, minute=15, second=0, microsecond=0)
+        if midday <= now:
+            midday += timedelta(days=1)
+        next_time = min(next_time, midday)
+    return utc_iso(next_time)
 
 
 # ---- GameCard -----------------------------------------------------------------------
@@ -537,6 +560,8 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
     fair = card.get("fair") or {}
     best_t = fair.get("best_total") or {}
     best_s = fair.get("best_spread") or {}
+    expiries = [quote["expires_at"] for markets in (card.get("odds") or {}).values()
+                for quote in markets.values() if quote.get("expires_at") and not quote.get("expired")]
     return {
         "game_id": card["game_id"],
         "sport": card["sport"],
@@ -568,6 +593,7 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "total_now": cons.get("total_now"),
         "ref_book": cons.get("ref_book"),
         "n_books": cons.get("n_books"),
+        "quote_expires_at": min(expiries) if expiries else None,
         "fair_total": fair.get("fair_total"),
         "fair_spread": fair.get("fair_spread"),
         "best_total_edge": best_t.get("edge_pts"),
@@ -789,6 +815,7 @@ def build_status(
         "books": books if books is not None else (meta.get("books") or {}),
         "stage_timings": meta.get("stage_timings") or {},
         "counts": meta.get("counts") or {},
+        "quote_expiries": meta.get("quote_expiries") or [],
     })
 
 

@@ -123,6 +123,33 @@ def test_complete_benign_nws_first_pass_makes_no_openmeteo_requests(weather, tmp
     assert fc.ensemble_status == "not_sampled_below_signal_buffer"
 
 
+@pytest.mark.parametrize("rain,fail,missing", [(None, True, True), (None, False, False), (0, False, False)])
+def test_final_point_completeness_survives_handoff_without_renewal(weather, tmp_path, monkeypatch, rain, fail, missing):
+    monkeypatch.setenv("GITHUB_RUN_ID", "quality")
+    nws_provider(weather, monkeypatch, rain=rain)
+    if fail:
+        monkeypatch.setattr(OM, "fetch_forecast", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("source unavailable")))
+    group, stadiums = games()
+    group = [replace(group[0], sport="cfb")]
+    gid = group[0].game_id
+    openers = {"openers": {f"{gid}|spread|home|consensus": {"line": 20}}}
+    handoff = tmp_path / "handoff-quality"
+    first = RunContext("cfb", git_sha="test-sha")
+    first.weather_state["write_point_dir"] = handoff
+    before = build.stage_weather(first, "cfb", group, stadiums, NullRawStore("cfb", first.run_id), {},
+                                 state_dir=tmp_path, openers=openers)[gid]
+    weather["clock"] += timedelta(minutes=10)
+    final = RunContext("cfb", git_sha="test-sha")
+    final.weather_state["reuse_point_dir"] = handoff
+    after = build.stage_weather(final, "cfb", group, stadiums, NullRawStore("cfb", final.run_id), {},
+                                state_dir=tmp_path, openers=openers)[gid]
+    warnings = [d.reason for d in final.degradations if "final point forecast incomplete" in d.reason]
+    assert bool(warnings) is missing
+    assert after.rain_fg_mm is None if missing else after.rain_fg_mm == 0
+    assert after.run_time == before.run_time and not after.ensemble_eligible
+    assert not weather["ensembles"]  # No extra members for spread-ineligible games.
+
+
 def test_nws_rain_candidate_refines_once_then_retains_risk_under_dry_point_models(weather, tmp_path, monkeypatch):
     weather.update(wind=1, temp=75)
     nws_provider(weather, monkeypatch, rain=.8)

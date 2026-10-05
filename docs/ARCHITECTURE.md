@@ -264,7 +264,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  home {team_id, name, short}, away {...}, neutral, status,
  stadium {stadium_id, name, lat, lon, orient_deg, orient, roof_type, roof_state, elevation_m, year_built,
           wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind, avg_wind_month},
- travel_alt, home_temp, away_temp,
+ travel_alt, home_temp, away_temp, expired_markets[] (runtime/publication expiry only),
  weather {temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg, precip_prob,
           precip_prob_ens, wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
           point_stage, point_source_updated_at {nws}, point_aged,
@@ -573,6 +573,29 @@ Local dev: `.env` (python-dotenv), never committed.
 Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cutoff 62–67, alt 900/1000, alt-vs-heat override); anti-bot from Actions IPs (BetOnline CF, FanDuel Akamai) → Playwright fallback, low cadence, dark-book alerts, Odds API gap-fill; ToS (Kalshi/FanDuel/Novig deprecation) → private site, no republishing; team-name canonicalization across 6+ books for ~135 FBS + FCS → alias tables + rapidfuzz + unresolved alerts; CF free cron budget/10 ms CPU → Workers Paid; weather semantic shifts (mm vs in, curated vs computed vol/orientation) → keep `*_static` columns and validate via backtest before promoting v2; Open-Meteo non-commercial tier, NBM no gusts, HRRR 18 h, NWS 7 d → stitching with source/lead stamps + confidence gate; Edge semantics now market-relative → documented in UI; state integrity → R2 fetch fails job on transient error, D1 second source; stadium build deps (shapely, timezonefinder, Overpass limits) → preseason PR workflow with overrides; pip installs need user approval per CLAUDE.md.
 
 ### Total price comparison
+
+Current prices retain upstream `source_updated_at` and `expires_at`. Expired
+quotes are excluded and current consensus/fair comparisons recalculated before
+alerts and board output; historical openers and captured line history are kept.
+After raw uploads, a publication guard rechecks board and legacy current fields.
+The authenticated Worker and browser also enforce expiry, preserving opening
+fields but withholding derived current comparisons until a new calculation.
+Runtime `quote_expiries` metadata adjusts book health/counts without renewing
+source clocks. Quotes can expire between publication steps; the read-time guard
+is authoritative for current display.
+
+Final merged temperature, wind and rainfall are checked independently of signal
+eligibility and point handoff. Missing values remain null and emit current
+warnings; recovered fields do not inherit an obsolete failure warning. The
+drawer lists missing fields. Existing signal/model thresholds remain unchanged.
+
+Health treats warning degradations, thin books and a missed expected refresh
+(90-minute grace) as degraded. ETAs mirror existing UTC GitHub schedules plus
+the existing in-season 17:15 UTC Cloudflare dispatch; no triggers are added.
+The Worker owns `cf_heartbeat.json` and `cf_dispatch.json`; builds never upload
+old heartbeat ticks. Dispatch receipts survive heartbeat-only ticks and record
+missing token, rejected dispatch or GitHub acceptance. Acceptance does not prove
+workflow completion. Historical trigger failures without receipts remain unknown.
 
 The Best price column ranks fresh main-line unders by estimated ROI per dollar at risk; the drawer compares both sides. ROI = P(win) / cost + P(push) - 1, with cost from executable American odds including quoted vig and known exchange taker fees. Fair cost = P(win) / (1 - P(push)). Execution cost is not devigged. Integer sportsbook totals refund the stake; half points have no push. A discrete logistic score CDF is anchored on the active model fair total and consensus probability, with local slope from PTS_PROB_TOTAL. Push mass is the difference between adjacent half-point CDF values. This is an explicitly labeled estimate, not calibrated football key-number frequencies. Quotes older than one hour and games already started are not ranked. Thin consensus has no comparison. All-negative comparisons retain a negative EV label. Slippage and size-specific fee rounding are excluded. Existing fair/edge and alert selection rules are unchanged.
 
