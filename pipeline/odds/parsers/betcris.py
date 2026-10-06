@@ -47,6 +47,10 @@ PAGES: dict[str, tuple[str, ...]] = {
 }
 PUBLIC_LEAGUES = {"nfl": 1, "cfb": 2}
 
+
+class StaleObservationError(ValueError):
+    """A valid league observation exceeded its existing freshness deadline."""
+
 _START_RE = re.compile(r"START\s+(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([ap]m)\s*PT", re.IGNORECASE)
 _SCRIPT_START_RE = re.compile(r"var\s+game(\d+)_start\s*=\s*new\s+Date\('(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
@@ -328,12 +332,16 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     ttl = _public_number(payload.get("stale_after_seconds"))
     # Global catalog activity and local download time cannot confirm a retained
     # league revision. Its own observation clock remains the freshness gate.
-    if (observed is None or ttl is None or ttl <= 0
-            # Match the board's one-hour carry ceiling, retaining any tighter
-            # provider TTL. Otherwise a light scrape can report green NFL odds
-            # that the subsequent BetOnline publication immediately removes.
-            or not timedelta(0) <= now - observed <= timedelta(seconds=min(ttl, 3600))):
+    if observed is None or ttl is None or ttl <= 0 or now < observed:
         raise ValueError("Betcris public feed has a stale or invalid observation timestamp")
+    age = (now - observed).total_seconds()
+    # Match the one-hour carry ceiling and retain any tighter provider TTL.
+    effective_ttl = min(ttl, 3600)
+    if age > effective_ttl:
+        raise StaleObservationError(
+            "Betcris public feed has a stale or invalid observation timestamp: "
+            f"observed={observed.isoformat()}, age_seconds={age:.0f}, "
+            f"effective_ttl_seconds={effective_ttl:g}, provider_ttl_seconds={ttl:g}")
     games = payload.get("games")
     if not isinstance(games, list):
         raise ValueError("Betcris public feed is missing its games list")
