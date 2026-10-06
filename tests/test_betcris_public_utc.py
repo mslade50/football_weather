@@ -201,6 +201,19 @@ def test_production_nfl_drop_was_age_gate_not_schedule_mapping():
         betcris.parse_public(data, "nfl", now=datetime(2026, 10, 2, 17, 53, 39, tzinfo=timezone.utc))
 
 
+def test_october_fifth_cfb_drop_reports_the_exact_deadline_without_using_catalog_time():
+    data = payload("cfb")
+    data.update(feed_fetched_at="2026-10-05T21:01:02Z", stale_after_seconds=9000,
+                generated_at="2026-10-05T22:03:56Z", last_good_at="2026-10-05T22:03:56Z")
+    for game in data["games"]:
+        game["starts_at"] = "2026-10-10T19:30:00Z"
+    first = betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 21, 54, tzinfo=timezone.utc))
+    assert len(first) == 12
+    assert all(r.expires_at == datetime(2026, 10, 5, 22, 1, 2, tzinfo=timezone.utc) for r in first)
+    with pytest.raises(betcris.StaleObservationError, match="age_seconds=3774, effective_ttl_seconds=3600, provider_ttl_seconds=9000"):
+        betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 22, 3, 56, tzinfo=timezone.utc))
+
+
 def test_final_job_replaces_expired_college_capture_with_new_prices(tmp_path, monkeypatch):
     from pipeline.outputs.raw_out import NullRawStore
     from pipeline.run_context import RunContext

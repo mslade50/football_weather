@@ -94,9 +94,22 @@ class BetcrisScraper(BaseScraper):
                 logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
                                f"{type(e).__name__}: {e}")
                 self.fetch_errors[slug] = f"{type(e).__name__}: {e}".rstrip(": ")
+                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code in (401, 403):
+                    break  # An access denial is not a transient transport failure.
                 if attempt < FETCH_ATTEMPTS:
                     await asyncio.sleep(FETCH_BACKOFF_S * attempt)
         return None
+
+    async def _revalidate_public(self, client: httpx.AsyncClient, slug: str, url: str) -> str | None:
+        """One same-URL revalidation; never substitute catalog/download clocks."""
+        try:
+            response = await client.get(url, headers={"Cache-Control": "no-cache"})
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            self.fetch_errors[slug] = f"revalidation failed: {type(exc).__name__}: {exc}".rstrip(": ")
+            logger.warning("[betcris] %s: %s", slug, self.fetch_errors[slug])
+            return None
+        return response.text
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
         if sport not in PAGES:
@@ -111,15 +124,34 @@ class BetcrisScraper(BaseScraper):
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True,
                                      timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0)) as client:
             raw = await self._get_with_retry(client, slug, url)
-        if raw is None:
-            return []
-        if self.raw_store is not None:
-            self.raw_store.put(f"betcris_public_{sport}", raw, url=url, ext="json")
-        try:
-            lines = parser.parse_public(json.loads(raw), sport, now=datetime.now(timezone.utc),
-                                        market=market, run_id=self.run_id)
-        except ValueError as exc:
-            self.fetch_errors[slug] = str(exc)
-            return []
+            if raw is None:
+                return []
+            if self.raw_store is not None:
+                self.raw_store.put(f"betcris_public_{sport}", raw, url=url, ext="json")
+            try:
+                lines = parser.parse_public(json.loads(raw), sport, now=datetime.now(timezone.utc),
+                                            market=market, run_id=self.run_id)
+            except parser.StaleObservationError as original:
+                if sport != "cfb":
+                    self.fetch_errors[slug] = str(original)
+                    return []
+                logger.warning("[betcris] cfb: %s; revalidating once", original)
+                refreshed = await self._revalidate_public(client, slug, url)
+                if refreshed is None:
+                    self.fetch_errors[slug] = f"{original}; {self.fetch_errors[slug]}"
+                    return []
+                if self.raw_store is not None:
+                    self.raw_store.put("betcris_public_cfb_revalidation", refreshed, url=url, ext="json")
+                try:
+                    lines = parser.parse_public(json.loads(refreshed), sport, now=datetime.now(timezone.utc),
+                                                market=market, run_id=self.run_id)
+                except ValueError as exc:
+                    self.fetch_errors[slug] = f"revalidation did not recover fresh CFB observations: {exc}"
+                    return []
+                self.fetch_errors.pop(slug, None)
+                logger.info("[betcris] cfb: same-URL revalidation recovered a fresh league observation")
+            except ValueError as exc:
+                self.fetch_errors[slug] = str(exc)
+                return []
         logger.info(f"[betcris] {sport}: {len(lines)} open pregame lines from public JSON")
         return lines
