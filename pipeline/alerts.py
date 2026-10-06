@@ -1090,7 +1090,13 @@ def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
     stadium = card.get("stadium") or {}
     if not weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state")):
         return False
-    return _tier_at_least(_signal_label(card), cfg.min_tier)
+    label = _signal_label(card)
+    signal = card.get("signal") or {}
+    if signal_slug(label) == "low" and ("rain" in (signal.get("drivers") or []) or "rain" in (label or "").lower()):
+        temp = _num((card.get("weather") or {}).get("temp_fg"))
+        if temp is None or temp >= model_config.LOW_RAIN_TEMP_MAX_F:
+            return False
+    return _tier_at_least(label, cfg.min_tier)
 
 
 def _alertable_edges(card: dict[str, Any], cfg: Optional[Config] = None) -> list[dict[str, Any]]:

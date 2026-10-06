@@ -175,6 +175,52 @@ def test_no_impact_never_alerts():
     assert A._alertable_edges(card(signal="")) == []
 
 
+@pytest.mark.parametrize("sport,label", [("nfl", "Low Impact"), ("cfb", "Low (Rain)")])
+@pytest.mark.parametrize("temp,qualifies", [(49.9, True), (50.0, False), (75.0, False),
+                                           (None, False), (float("nan"), False)])
+def test_low_rain_temperature_gate_applies_to_alerts_and_summaries(sport, label, temp, qualifies):
+    alerts, _ = _fresh()
+    c = card(sport=sport, signal=label, wind=3, rain=3)
+    c["signal"]["drivers"] = ["rain"]
+    c["weather"]["temp_fg"] = temp
+    assert bool(A.edge_candidates(c, alerts, CFG, now=NOW)) == qualifies
+    pages = A.open_signal_summaries({sport: [c]}, CFG, NOW)
+    assert any("No open weather signals" in page.text for page in pages) == (not qualifies)
+
+
+def test_warming_low_rain_closes_silently_and_stops_updates():
+    alerts = _with_open_edge(signal="Low (Rain)")
+    _, tg = _fresh()
+    warm = card([_edge(line=42, fair_line=37)], signal="Low (Rain)", wind=3, rain=3)
+    warm["weather"]["temp_fg"] = 50
+    changes = A.followup_candidates(warm, alerts, CFG, NOW)
+    assert [c.family for c in changes] == ["gone"]
+    _, sender, _ = _live(changes, alerts, tg)
+    assert sender.sent == []
+    assert A.followup_candidates(warm, alerts, CFG, NOW + timedelta(hours=5)) == []
+
+
+def test_warm_low_rain_drops_queued_alert():
+    alerts, tg = _fresh()
+    cold = card(signal="Low (Rain)", wind=3, rain=3)
+    edge = A.edge_candidates(cold, alerts, CFG, now=QUIET)[0]
+    _live([edge], alerts, tg, now=QUIET)
+    assert tg["queue"]
+    cold["weather"]["temp_fg"] = 50
+    current = A.collect_candidates(_ctx(), {"nfl": [cold]}, alerts, CFG, MORNING, include_ops=False)
+    out, sender, plan = _live(current, alerts, tg, now=MORNING)
+    assert plan.flush == [] and out.n_sent == 0 and sender.sent == [] and tg["queue"] == []
+
+
+@pytest.mark.parametrize("label", ["Mid Impact", "High Impact", "Very High Impact", "Low (Wind)", "Low (Temp)"])
+def test_temperature_gate_only_suppresses_low_rain(label):
+    c = card(signal=label, rain=3)
+    c["weather"]["temp_fg"] = 75
+    c["signal"]["drivers"] = ["rain"] if label in ("Mid Impact", "High Impact", "Very High Impact") else []
+    alerts, _ = _fresh()
+    assert len(A.edge_candidates(c, alerts, CFG, now=NOW)) == 1
+
+
 def test_weather_signal_alerts_without_a_price_or_positive_model_edge():
     alerts, _ = _fresh()
     for advantage in (0.5, 0.0, -2.0, None):
@@ -491,6 +537,9 @@ def test_captured_uva_fsu_reactivation_then_unchanged_playwright_is_silent(tmp_p
     replay = json.loads((Path(__file__).parent / "fixtures" / "uva_fsu_alert_replay.json").read_text())
     alerts = replay["alerts_before"]
     current = replay["card"]
+    # The captured warm Low rain card no longer qualifies under the 50°F rule.
+    # Use cold rain to keep exercising the duplicate reactivation regression.
+    current["weather"]["temp_fg"] = 49.9
     ekey = replay["edge_key"]
     light_at = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
     playwright_at = datetime.fromisoformat(replay["playwright_at"].replace("Z", "+00:00"))
@@ -518,6 +567,13 @@ def test_captured_uva_fsu_reactivation_then_unchanged_playwright_is_silent(tmp_p
     current["fair"]["edges"][0]["fair_line"] = 46.9
     changed = A.followup_candidates(current, restored, CFG, playwright_at)
     assert [c.key for c in changed] == [f"wx|{ekey}|2"]
+
+
+def test_captured_warm_uva_fsu_rain_no_longer_reactivates():
+    replay = json.loads((Path(__file__).parent / "fixtures" / "uva_fsu_alert_replay.json").read_text())
+    now = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
+    assert A.followup_candidates(replay["card"], replay["alerts_before"], CFG, now) == []
+    assert A.edge_candidates(replay["card"], replay["alerts_before"], CFG, now=now) == []
 
 
 @pytest.mark.parametrize("notice", ["reactivation", "tier", "price"])

@@ -35,8 +35,24 @@ def test_nfl_purple_beats_rain() -> None:
 
 
 def test_nfl_low_rain() -> None:
-    s = nfl_signal(wind_fg=3.0, temp_fg=75.0, rain_fg=2.1)
+    s = nfl_signal(wind_fg=3.0, temp_fg=49.9, rain_fg=2.1)
     assert (s.level, s.color, s.size) == (LOW, "blue", 15)
+
+
+@pytest.mark.parametrize("temp", [50.0, 50.1, 75.0, None, float("nan")])
+def test_warm_or_missing_temperature_rain_has_no_low_signal(temp) -> None:
+    assert nfl_signal(3.0, temp, 3.0).level == NO
+    assert _cfb(wind=3.0, temp=temp, rain=3.0).level == NO
+
+
+def test_rain_preserves_other_qualifying_signals() -> None:
+    assert nfl_signal(16.0, 49.9, 3.0).level == MID
+    assert nfl_signal(16.0, 55.0, 3.0).level == MID
+    assert nfl_signal(16.0, 40.0, 3.0).level == HIGH
+    assert nfl_signal(9.0, 55.0, 3.0).drivers == ("wind",)
+    assert _cfb(wind=20.0, temp=60.0, rain=3.0).level == HIGH
+    assert _cfb(wind=3.0, temp=76.0, rain=3.0, alt=900.0).level == MID
+    assert _cfb(wind=9.0, temp=60.0, rain=3.0).label == "Low (Wind)"
 
 
 def test_nfl_low_wind_band() -> None:
@@ -121,7 +137,7 @@ def test_cfb_mid_alt_heat() -> None:
     [
         {"wind": 20.0, "temp": 45.0},
         {"wind": 2.0, "temp": 76.0, "alt": 801.0},
-        {"wind": 2.0, "temp": 70.0, "rain": 2.5},
+        {"wind": 2.0, "temp": 49.9, "rain": 2.5},
         {"wind": 2.0, "temp": 81.0, "home_temp": 56.0, "away_temp": 50.0},
         {"wind": 9.0, "temp": 60.0},
     ],
@@ -132,15 +148,15 @@ def test_cfb_universal_spread_gate(weather, open_spread) -> None:
 
 
 def test_cfb_low_colors() -> None:
-    rain = _cfb(wind=2.0, temp=70.0, rain=2.5)
+    rain = _cfb(wind=2.0, temp=49.9, rain=2.5)
     assert (rain.level, rain.color, rain.label) == (LOW, "black", "Low (Rain)")
     heat = _cfb(wind=2.0, temp=81.0, home_temp=56.0, away_temp=50.0)
     assert (heat.level, heat.color, heat.label) == (LOW, "red", "Low (Temp)")
     windy = _cfb(wind=9.0, temp=60.0, weekday=SAT)
     assert (windy.level, windy.color, windy.label, windy.size) == (LOW, "blue", "Low (Wind)", 15)
-    # rain wins over heat for color, as in the page's nested lambda
+    # Warm rain no longer masks an independently qualifying heat signal.
     both = _cfb(wind=2.0, temp=81.0, rain=3.0, home_temp=50.0, away_temp=50.0)
-    assert both.color == "black"
+    assert both.color == "red" and both.drivers == ("temperature",)
 
 
 def test_cfb_missing_spread_never_matches() -> None:

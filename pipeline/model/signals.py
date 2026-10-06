@@ -60,11 +60,12 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     if _gt(w, 15) and _between(t, 32, 45):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
-    if _gt(r, 2) or (w is not None and 8 < w < 15 and _lt(t, 60)):
-        driver = "rain" if _gt(r, 2) else "wind"
-        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     if _gt(w, 15) and _lt(t, 60):
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("wind",))
+    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
+    if rain_cond or (w is not None and 8 < w < 15 and _lt(t, 60)):
+        driver = "rain" if rain_cond else "wind"
+        return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
 
@@ -123,7 +124,7 @@ def cfb_signal(
     base = cfb_low_wind_threshold(weekday)
     hi = base + C.CFB_HIGH_OFFSET
 
-    rain_cond = _gt(r, 2)
+    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
     heat_cond = _gt(t, 80) and _lt(ht, 57) and _lt(at, 57)
     altitude_mid = cfb_altitude_mid_trigger(t, sp, alt)
 
