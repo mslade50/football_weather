@@ -2041,6 +2041,11 @@ def write_outputs(
     status = json_out.build_status(meta, run, previous=json_out.load_previous_status(state_dir), books=books)
     files = json_out.write_board(board_dir, cards_by_sport, meta, history=hist, wx_history=wx_hist, snapshots_dir=snapshot_dir,
                                  alerts_feed=feed, status=status)
+    json_out.dump_json(Path(board_dir).parent / "alert_inputs.json", {
+        "run_id": ctx.run_id,
+        "new_keys_by_sport": {r.sport: list(r.board_new_opener_keys if r.board_new_opener_keys is not None
+                                           else r.odds.new_opener_keys) for r in results},
+    })
     json_out.dump_json(Path(state_dir) / json_out.STATUS_FILE, status)  # rolling runs list for the next build
 
     stmts = d1_statements(ctx, results, finished, alert_records=alert_records, n_alerts=n_alerts,

@@ -49,9 +49,11 @@ function tierChip(e) {
     + (isNum(e.confidence) ? ` · conf ${Number(e.confidence).toFixed(2)}` : "");
   return `<span class="tierchip ${esc(tier)}" title="${esc(tip)}">${txt}</span>`;
 }
-function signalPill(sig) {
+function signalPill(sig, game) {
   const label = signalLabel(sig);
-  const flags = (sig && sig.flags && sig.flags.length) ? ` · ${sig.flags.join(", ")}` : "";
+  const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
+    ? gameFlags(game) : ((sig && sig.flags) || []);
+  const flags = matched.length ? ` · ${matched.join(", ")}` : "";
   return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
 function spreadSrcLabel(src) {
@@ -177,7 +179,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Rain", "Rain mm over kickoff..+2h · precip prob", w("rain_fg")],
     ["GS %", "v1 game-score impact % (negative = under lean)", (g) => impactPct(g, "gs_fg_pct")],
     ["Away %", "v1 away-team impact %", (g) => impactPct(g, "away_fg_pct")],
-    ["Signal", "Impact tier + combined flags", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
+    ["Signal", "Weather signal severity + matched filters", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus total baseline → now (CFB baseline = kickoff minus 6 days; NFL = first-seen open; Pinnacle-weighted)", cons("total_now")],
     ["Best price", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
@@ -244,7 +246,7 @@ function renderTable(rows, opts = {}) {
       `<td>${fmtNum(wx.rain_fg, 1)}${isNum(wx.precip_prob) ? ` <span class="wx">${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%</span>` : ""}</td>`,
       `<td>${dome ? '<span class="muted">dome</span>' : fmtNum(v1.gs_fg_pct, 1)}</td>`,
       `<td>${dome ? '<span class="muted">—</span>' : fmtNum(v1.away_fg_pct, 1)}</td>`,
-      `<td>${signalPill(g.signal)}</td>`,
+      `<td>${signalPill(g.signal, g)}</td>`,
       consensusSpreadCell(g),
       consensusTotalCell(g),
     ];

@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from pipeline.model import config as model_config
+
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
@@ -127,7 +129,13 @@ def test_signals_view_wiring() -> None:
         assert fn in sig
     assert "const CFB_OPEN_SPREAD_MAX = 10;" in sig
     assert "Math.abs(open) > CFB_OPEN_SPREAD_MAX" in sig
+    assert f"temp < {int(model_config.CFB_WIND_MAX_TEMP_F)} && wind > {int(model_config.CFB_WIND_MIN_MPH)}" in sig
+    assert (model_config.CFB_OPEN_SPREAD_MAX, model_config.CFB_WIND_MAX_TEMP_F,
+            model_config.CFB_WIND_MIN_MPH) == (10, 70, 14)
+    assert "CFB Wind eligibility:" in sig and "Severity tiers are extra." in sig
+    assert "title=\"Weather signal severity filter" in html and ">No signal</option>" in html
     app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert 'short === "No" ? "No signal" : short' in app
     assert "renderSignals()" in app
     assert 'params.set("preset"' in app and 'params.get("preset")' in app
 

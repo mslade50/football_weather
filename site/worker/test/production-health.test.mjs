@@ -24,6 +24,18 @@ test("consumer expiry preserves openers and source clocks, invalidates derived p
   assert.equal(c.weather.rain_fg, null);
   assert.equal(original.odds.betcris.total.line, 48);
 });
+test("consumer preserves server-recomputed comparisons for quotes already marked expired", () => {
+  const original = {odds: {betcris: {total: {open_line: 47, expires_at: expiry, expired: true}},
+      pinnacle: {total: {line: 51, under: -110, expires_at: "2026-10-05T03:39:00Z"}}},
+    consensus: {total_open: 47, total_now: 51, n_books: 1, thin: true},
+    fair: {fair_total: 45.9, edges: [{book: "pinnacle"}]}, total_prices: {best: "pinnacle"}};
+  const c = expireCardQuotes(original, now);
+  assert.deepEqual(c.expired_markets, undefined);
+  assert.equal(c.consensus.total_now, 51);
+  assert.equal(c.fair.fair_total, 45.9);
+  assert.deepEqual(c.fair.edges, [{book: "pinnacle"}]);
+  assert.equal(c.odds.betcris.total.open_line, 47);
+});
 test("runtime metadata shows expired quotes rather than green counts", () => {
   const m = {books: {betcris: {count: 2, status: "green"}}, counts: {betcris: {nfl: 2}},
     quote_expiries: [{book: "betcris", sport: "nfl", market: "total", count: 2, expires_at: expiry}]};

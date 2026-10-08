@@ -9,6 +9,10 @@ export function expireCardQuotes(original, now = Date.now()) {
   const card = structuredClone(original), removed = [];
   for (const [book, markets] of Object.entries(card.odds || {})) {
     for (const [market, quote] of Object.entries(markets)) {
+      // The server publication guard already removed this quote and recomputed
+      // the card from surviving books. Do not mistake that intentional marker
+      // for a newly expired quote and erase the refreshed card-level values.
+      if (quote.expired) continue;
       if (!quoteExpired(quote.expires_at, now)) continue;
       removed.push(`${book}/${market}`);
       markets[market] = Object.fromEntries(Object.entries(quote).filter(([k]) => k.startsWith("open")

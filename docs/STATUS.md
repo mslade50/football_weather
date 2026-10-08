@@ -1,5 +1,9 @@
 # STATUS — football_weather rebuild
 
+2026-10-08 repair: CFB Wind now uses the shared opening-spread ±10 / wind >14 mph / temperature <70°F gate. Telegram has a separate seven-day kickoff horizon and runs only after verified publication, with durable delivery checkpoints and recovery of recent failed-run receipts. R2 uploads use bounded concurrency rather than serial CLI calls. NoVig's anonymous bulk query is currently rejected by its server; this is surfaced explicitly, and no replacement prices or main-market identities are fabricated. Deployment verification for this repair is pending.
+
+The integration snapshot below is historical.
+
 Snapshot as of 2026-08-24 (final integration pass). Companion to `PLAN.md`
 (phases), `ARCHITECTURE.md` (design) and `AUDIT.md` (legacy reference).
 Nothing has been deployed to Cloudflare and nothing has been committed by the
@@ -121,7 +125,7 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `GITHUB_SHA`, `GITHUB_OUTPUT` | `run_context.py` meta sha, `gate_check.py` outputs | provided by Actions | — |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `utils/telegram.py`, `pipeline/alerts.py`; optional workflow/Worker failure paging | .env, GH, wrangler | required for bet alerts |
 | `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB` | `pipeline/alerts.py` per-sport routing (fallback `TELEGRAM_CHAT_ID`) | .env, GH (pipeline.yml) | optional |
-| `TELEGRAM_MIN_TIER`, `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | Telegram policy; defaults `low`, `4`, `0` | .env / workflow env | optional |
+| `TELEGRAM_MIN_TIER`, `TELEGRAM_MAX_LEAD_DAYS`, `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | Telegram policy; defaults `low`, `7`, `4`, `0` | .env / workflow env | optional |
 | `TELEGRAM_SYSTEM_ALERTS` | aggregated in-run/workflow/Worker operations paging; default `0` | GH repo variable / Worker var | optional |
 | `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`, `SMTP_STARTTLS` | `backtest.yml` full weekly post-mortem fallback | GH | optional — without them Telegram still sends, but a failed/truncated Telegram report has no email fallback |
 | `CLOUDFLARE_API_TOKEN` | `pipeline.yml`, `deploy.yml`, `backtest.yml`, `calibrate.yml`, `build-stadiums.yml` (wrangler r2/d1/deploy) — needs Workers Scripts: Edit, R2 Storage: Edit, D1: Edit | GH | required for any Cloudflare workflow |

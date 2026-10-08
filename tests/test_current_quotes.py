@@ -25,6 +25,8 @@ def card():
             "open_line": 47, "source_updated_at": "2026-10-05T02:23:02Z", "expires_at": "2026-10-05T02:28:02Z"}},
             "pinnacle": {"total": {"line": 49, "under": -111}}},
             "consensus": {"total_now": 48, "total_open": 47}, "fair": {"fair_total": 45, "edges": [{"book": "betcris"}]},
+            "impact": {"v1": {"gs_fg_pct": None, "away_fg_pct": None, "components": {"rain": None}},
+                       "v2": None, "model_version": "v1"},
             "weather": {"rain_fg": None}, "total_prices": {"best": "betcris"}, "signal": {"label": "No Impact"}}
 
 
@@ -42,8 +44,75 @@ def test_read_expiry_preserves_openers_and_source_clocks():
     assert new["odds"]["betcris"]["total"]["source_updated_at"] == "2026-10-05T02:23:02Z"
     assert "line" not in new["odds"]["betcris"]["total"]
     assert new["odds"]["pinnacle"] == old["odds"]["pinnacle"]
-    assert new["consensus"]["total_now"] is None and new["consensus"]["total_open"] == 47
-    assert new["fair"]["edges"] == [] and new["weather"]["rain_fg"] is None
+    assert new["consensus"]["total_now"] == 49 and new["consensus"]["total_open"] == 47
+    assert all(edge.get("book") != "betcris" for edge in new["fair"]["edges"])
+    assert new["weather"]["rain_fg"] is None
+
+
+@pytest.mark.parametrize("model_version,expected_pct", [("v1", -8.0), ("v2", -10.0)])
+def test_expiry_recomputes_from_remaining_main_quotes_without_losing_openers(model_version, expected_pct):
+    from pipeline.model import fair as fair_mod
+
+    lines = []
+    for book, total_line, expiry in (("betcris", 48, NOW - timedelta(minutes=1)),
+                                     ("pinnacle", 51, NOW + timedelta(hours=1))):
+        for side in ("over", "under"):
+            lines.append(GameLine("nfl", GID, book, "total", side, -110, line=total_line,
+                                  scraped_at=NOW - timedelta(minutes=2), expires_at=expiry))
+        for side, line in (("home", -3.0), ("away", 3.0)):
+            lines.append(GameLine("nfl", GID, book, "spread", side, -110, line=line,
+                                  scraped_at=NOW - timedelta(minutes=2), expires_at=expiry))
+    impact_v1 = {"gs_fg_pct": -8.0, "away_fg_pct": -2.0, "components": {"rain": 0.0}}
+    impact_v2 = {"gs_fg_pct": -10.0, "away_fg_pct": -3.0, "components": {"rain": 0.0}}
+    fair_v1 = fair_mod.evaluate_game("nfl", GID, lines, -8.0, -2.0)
+    fair_v2 = fair_mod.evaluate_game("nfl", GID, lines, -10.0, -3.0, rain_c=0.0, model_version="v2")
+    consensus = {
+        (GID, market): fair_mod.consensus("nfl", lines, market)
+        for market in ("spread", "total")
+    }
+    original = card()
+    original.update(season=2026, week=4, kickoff_utc=NOW.isoformat(), date_label="Mon", time_label="2:39", neutral=False)
+    original["home"]["short"], original["away"]["short"] = "NO", "ATL"
+    original["odds"] = json_out.odds_block(GID, lines, {})
+    original["odds"]["betcris"]["total"]["open_line"] = 47.0
+    original["odds"]["betcris"]["spread"]["open_line"] = -2.5
+    original["consensus"] = json_out.consensus_block(GID, consensus, {})
+    original["consensus"].update(spread_open=-2.5, total_open=47.0)
+    original["impact"] = {"model_version": model_version, "v1": impact_v1, "v2": impact_v2}
+    original["weather"] = {"wind_vol_fc": 8.0, "model_disagreement": 1.0, "lead_hours": 12.0}
+    original["stadium"] = {"wind_vol_static": "moderate"}
+    selected_original = fair_v2 if model_version == "v2" else fair_v1
+    original["fair"] = json_out.fair_block(selected_original, fair_v2=fair_v2)
+    original["total_prices"] = json_out.compare_totals("nfl", lines, selected_original)
+    original["execution_markets"] = json_out.execution_markets(lines)
+
+    expired_card = expire_card(original, NOW)
+
+    assert expired_card["odds"]["betcris"]["total"]["expired"] is True
+    assert expired_card["odds"]["betcris"]["total"]["open_line"] == 47.0
+    assert expired_card["odds"]["betcris"]["spread"]["open_line"] == -2.5
+    assert expired_card["consensus"]["total_open"] == 47.0
+    assert expired_card["consensus"]["spread_open"] == -2.5
+    assert expired_card["consensus"]["total_now"] == 51.0
+    assert expired_card["consensus"]["n_books"] == 1
+    assert expired_card["consensus"]["thin"] is True
+    assert expired_card["fair"]["fair_total"] == pytest.approx(fair_mod.fair_total(51.0, expected_pct))
+    assert {edge["book"] for edge in expired_card["fair"]["edges"]} <= {"pinnacle"}
+    assert expired_card["total_prices"] != original["total_prices"]
+    assert expired_card["odds"]["pinnacle"]["total"]["line"] == 51
+    assert json_out.table_row(expired_card)["quote_expires_at"] == NOW + timedelta(hours=1)
+    assert original["odds"]["betcris"]["total"]["line"] == 48
+
+
+def test_expiry_fails_closed_when_card_has_no_recomputable_impact_but_keeps_openers():
+    original = card()
+    original["impact"]["v1"] = None
+    new = expire_card(original, NOW)
+    assert new["consensus"]["spread_now"] is None
+    assert new["consensus"]["total_now"] is None
+    assert new["consensus"]["total_open"] == 47
+    assert new["odds"]["betcris"]["total"]["open_line"] == 47
+    assert new["fair"]["edges"] == []
 
 
 def test_calculation_recomputes_consensus_fair_and_counts(monkeypatch):
@@ -166,7 +235,7 @@ def test_publication_reserves_remaining_upload_time_without_shifting_clocks(tmp_
         assert after["counts"]["betcris"]["nfl"] == 0 and after["books"]["betcris"]["status"] == "amber"
         assert after["degradations"][-1]["ts"] == NOW.isoformat()
         assert "publication window" in after["degradations"][-1]["reason"]
-        assert checked["fair"]["fair_total"] is None
+        assert checked["fair"]["fair_total"] == 49
     else:
         assert after["books"]["betcris"]["count"] == 4 and not after.get("degradations")
 

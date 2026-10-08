@@ -131,6 +131,7 @@ Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:
 | `CFBD_API_KEY` | CFB schedule (`pipeline/schedule/cfb.py`, gate) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | bet alerts; optional `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` routing |
 | `TELEGRAM_MIN_TIER` | minimum weather signal tier (default: `low`); no price/edge gate |
+| `TELEGRAM_MAX_LEAD_DAYS` | furthest valid future kickoff for betting alerts (default: `7` days); board and odds windows are independent |
 | `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | volume controls (defaults: `4`, `0`) |
 | `TELEGRAM_SYSTEM_ALERTS` | opt in to one aggregated provider/workflow failure page (`0` by default) |
 | `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | complete weekly report fallback when Telegram fails or cannot fit every game; optional `SMTP_USE_SSL` / `SMTP_STARTTLS` |

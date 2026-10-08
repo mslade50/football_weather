@@ -65,7 +65,9 @@ def card(edges: list[dict[str, Any]] | None = None, *, weather_driven: bool = Tr
         "impact": {"v1": {"gs_fg_pct": gs, "away_fg_pct": 0.0, "components": {"wind": 6.5, "rain": 0.0, "cold": 0.0}}},
         "odds": {"betonline": {"total": {"line": 38.0, "over": -110, "under": -110, "open_line": 38.0}}},
         "weekly_total_open": {"book": "betonline", "line": 38.0, "under": None, "over": None},
-        "consensus": {"total_now": 37.5, "spread_now": -3.0, "ref_book": "pinnacle", "n_books": 6, "thin": thin},
+        "consensus": {"total_now": 37.5, "spread_now": -3.0,
+                      "spread_open": -3.0 if sport == "cfb" else None,
+                      "ref_book": "pinnacle", "n_books": 6, "thin": thin},
         "fair": {"fair_total": 34.6, "fair_spread": -2.9, "confidence": 0.72, "weather_driven": weather_driven,
                  "edges": edges},
         "alerts": [], "run_id": "r1",
@@ -119,12 +121,14 @@ def test_confidence_and_lead_bypass():
 
 def test_notification_policy_defaults_and_env_overrides():
     assert CFG.max_per_run == 4 and CFG.min_tier == "low"
+    assert CFG.max_lead_days == 7
     assert not CFG.include_openers and not CFG.system_alerts
     cfg = A.Config.from_env({"TELEGRAM_MIN_TIER": "high", "TELEGRAM_MIN_EDGE_PTS": "2.5",
+                             "TELEGRAM_MAX_LEAD_DAYS": "9",
                              "TELEGRAM_MAX_PER_RUN": "7", "TELEGRAM_INCLUDE_OPENERS": "true",
                              "TELEGRAM_SYSTEM_ALERTS": "1"})
     assert (cfg.min_tier == "high" and cfg.max_per_run == 7
-            and cfg.include_openers and cfg.system_alerts)
+            and cfg.include_openers and cfg.system_alerts and cfg.max_lead_days == 9)
 
 
 def test_default_notification_gate_is_weather_only():
@@ -167,12 +171,47 @@ def test_collect_candidates_applies_the_kickoff_gate():
     assert [c.family for c in started] == []
 
 
+def test_betting_alert_horizon_rejects_far_future_invalid_and_queued_games():
+    alerts, tg = _fresh()
+    boundary = card(kickoff=NOW + timedelta(days=7))
+    far = card(kickoff=NOW + timedelta(days=8))
+    missing = card()
+    missing["kickoff_utc"] = "bad timestamp"
+    assert len(A.edge_candidates(boundary, alerts, CFG, now=NOW)) == 1
+    assert A.edge_candidates(far, alerts, CFG, now=NOW) == []
+    assert A.edge_candidates(missing, alerts, CFG, now=NOW) == []
+    assert A.followup_candidates(far, _with_open_edge(), CFG, NOW) == []
+    assert A.collect_candidates(_ctx(), {"nfl": [far, missing]}, alerts, CFG, NOW, include_ops=False) == []
+    far_candidate = A.Candidate("edge|far", "edge", "nfl", "far", game_id=GID,
+                                kickoff_utc=NOW + timedelta(days=8))
+    p = A.plan([far_candidate], alerts, tg, NOW, CFG)
+    assert not p.send and not p.digest and not p.queued
+    pages = A.open_signal_summaries({"nfl": [far]}, CFG, NOW)
+    assert all("Seattle Seahawks" not in page.text for page in pages)
+
+
 def test_no_impact_never_alerts():
     alerts, _ = _fresh()
     assert A.edge_candidates(card(signal="No Impact"), alerts, CFG) == []
     assert A.edge_candidates(card(signal=None), alerts, CFG) == []
     assert A.edge_candidates(card([_edge(edge_pts=9.0, tier="strong")], signal="No Impact"), alerts, CFG) == []
     assert A._alertable_edges(card(signal="")) == []
+
+
+def test_cfb_wind_filter_overrides_stale_no_impact_for_alerts_and_snapshots():
+    alerts, _ = _fresh()
+    duke = card(sport="cfb", signal="No Impact", wind=23.66)
+    duke["weather"]["temp_fg"] = 66.16
+    duke["consensus"]["spread_open"] = 7.17
+    duke["signal"]["drivers"] = ["rain"]  # stale driver metadata cannot veto canonical wind.
+    # The dedicated CFB Wind filter is authoritative even if an old card's tier
+    # still says No Impact; 14 mph/70°F/±10 are strict/inclusive as documented.
+    assert len(A.edge_candidates(duke, alerts, CFG, now=NOW)) == 1
+    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "wind_fg": 14.0}}, alerts, CFG, now=NOW) == []
+    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "temp_fg": 70.0}}, alerts, CFG, now=NOW) == []
+    assert A.edge_candidates({**duke, "consensus": {**duke["consensus"], "spread_open": 10.01}}, alerts, CFG, now=NOW) == []
+    pages = A.open_signal_summaries({"cfb": [duke]}, CFG, NOW)
+    assert any("No open weather signals" not in page.text for page in pages)
 
 
 @pytest.mark.parametrize("sport,label", [("nfl", "Low Impact"), ("cfb", "Low (Rain)")])
@@ -228,7 +267,7 @@ def test_weather_signal_alerts_without_a_price_or_positive_model_edge():
         assert len(A.edge_candidates(c, alerts, CFG, now=NOW)) == 1
     c["odds"] = {}
     c["fair"] = {}
-    c["consensus"] = {}
+    c["consensus"] = {"spread_open": -3.0}
     got = A.edge_candidates(c, alerts, CFG, now=NOW)
     assert len(got) == 1
     assert "no posted price available" in got[0].text
@@ -282,6 +321,7 @@ def test_cfb_wide_opener_never_becomes_a_telegram_play():
         game_id="cfb:2026:1:maine@appalachian-state",
         signal=sig.level,
     )
+    maine["consensus"]["spread_open"] = -18.5
     maine["signal"]["drivers"] = list(sig.drivers)
     assert A.edge_candidates(maine, alerts, CFG) == []
 
@@ -540,6 +580,7 @@ def test_captured_uva_fsu_reactivation_then_unchanged_playwright_is_silent(tmp_p
     # The captured warm Low rain card no longer qualifies under the 50°F rule.
     # Use cold rain to keep exercising the duplicate reactivation regression.
     current["weather"]["temp_fg"] = 49.9
+    current.setdefault("consensus", {})["spread_open"] = -3.0
     ekey = replay["edge_key"]
     light_at = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
     playwright_at = datetime.fromisoformat(replay["playwright_at"].replace("Z", "+00:00"))
@@ -832,6 +873,27 @@ def test_openers_are_disabled_by_default_and_available_by_opt_in():
     assert A.opener_candidates("nfl", [windy], [], alerts, enabled, NOW) == []
     pstate.mark_alert(alerts, c[0].key, "t")
     assert A.opener_candidates("nfl", [windy], keys, alerts, enabled, NOW) == []
+
+
+def test_opener_digest_filters_far_members_and_expires_at_earliest_kickoff():
+    alerts, tg = _fresh()
+    near = card(game_id="nfl:2026:3:near@ne", kickoff=NOW + timedelta(days=6), wind=12)
+    far = card(game_id="nfl:2026:3:far@ne", kickoff=NOW + timedelta(days=8), wind=12)
+    keys = [f"{near['game_id']}|total|over|betcris", f"{far['game_id']}|total|over|betcris"]
+    cfg = A.Config(board_url=CFG.board_url, chat_default=CFG.chat_default, include_openers=True)
+    candidates = A.opener_candidates("nfl", [near, far], keys, alerts, cfg, NOW)
+    assert len(candidates) == 1
+    digest = candidates[0]
+    assert digest.kickoff_utc == NOW + timedelta(days=6)
+    assert "1 weather game(s)" in digest.text
+    assert A.plan(candidates, alerts, tg, NOW, cfg).send == candidates
+
+    # A stored aggregate cannot survive beyond its earliest member's kickoff.
+    queued = A._to_queue_item(digest, NOW)
+    assert A._queue_item_within_alert_window(queued, NOW, cfg)
+    assert not A._queue_item_within_alert_window(queued, NOW + timedelta(days=6), cfg)
+    # A malformed legacy game alert is not treated as an operational notice.
+    assert not A._queue_item_within_alert_window({"family": "edge"}, NOW, cfg)
 
 
 def test_ops_candidates_keys():

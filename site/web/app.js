@@ -91,10 +91,12 @@ function signalColor(sig) {
 // "Mid Impact" / "High Impact" / "Very High Impact"; the UI uses the short form.
 function signalLabel(sig) {
   const l = (sig && sig.label) || "No";
-  return String(l).replace(/\s*Impact$/i, "") || "No";
+  const short = String(l).replace(/\s*Impact$/i, "") || "No";
+  return short === "No" ? "No signal" : short;
 }
 function signalTier(sig) {
   const l = signalLabel(sig);
+  if (l === "No signal") return "No";
   return l.startsWith("Low") ? "Low" : l;
 }
 

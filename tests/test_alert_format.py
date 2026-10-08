@@ -452,11 +452,16 @@ def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "WEEKLY POST-MORTEM" in out and "postmortem digest: sent" in out
     tg = pstate.migrate(None, "telegram_state")
-    pstate.queue_alert(tg, {"key": "edge|k", "family": "edge", "sport": "nfl", "text": "<b>hi</b>", "record": {"family": "edge"}})
+    pstate.queue_alert(tg, {"key": "edge|k", "family": "edge", "sport": "nfl", "text": "<b>hi</b>",
+                            "kickoff_utc": (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat(),
+                            "record": {"family": "edge"}})
+    pstate.queue_alert(tg, {"key": "edge|missing-kickoff", "family": "edge", "sport": "nfl",
+                            "text": "<b>stale legacy item</b>", "record": {"family": "edge"}})
     pstate.save_telegram_state(tmp_path, tg)
     assert A.main(["--flush", "--state-dir", str(tmp_path), "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "MANUAL QUEUE · SNAPSHOT (1)" in out and "flush: 1 alert(s) in 1 message(s)" in out
+    assert "stale legacy item" not in out
     assert pstate.load_telegram_state(tmp_path)["queue"] != []   # dry-run keeps the queue
     assert A.main(["--state-dir", str(tmp_path)]) == 2
 

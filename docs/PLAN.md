@@ -26,7 +26,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - `requirements.txt` (playwright, playwright-stealth, httpx, beautifulsoup4, pandas, openpyxl, pyarrow, python-dotenv, curl_cffi, boto3, pydantic>=2, rapidfuzz, timezonefinder), `requirements-dev.txt` (pytest, ruff, shapely), `pyproject.toml` (ruff + pytest config), `.gitignore` (site/web/data/, data/backtest/, .env, .browser_profile/).
 - `CLAUDE.md` (project rules: sport threaded everywhere, raw-first, no data in git, test conventions from golf), `README.md`.
 - `.github/workflows/ci.yml`: ruff + pytest on PR/push (stub heavy deps via `sys.modules.setdefault` as in `golf_scraping/tests/test_betcris.py`).
-- Tests: `tests/test_impact_v1.py` (golden; log mismatches by boundary bucket; assert ≥0.97 exact within 1e-6 on percent scale), `tests/test_signals.py` (NFL order incl. purple-first, CFB DOW thresholds, combined flags — hand fixtures), `tests/test_state_migrate.py`, `tests/test_contracts.py`.
+- Tests: `tests/test_impact_v1.py` (golden; log mismatches by boundary bucket; assert ≥0.97 exact within 1e-6 on percent scale), `tests/test_signals.py` (NFL order incl. purple-first, canonical CFB Wind boundaries, combined flags — hand fixtures), `tests/test_state_migrate.py`, `tests/test_contracts.py`.
 
 ### Acceptance
 - `python scripts/recover_static.py` produces 32+ NFL stadium rows (2024+2025 names) and ≥120 CFB home-team rows; `data/raw/cfb_locations_updated.csv` has 658 rows.

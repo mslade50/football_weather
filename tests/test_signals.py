@@ -9,8 +9,8 @@ from pipeline.model.signals import (
     NO,
     VERY_HIGH,
     cfb_altitude_mid_trigger,
-    cfb_low_wind_threshold,
     cfb_signal,
+    cfb_wind_eligible,
     combined_color,
     combined_flags,
     dot_size,
@@ -19,7 +19,7 @@ from pipeline.model.signals import (
     wind_diff,
 )
 
-MON, WED, FRI, SAT, SUN = 0, 2, 4, 5, 6
+MON, SAT, SUN = 0, 5, 6
 
 
 # ---- NFL ---------------------------------------------------------------------
@@ -50,9 +50,9 @@ def test_rain_preserves_other_qualifying_signals() -> None:
     assert nfl_signal(16.0, 55.0, 3.0).level == MID
     assert nfl_signal(16.0, 40.0, 3.0).level == HIGH
     assert nfl_signal(9.0, 55.0, 3.0).drivers == ("wind",)
-    assert _cfb(wind=20.0, temp=60.0, rain=3.0).level == HIGH
+    assert _cfb(wind=23.0, temp=60.0, rain=3.0).level == HIGH
     assert _cfb(wind=3.0, temp=76.0, rain=3.0, alt=900.0).level == MID
-    assert _cfb(wind=9.0, temp=60.0, rain=3.0).label == "Low (Wind)"
+    assert _cfb(wind=15.0, temp=60.0, rain=3.0).label == "Low (Wind)"
 
 
 def test_nfl_low_wind_band() -> None:
@@ -86,37 +86,40 @@ def test_wind_diff() -> None:
 
 # ---- CFB ---------------------------------------------------------------------
 
-def test_cfb_dow_thresholds() -> None:
-    assert cfb_low_wind_threshold(MON) == 11.14
-    assert cfb_low_wind_threshold(WED) == 10.10
-    assert cfb_low_wind_threshold(FRI) == 9.31
-    assert cfb_low_wind_threshold(SAT) == 8.79
-    assert cfb_low_wind_threshold(SUN) == 11.93
-    assert cfb_low_wind_threshold(99) == 10.0
-
-
 def _cfb(wind, temp, rain=0.0, open_spread=-3.0, alt=0.0, home_temp=60.0, away_temp=60.0, weekday=SAT):
     return cfb_signal(wind, temp, rain, open_spread, alt, home_temp, away_temp, weekday)
 
 
 def test_cfb_very_high() -> None:
-    s = _cfb(wind=16.3, temp=45.0, open_spread=10.0, weekday=SAT)  # hi = 8.79+7.5 = 16.29
+    s = _cfb(wind=21.6, temp=45.0, open_spread=10.0, weekday=SAT)
     assert (s.level, s.color, s.size) == (VERY_HIGH, "darkred", 50)
-    assert _cfb(wind=16.2, temp=45.0, weekday=SAT).level == LOW  # below hi -> only low band
+    assert _cfb(wind=21.5, temp=45.0, weekday=SAT).level == LOW  # 21.5 is a strict severity boundary
 
 
 def test_cfb_high_spread_gate() -> None:
-    assert _cfb(wind=20.0, temp=60.0, open_spread=-10.0).level == HIGH
+    assert _cfb(wind=23.0, temp=60.0, open_spread=-10.0).level == HIGH
     assert _cfb(wind=20.0, temp=60.0, open_spread=-10.01).level == NO
     assert _cfb(wind=20.0, temp=60.0, open_spread=10.01).level == NO
 
 
 def test_cfb_dow_shifts_boundary() -> None:
-    # Sunday hi = 11.93+7.5 = 19.43; Saturday hi = 16.29.
-    assert _cfb(wind=18.0, temp=45.0, weekday=SAT).level == VERY_HIGH
+    # Weekday remains accepted for compatibility but no longer changes the wind rule.
+    assert _cfb(wind=18.0, temp=45.0, weekday=SAT).level == LOW
     assert _cfb(wind=18.0, temp=45.0, weekday=SUN).level == LOW
-    assert _cfb(wind=11.5, temp=45.0, weekday=SUN).level == NO
-    assert _cfb(wind=11.5, temp=45.0, weekday=MON).level == LOW
+    assert _cfb(wind=14.0, temp=45.0, weekday=SUN).level == NO
+    assert _cfb(wind=14.0, temp=45.0, weekday=MON).level == NO
+
+
+@pytest.mark.parametrize("wind,temp,spread,qualifies", [
+    (14.0, 69.9, 10.0, False), (14.01, 69.9, 10.0, True),
+    (20.0, 65.0, -10.0, True), (20.0, 69.999, 0.0, True),
+    (20.0, 70.0, 0.0, False), (20.0, 66.0, 10.01, False),
+    (20.0, 66.0, -10.01, False), (20.0, 66.0, None, False),
+])
+def test_cfb_wind_eligibility_exact_filter_boundaries(wind, temp, spread, qualifies):
+    assert cfb_wind_eligible(wind, temp, spread) is qualifies
+    signal = _cfb(wind=wind, temp=temp, open_spread=spread)
+    assert (signal.level != NO) is qualifies
 
 
 def test_cfb_mid_alt_heat() -> None:
@@ -135,11 +138,11 @@ def test_cfb_mid_alt_heat() -> None:
 @pytest.mark.parametrize(
     "weather",
     [
-        {"wind": 20.0, "temp": 45.0},
+        {"wind": 23.0, "temp": 45.0},
         {"wind": 2.0, "temp": 76.0, "alt": 801.0},
         {"wind": 2.0, "temp": 49.9, "rain": 2.5},
         {"wind": 2.0, "temp": 81.0, "home_temp": 56.0, "away_temp": 50.0},
-        {"wind": 9.0, "temp": 60.0},
+        {"wind": 15.0, "temp": 60.0},
     ],
 )
 @pytest.mark.parametrize("open_spread", [-10.01, 10.01, -18.5])
@@ -152,7 +155,7 @@ def test_cfb_low_colors() -> None:
     assert (rain.level, rain.color, rain.label) == (LOW, "black", "Low (Rain)")
     heat = _cfb(wind=2.0, temp=81.0, home_temp=56.0, away_temp=50.0)
     assert (heat.level, heat.color, heat.label) == (LOW, "red", "Low (Temp)")
-    windy = _cfb(wind=9.0, temp=60.0, weekday=SAT)
+    windy = _cfb(wind=15.0, temp=60.0, weekday=SAT)
     assert (windy.level, windy.color, windy.label, windy.size) == (LOW, "blue", "Low (Wind)", 15)
     # Warm rain no longer masks an independently qualifying heat signal.
     both = _cfb(wind=2.0, temp=81.0, rain=3.0, home_temp=50.0, away_temp=50.0)

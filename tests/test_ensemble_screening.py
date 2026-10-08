@@ -77,11 +77,12 @@ def test_climatology_weight_applied_to_raw_pair():
     assert decide(fc, loc).eligible
 
 
-def test_long_lead_does_not_widen_buffer_and_cfb_uses_actual_run_day():
+def test_long_lead_does_not_widen_buffer_and_cfb_uses_canonical_wind_rule():
     assert not decide(*case(wind=4.9, temp=60)).eligible
     assert not decide(*case(lead=144, wind=4.9, temp=60)).eligible
-    assert not decide(*case(wind=6.30, temp=65), sport="cfb").eligible
-    assert decide(*case(wind=9, temp=65), sport="cfb").eligible
+    assert not decide(*case(wind=10.9, temp=72), sport="cfb").eligible
+    assert decide(*case(wind=11, temp=72), sport="cfb").eligible
+    assert decide(*case(lead=144, wind=11, temp=72), sport="cfb").eligible
 
 
 def test_no_percentile_or_confidence_in_screen():
@@ -134,10 +135,10 @@ def test_cfb_boundary_or_unknown_opener_retains_near_signal_coverage(spread):
 
 
 def test_nws_purdue_tail_is_sent_to_detail_without_broadening_final_member_buffer():
-    fc, loc = case(wind=5.75, temp=70)
+    fc, loc = case(wind=10, temp=75)
     assert decide(fc, loc, sport="cfb", for_refinement=True).eligible
     assert not decide(fc, loc, sport="cfb").eligible
-    assert decide(*case(wind=6.7, temp=66.5), sport="cfb").eligible
+    assert decide(*case(wind=11, temp=72), sport="cfb").eligible
 
 
 def test_cfb_combined_wind_flag_uses_its_joint_temperature_boundary():

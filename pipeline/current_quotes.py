@@ -19,6 +19,157 @@ def expired(value, now: datetime) -> bool:
         return True
 
 
+def _datetime(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def _card_lines(card: dict) -> list | None:
+    """Rebuild the serialized main lines needed by the existing fair model.
+
+    Exchange quotes omit their raw probability from the display block; the fair
+    edge block retains that exact, already-devigged probability. If it is absent,
+    return None rather than replacing a precise exchange quote with rounded
+    American odds.
+    """
+    sport, game_id = card.get("sport"), card.get("game_id")
+    if sport not in ("nfl", "cfb") or not game_id:
+        return None
+    from pipeline.contracts import GameLine
+    from pipeline.model.fair import EXCHANGE_BOOKS
+
+    edge_probs = {}
+    for edge in (card.get("fair") or {}).get("edges") or []:
+        if not isinstance(edge, dict):
+            continue
+        key = (edge.get("book"), edge.get("market"), edge.get("side"))
+        edge_probs[key] = edge.get("vigfree_prob")
+
+    lines = []
+    for book, markets in (card.get("odds") or {}).items():
+        if not isinstance(markets, dict):
+            continue
+        for market, quote in markets.items():
+            if market not in ("spread", "total", "ml") or not isinstance(quote, dict) or quote.get("expired"):
+                continue
+            sides = []
+            if market == "spread":
+                home_line = quote.get("home_line")
+                if home_line is None:
+                    continue
+                if quote.get("home_odds") is not None:
+                    sides.append(("home", home_line, quote["home_odds"]))
+                if quote.get("away_odds") is not None:
+                    sides.append(("away", -home_line, quote["away_odds"]))
+            elif market == "total":
+                line = quote.get("line")
+                if line is None:
+                    continue
+                for side in ("over", "under"):
+                    if quote.get(side) is not None:
+                        sides.append((side, line, quote[side]))
+            else:
+                for side in ("home", "away"):
+                    if quote.get(side) is not None:
+                        sides.append((side, None, quote[side]))
+
+            for side, line, odds in sides:
+                if not isinstance(odds, int) or isinstance(odds, bool):
+                    return None
+                prob_raw = None
+                if book in EXCHANGE_BOOKS and market in ("spread", "total"):
+                    prob_raw = edge_probs.get((book, market, side))
+                    if not isinstance(prob_raw, (int, float)) or not 0 < prob_raw < 1:
+                        return None
+                lines.append(GameLine(
+                    sport=sport, game_id=game_id, book=book, market=market, side=side,
+                    odds=odds, line=line, prob_raw=prob_raw, is_main=True,
+                    scraped_at=_datetime(quote.get("updated_at")),
+                    source_updated_at=_datetime(quote.get("source_updated_at")),
+                    expires_at=_datetime(quote.get("expires_at")),
+                ))
+    return lines
+
+
+def _recompute_card(card: dict) -> bool:
+    """Refresh comparisons from surviving serialized quotes; preserve all openers."""
+    lines = _card_lines(card)
+    impact = card.get("impact") or {}
+    v1 = impact.get("v1")
+    if lines is None or not isinstance(v1, dict):
+        return False
+
+    from pipeline.model import fair as fair_mod
+    from pipeline.outputs import json_out
+
+    sport, game_id = card["sport"], card["game_id"]
+    wx = card.get("weather") or {}
+    stadium = card.get("stadium") or {}
+    v1_components = v1.get("components") or {}
+    args = {
+        "wind_vol_fc": wx.get("wind_vol_fc"),
+        "wind_vol_static": stadium.get("wind_vol_static"),
+        "model_disagreement": wx.get("model_disagreement"),
+        "lead_hours": wx.get("lead_hours"),
+    }
+    fair_v1 = fair_mod.evaluate_game(
+        sport, game_id, lines, v1.get("gs_fg_pct"), v1.get("away_fg_pct"),
+        rain_c=v1_components.get("rain"), **args,
+    )
+    fair_v2 = None
+    v2 = impact.get("v2")
+    if isinstance(v2, dict) and any(v2.get(key) is not None for key in ("gs_fg_pct", "away_fg_pct")):
+        v2_components = v2.get("components") or {}
+        fair_v2 = fair_mod.evaluate_game(
+            sport, game_id, lines, v2.get("gs_fg_pct"), v2.get("away_fg_pct"),
+            rain_c=v2_components.get("rain"), model_version="v2", **args,
+        )
+    selected = fair_v2 if impact.get("model_version") == "v2" and fair_v2 is not None else fair_v1
+
+    consensus = card.get("consensus") or {}
+    sp, total = selected.spread, selected.total
+    sp_now, total_now = sp.line, total.line
+    consensus.update({
+        "spread_now": sp_now,
+        "total_now": total_now,
+        "spread_src": sp.src or ("fallback" if sp_now is not None else None),
+        "move_s": sp_now - consensus["spread_open"] if sp_now is not None and consensus.get("spread_open") is not None else None,
+        "move_t": total_now - consensus["total_open"] if total_now is not None and consensus.get("total_open") is not None else None,
+        "ref_book": total.ref_book or sp.ref_book,
+        "n_books": max(sp.n_books, total.n_books),
+        "thin": max(sp.n_books, total.n_books) < 2,
+    })
+    card["consensus"] = consensus
+
+    legacy = None
+    legacy_fn = getattr(fair_mod, "legacy_derived", None)
+    if callable(legacy_fn):
+        ref = "fanduel" if sport == "cfb" else "betonline"
+        ref_total = (card.get("odds") or {}).get(ref, {}).get("total") or {}
+        current_total = ref_total.get("line")
+        if current_total is None:
+            current_total = total_now
+        legacy = legacy_fn(total_now, sp_now, current_total, v1.get("gs_fg_pct"), v1.get("away_fg_pct"))
+    card["fair"] = json_out.fair_block(selected, legacy, fair_v2)
+    card["total_prices"] = json_out.compare_totals(sport, lines, selected)
+
+    # Execution references must not outlive the only current total quote for a book.
+    if "execution_markets" in card:
+        card["execution_markets"] = [
+            ref for ref in card["execution_markets"]
+            if (card.get("odds") or {}).get(ref.get("book"), {}).get("total", {}).get("line") is not None
+            and not (card.get("odds") or {}).get(ref.get("book"), {}).get("total", {}).get("expired")
+        ]
+    return True
+
+
 def expire_card(card: dict, now: datetime) -> dict:
     card = deepcopy(card)
     removed = []
@@ -32,12 +183,21 @@ def expire_card(card: dict, now: datetime) -> dict:
             markets[market]["expired"] = True
     if removed:
         card["expired_markets"] = removed
-        # Other live books can still be inspected. Derived comparisons require a
-        # new calculation; never present a consensus that used an expired quote.
-        card["consensus"] = {**card.get("consensus", {}), **dict.fromkeys(
-            ("spread_now", "total_now", "move_s", "move_t", "spread_src", "ref_book")), "n_books": 0, "thin": True}
-        card["fair"] = {k: [] if k == "edges" else None for k in card.get("fair", {})}
-        card["total_prices"] = None
+        # Fresh book lines remain useful. Rebuild consensus/fair/edges from the
+        # surviving main quotes using the same model functions as the full build.
+        # Older/incomplete cards fail closed, while preserving historical openers.
+        try:
+            recomputed = _recompute_card(card)
+        except Exception:  # noqa: BLE001 - expire safely if a serialized card cannot be rehydrated
+            # Incomplete or malformed cards must never retain comparisons that
+            # might still include the expired quote.
+            recomputed = False
+        if not recomputed:
+            card["consensus"] = {**card.get("consensus", {}), **dict.fromkeys(
+                ("spread_now", "total_now", "move_s", "move_t", "spread_src", "ref_book")), "n_books": 0,
+                "thin": True}
+            card["fair"] = {k: [] if k == "edges" else None for k in card.get("fair", {})}
+            card["total_prices"] = None
     return card
 
 

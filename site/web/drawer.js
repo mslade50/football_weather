@@ -385,7 +385,7 @@ function renderDrawerTitle(g) {
   const spreadHead = isNum(c.spread_now)
     ? ` · spread ${fmtLine(c.spread_now)}${c.spread_src ? ` (${esc(c.spread_src)})` : ""}${isNum(c.total_now) ? ` · total ${fmtTotal(c.total_now)}` : ""}`
     : "";
-  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal)}`
+  document.getElementById("drawer-title").innerHTML = `${esc(gameLabel(g))} ${signalPill(g.signal, g)}`
     + `<span class="sub">${esc(kickoffLabel(g))} · ${esc((g.stadium && g.stadium.name) || "")} · ${esc(String(g.sport).toUpperCase())} wk ${esc(g.week)}${spreadHead}</span>`;
 }
 

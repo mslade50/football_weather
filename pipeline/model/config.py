@@ -95,9 +95,13 @@ AMBIGUOUS_BANDS = {
 # ---- signals (§7.4) ----------------------------------------------------------
 LOW_RAIN_TEMP_MAX_F = 50.0  # Low rain signals/notifications require strictly colder weather.
 NFL_WIND_VOL_LOW_BELOW = 11.99
-CFB_DOW_LOW_WIND: dict[int, float] = {0: 11.14, 1: 11.14, 2: 10.10, 3: 10.10, 4: 9.31, 5: 8.79, 6: 11.93}
-CFB_DOW_DEFAULT = 10.0
 CFB_HIGH_OFFSET = 7.5
+# CFB Wind is the user-facing eligibility rule shared by the Signals view and
+# Telegram: opening spread within ±10, temperature below 70°F, sustained wind
+# above 14 mph. Signal tiers describe severity after this gate; they cannot
+# suppress an otherwise qualifying wind game.
+CFB_WIND_MIN_MPH = 14.0
+CFB_WIND_MAX_TEMP_F = 70.0
 # Every CFB weather signal and combined-page flag is disqualified when the
 # absolute opening spread exceeds this value.
 CFB_OPEN_SPREAD_MAX = 10.0

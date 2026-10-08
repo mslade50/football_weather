@@ -105,7 +105,7 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
     assert "playwright install" not in light
     assert "grep -viE '^(playwright|playwright-stealth" in light
     build = _step(light, "Build board")
-    assert 'python -m pipeline.build --sport "$SPORT" --scope "$LIGHT_SCOPE" --print --run-id "$RUN_ID"' in build
+    assert 'python -m pipeline.build --sport "$SPORT" --scope "$LIGHT_SCOPE" --print --no-alerts --run-id "$RUN_ID"' in build
     assert "--legacy-dir" not in build   # legacy files stay in data/ and go to R2, never the repo root
     assert '[ "$LIGHT_SCOPE" = "full" ] && LIGHT_SCOPE=light' in build
     assert "${FORCE:+--force}" in build
@@ -135,23 +135,40 @@ def test_alert_history_is_read_only_optional_context(text: str, name: str):
 
 
 @pytest.mark.parametrize("name", ["Push to R2", "Push to R2 (playwright)"])
-def test_r2_put_loop_pushes_meta_last_with_retries(text: str, name: str):
+def test_r2_publisher_is_bounded_and_meta_remains_last(text: str, name: str):
     step = _step(text, name)
-    assert "for i in 1 2 3; do" in step
-    assert 'npx --yes wrangler@4 r2 object put "$R2_BUCKET/$1" --file="$2"' in step
-    assert "--remote && return 0" in step
-    assert "::error::R2 put $1 failed after 3 attempts" in step
-    assert 'put "raw/${p#data/raw_runs/}"' in step
-    assert 'put "snapshots/${p#data/snapshots/}"' in step
-    assert 'put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"' in step
-    assert 'put "legacy/cfb_weather.xlsx" data/cfb_weather.xlsx' in step
-    assert 'put "board/$f.json" "data/state/$f.json"' in step
-    assert '[ "$f" = "meta.json" ] && continue' in step
-    body = step.rstrip()
-    assert body.endswith('put "board/meta.json" "data/board/meta.json" "application/json"')
-    assert (step.index("data/raw_runs") < step.index("data/snapshots") < step.index("legacy/nfl_weather.csv")
-            < step.index("data/board/*.json") < step.index("$STATE_FILES") < step.rindex("board/meta.json"))
+    phases = ["python scripts/publish_r2.py raw", "python scripts/publish_r2.py snapshots",
+              "python scripts/publish_r2.py legacy", "python scripts/publish_r2.py board",
+              "python scripts/publish_r2.py state", "python scripts/publish_r2.py meta"]
+    assert all(phase in step for phase in phases)
+    assert [step.index(phase) for phase in phases] == sorted(step.index(phase) for phase in phases)
+    assert "python -m pipeline.current_quotes" in step
+    assert "--meta-file data/board/meta.json --prev-meta data/state/prev_meta.json" in step
+    assert step.index("python -m pipeline.current_quotes") < step.index("python scripts/publish_r2.py board")
+    assert step.index("python scripts/publish_r2.py state") < step.index("python scripts/publish_r2.py meta")
+    assert "PUBLISH_GUARD_ELAPSED" in step and "-gt 80" in step
+    assert "refusing to write the commit marker" in step
     assert "continue-on-error" not in step
+
+
+@pytest.mark.parametrize("name", ["Notify published board", "Notify published board (playwright)"])
+def test_notifications_follow_published_self_check(text: str, name: str):
+    job_name = "playwright" if name.endswith("(playwright)") else "light"
+    job = _job(text, job_name)
+    assert job.index("Self-check published board") < job.index(name)
+    assert "pipeline.published_alerts" in _step(job, name)
+    assert "TELEGRAM_MAX_LEAD_DAYS" in _step(job, name)
+    assert "inputs.scope || 'full') != 'weather'" in _step(job, name)
+
+
+def test_failed_run_receipts_recover_before_build_only_in_light_job(text: str):
+    light = _job(text, "light")
+    recovery = _step(light, "Recover receipts from recent failed runs")
+    assert "actions: read" in light
+    assert "GH_TOKEN: ${{ github.token }}" in recovery
+    assert light.index("Fetch wind-signal history") < light.index("Recover receipts from recent failed runs")
+    assert light.index("Recover receipts from recent failed runs") < light.index("Build board")
+    assert "Recover receipts from recent failed runs" not in _job(text, "playwright")
 
 
 @pytest.mark.parametrize("name", ["Archive to D1 (change-only)", "Archive to D1 (change-only, playwright)"])
@@ -186,7 +203,7 @@ def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
     assert "ref: main" not in pw   # no light-job commit to pick up any more
     assert "python -m playwright install --with-deps chromium" in pw
     build = _step(pw, "Build board (BetOnline)")
-    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --run-id "$RUN_ID" --merge-into-r2' in build
+    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2' in build
     assert "contents: write" not in pw
     order = ["Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]
@@ -206,11 +223,9 @@ def test_no_git_commit_step_remains(text: str):
 def test_legacy_files_uploaded_to_r2_legacy_prefix(text: str):
     for name in ("Push to R2", "Push to R2 (playwright)"):
         step = _step(text, name)
-        assert 'put "legacy/nfl_weather.csv" data/nfl_weather.csv "text/csv"' in step, name
-        assert ('put "legacy/cfb_weather.xlsx" data/cfb_weather.xlsx '
-                '"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"') in step, name
+        assert "python scripts/publish_r2.py legacy" in step, name
         # legacy/ lands before board payloads so a mid-loop failure never leaves new meta over old legacy
-        assert step.index("legacy/nfl_weather.csv") < step.index("data/board/*.json"), name
+        assert step.index("python scripts/publish_r2.py legacy") < step.index("python scripts/publish_r2.py board"), name
 
 
 def test_state_steps_never_continue_on_error(text: str):

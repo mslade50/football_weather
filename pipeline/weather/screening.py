@@ -10,14 +10,13 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from pipeline.contracts import WeatherForecast
 from pipeline.model import config as C
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.merge import hour_floor
 
-VERSION = "nws-first-joint-v6"
+VERSION = "nws-first-joint-v7"
 RAIN_TAIL_MM = 0.25  # Small model-window amounts can coexist with >2 mm member tails.
 
 
@@ -52,11 +51,10 @@ def screen(
     lead = forecast.lead_hours
     if not finite(lead) or lead < 0:
         return Decision(False, ("unknown_horizon",), 2)
-    clock = now or kickoff - timedelta(hours=lead)
-    weekday = clock.astimezone(ZoneInfo("America/New_York")).weekday()
-    base_wind = 8.0 if sport == "nfl" else C.CFB_DOW_LOW_WIND.get(weekday, C.CFB_DOW_DEFAULT)
+    base_wind = 8.0 if sport == "nfl" else C.CFB_WIND_MIN_MPH
+    base_temp = 60.0 if sport == "nfl" else C.CFB_WIND_MAX_TEMP_F
     wind_threshold = base_wind - (4.0 if for_refinement else 3.0)
-    temp_threshold = (60.0 if sport == "nfl" else 65.0) + (5.0 if for_refinement else 2.0)
+    temp_threshold = base_temp + (5.0 if for_refinement else 2.0)
     rain_threshold = 1.5
     window = {hour_floor(kickoff) + timedelta(hours=i) for i in range(3)}
     reasons = []
@@ -81,7 +79,11 @@ def screen(
         for row in rows:
             if finite(row.wind) and finite(row.temp):
                 wind, temp = pair(row.wind, row.temp)
-                if wind >= base_wind and temp <= (60.0 if sport == "nfl" else 65.0):
+                if sport == "cfb":
+                    reaches_signal = wind > C.CFB_WIND_MIN_MPH and temp < C.CFB_WIND_MAX_TEMP_F
+                else:
+                    reaches_signal = wind >= base_wind and temp <= base_temp
+                if reaches_signal:
                     pairs.append((wind, temp))
     if finite(forecast.wind_fg) and finite(forecast.temp_fg):
         pairs.append((forecast.wind_fg, forecast.temp_fg))
@@ -96,7 +98,9 @@ def screen(
                                 "outside_documented_horizon",), 2)
     if any(wind >= wind_threshold and temp <= temp_threshold for wind, temp in pairs):
         reasons.append("joint_wind_temperature")
-    if sport == "cfb" and any(wind >= 14 - (4.0 if for_refinement else 3.0) and temp <= 70 + (5.0 if for_refinement else 2.0) for wind, temp in pairs):
+    if sport == "cfb" and any(wind >= C.CFB_WIND_MIN_MPH - (4.0 if for_refinement else 3.0)
+                               and temp <= C.CFB_WIND_MAX_TEMP_F + (5.0 if for_refinement else 2.0)
+                               for wind, temp in pairs):
         reasons.append("joint_cfb_wind_flag")
     if any(rain >= rain_threshold for rain in rain_totals):
         reasons.append("game_window_rain")

@@ -60,6 +60,7 @@ from typing import Any, Optional
 from pipeline import state as pstate
 from pipeline.alert_liquidity import enrich_liquidity
 from pipeline.model import config as model_config
+from pipeline.model import signals as model_signals
 from pipeline.model.wind_history import stadium_wind_history
 from pipeline.stadiums.roofs import weather_exposed
 from utils.env import load_repo_dotenv
@@ -87,6 +88,7 @@ SIGNAL_NONE = "No Impact"        # pipeline.model.signals.NO — the only label 
 SIGNAL_SLUGS = (("very high", "very_high"), ("high", "high"), ("mid", "mid"), ("low", "low"))
 TIER_RANK = {"low": 1, "mid": 2, "high": 3, "very_high": 4}
 DEFAULT_MIN_TIER = "low"
+DEFAULT_MAX_LEAD_DAYS = 7
 DEFAULT_INCLUDE_OPENERS = False
 STABLE_PLAY_BOOK = "best"        # key identity; the record still stores the actual book
 BYPASS_TIERS = ("high", "very_high")   # signal tiers that bypass quiet hours / sort first
@@ -164,6 +166,7 @@ class Config:
     chat_default: Optional[str] = None
     chat_by_sport: dict[str, str] = field(default_factory=dict)
     max_per_run: int = MAX_PER_RUN
+    max_lead_days: int = DEFAULT_MAX_LEAD_DAYS
     min_tier: str = DEFAULT_MIN_TIER
     include_openers: bool = DEFAULT_INCLUDE_OPENERS
     system_alerts: bool = False
@@ -185,6 +188,10 @@ class Config:
             max_per_run = max(2, min(20, int(e.get("TELEGRAM_MAX_PER_RUN") or MAX_PER_RUN)))
         except (TypeError, ValueError):
             max_per_run = MAX_PER_RUN
+        try:
+            max_lead_days = max(0, int(e.get("TELEGRAM_MAX_LEAD_DAYS") or DEFAULT_MAX_LEAD_DAYS))
+        except (TypeError, ValueError):
+            max_lead_days = DEFAULT_MAX_LEAD_DAYS
         include_openers = str(e.get("TELEGRAM_INCLUDE_OPENERS") or "0").strip().lower() in ("1", "true", "yes", "on")
         system_alerts = str(e.get("TELEGRAM_SYSTEM_ALERTS") or "0").strip().lower() in ("1", "true", "yes", "on")
         return cls(
@@ -192,6 +199,7 @@ class Config:
             chat_default=e.get("TELEGRAM_CHAT_ID") or None,
             chat_by_sport=by_sport,
             max_per_run=max_per_run,
+            max_lead_days=max_lead_days,
             min_tier=min_tier,
             include_openers=include_openers,
             system_alerts=system_alerts,
@@ -562,7 +570,29 @@ def _opener_for(card: dict[str, Any], edge: dict[str, Any]) -> Optional[float]:
 
 def _signal_label(card: dict[str, Any]) -> Optional[str]:
     lbl = (card.get("signal") or {}).get("label")
+    if card.get("sport") == "cfb":
+        weather = card.get("weather") or {}
+        spread_open = (card.get("consensus") or {}).get("spread_open")
+        # Recompute from published inputs so stale tier labels or CFB Wind flags
+        # cannot bypass the canonical filter. This preserves valid rain, heat and
+        # altitude signals even when an older card's wind tier is no longer valid.
+        return model_signals.cfb_signal(
+            weather.get("wind_fg"), weather.get("temp_fg"), weather.get("rain_fg"), spread_open,
+            card.get("travel_alt"), card.get("home_temp"), card.get("away_temp"), weekday=0,
+        ).label
     return str(lbl).strip() if lbl else None
+
+
+def _signal_flags(card: dict[str, Any]) -> list[str]:
+    signal = card.get("signal") or {}
+    if card.get("sport") != "cfb":
+        return [str(flag) for flag in (signal.get("flags") or []) if flag]
+    weather = card.get("weather") or {}
+    return model_signals.combined_flags(
+        "cfb", weather.get("wind_fg"), weather.get("temp_fg"),
+        (card.get("consensus") or {}).get("spread_open"), card.get("travel_alt"),
+        card.get("home_temp"), card.get("away_temp"),
+    )
 
 
 def _in_signal(card: dict[str, Any]) -> bool:
@@ -591,7 +621,7 @@ def _wx_numbers(card: dict[str, Any]) -> str:
 
 
 def _signal_line(card: dict[str, Any]) -> str:
-    flags = [str(f) for f in ((card.get("signal") or {}).get("flags") or []) if f]
+    flags = _signal_flags(card)
     line = f"<b>{html.escape(_signal_label(card) or '?')}</b> · {_wx_numbers(card)}"
     return f"{line} · {html.escape(', '.join(flags))}" if flags else line
 
@@ -981,7 +1011,7 @@ def open_signal_summaries(cards_by_sport: dict[str, Sequence[dict[str, Any]]], c
     summaries = []
     for sport, cards in cards_by_sport.items():
         active = {str(c.get("game_id")): c for c in cards
-                  if _qualifying_signal(c, cfg) and (_dt(c.get("kickoff_utc")) or now) > now
+                  if _qualifying_signal(c, cfg) and _card_within_alert_window(c, now, cfg)
                   and not re.search(r"final|cancel|postpon|suspend|live|progress", str(c.get("status") or ""), re.I)}
         heading = (f"<b>OPEN SIGNALS · {html.escape(SPORT_LABEL.get(sport, sport.upper()))} · {len(active)}</b>"
                    f"\nAs of {to_et(now).strftime('%a %m/%d %I:%M %p %Z')}")
@@ -1092,11 +1122,35 @@ def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
         return False
     label = _signal_label(card)
     signal = card.get("signal") or {}
-    if signal_slug(label) == "low" and ("rain" in (signal.get("drivers") or []) or "rain" in (label or "").lower()):
+    rain_driver = "rain" in (label or "").lower()
+    if card.get("sport") != "cfb":
+        rain_driver = rain_driver or "rain" in (signal.get("drivers") or [])
+    if signal_slug(label) == "low" and rain_driver:
         temp = _num((card.get("weather") or {}).get("temp_fg"))
         if temp is None or temp >= model_config.LOW_RAIN_TEMP_MAX_F:
             return False
     return _tier_at_least(label, cfg.min_tier)
+
+
+BETTING_GAME_FAMILIES = {"edge", "wx", "move", "gone", "openers"}
+
+
+def _within_alert_window(kickoff: Optional[datetime], now: datetime, cfg: Config) -> bool:
+    """Require a valid future kickoff no farther away than the betting horizon."""
+    if kickoff is None:
+        return False
+    delta = kickoff - now
+    return timedelta(0) < delta <= timedelta(days=cfg.max_lead_days)
+
+
+def _card_within_alert_window(card: dict[str, Any], now: datetime, cfg: Config) -> bool:
+    return _within_alert_window(_dt(card.get("kickoff_utc")), now, cfg)
+
+
+def _queue_item_within_alert_window(item: dict[str, Any], now: datetime, cfg: Config) -> bool:
+    if item.get("family") in BETTING_GAME_FAMILIES:
+        return _within_alert_window(_dt(item.get("kickoff_utc")), now, cfg)
+    return True
 
 
 def _alertable_edges(card: dict[str, Any], cfg: Optional[Config] = None) -> list[dict[str, Any]]:
@@ -1154,7 +1208,7 @@ def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Opt
     if now is not None:
         card = dict(card, _alert_at=utc_iso(now))
         kickoff = _dt(card.get("kickoff_utc"))
-        if kickoff is not None and now >= kickoff:
+        if not _within_alert_window(kickoff, now, cfg):
             return []
     out = []
     for e in _alertable_edges(card, cfg):
@@ -1238,7 +1292,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
     out: list[Candidate] = []
     game_id = str(card.get("game_id") or "")
     kick = _dt(card.get("kickoff_utc"))
-    if kick is not None and now >= kick:
+    if not _within_alert_window(kick, now, cfg):
         return out
     wx = card.get("weather") or {}
     label_now = _signal_label(card)
@@ -1420,7 +1474,7 @@ def opener_candidates(sport: str, cards: Sequence[dict[str, Any]], new_keys: Ite
         if not keys:
             continue
         kickoff = _dt(card.get("kickoff_utc"))
-        if kickoff is not None and now >= kickoff:
+        if not _within_alert_window(kickoff, now, cfg):
             continue
         gs = _num(_impact(card).get("gs_fg_pct"))
         wind = _num((card.get("weather") or {}).get("wind_fg"))
@@ -1432,7 +1486,9 @@ def opener_candidates(sport: str, cards: Sequence[dict[str, Any]], new_keys: Ite
     key = f"openers|{sport}|{season}|{week}|{et_day(now)}"
     if pstate.alert_sent(alerts, key):
         return []
+    earliest_kickoff = min(_dt(card.get("kickoff_utc")) for card, _ in items)
     return [Candidate(key, "openers", sport, format_openers(sport, season, week, items, cfg.board_url),
+                      kickoff_utc=earliest_kickoff,
                       record={"family": "openers", "sport": sport, "season": season, "week": week, "run_id": run_id})]
 
 
@@ -1528,6 +1584,8 @@ def collect_candidates(
     out: list[Candidate] = []
     for sport, cards in cards_by_sport.items():
         for card in cards:
+            if not _card_within_alert_window(card, now, cfg):
+                continue
             out += followup_candidates(card, alerts, cfg, now, run_id)   # before new EDGEs: a key gone this run never MOVEs
             out += edge_candidates(card, alerts, cfg, run_id, now)
         out += opener_candidates(sport, cards, (new_keys_by_sport or {}).get(sport) or [], alerts, cfg, now, run_id)
@@ -1565,6 +1623,8 @@ def plan(candidates: Sequence[Candidate], alerts: dict, tg: dict, now: datetime,
     fresh: list[Candidate] = []
     seen: set[str] = set()
     for c in candidates:
+        if c.family in BETTING_GAME_FAMILIES and not _within_alert_window(c.kickoff_utc, now, cfg):
+            continue
         if c.key in seen:
             continue
         seen.add(c.key)
@@ -1697,7 +1757,8 @@ def _mark(c: Candidate, alerts: dict, now: datetime, outcome: Outcome) -> None:
     outcome.sent.append(c)
 
 
-def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, cfg: Config) -> Callable[[Candidate], bool]:
+def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, cfg: Config,
+                checkpoint: Optional[Callable[[], None]] = None) -> Callable[[Candidate], bool]:
     """Closure from golf build.py L2494-2502: check marker → send → mark only on success."""
     def _once(c: Candidate) -> bool:
         if c.family == "gone":
@@ -1717,6 +1778,8 @@ def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, c
             ok = False
         if ok:
             _mark(c, alerts, now, outcome)
+            if checkpoint is not None:
+                checkpoint()  # Stop delivery if the durable receipt cannot be saved.
             logger.warning(f"alerted [{c.key}]")
         else:
             outcome.failed.append(c)
@@ -1725,7 +1788,7 @@ def _alert_once(sender: Sender, alerts: dict, now: datetime, outcome: Outcome, c
 
 
 def _send_group(title: str, members: Sequence[Candidate], sender: Sender, alerts: dict, now: datetime,
-                outcome: Outcome, cfg: Config) -> None:
+                outcome: Outcome, cfg: Config, checkpoint: Optional[Callable[[], None]] = None) -> None:
     """One digest per chat; members marked only when their digest message went out."""
     by_chat: dict[Optional[str], list[Candidate]] = {}
     for c in members:
@@ -1749,11 +1812,14 @@ def _send_group(title: str, members: Sequence[Candidate], sender: Sender, alerts
         if ok_all:
             for c in pending:
                 _mark(c, alerts, now, outcome)
+            if checkpoint is not None:
+                checkpoint()
         else:
             outcome.failed.extend(pending)
 
 
-def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config) -> Outcome:
+def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config,
+             checkpoint: Optional[Callable[[], None]] = None) -> Outcome:
     outcome = Outcome()
     for c in p.silent:
         # Reconcile state without claiming a message was sent or adding a feed item.
@@ -1766,15 +1832,15 @@ def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config) 
                         parent[name] = c.record[name]
                 parent.update(status="closed", notification_active=False)
                 outcome.records.append(parent)
-    once = _alert_once(sender, alerts, now, outcome, cfg)
+    once = _alert_once(sender, alerts, now, outcome, cfg, checkpoint)
     if p.flush:
-        _send_group("MORNING SUMMARY", [_from_queue_item(q) for q in p.flush], sender, alerts, now, outcome, cfg)
+        _send_group("MORNING SUMMARY", [_from_queue_item(q) for q in p.flush], sender, alerts, now, outcome, cfg, checkpoint)
     for c in p.send:
         once(c)
     if p.digest:
-        _send_group("SUMMARY", p.digest, sender, alerts, now, outcome, cfg)
+        _send_group("SUMMARY", p.digest, sender, alerts, now, outcome, cfg, checkpoint)
     if p.ops:
-        _send_group("SYSTEM", p.ops, sender, alerts, now, outcome, cfg)
+        _send_group("SYSTEM", p.ops, sender, alerts, now, outcome, cfg, checkpoint)
     pstate.prune_alert_records(alerts)
     return outcome
 
@@ -1827,6 +1893,7 @@ def run_alerts(
     cfg: Optional[Config] = None,
     now: Optional[datetime] = None,
     fetch_rows: Optional[Callable[[], Any]] = None,
+    receipt_checkpoint: Optional[Callable[[dict, dict], None]] = None,
 ) -> AlertsRun:
     """Collect → plan → dispatch → persist. With ``enabled=False`` or ``dry_run``
     the candidates are printed with their keys and nothing is sent or marked."""
@@ -1842,7 +1909,7 @@ def run_alerts(
                              for card in cards] for sport, cards in cards_by_sport.items()}
     if enabled and not dry_run:
         enrich_liquidity([card for cards in cards_by_sport.values() for card in cards
-                          if _qualifying_signal(card, cfg) and (_dt(card.get("kickoff_utc")) or now) > now])
+                          if _qualifying_signal(card, cfg) and _card_within_alert_window(card, now, cfg)])
         if not supplied_now:
             now = now_utc()
     cands = collect_candidates(ctx, cards_by_sport, alerts, cfg, now, new_keys_by_sport=new_keys_by_sport,
@@ -1856,7 +1923,8 @@ def run_alerts(
         return AlertsRun(cands, Plan(), Outcome(), alerts, tg, source)
     p = plan(cands, alerts, tg, now, cfg)
     send = sender or default_sender()
-    outcome = dispatch(p, alerts, send, now, cfg)
+    checkpoint = (lambda: receipt_checkpoint(alerts, tg)) if receipt_checkpoint is not None else None
+    outcome = dispatch(p, alerts, send, now, cfg, checkpoint)
     # Signal/update candidates already dedupe against persisted state. A complete
     # snapshot after every stage repeated those plays and bypassed quiet hours.
     snapshots = open_signal_summaries(cards_by_sport, cfg, now) if cfg.open_signal_snapshots else []
@@ -1872,6 +1940,8 @@ def run_alerts(
             outcome.failed.append(snapshot)
     pstate.save_alerts(state_dir, alerts)
     pstate.save_telegram_state(state_dir, tg)
+    if checkpoint is not None:
+        checkpoint()
     print(f"  alerts: {outcome.n_sent} sent in {outcome.n_messages} message(s), {len(p.queued)} queued, "
           f"{len(p.digest)} digested, {len(p.flush)} flushed, {len(p.skipped)} dedup, {len(outcome.failed)} failed")
     return AlertsRun(cands, p, outcome, alerts, tg, source)
@@ -2154,8 +2224,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for q in pstate.drain_queue(tg):
             if pstate.alert_sent(alerts, q.get("key") or ""):
                 continue
-            kickoff = _dt(q.get("kickoff_utc"))
-            if q.get("game_id") and kickoff is not None and now >= kickoff:
+            if not _queue_item_within_alert_window(q, now, cfg):
                 continue
             queued.append(q)
         outcome = Outcome()

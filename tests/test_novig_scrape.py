@@ -96,3 +96,19 @@ def test_empty_league_is_valid(monkeypatch):
     monkeypatch.setattr(novig.NovigScraper, "_gql", gql)
     monkeypatch.delenv("BOOK_NOVIG_ENABLED", raising=False)
     assert asyncio.run(novig.NovigScraper().scrape("cfb")) == []
+
+
+def test_unsupported_bulk_query_is_reported_without_repeating_it(monkeypatch):
+    calls = []
+
+    async def gql(self, client, query, variables):
+        calls.append(variables)
+        return {"errors": [{"message": "query is not allowed"}]}
+
+    monkeypatch.setattr(novig.NovigScraper, "_gql", gql)
+    scraper = novig.NovigScraper()
+    rows = asyncio.run(scraper.scrape_with_retry("nfl"))
+
+    assert rows == []
+    assert len(calls) == 1
+    assert "supported bulk feed or authenticated access is required" in scraper.fetch_errors["nfl"]

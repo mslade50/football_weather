@@ -358,9 +358,9 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 
 ### 7.4 Signals (`model/signals.py`, ported from pages/*)
 - NFL (evaluate highest tier first): `wind_fg>15 and 32≤temp_fg≤45` → High/purple/40; `wind_fg>15 and temp_fg<60` → Mid/orange/25; `(rain_fg>2 and temp_fg<50)` or `(8<wind_fg<15 and temp_fg<60)` → Low/blue/15; else No/green/7. `wind_vol` forced 'Low' when wind_fg<11.99. `wind_diff = wind_fg − avg_wind`.
-- CFB: every weather signal first requires `|consensus.spread_open|≤10`; a missing or wider opening spread is No Impact. DOW base `{Mon:11.14,Tue:11.14,Wed:10.10,Thu:10.10,Fri:9.31,Sat:8.79,Sun:11.93}` (DOW of run, ET); `hi = base+7.5`: Very High (darkred,50): wind>hi & temp<50; High (purple,40): wind>hi & temp<65; Mid (orange,25): travel_alt>800 & temp>75; Low: (wind>base & temp<65) or (rain_fg>2 & temp_fg<50) or (temp>80 & home_temp<57 & away_temp<57) → colors black 'Low (Rain)' if the cold-rain condition holds, red 'Low (Temp)' if heat cond, else blue 'Low (Wind)', size 15; No (green,7).
+- CFB: every weather signal first requires `|consensus.spread_open|≤10`; a missing or wider opening spread is No Impact. The canonical CFB Wind filter is wind>14 mph and temp<70°F. It guarantees at least Low (Wind); wind>21.5 with temp<65 is High, and wind>21.5 with temp<50 is Very High. These higher tiers describe severity and do not change eligibility. Mid (orange,25): travel_alt>800 & temp>75; Low rain: rain_fg>2 & temp_fg<50; Low heat: temp>80 & home_temp<57 & away_temp<57. Low rain is black, Low heat red, Low wind blue; No is green (7).
 - Low rain requires a known game-window temperature strictly below 50°F for both sports. The notification gate also rejects stale Low rain cards at 50°F or warmer (or with missing temperature), excluding new alerts, follow-ups, queued alerts and open-signal summaries; previously active signals close silently. Other qualifying drivers and Mid-or-higher tiers remain eligible.
-- Combined flags: every CFB flag first requires `|consensus.spread_open|≤10`; `CFB Wind`: temp<70 & wind>14; `NFL Wind`: wind>15 & temp<60; `Heat`: home_temp<57 & away_temp<57 & temp>80; `Alt+Heat` (CFB): travel_alt>800 & temp>75. Colors purple/blue/red/saddlebrown; `dot_size = |gs_fg_pct|*4+7` (NOTE: old NFL used fraction → ≈7; new uses percent for both, marked improvement).
+- Combined flags: every CFB flag first requires `|consensus.spread_open|≤10`; `CFB Wind`: temp<70 & wind>14; `NFL Wind`: wind>15 & temp<60; `Heat`: home_temp<57 & away_temp<57 & temp>80; `Alt+Heat` (CFB): travel_alt>800 & temp>75. The CFB Wind rule is authoritative for the CFB signal tier and Telegram: a qualifying game is at least Low (Wind), regardless of the former weekday thresholds or the 65°F tier cutoff. CFB wind becomes High above 21.5 mph when temp<65°F, Very High above 21.5 mph when temp<50°F; these are severity labels, never eligibility gates. Colors purple/blue/red/saddlebrown; `dot_size = |gs_fg_pct|*4+7` (NOTE: old NFL used fraction → ≈7; new uses percent for both, marked improvement).
 - Backtest bucket lookup reproduces `pages/cfb_weather.py` first-match semantics against `backtest.json`.
 
 ### 7.5 v2 (additive, `model_version='v2'`, shown side by side)
@@ -407,30 +407,33 @@ crons = [
 
 ### 9.2 `pipeline.yml`
 ```
-on: workflow_dispatch {sport: nfl|cfb|all (default all), scope: full|light (default light), force: bool}
+on: workflow_dispatch {sport: nfl|cfb|all (default all), scope: weather|light|full|exchanges (default full), force: bool, safe_refresh: bool}
     schedule: ['17 9,14,20 * * *']    # UTC backstop ≈ old 05:15/10:00/16:20 ET cadence, off-the-minute
 concurrency: group football-refresh, cancel-in-progress: false
 jobs:
   gate:  ubuntu-latest, 3 min. checkout; setup-python 3.11; pip install httpx; python -m pipeline.gate_check --sport
          outputs: run (skip|scrape), need_playwright (true when scope==full and any book playwright-enabled). fail-open.
-  light: needs gate; if run==scrape; timeout 15. checkout; setup-python 3.11 (pip cache); setup-node 20;
+  light: needs gate; if run==scrape; timeout 30. checkout; setup-python 3.11 (pip cache); setup-node 20;
          pip install -r requirements.txt (no playwright);
          R2 state get loop (wrangler r2 object get football-board/board/$f.json --remote) for
            openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings
            -> on non-NoSuchKey error: exit 1;
-         python -m pipeline.build --sport $sport --scope light --run-id $RUN_ID;
-         (Phase 1-2 only) git commit legacy files with 3-attempt pull --rebase -X theirs --autostash loop;
-         R2 put loop: raw/ manifest, snapshots, data payloads, state files, meta.json LAST (3 retries each, --remote);
+         recover recent sent-alert receipts from failed main-branch Actions artifacts before build;
+         python -m pipeline.build --sport $sport --scope light --run-id $RUN_ID --no-alerts;
+         bounded R2 uploads (8 workers): raw/, snapshots/, freshness guard and content-floor preflight,
+           legacy/, board payloads, state files, meta.json LAST (bounded retries, --remote);
          d1 execute --remote --yes --file=data/d1_inserts.sql if hashFiles;
          python -m pipeline.outputs.r2 --self-check (re-fetch meta, assert run_id, content floor);
-         upload-artifact logs.
-  playwright: needs [gate, light]; if need_playwright==true; timeout 12. setup-python; pip install playwright playwright-stealth;
+         verify published run and notify through pipeline.published_alerts, checkpointing receipts after sends;
+         upload-artifact logs. Safe refresh and weather-only scope skip notification.
+  playwright: needs [gate, light]; if need_playwright==true; timeout 30. setup-python; pip install playwright playwright-stealth;
          python -m playwright install --with-deps chromium;
-         python -m pipeline.build --sport $sport --scope odds --books betonline,fanduel_pw --merge-into-r2
-           (fetches board/games_*.json + state, re-runs merge/fair/edges/alerts for changed rows, republishes meta last);
+         python -m pipeline.build --sport $sport --scope odds --books betonline,betcris --merge-into-r2 --no-alerts
+           (fetches board/games_*.json + state, reuses same-workflow weather inputs, re-runs merge/fair/edges);
+         publish, archive, self-check and notify in the same order as light;
   notify_failure: needs [gate, light, playwright]; one optional run-level page when `TELEGRAM_SYSTEM_ALERTS=1`.
 ```
-Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minutes` 20 total.
+The 30-minute per-build backstop accommodates cold weather retrievals. Upload concurrency avoids serial CLI startup overhead. A 120-second quote-freshness reserve and an 80-second critical-upload budget prevent a delayed final marker from claiming stale prices.
 
 ### 9.3 Other workflows
 - `deploy.yml`: on push paths `site/**` → `wrangler d1 migrations apply football-odds --remote` then `cloudflare/wrangler-action@v3` deploy from `site/worker`.
@@ -446,7 +449,7 @@ Runtime targets: gate 20 s, light 2–3 min, playwright 3–4 min. `timeout-minu
 Transport: `utils/telegram.py` `send_message` (HTML). Dedup: `alerts.json` `{sent:{key:ts}}` copied from golf `board/state.py`, ALERTS_CAP 500, mark ONLY after successful send, R2 round-trip, mirrored to D1 `alerts`; rehydrate from D1 if R2 missing. Every sent alert also appended to `alerts_feed.json`.
 
 Families and keys:
-1. **SIGNAL / EDGE record** `edge|{season}|{week}|{game_id}|total|under|best|{model_version}` — one game-level notification identity independent of the current best book or a v1→v2 model promotion. The default gate is signal tier **Low or higher**, including CFB Low Wind; nothing new is sent at or after kickoff. Missing prices, missing fair totals, and zero/negative edges never veto weather notifications. `TELEGRAM_MIN_TIER` can raise the weather minimum; `TELEGRAM_MIN_EDGE_PTS` is no longer used. Current total prices use fresh ROI rankings (vig, estimated push probabilities and fair total); without a valid comparison a fresh posted price may be shown with comparison unavailable. Stale or missing quotes are labeled unavailable. Message:
+1. **SIGNAL / EDGE record** `edge|{season}|{week}|{game_id}|total|under|best|{model_version}` — one game-level notification identity independent of the current best book or a v1→v2 model promotion. The default gate is signal tier **Low or higher**, including CFB Low Wind; no game alert is eligible without a valid future kickoff within `TELEGRAM_MAX_LEAD_DAYS` (default 7), and none are sent at or after kickoff. Missing prices, missing fair totals, and zero/negative edges never veto weather notifications. `TELEGRAM_MIN_TIER` can raise the weather minimum; `TELEGRAM_MIN_EDGE_PTS` is no longer used. Current total prices use fresh ROI rankings (vig, estimated push probabilities and fair total); without a valid comparison a fresh posted price may be shown with comparison unavailable. Stale or missing quotes are labeled unavailable. Message:
 ```
 🎯 <b>SIGNAL · MID · NFL W3</b>
 <b>SEA @ NE</b> · Sun 1:00p ET

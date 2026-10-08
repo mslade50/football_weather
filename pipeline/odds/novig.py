@@ -13,6 +13,7 @@ the POST is retried through curl_cffi with Chrome TLS impersonation
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import Callable
@@ -57,12 +58,20 @@ MARKET_LIMIT = 10_000
 Capture = Callable[[str, Any, str | None], Any]
 
 
+class NovigBulkFeedUnavailable(RuntimeError):
+    """The anonymous GraphQL bulk feed rejected the scraper's operation."""
+
+
 class NovigScraper(BaseScraper):
     BOOK_NAME = "novig"
 
     def __init__(self, headless: bool = True, timeout: float = 30.0) -> None:
         self.timeout = timeout
         self.last_transport: str | None = None
+        # BaseScraper retries transient failures. A rejected, allowlisted
+        # operation is deterministic, so surface it once through build's
+        # existing fetch_errors/degradation path instead of repeating it.
+        self.fetch_errors: dict[str, str] = {}
 
     async def _gql(self, client: httpx.AsyncClient | None, query: str, variables: dict | None = None) -> dict:
         payload: dict[str, Any] = {"operationName": "HotMarkets_Query", "query": query}
@@ -94,6 +103,14 @@ class NovigScraper(BaseScraper):
             }
             data = await self._gql(None, MARKETS_QUERY, variables)
             if data.get("errors"):
+                messages = [str(error.get("message") or "") for error in data["errors"] if isinstance(error, dict)]
+                if any("query is not allowed" in message.lower() for message in messages):
+                    raise NovigBulkFeedUnavailable(
+                        f"NoVig rejected the anonymous bulk GraphQL query for the {group} market set "
+                        "('query is not allowed'). "
+                        "Its public v3 API only reads already-known market IDs, so the scraper cannot "
+                        "discover current main lines. A supported bulk feed or authenticated access is required."
+                    )
                 raise RuntimeError(f"Novig GraphQL errors ({group}): {data['errors']}")
             markets = (data.get("data") or {}).get("market")
             if not isinstance(markets, list):
@@ -102,6 +119,27 @@ class NovigScraper(BaseScraper):
                 raise RuntimeError(f"Novig {group} reached {MARKET_LIMIT} markets; refusing truncated data")
             responses[group] = data
         return responses
+
+    async def scrape_with_retry(
+        self, sport: str, market: str | None = None, **kwargs: Any
+    ) -> list[GameLine]:
+        """Retry transient failures, but do not repeat an explicitly rejected query."""
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                logger.info(f"[{self.BOOK_NAME}] {sport} attempt {attempt}/{self.MAX_RETRIES}")
+                lines = await self.scrape(sport, market=market, **kwargs)
+                self.fetch_errors.pop(sport, None)
+                logger.info(f"[{self.BOOK_NAME}] {sport}: got {len(lines)} lines")
+                return lines
+            except NovigBulkFeedUnavailable as exc:
+                self.fetch_errors[sport] = str(exc)
+                logger.error(f"[{self.BOOK_NAME}] {sport}: {exc}")
+                return []
+            except Exception as exc:
+                logger.error(f"[{self.BOOK_NAME}] {sport} attempt {attempt} failed: {exc}")
+                if attempt < self.MAX_RETRIES:
+                    await asyncio.sleep(self.RETRY_DELAY * attempt)
+        return []
 
     async def scrape(
         self,
@@ -130,4 +168,4 @@ class NovigScraper(BaseScraper):
         return lines
 
 
-__all__ = ["NovigScraper", "GRAPHQL_URL", "MARKETS_QUERY", "HEADERS", "CURL_HEADERS"]
+__all__ = ["NovigScraper", "NovigBulkFeedUnavailable", "GRAPHQL_URL", "MARKETS_QUERY", "HEADERS", "CURL_HEADERS"]
