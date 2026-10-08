@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -188,3 +189,52 @@ def test_allowlisted_market_responses_preserve_main_and_alternates(sport: str) -
                     assert row.line is None
     assert json.dumps(payload, sort_keys=True) == before
     assert parse(payload, "cfb" if sport == "nfl" else "nfl") == []
+
+
+@pytest.mark.parametrize("sport", ["nfl", "cfb"])
+def test_current_public_response_uses_competitor_ids_and_total_descriptions(sport: str) -> None:
+    """Trimmed Oct 8 live captures: reverse-ordered outcomes lack outcome.type."""
+    payload = _load(f"{sport}_markets_current")
+    before = deepcopy(payload)
+    rows = parse(payload, sport)
+    assert len(rows) == (9 if sport == "nfl" else 10)
+    assert sum(r.is_main for r in rows) == 6
+    for group, response in payload.items():
+        for market in response["data"]["market"]:
+            event = market["event"]
+            selected = [r for r in rows if r.source_id == f"{event['id']}:{market['id']}"]
+            assert len(selected) == sum(o["available"] is not None for o in market["outcomes"])
+            assert all(r.is_main == (group == "main") for r in selected)
+            if market["type"] == "TOTAL":
+                assert {r.side for r in selected} <= {"over", "under"}
+                assert all(r.line == market["strike"] for r in selected)
+                assert all(r.outcome_ids == {
+                    o["description"].split()[0].lower(): o["id"] for o in market["outcomes"]
+                } for r in selected)
+            else:
+                assert {r.side for r in selected} <= {"home", "away"}
+            for row in selected:
+                if row.market == "total":
+                    outcome = next(o for o in market["outcomes"] if o["description"].lower().startswith(row.side))
+                else:
+                    team_id = event["game"][row.side + "Team"]["id"]
+                    outcome = next(o for o in market["outcomes"] if o["competitor"]["id"] == team_id)
+                    if row.market == "spread":
+                        assert row.line == (market["strike"] if row.side == "home" else -market["strike"])
+                assert row.prob_raw == outcome["available"]
+                assert row.odds == prob_to_american(outcome["available"])
+    assert payload == before
+
+
+def test_current_response_does_not_guess_side_or_fill_absent_quotes() -> None:
+    payload = _load("nfl_markets_current")
+    markets = payload["main"]["data"]["market"]
+    spread = next(m for m in markets if m["type"] == "SPREAD")
+    spread["outcomes"][0]["competitor"] = {"id": "unknown-team"}
+    spread["outcomes"][1]["available"] = None
+    spread["outcomes"][1]["last"] = 0.5
+    total = next(m for m in markets if m["type"] == "TOTAL")
+    for o in total["outcomes"]:
+        o["description"] = "Unknown"
+    main = [r for r in parse(payload, "nfl") if r.is_main]
+    assert {r.market for r in main} == {"ml"}

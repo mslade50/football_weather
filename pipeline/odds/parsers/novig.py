@@ -1,9 +1,11 @@
 """Pure parser: Novig GraphQL payloads -> list[GameLine].
 
 Since 2026-09-23, captures contain ``main`` and ``alternate`` raw responses to
-HotMarkets_Query (``data.market`` with nested ``event``). Group membership
+an allowlisted market query (``data.market`` with nested ``event``). Group membership
 supplies is_consensus, which the public query does not return. The older
 ``data.event`` format below remains supported for historical capture replay.
+The October 2026 MarketScreen_Query identifies team outcomes by competitor ID
+and total outcomes by Over/Under description; legacy outcome.type still replays.
 
 Payload shape (Hasura, see ``pipeline/odds/novig.py`` for the query)::
 
@@ -33,6 +35,7 @@ the schedule: ``"{sport}:raw:{kickoff_utc_iso}:{away}@{home}"`` (no ``|``).
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -82,6 +85,22 @@ def _side_line(market: str, side: str, strike: float | None) -> float | None:
     return float(strike)
 
 
+def _outcome_side(outcome: dict[str, Any], market: str, game: dict[str, Any]) -> str | None:
+    """Resolve explicit side identity; never infer a side from array/index order."""
+    legacy = SIDE_BY_TYPE.get(outcome.get("type") or "")
+    if legacy:
+        return legacy
+    if market == "total":
+        match = re.match(r"^(Over|Under)\b", str(outcome.get("description") or ""), re.IGNORECASE)
+        return match.group(1).lower() if match else None
+    competitor_id = (outcome.get("competitor") or {}).get("id")
+    if competitor_id:
+        for side, key in (("home", "homeTeam"), ("away", "awayTeam")):
+            if competitor_id == (game.get(key) or {}).get("id"):
+                return side
+    return None
+
+
 def parse_event(
     event: dict[str, Any],
     sport: str,
@@ -104,7 +123,7 @@ def parse_event(
         strike = m.get("strike")
         is_main = bool(m.get("is_consensus"))
         for o in m.get("outcomes") or []:
-            side = SIDE_BY_TYPE.get(o.get("type") or "")
+            side = _outcome_side(o, market, game)
             if side is None:
                 continue
             avail = o.get("available")
@@ -129,8 +148,9 @@ def parse_event(
                     prob_raw=prob,
                     is_main=is_main,
                     source_id=f"{event.get('id')}:{m.get('id')}",
-                    outcome_ids={SIDE_BY_TYPE[x["type"]]: x["id"] for x in m.get("outcomes") or []
-                                 if x.get("type") in {"Over", "Under"} and x.get("id")},
+                    outcome_ids={resolved: x["id"] for x in m.get("outcomes") or []
+                                 if (resolved := _outcome_side(x, market, game)) in {"over", "under"}
+                                 and x.get("id")},
                     scraped_at=scraped_at,
                     run_id=run_id,
                 )

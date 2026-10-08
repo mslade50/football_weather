@@ -1,0 +1,237 @@
+{
+  "main": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0ef14-1ede-7ed1-a0b3-31937270063d",
+          "type": "MONEY",
+          "strike": 0.0,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0ef14-1e69-7631-9389-bf88cf7969ce",
+            "league": "NFL",
+            "scheduled_start": "2026-10-09T00:15:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "name": "Dallas Cowboys",
+                "symbol": "DAL"
+              },
+              "awayTeam": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "name": "Tampa Bay Buccaneers",
+                "symbol": "TB"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0ef14-1ede-7ed1-a0b3-31b89f46c2a7",
+              "index": 1,
+              "description": "TB",
+              "available": 0.195,
+              "competitor": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "symbol": "TB"
+              }
+            },
+            {
+              "id": "01a0ef14-1ede-7ed1-a0b3-31a48318419c",
+              "index": 0,
+              "description": "DAL",
+              "available": 0.81,
+              "competitor": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "symbol": "DAL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0ef14-1ede-7ed1-a0b3-33ab84cb2994",
+          "type": "SPREAD",
+          "strike": -8.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0ef14-1e69-7631-9389-bf88cf7969ce",
+            "league": "NFL",
+            "scheduled_start": "2026-10-09T00:15:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "name": "Dallas Cowboys",
+                "symbol": "DAL"
+              },
+              "awayTeam": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "name": "Tampa Bay Buccaneers",
+                "symbol": "TB"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0ef14-1ede-7ed1-a0b3-33cdc454ffd3",
+              "index": 1,
+              "description": "TB +8.5",
+              "available": 0.49,
+              "competitor": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "symbol": "TB"
+              }
+            },
+            {
+              "id": "01a0ef14-1ede-7ed1-a0b3-33ba2b9e5900",
+              "index": 0,
+              "description": "DAL -8.5",
+              "available": 0.515,
+              "competitor": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "symbol": "DAL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0ef14-1edf-7882-befc-d45d5d2af520",
+          "type": "TOTAL",
+          "strike": 48.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0ef14-1e69-7631-9389-bf88cf7969ce",
+            "league": "NFL",
+            "scheduled_start": "2026-10-09T00:15:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "name": "Dallas Cowboys",
+                "symbol": "DAL"
+              },
+              "awayTeam": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "name": "Tampa Bay Buccaneers",
+                "symbol": "TB"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0ef14-1edf-7882-befc-d47fa5209ea2",
+              "index": 1,
+              "description": "Under 48.5",
+              "available": 0.495,
+              "competitor": null
+            },
+            {
+              "id": "01a0ef14-1edf-7882-befc-d460dfa3604f",
+              "index": 0,
+              "description": "Over 48.5",
+              "available": 0.51,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "alternate": {
+    "data": {
+      "market": [
+        {
+          "id": "01a1095e-535e-7a10-9a38-7af512eeefa8",
+          "type": "SPREAD",
+          "strike": -27.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0ef14-1e69-7631-9389-bf88cf7969ce",
+            "league": "NFL",
+            "scheduled_start": "2026-10-09T00:15:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "name": "Dallas Cowboys",
+                "symbol": "DAL"
+              },
+              "awayTeam": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "name": "Tampa Bay Buccaneers",
+                "symbol": "TB"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a1095e-535e-7a10-9a38-7b195dc25588",
+              "index": 1,
+              "description": "TB +27.5",
+              "available": 0.91,
+              "competitor": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "symbol": "TB"
+              }
+            },
+            {
+              "id": "01a1095e-535e-7a10-9a38-7b03da74386d",
+              "index": 0,
+              "description": "DAL -27.5",
+              "available": 0.1,
+              "competitor": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "symbol": "DAL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a10479-e650-7c61-b017-de450095484e",
+          "type": "TOTAL",
+          "strike": 6.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0ef14-1e69-7631-9389-bf88cf7969ce",
+            "league": "NFL",
+            "scheduled_start": "2026-10-09T00:15:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "8aaa4866-cc79-41eb-948c-3aa01715ddd2",
+                "name": "Dallas Cowboys",
+                "symbol": "DAL"
+              },
+              "awayTeam": {
+                "id": "1778c045-fe94-4767-b95e-7e0cb35e6943",
+                "name": "Tampa Bay Buccaneers",
+                "symbol": "TB"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a10479-e650-7c61-b017-de6f4867b081",
+              "index": 1,
+              "description": "Under 6.5",
+              "available": 0.5,
+              "competitor": null
+            },
+            {
+              "id": "01a10479-e650-7c61-b017-de507d9e8077",
+              "index": 0,
+              "description": "Over 6.5",
+              "available": null,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

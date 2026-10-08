@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -12,6 +13,17 @@ import pytest
 from pipeline.odds import base, novig
 
 FIX = Path(__file__).parent / "fixtures" / "raw" / "novig"
+
+
+def test_current_document_preserves_verified_compiled_fragment_order():
+    source = "\n".join(line for line in novig.MARKETS_QUERY.splitlines() if not line.startswith("#"))
+    names = re.findall(r"\b(?:query|fragment) (\w+)", source)
+    assert names == [
+        "MarketScreen_Query", "TennisScoreboard_Frag", "MarketVolume_Frag", "EventData_Frag",
+        "Outcome_Frag", "OrderDescription_Frag", "MarketData_Frag", "EventScoreboard_Frag",
+        "MarketChart_Frag", "OrderStateCard_Frag",
+    ]
+    assert "@skip(if: $shouldSkipOrders)" in novig.MARKETS_QUERY
 
 
 @pytest.mark.parametrize("sport,league", [("nfl", "NFL"), ("cfb", "NCAAF")])
@@ -24,9 +36,11 @@ def test_public_query_filters_and_raw_capture(monkeypatch, sport, league):
     def handler(request):
         body = json.loads(request.content)
         requests.append(body)
-        assert body["operationName"] == "HotMarkets_Query"
+        assert body["operationName"] == "MarketScreen_Query"
         assert body["query"] == novig.MARKETS_QUERY
-        where = body["variables"]["where_market"]
+        assert body["variables"]["shouldSkipOrders"] is True
+        assert "ordersWhere" not in body["variables"]
+        where = body["variables"]["where"]
         assert where["event"] == {
             "league": {"_eq": league}, "type": {"_eq": "Game"},
             "status": {"_in": ["OPEN_PREGAME", "OPEN_INGAME"]},
@@ -78,7 +92,7 @@ def test_alternate_failure_does_not_publish_partial_main_data(monkeypatch):
     payload = json.loads((FIX / "nfl_markets.json").read_text())
 
     async def gql(self, client, query, variables):
-        if variables["where_market"]["is_consensus"]["_eq"]:
+        if variables["where"]["is_consensus"]["_eq"]:
             return payload["main"]
         return {"errors": [{"message": "query is not allowed"}]}
 
@@ -111,4 +125,4 @@ def test_unsupported_bulk_query_is_reported_without_repeating_it(monkeypatch):
 
     assert rows == []
     assert len(calls) == 1
-    assert "supported bulk feed or authenticated access is required" in scraper.fetch_errors["nfl"]
+    assert "compiled fragment order may have changed" in scraper.fetch_errors["nfl"]

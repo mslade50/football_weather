@@ -1,9 +1,10 @@
 """Novig football scraper via the public Hasura GraphQL API (no auth).
 
-Novig began rejecting custom queries on 2026-09-22. Use the public web app's
-allowlisted HotMarkets_Query, preserving its complete fragment order. Fetch
+Use the public web app's current allowlisted MarketScreen_Query, preserving
+the compiled document's complete fragment order. Fetch
 main and alternate markets separately because the response omits is_consensus.
 Parsing lives in ``pipeline/odds/parsers/novig.py``; both raw responses are kept.
+Orders are explicitly skipped: only public market quotes are requested.
 
 Transport: httpx first; on a 403 (datacenter-IP bot block, e.g. GitHub Actions)
 the POST is retried through curl_cffi with Chrome TLS impersonation
@@ -74,7 +75,7 @@ class NovigScraper(BaseScraper):
         self.fetch_errors: dict[str, str] = {}
 
     async def _gql(self, client: httpx.AsyncClient | None, query: str, variables: dict | None = None) -> dict:
-        payload: dict[str, Any] = {"operationName": "HotMarkets_Query", "query": query}
+        payload: dict[str, Any] = {"operationName": "MarketScreen_Query", "query": query}
         if variables:
             payload["variables"] = variables
         res = await fetch_json_with_fallback(
@@ -89,7 +90,7 @@ class NovigScraper(BaseScraper):
         responses = {}
         for group, is_main in (("main", True), ("alternate", False)):
             variables = {
-                "where_market": {
+                "where": {
                     "event": {
                         "league": {"_eq": league},
                         "type": {"_eq": "Game"},
@@ -99,7 +100,7 @@ class NovigScraper(BaseScraper):
                     "type": {"_in": ["MONEY", "SPREAD", "TOTAL"]},
                     "is_consensus": {"_eq": is_main},
                 },
-                "limit": MARKET_LIMIT,
+                "shouldSkipOrders": True,
             }
             data = await self._gql(None, MARKETS_QUERY, variables)
             if data.get("errors"):
@@ -108,8 +109,8 @@ class NovigScraper(BaseScraper):
                     raise NovigBulkFeedUnavailable(
                         f"NoVig rejected the anonymous bulk GraphQL query for the {group} market set "
                         "('query is not allowed'). "
-                        "Its public v3 API only reads already-known market IDs, so the scraper cannot "
-                        "discover current main lines. A supported bulk feed or authenticated access is required."
+                        "The public app's allowlisted operation or compiled fragment order may have changed; "
+                        "refresh queries/novig_markets.graphql from the current frontend document."
                     )
                 raise RuntimeError(f"Novig GraphQL errors ({group}): {data['errors']}")
             markets = (data.get("data") or {}).get("market")

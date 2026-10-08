@@ -1,0 +1,237 @@
+{
+  "main": {
+    "data": {
+      "market": [
+        {
+          "id": "01a0fa22-9aea-7680-945b-5782cfcaad13",
+          "type": "SPREAD",
+          "strike": -2.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0fa22-9a62-7810-9857-99892819a5a9",
+            "league": "NCAAF",
+            "scheduled_start": "2026-10-10T01:00:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "name": "Washington",
+                "symbol": "WASH"
+              },
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0fa22-9aea-7680-945b-57a1686bc392",
+              "index": 1,
+              "description": "IOWA +2.5",
+              "available": 0.46,
+              "competitor": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "symbol": "IOWA"
+              }
+            },
+            {
+              "id": "01a0fa22-9aea-7680-945b-5791b77bcfbf",
+              "index": 0,
+              "description": "WASH -2.5",
+              "available": 0.545,
+              "competitor": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "symbol": "WASH"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0fa22-9aea-7680-945b-560aa1685634",
+          "type": "MONEY",
+          "strike": 0.0,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0fa22-9a62-7810-9857-99892819a5a9",
+            "league": "NCAAF",
+            "scheduled_start": "2026-10-10T01:00:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "name": "Washington",
+                "symbol": "WASH"
+              },
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0fa22-9aea-7680-945b-562921959f37",
+              "index": 1,
+              "description": "IOWA",
+              "available": 0.42,
+              "competitor": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "symbol": "IOWA"
+              }
+            },
+            {
+              "id": "01a0fa22-9aea-7680-945b-5618665df6d4",
+              "index": 0,
+              "description": "WASH",
+              "available": 0.59,
+              "competitor": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "symbol": "WASH"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a0fa22-9aea-7680-945b-563baa96ccce",
+          "type": "TOTAL",
+          "strike": 41.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0fa22-9a62-7810-9857-99892819a5a9",
+            "league": "NCAAF",
+            "scheduled_start": "2026-10-10T01:00:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "name": "Washington",
+                "symbol": "WASH"
+              },
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a0fa22-9aea-7680-945b-5656ede37a8d",
+              "index": 1,
+              "description": "Under 41.5",
+              "available": 0.51,
+              "competitor": null
+            },
+            {
+              "id": "01a0fa22-9aea-7680-945b-56452a1bf953",
+              "index": 0,
+              "description": "Over 41.5",
+              "available": 0.495,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "alternate": {
+    "data": {
+      "market": [
+        {
+          "id": "01a10995-7acb-7921-82e4-b1b8e1848153",
+          "type": "SPREAD",
+          "strike": 16.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0fa22-9a62-7810-9857-99892819a5a9",
+            "league": "NCAAF",
+            "scheduled_start": "2026-10-10T01:00:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "name": "Washington",
+                "symbol": "WASH"
+              },
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a10995-7acb-7921-82e4-b1d0f802c810",
+              "index": 1,
+              "description": "IOWA -16.5",
+              "available": 0.1,
+              "competitor": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "symbol": "IOWA"
+              }
+            },
+            {
+              "id": "01a10995-7acb-7921-82e4-b1c6a50c03b6",
+              "index": 0,
+              "description": "WASH +16.5",
+              "available": 0.92,
+              "competitor": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "symbol": "WASH"
+              }
+            }
+          ]
+        },
+        {
+          "id": "01a10995-7acb-7921-82e4-b33f9ba07f93",
+          "type": "TOTAL",
+          "strike": 24.5,
+          "status": "OPEN",
+          "event": {
+            "id": "01a0fa22-9a62-7810-9857-99892819a5a9",
+            "league": "NCAAF",
+            "scheduled_start": "2026-10-10T01:00:00+00:00",
+            "type": "Game",
+            "status": "OPEN_PREGAME",
+            "game": {
+              "homeTeam": {
+                "id": "efeb5e06-07d5-480d-8a15-ada9889fe549",
+                "name": "Washington",
+                "symbol": "WASH"
+              },
+              "awayTeam": {
+                "id": "4c834d42-56ee-4e26-af70-a33e3a3de798",
+                "name": "Iowa",
+                "symbol": "IOWA"
+              }
+            }
+          },
+          "outcomes": [
+            {
+              "id": "01a10995-7acb-7921-82e4-b35fe8317c9e",
+              "index": 1,
+              "description": "Under 24.5",
+              "available": 0.12,
+              "competitor": null
+            },
+            {
+              "id": "01a10995-7acb-7921-82e4-b34bb62c4061",
+              "index": 0,
+              "description": "Over 24.5",
+              "available": 0.925,
+              "competitor": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

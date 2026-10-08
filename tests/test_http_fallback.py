@@ -269,8 +269,8 @@ def test_novig_auto_fallback_parses_and_captures(curl: type[FakeCurlSession], ht
     call = curl.calls[0]
     assert call["method"] == "POST" and call["url"] == nv.GRAPHQL_URL
     assert call["json"]["query"] == nv.MARKETS_QUERY
-    assert call["json"]["operationName"] == "HotMarkets_Query"
-    assert call["json"]["variables"]["where_market"]["event"]["league"] == {"_eq": "NCAAF"}
+    assert call["json"]["operationName"] == "MarketScreen_Query"
+    assert call["json"]["variables"]["where"]["event"]["league"] == {"_eq": "NCAAF"}
     assert call["headers"]["Origin"] == "https://novig.com" and call["headers"]["Sec-Fetch-Site"] == "cross-site"
     assert call["headers"]["Content-Type"] == "application/json" and "sec-ch-ua" in call["headers"]
     assert captured == [("novig_cfb", {"main": curl.payload, "alternate": curl.payload}, nv.GRAPHQL_URL)]
@@ -283,7 +283,7 @@ def test_novig_httpx_public_query(curl: type[FakeCurlSession], httpx_status: Any
     assert lines and s.last_transport == "httpx" and curl.calls == []
     req = log.requests[0]
     assert req.headers["origin"] == "https://novig.com"
-    assert json.loads(req.content)["variables"]["where_market"]["event"]["league"] == {"_eq": "NFL"}
+    assert json.loads(req.content)["variables"]["where"]["event"]["league"] == {"_eq": "NFL"}
 
 
 def test_novig_env_curl_first(monkeypatch: pytest.MonkeyPatch, curl: type[FakeCurlSession], httpx_status: Any) -> None:
