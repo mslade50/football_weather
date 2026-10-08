@@ -98,20 +98,20 @@ function totalPriceTable(g) {
 function oddsTable(g) {
   const c = g.consensus || {}, f = g.fair || {};
   const books = ["consensus", ...BOOKS.filter((b) => (g.odds || {})[b])];
-  const totalBaseline = g.sport === "cfb" ? "Total T−6d" : "Total open";
+  const totalBaseline = g.sport === "cfb" ? "Total baseline" : "Total open";
   const head = `<tr><th>Book</th><th>Spread open</th><th>Spread now</th><th>${totalBaseline}</th><th>Total now</th><th>Edge</th></tr>`;
   const body = books.map((bk) => {
     if (bk === "consensus") {
-      return `<tr><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)}, n=${c.n_books ?? "?"})</span>` : ""}</td>`
-        + `<td>${fmtLine(c.spread_open)}</td><td title="spread = avg of ${esc(c.spread_src || "?")}">${fmtLine(c.spread_now)}${c.spread_src ? ` <span class="sub">${esc(c.spread_src)}</span>` : ""}${moveTag(c.spread_open, c.spread_now)}</td>`
-        + `<td>${fmtTotal(c.total_open)}</td><td>${fmtTotal(c.total_now)}${moveTag(c.total_open, c.total_now)}</td><td></td></tr>`;
+      return `<tr><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)})</span>` : ""}</td>`
+        + `<td>${fmtLine(c.spread_open)}</td><td title="${esc(spreadSrcLabel(c.spread_src))}">${fmtLine(c.spread_now)} <span class="sub">${marketCoverage(g, "spread")} spread books${c.spread_src ? ` · ${esc(c.spread_src)}` : ""}</span>${moveTag(c.spread_open, c.spread_now)}</td>`
+        + `<td title="${esc(totalBaselineLabel(g, c, true))}">${fmtTotal(c.total_open)}</td><td>${fmtTotal(c.total_now)} <span class="sub">${marketCoverage(g, "total")} total books</span>${moveTag(c.total_open, c.total_now)}</td><td></td></tr>`;
     }
     const o = g.odds[bk] || {}, s = o.spread || {}, t = o.total || {};
     const es = edgeAt(g, bk, "spread"), et = edgeAt(g, bk, "total");
     return `<tr><td>${esc(bookLabel(bk))}</td>`
       + `<td>${fmtLine(s.open_line)} <span class="sub">${fmtOdds(s.open_odds)}</span></td>`
       + `<td>${fmtLine(s.home_line)} <span class="sub">${fmtOdds(s.home_odds)}/${fmtOdds(s.away_odds)}</span>${moveTag(s.open_line, s.home_line)}</td>`
-      + `<td>${fmtTotal(t.open_line)} <span class="sub">u${fmtOdds(t.open_under)}</span></td>`
+      + `<td title="${esc(totalBaselineLabel(g, t))}${t.open_ts ? ` · ${esc(fmtShortET(t.open_ts))}` : ""}">${fmtTotal(t.open_line)} <span class="sub">u${fmtOdds(t.open_under)}</span></td>`
       + `<td>${fmtTotal(t.line)} <span class="sub">o${fmtOdds(t.over)}/u${fmtOdds(t.under)}</span>${moveTag(t.open_line, t.line)}</td>`
       + `<td>${tierChip(es)}${tierChip(et)}</td></tr>`;
   }).join("");

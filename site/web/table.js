@@ -1,5 +1,5 @@
 "use strict";
-// Table view: one row per GameCard. Columns: GAME (kickoff ET), STADIUM, TEMP, WIND, GUST, RAIN,
+// Table view: one row per GameCard. Columns: GAME (kickoff ET), LAT/LON, TEMP, WIND, GUST, RAIN,
 // GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
 // TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (baseline → now, under price
 // + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
@@ -33,7 +33,7 @@ function moveTag(open, now, invert = false) {
   const d = Number(now) - Number(open);
   if (Math.abs(d) < MOVE_EPS) return "";
   const up = invert ? d < 0 : d > 0;
-  return `<span class="mv ${up ? "up" : "dn"}" title="moved ${d > 0 ? "+" : ""}${d.toFixed(1)} since open">${d > 0 ? "▲" : "▼"}${Math.abs(d).toFixed(1)}</span>`;
+  return `<span class="mv ${up ? "up" : "dn"}" title="changed ${d > 0 ? "+" : ""}${d.toFixed(1)} from baseline">${d > 0 ? "▲" : "▼"}${Math.abs(d).toFixed(1)}</span>`;
 }
 function openNow(open, now, fmt) {
   if (!isNum(open) && !isNum(now)) return `<span class="muted">—</span>`;
@@ -60,35 +60,54 @@ function spreadSrcLabel(src) {
   if (!src) return "?";
   return src === "fallback" ? "fallback (weighted median)" : `avg of ${src}`;
 }
+function marketCoverage(g, market) {
+  const c = g.consensus || {}, saved = c[`${market}_n_books`];
+  if (isNum(saved)) return Number(saved);
+  // Older payloads collapsed spread and total counts. Count their live market
+  // quotes independently until a refreshed payload supplies explicit counts.
+  return Object.values(g.odds || {}).filter((markets) => {
+    const q = markets[market];
+    return q && !q.expired && isNum(market === "spread" ? q.home_line : q.line);
+  }).length;
+}
+function totalBaselineLabel(g, quote, consensus = false) {
+  if (g.sport !== "cfb") return "first seen";
+  const prefix = consensus ? "total_open" : "open";
+  const seen = parseTs(quote[`${prefix}_ts`]), target = parseTs(quote[`${prefix}_target_ts`]);
+  if (seen && target) return seen > target ? "first seen (after T−6d)" : "T−6d";
+  return "baseline (T−6d / first seen)";
+}
 function consensusSpreadCell(g) {
   const c = g.consensus || {};
   if (!isNum(c.spread_now) && !isNum(c.spread_open)) return `<td class="muted">—</td>`;
   const hk = ++HK;
   const f = g.fair || {};
+  const nBooks = marketCoverage(g, "spread");
   HOVER[hk] = {
     label: `Consensus spread (home) · ${gameLabel(g)}`,
     lines: [
       ["src", spreadSrcLabel(c.spread_src)],
       ["open", fmtLine(c.spread_open)],
       ["now", fmtLine(c.spread_now)],
-      ["books", `n=${c.n_books ?? "?"}${c.thin ? " (thin)" : ""}`],
+      ["spread coverage", `${nBooks} current main-line book${nBooks === 1 ? "" : "s"}${nBooks < 2 ? "; comparison needs at least 2" : ""}`],
       ...(isNum(f.fair_spread) ? [["fair", fmtLine(f.fair_spread)]] : []),
     ],
   };
   return `<td data-hk="${hk}" title="${esc(spreadSrcLabel(c.spread_src))}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
-    + `${c.thin ? ' <span class="sub" title="thin consensus">thin</span>' : ""}</td>`;
+    + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "no current books"}</span>` : ""}</td>`;
 }
 function consensusTotalCell(g) {
   const c = g.consensus || {};
   if (!isNum(c.total_now) && !isNum(c.total_open)) return `<td class="muted">—</td>`;
   const hk = ++HK;
   const f = g.fair || {};
-  const baseline = g.sport === "cfb" ? "T−6d" : "open";
+  const baseline = totalBaselineLabel(g, c, true);
   HOVER[hk] = {
     label: `Consensus total · ${gameLabel(g)}`,
     lines: [
-      ["ref", `${c.ref_book || "?"} (n=${c.n_books ?? "?"})`],
+      ["ref", `${c.ref_book || "?"} (${marketCoverage(g, "total")} total books)`],
       [baseline, fmtTotal(c.total_open)],
+      ...(c.total_open_ts ? [["baseline observed", fmtShortET(c.total_open_ts)]] : []),
       ["now", fmtTotal(c.total_now)],
       ...(isNum(f.fair_total) ? [["fair", fmtTotal(f.fair_total)]] : []),
     ],
@@ -106,7 +125,7 @@ function bookSpreadCell(g, bk) {
     lines: [
       ["open", `${fmtLine(s.open_line)} ${fmtOdds(s.open_odds)}`],
       ["now", `${fmtLine(s.home_line)} ${fmtOdds(s.home_odds)} / ${fmtOdds(s.away_odds)}`],
-      ...(e ? [["fair", `${fmtLine(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", `${Number(e.edge_pts).toFixed(2)} pts · ${e.tier}`]] : []),
+      ...(e ? [["fair", `${fmtLine(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(s.updated_at ? [["updated", fmtShortET(s.updated_at)]] : []),
     ],
   };
@@ -118,13 +137,14 @@ function bookTotalCell(g, bk) {
   if (!t || (!isNum(t.line) && !isNum(t.open_line))) return `<td class="muted">—</td>`;
   const e = edgeAt(g, bk, "total");
   const hk = ++HK;
-  const baseline = g.sport === "cfb" ? "T−6d" : "open";
+  const baseline = totalBaselineLabel(g, t);
   HOVER[hk] = {
     label: `${bookLabel(bk)} total · ${gameLabel(g)}`,
     lines: [
       [baseline, `${fmtTotal(t.open_line)} u${fmtOdds(t.open_under)}`],
+      ...(t.open_ts ? [["baseline observed", fmtShortET(t.open_ts)]] : []),
       ["now", `${fmtTotal(t.line)} o${fmtOdds(t.over)} / u${fmtOdds(t.under)}`],
-      ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}`]] : []),
+      ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket
     ],
@@ -148,7 +168,7 @@ function totalPriceLabel(quote) {
 }
 function bestPriceCell(g) {
   const quote = totalPriceQuotes(g, "under")[0];
-  if (!quote) return '<td class="muted" title="No fresh price with a usable fair total">—</td>';
+  if (!quote) return '<td class="muted" title="No fresh price with a usable fair total; comparison requires at least two total books">—</td>';
   const hk = ++HK;
   HOVER[hk] = {
     label: `Best under price · ${gameLabel(g)}`,
@@ -167,12 +187,18 @@ function bestPriceCell(g) {
     + `<span class="sub">Est. EV ${roiLabel(quote.ev_roi)}${quote.ev_roi <= 0 ? " · no +EV" : ""}</span></td>`;
 }
 
+function coordinateLabel(g) {
+  const st = g.stadium || {};
+  return isNum(st.lat) && isNum(st.lon)
+    ? `${Number(st.lat).toFixed(2)}, ${Number(st.lon).toFixed(2)}` : "";
+}
+
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff ET. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Stadium", "Venue (roof)", (g) => (g.stadium && g.stadium.name) || ""],
+    ["Lat, Lon", "Venue coordinates to two decimals; select and copy into Windy", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
     ["Gust", "Forecast gust mph", w("gust_fg")],
@@ -181,8 +207,8 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Away %", "v1 away-team impact %", (g) => impactPct(g, "away_fg_pct")],
     ["Signal", "Weather signal severity + matched filters", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
-    ["Total", "Consensus total baseline → now (CFB baseline = kickoff minus 6 days; NFL = first-seen open; Pinnacle-weighted)", cons("total_now")],
-    ["Best price", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
+    ["Total", "Consensus baseline → now. CFB targets kickoff minus 6 days, falling back to first observed if collected later; NFL uses first seen. Pinnacle-weighted.", cons("total_now")],
+    ["Best under", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
       (g) => totalPriceQuotes(g, "under")[0]?.ev_roi ?? -Infinity, bestPriceCell],
   ];
   for (const bk of books) {
@@ -191,7 +217,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
         (g) => bookSpreadCell(g, bk)]);
     }
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total baseline → now; CFB baseline = kickoff minus 6 days; hover = under price, edge chip = pts vs fair`,
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total baseline → now; CFB targets kickoff minus 6 days with first-observed fallback; hover = baseline time and under price; edge chip = pts vs fair`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
       (g) => bookTotalCell(g, bk)]);
   }
@@ -236,10 +262,10 @@ function renderTable(rows, opts = {}) {
     const st = g.stadium || {};
     const dome = isDome(g);
     const v1 = (g.impact && g.impact.v1) || {};
-    const roof = st.roof_state || st.roof_type || "";
+    const coordinates = coordinateLabel(g);
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
-      `<td class="left">${esc(st.name || "")}${roof && roof !== "outdoors" && roof !== "open" ? ` <span class="sub">(${esc(roof)})</span>` : ""}</td>`,
+      `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinates ? `<span class="coordinates">${esc(coordinates)}</span>` : '<span class="muted">—</span>'}</td>`,
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
       `<td>${fmtNum(wx.gust_fg, 0)}</td>`,

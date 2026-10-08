@@ -106,7 +106,15 @@ def test_weekly_alert_opener_exports_even_without_current_betonline_quotes():
     op["weekly_totals"] = {GID: weekly}
     card = json_out.build_card("nfl", _game(), None, None, None, None, None, None, [], openers=op)
     assert card["weekly_total_open"] == weekly
-    assert card["odds"] == {}
+    assert card["odds"]["betonline"]["spread"]["home_line"] is None
+    assert card["odds"]["betonline"]["spread"]["open_line"] == -2.5
+    assert card["odds"]["betonline"]["total"]["line"] is None
+    assert card["odds"]["betonline"]["total"]["open_line"] == 39.0
+    assert card["odds"]["betonline"]["total"]["open_under"] == -110
+    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-22T12:00:00Z"
+    assert card["odds"]["betonline"]["ml"]["home"] is None
+    assert card["odds"]["betonline"]["ml"]["open_home"] == -150
+    assert card["weekly_total_open"] == weekly  # weekly opening-window snapshot remains separate
 
 
 def _consensus() -> dict:
@@ -229,6 +237,23 @@ def test_card_consensus_block_moves_from_openers():
     assert json_out.table_row(card)["spread_src"] == "bol+pin"
 
 
+@pytest.mark.parametrize("spread_books,total_books", [(1, 3), (3, 1)])
+def test_consensus_and_compact_row_keep_market_specific_coverage(spread_books, total_books):
+    card = _card(consensus={
+        (GID, "spread"): ConsensusLine(-3.0, -110, spread_books, "pinnacle", "home", src="pin"),
+        (GID, "total"): ConsensusLine(38.0, -110, total_books, "betonline", "under"),
+    })
+    c = card["consensus"]
+    row = json_out.table_row(card)
+
+    assert c["spread_n_books"] == row["spread_n_books"] == spread_books
+    assert c["spread_thin"] == row["spread_thin"] == (spread_books < 2)
+    assert c["total_n_books"] == row["total_n_books"] == total_books
+    assert c["total_thin"] == row["total_thin"] == (total_books < 2)
+    assert c["n_books"] == max(spread_books, total_books)  # legacy aggregate remains stable
+    assert c["thin"] == (max(spread_books, total_books) < 2)
+
+
 def test_consensus_spread_opener_averages_member_openers_with_fallback():
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [{"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -4.0, "odds": -110}], "t0")
@@ -240,6 +265,39 @@ def test_consensus_spread_opener_averages_member_openers_with_fallback():
     pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110)], "t2")
     assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+bol+pin")
     assert json_out.consensus_spread_opener("nfl:2026:3:x@y", op) == (None, "fallback")
+
+
+def test_total_open_provenance_is_exported_only_when_available():
+    op = pstate.migrate({}, "openers")
+    target_ts, source_ts = "2026-09-21T17:00:00Z", "2026-09-21T16:45:00Z"
+    op["openers"][pstate.odds_key(GID, "total", "under", "betonline")] = {
+        "line": 39.5, "odds": -110, "ts": source_ts, "basis": "t_minus_6d", "target_ts": target_ts,
+    }
+    op["openers"][pstate.odds_key(GID, "total", "under", "consensus")] = {
+        "line": 39.5, "odds": -110, "ts": source_ts, "basis": "t_minus_6d", "target_ts": target_ts,
+    }
+    card = _card(openers=op, lines=[])
+    book_total = card["odds"]["betonline"]["total"]
+    assert book_total["line"] is None and book_total["open_line"] == 39.5
+    assert book_total["open_ts"] == source_ts
+    assert book_total["open_target_ts"] == target_ts and book_total["open_basis"] == "t_minus_6d"
+    consensus = card["consensus"]
+    assert consensus["total_open"] == 39.5
+    assert consensus["total_open_ts"] == source_ts
+    assert consensus["total_open_target_ts"] == target_ts
+    assert consensus["total_open_basis"] == "t_minus_6d"
+    row = json_out.table_row(card)
+    assert row["total_open_ts"] == source_ts and row["total_open_target_ts"] == target_ts
+    assert row["total_open_basis"] == "t_minus_6d"
+
+    first_seen = pstate.migrate({}, "openers")
+    pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0)], "2026-09-21T16:45:00Z")
+    first_seen_card = _card(openers=first_seen, lines=[])
+    first_seen_total = first_seen_card["odds"]["betonline"]["total"]
+    assert first_seen_total["open_ts"] == "2026-09-21T16:45:00Z"
+    assert "open_target_ts" not in first_seen_total and "open_basis" not in first_seen_total
+    assert "total_open_target_ts" not in first_seen_card["consensus"]
+    assert "total_open_basis" not in first_seen_card["consensus"]
 
 
 def test_history_carries_consensus_spread_series(tmp_path: Path):

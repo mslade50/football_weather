@@ -21,9 +21,17 @@ export function expireCardQuotes(original, now = Date.now()) {
     }
   }
   if (removed.length) {
+    const currentBooks = (market) => Object.values(card.odds || {}).filter((markets) => {
+      const quote = markets?.[market];
+      const line = market === "spread" ? quote?.home_line : quote?.line;
+      return !quote?.expired && line != null && Number.isFinite(Number(line));
+    }).length;
+    const spreadBooks = currentBooks("spread"), totalBooks = currentBooks("total");
     card.expired_markets = removed;
     card.consensus = { ...(card.consensus || {}), spread_now: null, total_now: null, move_s: null, move_t: null,
-      spread_src: null, ref_book: null, n_books: 0, thin: true };
+      spread_src: null, ref_book: null, n_books: 0, thin: true,
+      spread_n_books: spreadBooks, spread_thin: spreadBooks < 2,
+      total_n_books: totalBooks, total_thin: totalBooks < 2 };
     card.fair = Object.fromEntries(Object.keys(card.fair || {}).map(k => [k, k === "edges" ? [] : null]));
     card.total_prices = null;
   }
@@ -69,6 +77,10 @@ export function expirePayload(name, value, now = Date.now()) {
         "best_total_edge", "best_total_book", "best_spread_edge", "best_spread_book", "confidence",
         "fair_total_v2", "fair_spread_v2"]) row[key] = null;
       row.n_books = 0;
+      row.spread_n_books = null;
+      row.spread_thin = null;
+      row.total_n_books = null;
+      row.total_thin = null;
       return row;
     })};
   }

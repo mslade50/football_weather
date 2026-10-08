@@ -277,9 +277,10 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  signal {nfl|cfb label, color, size, drivers [wind|rain|temperature|altitude_warmth],
          flags [CFB Wind|NFL Wind|Heat|Alt+Heat], dow_base},
  odds {<book>: {spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
-                total  {line, over, under, open_line, open_under, updated_at},
+                total  {line, over, under, open_line, open_under, updated_at, open_ts?, open_target_ts?, open_basis?},
                 ml     {home, away, open_home, open_away}}},
- consensus {spread_open, spread_now, spread_src, total_open, total_now, move_s, move_t, ref_book, n_books, thin},
+ consensus {spread_open, spread_now, spread_src, total_open, total_now, move_s, move_t, ref_book, n_books, thin,
+            spread_n_books, spread_thin, total_n_books, total_thin, total_open_ts?, total_open_target_ts?, total_open_basis?},
  fair {my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
        edges [Edge...], best_total, best_spread},
  total_prices {method, model_version, fair_total, best_under, best_over,
@@ -613,7 +614,7 @@ old heartbeat ticks. Dispatch receipts survive heartbeat-only ticks and record
 missing token, rejected dispatch or GitHub acceptance. Acceptance does not prove
 workflow completion. Historical trigger failures without receipts remain unknown.
 
-The Best price column ranks fresh main-line unders by estimated ROI per dollar at risk; the drawer compares both sides. ROI = P(win) / cost + P(push) - 1, with cost from executable American odds including quoted vig and known exchange taker fees. Fair cost = P(win) / (1 - P(push)). Execution cost is not devigged. Integer sportsbook totals refund the stake; half points have no push. A discrete logistic score CDF is anchored on the active model fair total and consensus probability, with local slope from PTS_PROB_TOTAL. Push mass is the difference between adjacent half-point CDF values. This is an explicitly labeled estimate, not calibrated football key-number frequencies. Quotes older than one hour and games already started are not ranked. Thin consensus has no comparison. All-negative comparisons retain a negative EV label. Slippage and size-specific fee rounding are excluded. Existing fair/edge and alert selection rules are unchanged.
+The Best under column ranks fresh main-line unders by estimated ROI per dollar at risk; the drawer compares both sides. ROI = P(win) / cost + P(push) - 1, with cost from executable American odds including quoted vig and known exchange taker fees. Fair cost = P(win) / (1 - P(push)). Execution cost is not devigged. Integer sportsbook totals refund the stake; half points have no push. A discrete logistic score CDF is anchored on the active model fair total and consensus probability, with local slope from PTS_PROB_TOTAL. Push mass is the difference between adjacent half-point CDF values. This is an explicitly labeled estimate, not calibrated football key-number frequencies. Quotes older than one hour and games already started are not ranked. Thin consensus has no comparison. All-negative comparisons retain a negative EV label. Slippage and size-specific fee rounding are excluded. Existing fair/edge and alert selection rules are unchanged.
 
 Polymarket US uses the public gateway.polymarket.us /v2/leagues/{nfl,cfb}/events endpoint with bounded pagination and raw capture before parsing. Only full-game total, spread and winner market types are accepted. Long execution uses bestAskQuote, opposite execution uses 1-bestBidQuote. feeCoefficient * p * (1-p) is added before converting to American odds; midpoint probabilities remain separate for consensus. Integer exchange strikes are excluded until their settlement semantics are supported. BOOK_POLYMARKET_US_ENABLED controls the feed.
 

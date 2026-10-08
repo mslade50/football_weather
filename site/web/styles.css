@@ -104,6 +104,7 @@ th:first-child { background: var(--panel); z-index: 2; }
 td.game { font-weight: 600; cursor: pointer; }
 td.game .sub { display: block; font-weight: 400; }
 td.left { text-align: left; }
+.coordinates { user-select: all; cursor: text; }
 td.fair { color: var(--fair); }
 td.muted, .muted { color: #4d5662; }
 tr:hover td { background: #1b2230; }

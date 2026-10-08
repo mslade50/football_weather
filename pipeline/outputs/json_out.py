@@ -358,15 +358,17 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
             ref = under or over
             op_under = _opener(openers, pstate.odds_key(game_id, "total", "under", book))
             op_over = _opener(openers, pstate.odds_key(game_id, "total", "over", book))
+            open_total = op_under if op_under.get("line") is not None else op_over
             entry["total"] = {
                 "line": ref.line if ref else None,
                 "over": over.odds if over else None,
                 "under": under.odds if under else None,
-                "open_line": op_under.get("line", op_over.get("line")),
+                "open_line": open_total.get("line"),
                 "open_under": op_under.get("odds"),
                 "open_over": op_over.get("odds"),
                 "updated_at": getattr(ref, "scraped_at", None),
             }
+            _add_open_metadata(entry["total"], open_total)
         ml = markets.get("ml") or {}
         if ml:
             home, away = ml.get("home"), ml.get("away")
@@ -385,7 +387,50 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 if ref.expires_at is not None:
                     values["expires_at"] = ref.expires_at
             out[book] = entry
+
+    # Preserve historical openers when a book/market has no current quote. This
+    # makes an expired or temporarily missing current price visible as open → —.
+    opener_store = (openers or {}).get("openers") or {}
+    opener_markets: set[tuple[str, str]] = set()
+    for key in opener_store:
+        parts = key.split("|")
+        if (len(parts) == 4 and parts[0] == game_id and parts[1] in ("spread", "total", "ml")
+                and parts[3] != "consensus"):
+            opener_markets.add((parts[3], parts[1]))
+    for book, market in sorted(opener_markets):
+        entry = out.setdefault(book, {})
+        if market in entry:
+            continue
+        if market == "spread":
+            op_home = _opener(openers, pstate.odds_key(game_id, market, "home", book))
+            op_away = _opener(openers, pstate.odds_key(game_id, market, "away", book))
+            open_line = op_home.get("line")
+            if open_line is None and op_away.get("line") is not None:
+                open_line = -op_away["line"]
+            quote = {"home_line": None, "home_odds": None, "away_odds": None, "open_line": open_line,
+                     "open_odds": op_home.get("odds"), "updated_at": None}
+        elif market == "total":
+            op_under = _opener(openers, pstate.odds_key(game_id, market, "under", book))
+            op_over = _opener(openers, pstate.odds_key(game_id, market, "over", book))
+            open_total = op_under if op_under.get("line") is not None else op_over
+            quote = {"line": None, "over": None, "under": None, "open_line": open_total.get("line"),
+                     "open_under": op_under.get("odds"), "open_over": op_over.get("odds"), "updated_at": None}
+            _add_open_metadata(quote, open_total)
+        else:
+            op_home = _opener(openers, pstate.odds_key(game_id, market, "home", book))
+            op_away = _opener(openers, pstate.odds_key(game_id, market, "away", book))
+            quote = {"home": None, "away": None, "open_home": op_home.get("odds"),
+                     "open_away": op_away.get("odds"), "updated_at": None}
+        entry[market] = quote
     return out
+
+
+def _add_open_metadata(quote: dict[str, Any], opener: dict[str, Any], *, prefix: str = "open") -> None:
+    """Carry baseline provenance only when the persistent opener has it."""
+    for source, target in (("ts", f"{prefix}_ts"), ("target_ts", f"{prefix}_target_ts"),
+                           ("basis", f"{prefix}_basis")):
+        if opener.get(source) is not None:
+            quote[target] = opener[source]
 
 
 def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
@@ -419,8 +464,10 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
     to_now = getattr(to, "line", None)
     sp_open, _open_src = consensus_spread_opener(game_id, openers)
     to_open = op_to.get("line")
-    n_books = max(getattr(sp, "n_books", 0) or 0, getattr(to, "n_books", 0) or 0)
-    return {
+    spread_n_books = getattr(sp, "n_books", 0) or 0
+    total_n_books = getattr(to, "n_books", 0) or 0
+    n_books = max(spread_n_books, total_n_books)
+    result = {
         "spread_open": sp_open,
         "spread_now": sp_now,
         "spread_src": getattr(sp, "src", None) or (SPREAD_SRC_FALLBACK if sp_now is not None else None),
@@ -431,7 +478,13 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
         "ref_book": getattr(to, "ref_book", None) or getattr(sp, "ref_book", None),
         "n_books": n_books,
         "thin": n_books < 2,
+        "spread_n_books": spread_n_books,
+        "spread_thin": spread_n_books < 2,
+        "total_n_books": total_n_books,
+        "total_thin": total_n_books < 2,
     }
+    _add_open_metadata(result, op_to, prefix="total_open")
+    return result
 
 
 def fair_block(fair: Any, legacy: Optional[dict[str, Any]] = None, fair_v2: Any = None) -> dict[str, Any]:
@@ -562,7 +615,7 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
     best_s = fair.get("best_spread") or {}
     expiries = [quote["expires_at"] for markets in (card.get("odds") or {}).values()
                 for quote in markets.values() if quote.get("expires_at") and not quote.get("expired")]
-    return {
+    row = {
         "game_id": card["game_id"],
         "sport": card["sport"],
         "season": card["season"],
@@ -593,6 +646,10 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "total_now": cons.get("total_now"),
         "ref_book": cons.get("ref_book"),
         "n_books": cons.get("n_books"),
+        "spread_n_books": cons.get("spread_n_books"),
+        "spread_thin": cons.get("spread_thin"),
+        "total_n_books": cons.get("total_n_books"),
+        "total_thin": cons.get("total_thin"),
         "quote_expires_at": min(expiries) if expiries else None,
         "fair_total": fair.get("fair_total"),
         "fair_spread": fair.get("fair_spread"),
@@ -610,6 +667,10 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "lead_hours": wx.get("lead_hours"),
         "model_version": (card.get("impact") or {}).get("model_version"),
     }
+    for key in ("total_open_ts", "total_open_target_ts", "total_open_basis"):
+        if key in cons:
+            row[key] = cons[key]
+    return row
 
 
 # ---- meta ---------------------------------------------------------------------------

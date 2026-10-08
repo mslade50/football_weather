@@ -8,7 +8,7 @@ function preview() {
     STATE: { book: '' }, HK: 0, HOVER: {},
     isNum: (v) => typeof v === 'number' && Number.isFinite(v),
     parseTs: (v) => v ? new Date(v) : null,
-    fmtTotal: String, fmtOdds: String, fmtShortET: String, bookLabel: String,
+    fmtTotal: String, fmtLine: String, fmtOdds: String, fmtShortET: String, bookLabel: String,
     esc: (v) => String(v).replaceAll('<', '&lt;'), gameLabel: () => 'Away @ Home',
   });
   vm.runInContext(readFileSync(new URL('../../web/table.js', import.meta.url), 'utf8'), ctx);
@@ -41,4 +41,26 @@ test('Missing, expired and started games do not show a best price; negative EV s
   assert.match(vm.runInContext('bestPriceCell(game)', ctx), /No fresh price/);
   ctx.game = { kickoff_utc: new Date(Date.now() + 3600000).toISOString() };
   assert.equal(vm.runInContext('totalPriceQuotes(game).length', ctx), 0);
+});
+
+test('Spread coverage is independent of total coverage in both new and older payloads', () => {
+  const ctx = preview();
+  ctx.game.consensus = {spread_open: -3, spread_now: -3, spread_src: 'pin', n_books: 3, thin: false,
+    spread_n_books: 1, spread_thin: true, total_n_books: 3, total_thin: false};
+  assert.match(vm.runInContext('consensusSpreadCell(game)', ctx), /1 book/);
+  assert.equal(vm.runInContext('marketCoverage(game, "total")', ctx), 3);
+  delete ctx.game.consensus.spread_n_books;
+  ctx.game.odds = {pinnacle: {spread: {home_line: -3}, total: {line: 47}},
+    betcris: {spread: {open_line: -2.5}, total: {line: 47}},
+    betonline: {spread: {home_line: -3, expired: true}, total: {line: 46.5}}};
+  assert.match(vm.runInContext('consensusSpreadCell(game)', ctx), /1 book/);
+});
+
+test('Late first-observed CFB baselines are not labeled as observed at T minus six days', () => {
+  const ctx = preview();
+  ctx.game.sport = 'cfb';
+  ctx.quote = {open_ts: '2026-10-08T19:00:00Z', open_target_ts: '2026-10-04T19:00:00Z'};
+  assert.equal(vm.runInContext('totalBaselineLabel(game, quote)', ctx), 'first seen (after T−6d)');
+  ctx.quote.open_ts = '2026-10-04T18:00:00Z';
+  assert.equal(vm.runInContext('totalBaselineLabel(game, quote)', ctx), 'T−6d');
 });

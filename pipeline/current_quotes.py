@@ -98,7 +98,7 @@ def _card_lines(card: dict) -> list | None:
     return lines
 
 
-def _recompute_card(card: dict) -> bool:
+def _recompute_card(card: dict, now: datetime) -> bool:
     """Refresh comparisons from surviving serialized quotes; preserve all openers."""
     lines = _card_lines(card)
     impact = card.get("impact") or {}
@@ -145,6 +145,10 @@ def _recompute_card(card: dict) -> bool:
         "ref_book": total.ref_book or sp.ref_book,
         "n_books": max(sp.n_books, total.n_books),
         "thin": max(sp.n_books, total.n_books) < 2,
+        "spread_n_books": sp.n_books,
+        "spread_thin": sp.thin,
+        "total_n_books": total.n_books,
+        "total_thin": total.thin,
     })
     card["consensus"] = consensus
 
@@ -158,7 +162,7 @@ def _recompute_card(card: dict) -> bool:
             current_total = total_now
         legacy = legacy_fn(total_now, sp_now, current_total, v1.get("gs_fg_pct"), v1.get("away_fg_pct"))
     card["fair"] = json_out.fair_block(selected, legacy, fair_v2)
-    card["total_prices"] = json_out.compare_totals(sport, lines, selected)
+    card["total_prices"] = json_out.compare_totals(sport, lines, selected, now=now)
 
     # Execution references must not outlive the only current total quote for a book.
     if "execution_markets" in card:
@@ -187,7 +191,7 @@ def expire_card(card: dict, now: datetime) -> dict:
         # surviving main quotes using the same model functions as the full build.
         # Older/incomplete cards fail closed, while preserving historical openers.
         try:
-            recomputed = _recompute_card(card)
+            recomputed = _recompute_card(card, now)
         except Exception:  # noqa: BLE001 - expire safely if a serialized card cannot be rehydrated
             # Incomplete or malformed cards must never retain comparisons that
             # might still include the expired quote.
@@ -195,7 +199,8 @@ def expire_card(card: dict, now: datetime) -> dict:
         if not recomputed:
             card["consensus"] = {**card.get("consensus", {}), **dict.fromkeys(
                 ("spread_now", "total_now", "move_s", "move_t", "spread_src", "ref_book")), "n_books": 0,
-                "thin": True}
+                "thin": True, "spread_n_books": None, "spread_thin": None,
+                "total_n_books": None, "total_thin": None}
             card["fair"] = {k: [] if k == "edges" else None for k in card.get("fair", {})}
             card["total_prices"] = None
     return card
