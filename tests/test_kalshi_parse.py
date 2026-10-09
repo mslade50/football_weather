@@ -64,8 +64,9 @@ def test_dollar_to_american():
 
 def test_effective_price_adds_taker_fee():
     assert kp.taker_fee(0.5) == pytest.approx(0.0175)
-    assert kp.effective_price(0.52) == pytest.approx(0.52 + 0.07 * 0.52 * 0.48)
-    assert kp.effective_price(0.999) == 0.99
+    assert kp.effective_price(0.52) == .5375
+    assert kp.effective_price(0.999) == .9991
+    assert kp.effective_price(.3333) == .3489
 
 
 def test_quote_filters():
@@ -75,6 +76,25 @@ def test_quote_filters():
     assert kp.quote({"status": "active", "yes_bid_dollars": "0.9900", "yes_ask_dollars": "1.0000"}) is None
     assert kp.quote({"status": "active", "yes_bid_dollars": "0.0800", "yes_ask_dollars": "0.6000"}) is None
     assert kp.quote({"status": "active", "yes_bid_dollars": None, "yes_ask_dollars": "0.5"}) is None
+
+
+def test_current_series_fee_metadata_controls_taker_prices_and_unknown_fees_fail_closed(nfl_payload):
+    from copy import deepcopy
+    base = deepcopy(nfl_payload)
+    stamped = "2026-08-23T12:34:00+00:00"
+    current = {series: {"events": events, "fee_metadata": {"series": {
+        "fee_type": "quadratic", "fee_multiplier": 0}}, "received_at": stamped}
+        for series, events in base.items()}
+    free = kp.parse(current, "nfl")
+    assert free and all(row.scraped_at.isoformat() == stamped for row in free)
+    normal = {series: {**data, "fee_metadata": {"series": {"fee_type": "quadratic", "fee_multiplier": 1}}}
+              for series, data in current.items()}
+    paid = kp.parse(normal, "nfl")
+    assert len(paid) == len(free)
+    assert all(a.odds < b.odds for a, b in zip(paid, free, strict=True))
+    unknown = {series: {**data, "fee_metadata": {"error": "unavailable"}} for series, data in current.items()}
+    assert kp.parse(unknown, "nfl") == []
+    assert kp.event_teams(current, "nfl") == kp.event_teams(base, "nfl")
 
 
 # ── identity ─────────────────────────────────────────────────────────────────
@@ -222,7 +242,7 @@ def test_cfb_neutral_and_ml_only_games(cfb_lines):
     wis_nd = rows(cfb_lines, "2026-09-06:WIS@ND")
     assert {ln.market for ln in wis_nd} == {"ml"}
     ml = {ln.side: ln for ln in wis_nd}
-    assert ml["home"].odds == -1428 and ml["home"].prob_raw == pytest.approx(0.925)
+    assert ml["home"].odds == -1429 and ml["home"].prob_raw == pytest.approx(0.925)
     assert ml["away"].odds == 1074 and ml["away"].prob_raw == pytest.approx(0.075)
     assert ml["away"].source_id == "KXNCAAFGAME-26SEP06WISND-WIS"
     clem = {ln.side: ln for ln in rows(cfb_lines, "2026-09-05:CLEM@LSU")}

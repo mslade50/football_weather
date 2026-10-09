@@ -466,6 +466,7 @@ def stage_weather(
                           "not_sampled_point_unavailable" if not decision.eligible and decision.priority == 2 else
                           "not_sampled_below_signal_buffer" if not decision.eligible else
                           "unavailable_degraded" if stats is None else
+                          "retained_members_degraded" if trace.get("unverified_sources") else
                           "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
                           or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
                           else "aged_members" if trace.get("aged_sources") else "full_members")
@@ -479,6 +480,8 @@ def stage_weather(
                     ensemble_fetched_at=trace.get("fetched_at", {}), ensemble_source_versions=trace.get("source_versions", {}),
                     ensemble_cached_sources=trace.get("cached_sources", []),
                     ensemble_aged_sources=trace.get("aged_sources", []),
+                    ensemble_unverified_sources=trace.get("unverified_sources", []),
+                    ensemble_verification_errors=trace.get("errors", {}),
                 )
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")

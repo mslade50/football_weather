@@ -8,6 +8,7 @@
 // CRON_PLAN with America/New_York trimming, then dispatch pipeline.yml.
 
 import { executionPreviewRoute } from "./execution-preview.js";
+import { freshOddsRoute } from "./fresh-odds.js";
 import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
 
 const DATA_PREFIX = "/data/";
@@ -404,6 +405,8 @@ export async function handleFetch(request, env) {
   }
 
   if (url.pathname === "/refresh") return refreshRoute(url, request, env, identity);
+
+  if (url.pathname === "/api/fresh-odds") return freshOddsRoute(request, env);
 
   if (url.pathname === "/api/execution-preview") {
     if (identity.role !== "admin") return jsonResponse({ ok: false, error: "Admin access required" }, 403);

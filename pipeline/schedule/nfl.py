@@ -87,11 +87,27 @@ def parse_nflverse_games(
         if final and not include_final:
             continue
         nv_sid = (row.get("stadium_id") or "").strip() or None
+        venue_name = (row.get("stadium") or "").strip() or None
         stadium_id, tz_name = nv_sid, None
-        if book is not None and nv_sid:
-            st = book.find_stadium(nv_sid)
+        venue_resolution = "raw_source_id"
+        neutral = (row.get("location") or "").strip().lower() == "neutral"
+        if book is not None:
+            by_id = book.find_stadium(nv_sid)
+            by_name = book.find_stadium(venue_name)
+            # Physical venue names are independent evidence. nflverse can retain
+            # a home stadium ID for an international game marketed as "Home".
+            st = by_name if venue_name else by_id
             if st is not None:
                 stadium_id, tz_name = st.stadium_id, st.timezone
+                venue_resolution = "name_overrides_conflicting_id" if by_name and by_id and by_name.stadium_id != by_id.stadium_id else "explicit_name" if by_name else "source_id"
+                home_stadium = book.stadium_for_team("nfl", home)
+                if home_stadium and home_stadium.stadium_id != stadium_id:
+                    neutral = True
+            else:
+                # Never substitute a team's usual home for an explicit unknown
+                # venue; that would fetch confident weather for the wrong place.
+                stadium_id = None
+                venue_resolution = "unresolved_explicit_name" if venue_name else "unresolved_source_id" if nv_sid else None
         kick_utc = kick_et.astimezone(UTC)
         roof = (row.get("roof") or "").strip().lower() or None
         games.append(
@@ -106,10 +122,11 @@ def parse_nflverse_games(
                 home_id=home,
                 away_id=away,
                 stadium_id=stadium_id,
-                neutral=(row.get("location") or "").strip().lower() == "neutral",
+                neutral=neutral,
                 roof_state=roof if roof in ROOF_STATES else None,
                 status="final" if final else ("tbd" if not (row.get("gametime") or "").strip() else "scheduled"),
                 source=f"nflverse:{row.get('game_id', '')}",
+                venue_name=venue_name, venue_source_id=nv_sid, venue_resolution=venue_resolution,
             )
         )
     return games

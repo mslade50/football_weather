@@ -58,6 +58,9 @@ class Game(_AsDict):
     roof_state: Optional[str] = None
     status: str = "scheduled"
     source: str = ""
+    venue_name: Optional[str] = None
+    venue_source_id: Optional[str] = None
+    venue_resolution: Optional[str] = None
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")
@@ -189,6 +192,8 @@ class WeatherForecast(_AsDict):
     ensemble_source_versions: dict[str, Any] = field(default_factory=dict)
     ensemble_cached_sources: list[str] = field(default_factory=list)
     ensemble_aged_sources: list[str] = field(default_factory=list)
+    ensemble_unverified_sources: list[str] = field(default_factory=list)
+    ensemble_verification_errors: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:

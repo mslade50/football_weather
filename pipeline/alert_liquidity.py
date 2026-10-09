@@ -19,7 +19,7 @@ def enrich_liquidity(cards: list[dict]) -> None:
         return
     try:
         proc = subprocess.run(["node", str(BRIDGE)], input=json.dumps(eligible), text=True,
-                              encoding="utf-8", capture_output=True, check=True, timeout=60)
+                              encoding="utf-8", capture_output=True, check=True, timeout=30)
         snapshots = json.loads(proc.stdout)
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         logger.warning("Alert liquidity unavailable: %s", type(exc).__name__)
@@ -32,7 +32,7 @@ def enrich_liquidity(cards: list[dict]) -> None:
             age = (now_utc() - parse_iso(snapshot["checked_at"])).total_seconds()
         except (KeyError, TypeError, ValueError):
             continue
-        if not 0 <= age <= 60:
+        if not 0 <= age <= 15:
             continue
         card["alert_liquidity"] = snapshot
         updates = {(q["book"], q["line"], q["side"]): q for q in snapshot["quotes"]}
@@ -46,7 +46,8 @@ def enrich_liquidity(cards: list[dict]) -> None:
             if total.get("line") != update["line"]:
                 continue
             if update["liquidity_status"] == "verified":
-                total = {**total, "under": update["odds"], "updated_at": update["updated_at"]}
+                total = {**total, "under": update["odds"], "updated_at": update["updated_at"],
+                         "quote_observed_at": update.get("quote_observed_at"), "depth_fetched_at": update.get("depth_fetched_at")}
             elif update["liquidity_status"] == "empty":
                 total = {**total, "under": None}
             else:

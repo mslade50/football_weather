@@ -342,6 +342,7 @@ def test_card_includes_fresh_total_comparisons_from_active_fair():
     from pipeline.model.fair import evaluate_game
 
     lines = [replace(ln, scraped_at=datetime.now(timezone.utc)) for ln in _lines()]
+    lines += [replace(ln, book="kalshi") for ln in list(lines) if ln.book == "pinnacle" and ln.market == "total"]
     gf = evaluate_game("nfl", GID, lines, gs_fg_pct=-2, away_fg_pct=0)
     card = _card(lines=lines, fair=gf)
     prices = card["total_prices"]

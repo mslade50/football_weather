@@ -86,14 +86,23 @@ class KalshiScraper(BaseScraper):
             logger.warning(f"Kalshi event pagination hit {MAX_PAGES}-page cap (series={series_ticker})")
         return all_events
 
-    async def fetch_raw(self, sport: str, market: str | None = None) -> dict[str, list[dict]]:
+    async def fetch_raw(self, sport: str, market: str | None = None) -> dict[str, Any]:
         series = kalshi_parser.SERIES_BY_SPORT[sport]
         wanted = {m: s for m, s in series.items() if market is None or m == market}
-        payload: dict[str, list[dict]] = {}
+        payload: dict[str, Any] = {}
         async with httpx.AsyncClient(headers=HEADERS, timeout=self.timeout) as client:
             for m, tk in wanted.items():
-                payload[tk] = await self._fetch_all_events(client, tk)
-                logger.info(f"[kalshi] {sport} {m}: {len(payload[tk])} events from {tk}")
+                try:
+                    response = await client.get(f"{API_BASE}/series/{tk}")
+                    response.raise_for_status()
+                    fee_metadata = response.json()
+                except (httpx.HTTPError, ValueError) as exc:
+                    logger.warning("[kalshi] %s %s current fee metadata unavailable: %s", sport, m, type(exc).__name__)
+                    fee_metadata = {"error": type(exc).__name__}
+                events = await self._fetch_all_events(client, tk)
+                payload[tk] = {"events": events, "fee_metadata": fee_metadata,
+                               "received_at": datetime.now(timezone.utc).isoformat()}
+                logger.info(f"[kalshi] {sport} {m}: {len(events)} events from {tk}")
         return payload
 
     async def scrape(
@@ -116,7 +125,7 @@ class KalshiScraper(BaseScraper):
         lines = kalshi_parser.parse(payload, sport, scraped_at=scraped_at, run_id=run_id)
         if market:
             lines = [ln for ln in lines if ln.market == market]
-        n_events = sum(len(v) for v in payload.values())
+        n_events = sum(len(v["events"]) if isinstance(v, dict) else len(v) for v in payload.values())
         n_games = len({ln.game_id for ln in lines})
         n_main = sum(1 for ln in lines if ln.is_main)
         logger.info(f"[kalshi] {sport}: {n_events} events, {n_games} games with prices, {len(lines)} lines ({n_main} main)")

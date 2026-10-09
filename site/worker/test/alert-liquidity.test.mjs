@@ -31,21 +31,26 @@ function fetcher({ empty = false, polyFee = 0, failKalshi = false, kalshiLine = 
   };
 }
 
-test('Six-share best quote is $2.40 of liquidity, followed by second and third levels toward $500', async () => {
+test('Cash capacity aggregates all acceptable levels without treating $500 as a budget', async () => {
   const r = await alertLiquidity(game(), fetcher());
   assert.equal(r.quotes.find(q => q.book === 'polymarket_us').liquidity_shares, 6);
   assert.equal(r.quotes.find(q => q.book === 'polymarket_us').liquidity_dollars, 2.4);
   assert.deepEqual(r.allocations.map(a => [a.book, a.quantity, a.spend]),
-    [['polymarket_us', 6, 2.4], ['kalshi', 100, 41], ['polymarket_us', 1061, 456.23]]);
-  assert.equal(r.spend, 499.63);
-  assert.equal(r.unspent, .37);
+    [['polymarket_us', 6, 2.4], ['kalshi', 100, 41], ['polymarket_us', 2000, 860]]);
+  assert.equal(r.cash_stake_capacity, 903.4);
+  assert.equal(r.cash_liquidity_verified, true);
+  assert.equal(r.debit_capacity, 903.4);
+  assert.equal(r.payout_capacity, 2106);
+  assert.equal(r.unspent, 0);
 });
 
 test('Live taker fees can make the cheapest displayed ask rank behind another venue', async () => {
   const r = await alertLiquidity(game(), fetcher({ polyFee: .5 }));
   assert.equal(r.allocations[0].book, 'kalshi');
-  assert.equal(r.quotes.find(q => q.book === 'polymarket_us').liquidity_dollars, 3.12);
-  assert.ok(r.spend <= 500);
+  assert.equal(r.quotes.find(q => q.book === 'polymarket_us').liquidity_dollars, 2.4);
+  assert.equal(r.quotes.find(q => q.book === 'polymarket_us').liquidity_debit, 3.12);
+  assert.equal(r.cash_stake_capacity, 903.4);
+  assert.ok(r.debit_capacity > r.cash_stake_capacity);
 });
 
 test('Empty books and rate-limited venues cannot provide imaginary $500 coverage', async () => {
