@@ -19,7 +19,7 @@ const CLUSTER_CELL_PX = 44;      // pixel grid used to bucket markers
 const ARROW_PX_PER_MPH = 1.1;    // arrow length = wind_fg * this (clamped)
 const MAP = {
   map: null, markers: [], popup: null, ready: false, sport: null, styleFailed: false,
-  rows: [], opacityMode: "conf", showVectors: true, clustered: false, listeners: false,
+  rows: [], opacityMode: "conf", showVectors: true, clustered: false, listeners: false, viewportKey: "",
 };
 const SPORT_VIEW = { nfl: { center: [-96.5, 38.5], zoom: 3.6 }, cfb: { center: [-93.5, 36.5], zoom: 3.8 } };
 
@@ -31,8 +31,9 @@ function ensureMap() {
   MAP.map.on("load", () => { MAP.ready = true; });
   MAP.map.on("error", (e) => {
     // style / tile failure (offline, CSP): fall back to a blank dark canvas so markers still show
-    if (!MAP.styleFailed && e && e.error && /style|fetch|Failed/i.test(String(e.error.message || e.error))) {
+    if (!MAP.styleFailed && e && e.error) {
       MAP.styleFailed = true;
+      document.getElementById("mapnotice").textContent = "Map tiles unavailable; markers shown on a blank background.";
       try { MAP.map.setStyle(BLANK_STYLE); } catch (_) { /* ignore */ }
     }
   });
@@ -65,6 +66,7 @@ function markerRing(g) {
 }
 // fill: Signals preset → flag palette; otherwise impact tier palette
 function markerFill(g) {
+  if (discoveryState(g).kind === "near") return "#ffd79a";
   const preset = typeof activePreset === "function" ? activePreset() : null;
   if (preset && FLAG_COLORS[preset.flag]) return FLAG_COLORS[preset.flag];
   return signalColor(g.signal);
@@ -123,9 +125,13 @@ function markerEl(g) {
   }
   const el = document.createElement("div");
   el.className = `marker${dome ? " dome" : ""}`;
+  el.tabIndex = 0; el.setAttribute("role", "button");
+  el.setAttribute("aria-label", `${gameLabel(g)} ${discoveryState(g).label}; open details`);
+  el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
   el.style.cssText = `width:${size}px;height:${size}px;`;
   // opacity lives on the <svg>: maplibre's Marker owns the wrapper's style.opacity (terrain occlusion)
   el.innerHTML = `<svg viewBox="${-half} ${-half} ${size} ${size}" width="${size}" height="${size}" style="opacity:${markerOpacity(g).toFixed(2)}">${parts.join("")}</svg>`;
+  el.insertAdjacentHTML("beforeend", `<span class="marker-label">${esc(gameLabel(g))} · ${esc(discoveryState(g).label)}</span>`);
   el.title = `${gameLabel(g)} · ${signalLabel(g.signal)}`
     + (isNum(wx.wind_fg) ? ` · ${fmtNum(wx.wind_fg, 0)} mph${wx.wind_dir_fg ? " " + wx.wind_dir_fg : ""}` : "");
   return el;
@@ -137,11 +143,13 @@ function clusterEl(items) {
   let top = items[0];
   for (const g of items) if (order.indexOf(signalTier(g.signal)) > order.indexOf(signalTier(top.signal))) top = g;
   const el = document.createElement("div");
-  const size = Math.max(26, Math.min(46, 22 + n * 2));
+  const size = Math.max(44, Math.min(54, 40 + n * 2));
   el.className = "marker cluster";
   el.style.cssText = `width:${size}px;height:${size}px;border-color:${markerFill(top)};`;
   el.textContent = String(n);
-  el.title = `${n} games — click to zoom`;
+  el.title = `${n} games - open event list`;
+  el.tabIndex = 0; el.setAttribute("role", "button"); el.setAttribute("aria-label", el.title);
+  el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
   return el;
 }
 
@@ -159,6 +167,7 @@ function popupHtml(g) {
   const src = wx.source || isNum(wx.lead_hours) ? row("Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · ${Math.round(Number(wx.lead_hours))}h out` : ""}`) : "";
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
+    ${row("Discovery", discoveryHtml(g))}
     ${row("Signal", `<span class="sig" style="background:${signalColor(g.signal)}">${esc(signalLabel(g.signal))}</span>${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
     ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
     ${row("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}
@@ -170,18 +179,21 @@ function popupHtml(g) {
     ${row("Total", `${fmtTotal(c.total_open)} → ${fmtTotal(c.total_now)}`)}
     ${row("Spread", `${fmtLine(c.spread_open)} → ${fmtLine(c.spread_now)}${c.spread_src ? ` <span class="sub">(${esc(c.spread_src)})</span>` : ""}`)}
     ${row("Location", `${esc(st.name || "")}${isNum(st.orient_deg) ? ` <span class="sub">axis ${Math.round(Number(st.orient_deg))}°</span>` : ""}`)}
+    ${row("Coordinates", coordinateControl(g))}
+    ${row("Roof", esc(st.roof_state || st.roof_type || "Unknown"))}
+    ${row("Exchange under", exchangeOfferHtml(g))}
     ${row("Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)}` : ""}${conf != null ? ` · conf ${conf.toFixed(2)}` : ""}`)}
     ${src}
-    ${be ? row("Best edge", `${esc(bookLabel(be.book))} ${esc(be.market)} ${esc(be.side || "")} ${be.market === "total" ? fmtTotal(be.line) : fmtLine(be.line)} <b>${be.edge_pts >= 0 ? "+" : ""}${Number(be.edge_pts).toFixed(1)}</b> ${esc(be.tier)}`) : ""}
+
     ${(typeof backtestHover === "function" ? backtestHover(g) : []).map(([k, v]) => row(k, esc(v))).join("")}
-    <span class="open" data-game="${esc(g.game_id)}">Open detail →</span>
+    <button type="button" class="open controlbtn" data-game="${esc(g.game_id)}">Open detail →</button>
   </div>`;
 }
 
-function clearMarkers() {
+function clearMarkers(keepPopup = false) {
   for (const m of MAP.markers) m.remove();
   MAP.markers = [];
-  if (MAP.popup) { MAP.popup.remove(); MAP.popup = null; }
+  if (MAP.popup && !keepPopup) { MAP.popup.remove(); MAP.popup = null; MAP.popupGame = null; }
 }
 
 // ── legend + toggles ──────────────────────────────────────────────────────
@@ -198,7 +210,7 @@ function renderLegend(rows) {
     ? `<div class="lg"><span class="dot" style="background:${FLAG_COLORS[preset.flag] || "#8b949e"}"></span>${esc(preset.label)} (preset)</div>`
     : tiers.map((t) => `<div class="lg"><span class="dot" style="background:${TIER_COLORS[t]}"></span>${esc(t)}</div>`).join("");
   el.innerHTML = fillRows
-    + `<div class="lg"><span class="dot hollow"></span>dome / closed${domes ? ` (${domes})` : ""}</div>`
+    + `<div class="lg"><span class="dot" style="background:#ffd79a"></span>Near signal = screening margin; likelihood may be unknown</div>`
     + `<div class="lg sub">size = impact${STATE.minEdge != null || STATE.book ? " (edge mode)" : ""}</div>`
     + (hasVectors ? `<div class="lg sub"><svg width="14" height="14" viewBox="-7 -7 14 14"><line class="axis" x1="0" y1="-6" x2="0" y2="6"/></svg>field axis · <svg width="14" height="14" viewBox="-7 -7 14 14"><g class="arrow"><line x1="0" y1="5" x2="0" y2="-2"/><polygon points="0,-6 -3,-1 3,-1"/></g></svg>wind (to) ∝ mph</div>` : "")
     + `<div class="lg-ctl">
@@ -216,7 +228,7 @@ function renderLegend(rows) {
 function placeMarkers() {
   const map = MAP.map;
   if (!map) return;
-  clearMarkers();
+  clearMarkers(true);
   const rows = MAP.rows;
   const zoom = map.getZoom();
   if (zoom < CLUSTER_ZOOM && rows.length > 1) {
@@ -232,6 +244,7 @@ function placeMarkers() {
       const lon = items.reduce((s, g) => s + Number(g.stadium.lon), 0) / items.length;
       const lat = items.reduce((s, g) => s + Number(g.stadium.lat), 0) / items.length;
       const el = clusterEl(items);
+      el.title = `${items.length} games - zoom to inspect`; el.setAttribute("aria-label", el.title);
       el.addEventListener("click", (ev) => {
         ev.stopPropagation();
         map.easeTo({ center: [lon, lat], zoom: Math.max(CLUSTER_ZOOM + 0.5, zoom + 1.5), duration: 400 });
@@ -241,9 +254,24 @@ function placeMarkers() {
     return;
   }
   MAP.clustered = false;
-  // big markers underneath, small on top, so nothing hides a small signal
-  const ordered = rows.slice().sort((a, b) => markerRadius(b) - markerRadius(a));
-  for (const g of ordered) addGameMarker(g);
+  const locations = new Map();
+  for (const g of rows) {
+    const key = stadiumCoordinates(g);
+    (locations.get(key) || locations.set(key, []).get(key)).push(g);
+  }
+  for (const items of locations.values()) {
+    if (items.length === 1) { addGameMarker(items[0]); continue; }
+    const g = items[0], lngLat = [g.stadium.lon, g.stadium.lat], el = clusterEl(items);
+    el.addEventListener("click", event => {
+      event.stopPropagation();
+      if (MAP.popup) MAP.popup.remove();
+      MAP.popupGame = null;
+      MAP.popup = new maplibregl.Popup({maxWidth: "320px"}).setLngLat(lngLat)
+        .setHTML(`<div class="popup"><b>${esc(g.stadium.name || "Stadium")} · ${items.length} events</b>${items.map(item => `<p><button type="button" class="open controlbtn" data-game="${esc(item.game_id)}">${esc(gameLabel(item))}</button><span class="sub">${esc(kickoffLabel(item))} · ${esc(discoveryState(item).label)}</span></p>`).join("")}</div>`).addTo(map);
+      MAP.popup.getElement().querySelectorAll(".open").forEach(button => button.addEventListener("click", () => openDrawer(button.dataset.game)));
+    });
+    MAP.markers.push(new maplibregl.Marker({element: el}).setLngLat(lngLat).addTo(map));
+  }
 }
 
 function addGameMarker(g) {
@@ -254,6 +282,7 @@ function addGameMarker(g) {
   el.addEventListener("click", (ev) => {
     ev.stopPropagation();
     if (MAP.popup) MAP.popup.remove();
+    MAP.popupGame = g.game_id;
     MAP.popup = new maplibregl.Popup({ offset: markerRadius(g) + 4, maxWidth: "320px" })
       .setLngLat(lngLat).setHTML(popupHtml(g)).addTo(map);
     const open = MAP.popup.getElement().querySelector(".open");
@@ -274,7 +303,29 @@ function renderMap(rows) {
     MAP.sport = STATE.sport;
   }
   renderLegend(rows);
-  MAP.rows = rows.filter((g) => g.stadium && isNum(g.stadium.lat) && isNum(g.stadium.lon));
+  MAP.rows = rows.filter(g => hardEligible(g) && stadiumCoordinates(g));
+  if (MAP.popup && MAP.popupGame) {
+    const g = MAP.rows.find(row => row.game_id === MAP.popupGame);
+    if (!g) { MAP.popup.remove(); MAP.popup = null; MAP.popupGame = null; }
+    else {
+      MAP.popup.setHTML(popupHtml(g));
+      const open = MAP.popup.getElement().querySelector(".open");
+      if (open) open.addEventListener("click", () => openDrawer(open.dataset.game));
+    }
+  }
+  const missing = rows.length - MAP.rows.length;
+  document.getElementById("mapnotice").textContent = MAP.styleFailed ? "Map tiles unavailable; markers shown on a blank background."
+    : missing ? `${missing} eligible games have no verified coordinates; inspect them in Table.` : rows.length ? "" : "No eligible candidates for these filters.";
+  const viewportKey = MAP.rows.map(g => `${g.game_id}:${stadiumCoordinates(g)}`).join("|");
+  if (MAP.popup && !MAP.popupGame && viewportKey !== MAP.viewportKey) { MAP.popup.remove(); MAP.popup = null; }
+  if (MAP.rows.length && viewportKey !== MAP.viewportKey) {
+    MAP.viewportKey = viewportKey;
+    const lons = MAP.rows.map(g => g.stadium.lon), lats = MAP.rows.map(g => g.stadium.lat);
+    const west = Math.min(...lons), east = Math.max(...lons), south = Math.min(...lats), north = Math.max(...lats);
+    map.resize();
+    if (west === east && south === north) map.jumpTo({center: [west, south], zoom: 5.5});
+    else map.fitBounds([[west, south], [east, north]], {padding: 50, maxZoom: 5.5, duration: 0});
+  }
   placeMarkers();
   // container was display:none while on the table tab → force a size recompute
   setTimeout(() => { map.resize(); if (MAP.map.getZoom() < CLUSTER_ZOOM) placeMarkers(); }, 0);

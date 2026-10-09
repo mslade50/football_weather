@@ -57,14 +57,7 @@ function hasFlag(g, flag) {
 
 // games (all weeks of the selected week filter) matching a preset across its sports
 function presetGames(preset) {
-  const rows = [];
-  for (const sp of preset.sports) {
-    for (const g of DATA.games[sp] || []) {
-      if (STATE.week != null && sp === STATE.sport && String(g.week) !== String(STATE.week)) continue;
-      if (hasFlag(g, preset.flag)) rows.push(g);
-    }
-  }
-  return rows;
+  return filterDiscovery(DATA.games[STATE.sport] || [], STATE, preset);
 }
 function presetSort(rows, preset) {
   return rows.slice().sort((a, b) => preset.sort(b) - preset.sort(a));
@@ -115,11 +108,11 @@ function renderSignals() {
   let rows;
   if (preset) rows = presetSort(presetGames(preset), preset);
   else {
-    rows = currentGames().filter((g) => gameFlags(g).length);
+    rows = currentGames();
     rows.sort((a, b) => wxNum(b, "wind_fg") - wxNum(a, "wind_fg"));
   }
   document.getElementById("rowcount").textContent = rows.length
-    ? `${rows.length} ${preset ? preset.label : "flagged"} game${rows.length === 1 ? "" : "s"}`
-    : (preset ? `no ${preset.label} games this week` : "no flagged games");
+    ? `${rows.length} ${preset ? preset.label : STATE.focus === "all" ? "inspected" : "signal / near-signal"} game${rows.length === 1 ? "" : "s"}`
+    : (preset ? `no ${preset.label} games this week` : "no signal / near-signal candidates");
   renderTable(rows, { keepOrder: STATE.sort == null });
 }

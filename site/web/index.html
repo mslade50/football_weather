@@ -6,7 +6,7 @@
 <title>Football Weather Board</title>
 <link rel="stylesheet" href="vendor/maplibre-gl.css" />
 <link rel="stylesheet" href="vendor/uPlot.min.css" />
-<link rel="stylesheet" href="styles.css?v=novig-depth-1" />
+<link rel="stylesheet" href="styles.css?v=discovery-1" />
 </head>
 <body>
   <header>
@@ -25,13 +25,13 @@
   </header>
   <div class="banners" id="banners"></div>
   <div class="tabs">
-    <div class="tab" data-view="map" data-sport="nfl">NFL Map</div>
-    <div class="tab" data-view="map" data-sport="cfb">CFB Map</div>
-    <div class="tab" data-view="signals">Signals</div>
-    <div class="tab active" data-view="table">Table</div>
-    <div class="tab" data-view="alerts">Alerts</div>
-    <div class="tab" data-view="backtest">Backtest</div>
-    <div class="tab" data-view="status">Status</div>
+    <button type="button" class="tab" data-view="map" data-sport="nfl">NFL Map</button>
+    <button type="button" class="tab" data-view="map" data-sport="cfb">CFB Map</button>
+    <button type="button" class="tab" data-view="signals">Signals</button>
+    <button type="button" class="tab active" data-view="table">Table</button>
+    <button type="button" class="tab" data-view="alerts">Alerts</button>
+    <button type="button" class="tab" data-view="backtest">Backtest</button>
+    <button type="button" class="tab" data-view="status">Status</button>
     <button class="tab" data-view="execution" id="execution-tab" type="button" hidden>Execution</button>
   </div>
   <div id="tablemodebar" class="history-toolbar">
@@ -53,21 +53,21 @@
       <option value="Low">Low</option>
       <option value="No">No signal</option>
     </select>
-    <select id="book" title="Book column focus / edge filter"></select>
-    <span class="skillbox" title="Show only games whose best edge (pts) clears this">
-      Min edge <input id="minedge" type="number" step="0.5" placeholder="pts" />
-    </span>
-    <label class="chk" title="Show dome / closed-roof games"><input type="checkbox" id="showdomes" checked /> domes</label>
-    <label class="chk" title="Include watch-tier edges"><input type="checkbox" id="showwatch" checked /> watch</label>
+    <select id="book" title="Reference book columns; discovery is independent of prices"></select>
+<select id="focus" aria-label="Discovery focus"><option value="candidates">Signals + near signals</option><option value="all">Inspect low likelihood / unknown</option></select>
+    <label class="chk" title="Include watch-tier edges"><input type="checkbox" id="showwatch" checked /> watch edges</label>
     <label class="chk" title="Show one SPREAD column per book (consensus spread always shown)"><input type="checkbox" id="bookspreads" /> book spreads</label>
     <input id="search" placeholder="Filter team / stadium…" />
     <button type="button" class="controlbtn presetchip" id="presetchip" style="display:none" title="Signals preset active — click to clear"></button>
+    <select id="mobile-sort" class="mobile-sort" aria-label="Sort games"><option value="">Kickoff order</option><option value="1">Signal first</option><option value="2">Verified all-in price</option></select>
     <span class="sub" id="rowcount"></span>
   </div>
   <div class="signalsbar" id="signalsbar" style="display:none"></div>
   <div class="statusbar" id="statusbar"></div>
+  <p id="loadnotice" class="discovery-note" role="status"></p>
   <div class="wrap" id="tablewrap"><table id="table"><thead></thead><tbody></tbody></table></div>
   <div id="mapwrap" style="display:none">
+    <p id="mapnotice" class="discovery-note" role="status"></p>
     <div id="map"></div>
     <div class="maplegend" id="maplegend"></div>
   </div>
@@ -76,7 +76,7 @@
   <div id="statuswrap" class="view-pane" style="display:none"></div>
   <div id="executionwrap" class="view-pane" style="display:none"></div>
   <div id="hovercard"></div>
-  <aside id="drawer" class="drawer" hidden>
+  <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
     <div class="drawer-head">
       <div class="drawer-title" id="drawer-title"></div>
       <button class="controlbtn" id="drawer-close" type="button" title="Close (Esc)">✕</button>
@@ -86,14 +86,15 @@
   <script src="vendor/maplibre-gl.js"></script>
   <script src="vendor/uPlot.iife.min.js"></script>
   <script src="status.js?v=alert-context-3"></script>
+  <script src="discovery.js"></script>
   <script src="table.js"></script>
   <script src="signals.js"></script>
   <script src="map.js"></script>
   <script src="execution-preview.js?v=novig-depth-1"></script>
-  <script src="drawer.js?v=execution-tab-1"></script>
+  <script src="drawer.js?v=discovery-1"></script>
   <script src="alerts.js"></script>
   <script src="backtest.js?v=history-table-1"></script>
   <script src="history-table.js?v=history-table-3"></script>
-  <script src="app.js?v=execution-tab-1"></script>
+  <script src="app.js?v=discovery-1"></script>
 </body>
 </html>
