@@ -29,7 +29,12 @@ HOURS = [KO + timedelta(hours=i) for i in range(-1, 5)]
 def weather(monkeypatch):
     state = {"clock": NOW, "wind": 12, "temp": 50, "points": [], "ensembles": [], "versions": {}, "fail": set(), "transition": None}
     for source, (_, datasets) in SOURCES.items():
-        state["versions"][source] = {dataset: {"snapshot": 1} for dataset in datasets}
+        state["versions"][source] = {dataset: {"snapshot": 1,
+            "last_run_initialisation_time": int((NOW - timedelta(hours=4)).timestamp()),
+            "last_run_modification_time": int((NOW - timedelta(hours=1)).timestamp()),
+            "last_run_availability_time": int((NOW - timedelta(hours=1)).timestamp()),
+            "update_interval_seconds": 21600, "data_end_time": int((NOW + timedelta(days=15)).timestamp())}
+            for dataset in datasets}
     monkeypatch.setattr(RunContext, "now_utc", property(lambda self: state["clock"]))
     monkeypatch.setattr(nws, "fetch_hourly", lambda *a, **k: [])
     monkeypatch.setattr(nws.PointsCache, "save", lambda self: None)
@@ -267,12 +272,18 @@ def test_closed_roof_is_explicit_and_not_claimed_below_weather_buffer(weather, t
 
 
 def test_unverified_metadata_never_reuses_old_source_as_fresh(weather, tmp_path):
-    run(weather, tmp_path)
+    _, first = run(weather, tmp_path)
+    original = next(iter(first.values()))
+    weather["clock"] += timedelta(minutes=10)
     weather["fail"].update({"meta_ifs", "meta_gefs"})
     _, result = run(weather, tmp_path)
     fc = next(iter(result.values()))
-    assert fc.ensemble_status == "unavailable_degraded" and fc.wind_p90 is None
-    assert fc.ensemble_fetched_at == {} and len(weather["ensembles"]) == 2
+    assert fc.ensemble_status == "retained_members_degraded" and fc.ensemble_members == 82
+    assert fc.ensemble_fetched_at == original.ensemble_fetched_at and len(weather["ensembles"]) == 2
+    assert fc.ensemble_source_versions == original.ensemble_source_versions
+    assert fc.ensemble_unverified_sources == ["ifs", "gefs"]
+    assert set(fc.ensemble_verification_errors) == {"ifs", "gefs"}
+    assert fc.run_time == weather["clock"]  # point and member clocks remain separate
 
 
 def test_source_transition_during_fetch_discards_unverified_payload(weather, tmp_path):
@@ -476,15 +487,21 @@ def test_near_or_active_games_refetch_changed_cycles_immediately(weather, tmp_pa
     assert len(weather["ensembles"]) == 4 and result[gid].ensemble_aged_sources == []
 
 
-def test_distant_reuse_still_requires_stable_current_source_metadata(weather, tmp_path):
+def test_distant_failed_check_preserves_bounded_original_evidence(weather, tmp_path):
     weather["clock"] = NOW - timedelta(days=2)
-    run(weather, tmp_path)
+    for values in weather["versions"].values():
+        for value in values.values():
+            for key in ("last_run_initialisation_time", "last_run_modification_time", "last_run_availability_time"):
+                value[key] -= 2 * 86400
+    _, first = run(weather, tmp_path)
     weather["clock"] += timedelta(hours=1)
     weather["fail"].update({"meta_ifs", "meta_gefs"})
     _, result = run(weather, tmp_path)
     fc = next(iter(result.values()))
-    assert fc.ensemble_status == "unavailable_degraded" and fc.wind_p90 is None
-    assert fc.ensemble_fetched_at == {} and fc.ensemble_aged_sources == []
+    assert fc.ensemble_status == "retained_members_degraded" and fc.wind_p90 is not None
+    assert fc.ensemble_fetched_at == next(iter(first.values())).ensemble_fetched_at
+    assert fc.ensemble_aged_sources == ["ifs", "gefs"]
+    assert fc.ensemble_unverified_sources == ["ifs", "gefs"]
 
 
 def test_same_workflow_new_eligible_opener_refines_previously_skipped_points(weather, tmp_path, monkeypatch):
