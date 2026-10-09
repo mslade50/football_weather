@@ -11,7 +11,7 @@ name: backtest
 #     and data/backtest/*.parquet, push backtest.json to R2 board/ and the parquet
 #     files to R2 backtest/, and archive the closings / stadium_results rows it
 #     produced to D1. The board's Backtest tab reads /data/backtest.json.
-#   * Each run sends one league-specific Telegram post-mortem: first alerted price,
+#   * On explicit rollback opt-in, sends a league-specific Telegram post-mortem: first alerted price,
 #     closing-line value, result, and forecast-vs-actual wind for every play. SMTP
 #     receives the complete report when Telegram fails or has to omit games.
 #   * State is read-only here: nothing under board/ except backtest.json is written,
@@ -59,8 +59,9 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
   DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
-  # Every scheduled run, or an explicit dispatch input, sends one post-mortem.
+  # Request digest on schedule/dispatch; delivery also needs the master opt-in.
   SEND_DIGEST: ${{ github.event_name == 'schedule' || inputs.digest == true }}
+  FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
   DIGEST_SPORT: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 13 * * 0' && 'cfb') || (github.event_name == 'schedule' && 'nfl') || inputs.digest_sport || 'all' }}
   # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
   STATE_FILES: alerts closings history wx_history openers
@@ -197,7 +198,7 @@ jobs:
         run: |
           npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_backtest.sql
       - name: Weekly post-mortem
-        if: env.SEND_DIGEST == 'true'
+        if: env.SEND_DIGEST == 'true' && (env.FOOTBALL_TELEGRAM_ENABLED == '1' || env.DRY_RUN == '1')
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -230,7 +231,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Telegram on failure
-        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}
+        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && vars.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

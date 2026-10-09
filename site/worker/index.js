@@ -254,6 +254,7 @@ async function apiRoute(url, request, env, identity) {
       return jsonResponse({
         ok: true,
         role: identity.role,
+        notifications: { football_telegram_enabled: env.FOOTBALL_TELEGRAM_ENABLED === "1" },
         heartbeat,
         dispatch,
         meta: meta ? {
@@ -373,7 +374,7 @@ function ghHeaders(env) {
 // Best-effort SYSTEM Telegram alert. This is opt-in so the betting channel does
 // not become a CI/provider-health pager.
 export async function notifyTelegram(env, text, fetchImpl = fetch) {
-  if (env.TELEGRAM_SYSTEM_ALERTS !== "1") return;
+  if (env.FOOTBALL_TELEGRAM_ENABLED !== "1" || env.TELEGRAM_SYSTEM_ALERTS !== "1") return;
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
   try {
     await fetchImpl(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {

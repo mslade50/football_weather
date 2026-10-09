@@ -26,6 +26,12 @@ LEGACY_EKEY = f"edge|2026|3|{GID}|total|under|betonline|v1"
 CFG = A.Config(board_url="https://board.test", chat_default="C0", chat_by_sport={"nfl": "CNFL"})
 
 
+@pytest.fixture(autouse=True)
+def _enable_mock_delivery(monkeypatch):
+    # Exercise rollback with fake senders; independent HTTP guards stay active.
+    monkeypatch.setenv("FOOTBALL_TELEGRAM_ENABLED", "1")
+
+
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
 @pytest.mark.parametrize("roof_type,state", [("dome", "outdoors"), ("dome", None),
                                             ("retractable", None), ("retractable", "closed"),
