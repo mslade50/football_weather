@@ -258,7 +258,8 @@ function render() {
   document.getElementById("signal").value = STATE.signal;
   const mobileSort = document.getElementById("mobile-sort");
   if (mobileSort) mobileSort.value = [1, 2].includes(STATE.sort) ? String(STATE.sort) : "";
-  document.getElementById("search").value = STATE.q;
+  const search = document.getElementById("search");
+  if (document.activeElement !== search && search.value !== STATE.q) search.value = STATE.q;
   const view = STATE.view;
   const isMap = view === "map", isAlerts = view === "alerts", isStatus = view === "status", isSignals = view === "signals";
   const isBacktest = view === "backtest", isExecution = view === "execution";
@@ -325,6 +326,10 @@ function populateBooks() {
   const sel = document.getElementById("book");
   sel.innerHTML = `<option value="">Book: all</option>` + BOOKS.map((b) => `<option value="${b}">${esc(bookLabel(b))}</option>`).join("");
   sel.value = BOOKS.includes(STATE.book) ? STATE.book : "";
+}
+
+function setupSearch() {
+  document.getElementById("search").addEventListener("input", (e) => { STATE.q = e.target.value; render(); });
 }
 
 // ── hover card ────────────────────────────────────────────────────────────
@@ -517,7 +522,7 @@ async function boot() {
   document.getElementById("book").addEventListener("change", (e) => { STATE.book = e.target.value; render(); });
   document.getElementById("focus").addEventListener("change", (e) => { STATE.focus = e.target.value; render(); });
   document.getElementById("showwatch").addEventListener("change", (e) => { STATE.showWatch = e.target.checked; render(); });
-  document.getElementById("search").addEventListener("input", (e) => { STATE.q = e.target.value.toLowerCase().trim(); render(); });
+  setupSearch();
   const presetChipEl = document.getElementById("presetchip");
   if (presetChipEl) presetChipEl.addEventListener("click", () => setPreset(null));
   document.getElementById("signal").value = STATE.signal;
