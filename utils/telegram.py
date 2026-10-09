@@ -1,4 +1,4 @@
-"""Telegram Bot API integration (copied verbatim from golf_scraping/utils/telegram.py).
+"""Football Telegram transport, retained for explicitly requested rollback.
 
 Only ``send_message`` is kept here; football alert formatting lives in
 ``pipeline/alerts.py``.
@@ -6,12 +6,19 @@ Only ``send_message`` is kept here; football alert formatting lives in
 
 import logging
 import os
+from collections.abc import Mapping
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org"
+
+
+def football_telegram_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Football-only master switch. Retired by default; rollback requires exact opt-in."""
+    values = os.environ if env is None else env
+    return values.get("FOOTBALL_TELEGRAM_ENABLED") == "1"
 
 
 def _client() -> httpx.AsyncClient:
@@ -26,6 +33,9 @@ async def send_message(text: str, bot_token: str | None = None, chat_id: str | N
     """
     # Hard stop: never send from inside pytest or when TELEGRAM_DISABLED=1. The alert
     # tests once reached this function with a real token loaded from .env (2026-08-24).
+    if not football_telegram_enabled():
+        logger.info("football Telegram retired (FOOTBALL_TELEGRAM_ENABLED is not 1)")
+        return False
     if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("TELEGRAM_DISABLED") == "1":
         logger.warning("telegram send suppressed (pytest / TELEGRAM_DISABLED)")
         return False

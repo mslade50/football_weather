@@ -21,6 +21,7 @@ def test_failure_pings_are_clear_encoded_guarded_and_do_not_log_telegram_payload
         assert '--data-urlencode text="$MSG"' in text, name
         assert 'TELEGRAM_BOT_TOKEN" ]' in text and 'TELEGRAM_CHAT_ID" ]' in text, name
         assert "vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text, name
+        assert "vars.FOOTBALL_TELEGRAM_ENABLED == '1'" in text, name
         assert ">/dev/null || true" in text, name
 
 
