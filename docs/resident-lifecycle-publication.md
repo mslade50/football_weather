@@ -1,10 +1,10 @@
 # Resident quotes, explicit bet lifecycle, and immutable publication
 
-This phase is staged for review above `codex/football-ui-contract-integration`
-(PR #16, tested head `0a1abd0b01afe1504ae115b4ad1970c9e87c916a`). It does not
+This phase is staged in draft PR #17 after the approved PR #15/#16 releases
+(main merge `df1f408b35e267ee5b1d8b598e1a11cb583a3ff2`). It does not
 install or activate a scheduled task, dispatch a refresh, send a notification,
 place a bet, change credentials, or deploy the Worker during implementation.
-PR #15 and PR #16 remain separate review and deployment gates. PR #13 and the
+PR #17 and resident activation remain separate approval gates. PR #13 and the
 existing automation schedules are unchanged. Breakout and the canceled BetCRIS
 repair are outside this work.
 
@@ -43,9 +43,18 @@ The alert policy retains existing signal tiers and rules. Production
 `Config()` keeps legacy caller compatibility. First High/Very High signals and
 verified CLEAR invalidations may be immediate. Other first notices and
 pre-confirmation reminders enter the 08:00 or 17:00 Eastern routine slot, with
-at most two successful routine messages per chat and local day. Failed delivery
+at most two successful routine messages in the shared default chat per local day.
+NFL and CFB share that routine message; immediate notices retain sport routing.
+The local clock targets the exact minute across DST changes, with a five-minute
+transport/retry recovery window. A running, awake host and functioning providers
+are required; external delivery cannot be guaranteed at the exact second.
+Failed delivery
 does not mark the notice or consume its slot. First notices take priority over
-reminders, with compact summaries instead of long price explanations.
+reminders, with compact summaries instead of long price explanations. If the
+next available routine slot would be at or after kickoff, an unsent first notice
+is immediate, including discovery after the current slot was already delivered.
+Digest overflow remains unmarked and the clock rechecks pending kickoff times;
+it uses the same late-first exception rather than marking an unseen notice sent.
 
 Only explicit user confirmation changes bet state. Silence, viewing a quote,
 requesting a preview, and seeing $500 depth do not confirm a bet. Once confirmed,
@@ -73,6 +82,7 @@ recommendation capacity threshold, not a universal user bet stake.
 | `board/meta.json` and `board/generations/<sha256>/...` | Serialized pipeline publication | Check manifest, source/run identity, sport counts, and every referenced byte checksum before commit |
 | `board/live_quotes.json` | One explicitly selected resident collector | Conditional R2 writes; current owner, full SHA, run identity, heartbeat, depth clocks and expiry required |
 | `board/bet_confirmations.json` | Authenticated admin confirmation endpoint | Explicit acknowledgement; immutable bet ID/details; conditional R2 updates; pipeline never uploads this ledger |
+| `board/notification_owner.json` | Explicit operator selection, outside this implementation | Schema 1; `kind: local`, exact full SHA, hostname and canonical state root select one local sender; pipeline abstains and local OS lock prevents duplicate runners |
 | `board/alerts.json`, `board/telegram_state.json` | One production notification sender | Durable receipt checkpoint before proceeding to another message |
 | `board/alerts_live_feed.json` | Published notification receipt checkpoint | Live receipts overlay only their matching current run; historical generation reads stay immutable |
 | `board/cf_heartbeat.json` | Existing Cloudflare cron handler | Pipeline reads but never overwrites this operational heartbeat |
@@ -82,7 +92,8 @@ conditions prevent competing remote writers. It refuses a clean remote owner
 with a heartbeat newer than 60 seconds or an unknown/future clock. A failed
 conditional write is not blindly retried. Source selection requires a clean
 tracked checkout, an explicitly selected full commit SHA, and a published board
-with that same SHA.
+with that same SHA. Both runners check the selected source during execution;
+changing tracked files or HEAD degrades/stops work until the source is reselected.
 
 Each public response is retained before parsing as raw bytes plus a manifest
 containing the public URL, receipt time, status, byte count, SHA-256 and Age
@@ -116,6 +127,16 @@ starts at logon, prevents overlapping task instances, and restarts on failure.
 It requires the host to remain logged in and awake. The OS lock provides a
 second overlap guard even if another task starts the collector directly.
 
+`-Mode Notifications` selects a separate disabled task for the notification
+clock; it never changes existing automations or PR #13. The runner defaults to
+printing its next local target. `--verify-only` validates publication/state and
+collects candidates without sending or writing remote receipts. Only `--run`
+enables transports, and only an explicitly configured local owner with matching
+host, source SHA and canonical state root permits it. One shared
+`TELEGRAM_CHAT_ID` is required for the two routine messages. Ownership is checked
+again before delivery and receipt uploads. Safe handoff still requires draining
+the preceding sender before the operator switches ownership.
+
 The default cohort is four games per nominal 10-second cycle, with at most
 twelve mapped market references per game and four concurrent games. Cohorts
 rotate independently of liquidity and exclude known hard roof/opening-spread
@@ -135,14 +156,19 @@ has no order/account transport. Repeating identical details under the same
 ID succeeds; conflicting details return 409. Conditional-write contention
 cannot claim success or overwrite another confirmation.
 
-The endpoint is implemented, but a low-effort confirmation control in the
-desktop/phone drawer remains to be implemented and reviewed. Users should not
-be expected to operate the JSON endpoint as the final product workflow.
+The admin drawer includes venue, placed UNDER line, actual cash stake and an
+unchecked `I placed this bet` acknowledgement. No values default to a $500 bet.
+It preserves exact confirmation IDs/details across uncertain network outcomes
+and session reloads, rechecks server receipts, and requires explicit retry.
+Already confirmed details remain immutable. Recording another bet requires a
+new cash stake and a new ID. Price-only polling preserves the form; navigation
+cannot paint another game's response. Actual browser/phone acceptance remains
+unverified because direct live-board access is denied.
 
 ## Required activation and acceptance sequence
 
-1. Review and approve PR #15, PR #16, and this stacked phase independently.
-   Preserve their tested heads. Confirm the deployment authority before any
+1. PR #15/#16 have separate approved releases. Review and approve this phase
+   independently. Confirm the deployment authority before any
    merge, workflow dispatch, or production activation. Main pushes touching
    `site/**` automatically run the existing deploy workflow: canceling the job
    does not prove it failed to activate a Worker version.
@@ -168,20 +194,18 @@ be expected to operate the JSON endpoint as the final product workflow.
    Hard-ineligible games stay absent from table and map; weather-eligible games
    remain discoverable when liquidity is absent. Check one-tap exact stadium
    coordinates and user input across polling/navigation.
-6. Complete the explicit confirmation UI and prove it never triggers an order.
+6. Verify the explicit confirmation UI and prove it never triggers an order.
    Use test ledgers and fake notification senders for acknowledgement,
    retry/idempotency, post-confirmation suppression and CLEAR-only behavior.
    Then select one durable production notification owner. The quote resident
    does not provide an alert sender. Do not enable a second sender beside the
    pipeline without shared ownership and receipt discipline.
-7. Supply an exact 08:00/17:00 America/New_York scheduler, including DST behavior,
-   without merging or altering PR #13 or existing automations implicitly. The
-   current policy accepts the first successful pass in each named hour;
-   existing refresh schedules do not guarantee the exact minute. Resolve the
-   first non-massive signal discovered after the last routine slot but before
-   kickoff: the current queue cannot guarantee its notice before kickoff.
-   Likewise prove delivery under digest overflow; excess notices remain
-   unmarked for a subsequent slot. Do not claim these requirements complete.
+7. Activate and verify the staged 08:00/17:00 America/New_York clock only after
+   approval, without merging or altering PR #13 or existing automations. Prove
+   both DST transitions, failed-send retry without consuming a slot, same-slot
+   and restart deduplication, shared NFL/CFB two-message daily cap, digest
+   overflow, and late-first discovery before kickoff. No always-running host
+   or timely provider/transport delivery has been established by unit tests.
 8. Integrate documented provider-attested opening data. No existing adapter in
    this phase supplies the new attestation fields, so true opener and true
    opener movement may remain unknown. Use separate evidence for historical
@@ -195,9 +219,17 @@ be expected to operate the JSON endpoint as the final product workflow.
 
 ## Reproducible staged checks
 
-Validated on Windows: 1,318 Python tests passed (one existing xlsxwriter version
-warning), 106 Worker/UI tests passed, and Ruff passed. No production operations
-were exercised by those tests.
+The completed staged phase passed 1,329 Python tests (one existing xlsxwriter
+version warning), 113 Worker/UI tests, and Ruff. Exact pushed-commit CI must
+also pass before release approval. No production operations are exercised
+by these tests.
+
+Rebasing onto released main `df1f408b35e267ee5b1d8b598e1a11cb583a3ff2`
+preserved the tested tree: `git diff --exit-code
+codex/football-resident-pre-main-rebase HEAD` returned no differences before
+this documentation evidence was added. The original reviewed `d8d8205` remains
+recoverable at local ref `codex/football-resident-reviewed-d8`; the complete
+pre-rebase phase remains at `codex/football-resident-pre-main-rebase`.
 
 Run locally without installing, activating, publishing or notifying:
 
@@ -214,5 +246,7 @@ bounded noncooperative R2/provider reads, explicit confirmation idempotency,
 confirmation arriving after planning, Eastern/DST routine caps, failed-send
 retry, CLEAR once, degraded weather withholding CLEAR, authoritative opening
 spread eligibility, unknown original prices, and compact first-notice priority.
-Live provider timing, exact scheduling, host credentials and full browser/phone
-acceptance require the separately approved activation work above.
+Live provider timing, operating-system scheduling, host credentials and full
+browser/phone acceptance require the separately approved activation work above.
+See `docs/resident-activation-checklist.md` for the current blockers, commands,
+rollbacks and evidence to capture.
