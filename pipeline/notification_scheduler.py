@@ -208,13 +208,15 @@ def main(argv=None):
                 body = encoded(result)
                 if len(body) > MAX_OUTBOX_BYTES:
                     raise RuntimeError('Outbox retention capacity reached; archive review required')
+                if datetime.now(timezone.utc) >= alert_policy.evidence_time(result['valid_until']):
+                    raise RuntimeError('Review inputs expired before outbox commit')
                 atomic_json(path, result)
                 if args.publish:
                     assert_source()
                     # Owner object is independently controlled. CAS prevents an
                     # intervening competing write from being silently replaced.
                     try:
-                        remote = client.get_object(Bucket=cfg.bucket, Key=OUTBOX_KEY)
+                        remote = client.head_object(Bucket=cfg.bucket, Key=OUTBOX_KEY)
                     except Exception as exc:
                         if not r2.is_no_such_key(exc):
                             raise

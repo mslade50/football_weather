@@ -240,7 +240,7 @@ unverified because direct live-board access is denied.
 
 ## Reproducible staged checks
 
-The completed staged phase passed 1,374 Python tests (one existing xlsxwriter
+The completed staged phase passed 1,375 Python tests (one existing xlsxwriter
 version warning), 114 Worker/UI tests, and Ruff. Exact pushed-commit CI must
 also pass before release approval. No production operations are exercised
 by these tests.

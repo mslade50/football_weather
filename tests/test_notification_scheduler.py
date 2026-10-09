@@ -57,6 +57,11 @@ class Client:
     def put_object(self, **kwargs):
         self.writes.append(kwargs)
         self.remote = json.loads(kwargs['Body'])
+    def head_object(self, **kwargs):
+        self.reads.append(kwargs['Key'])
+        if self.remote is None:
+            raise RuntimeError('NoSuchKey')
+        return {'ETag': 'fixture-etag'}
 
 
 def setup_runtime(monkeypatch, tmp_path, cards=None):
@@ -227,3 +232,11 @@ def test_invalid_confirmation_or_new_source_stops_without_commit(tmp_path, monke
     client.confirmations = EMPTY
     client.meta = {**META, 'git_sha': 'b' * 40}
     assert N.main(args) == 1 and not (tmp_path / 'outbox.json').exists()
+
+
+def test_slow_validation_cannot_commit_already_expired_review_material(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    expired = N.make_outbox(META, [], EMPTY, None, NOW - timedelta(days=1))
+    monkeypatch.setattr(N, 'make_outbox', lambda *_: expired)
+    assert N.main(['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once']) == 1
+    assert not (tmp_path / 'outbox.json').exists() and not client.writes
