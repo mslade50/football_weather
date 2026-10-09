@@ -535,6 +535,7 @@ function openDrawer(gameId) {
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
     <h3>Total price comparison</h3><div id="drawer-prices" style="overflow:auto">${totalPriceTable(g)}</div>
+    ${typeof confirmationControls === 'function' ? confirmationControls(g) : ''}
     <h3>Odds by book (${g.sport === "cfb" ? "totals T-6d; spreads open" : "open"} → now)</h3><div id="drawer-odds" style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>
@@ -554,6 +555,7 @@ function openDrawer(gameId) {
   document.getElementById("hist-market").addEventListener("change", (e) => { DRAWER.market = e.target.value; loadHistory(g); });
   document.getElementById("hist-book").addEventListener("change", (e) => { DRAWER.book = e.target.value; loadHistory(g); });
   setupStakeCheck(g);
+  if (typeof setupConfirmationControls === 'function') setupConfirmationControls(g);
   renderHourlyChart(g);
   renderDriftChart(g);
   loadHistory(g);
