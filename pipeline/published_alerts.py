@@ -41,7 +41,8 @@ def archive_receipts(path: Path) -> None:
 def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str, *,
                      verifier: Callable[[str, str], None] = verify_published,
                      uploader: Callable | None = None, archiver: Callable = archive_receipts,
-                     sender: alerts.Sender | None = None, now: datetime | None = None) -> alerts.AlertsRun | None:
+                     sender: alerts.Sender | None = None, now: datetime | None = None,
+                     confirmation_reader: Callable[[], dict] | None = None) -> alerts.AlertsRun | None:
     # safe_refresh must not modify delivery markers or queue state.
     if os.environ.get("TELEGRAM_DISABLED") == "1":
         return None
@@ -49,11 +50,22 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
     if meta.get("run_id") != run_id:
         raise RuntimeError("Local board run does not match the requested notification run")
     verifier(bucket, run_id)  # No message or delivery-state write until this succeeds.
-    confirmation_reader = None
     if verifier is verify_published:
         from pipeline.bet_confirmations import load_confirmations
         from scripts.publish_r2 import download_one
+        def pipeline_owner():
+            owner = json.loads(download_one(bucket, 'board/notification_owner.json', state_dir / 'owner-check',
+                                           allow_missing=True, missing_bytes=b'null'))
+            if owner is not None:
+                if not isinstance(owner, dict) or owner.get('schema_version') != 1 or owner.get('kind') not in ('pipeline', 'local'):
+                    raise RuntimeError('Notification owner configuration invalid')
+                return owner['kind'] == 'pipeline'
+            return True
+        if not pipeline_owner():
+            return None  # An explicitly selected local sender owns all notifications.
         def confirmation_reader():
+            if not pipeline_owner():
+                raise RuntimeError('Pipeline notification ownership revoked')
             (state_dir / 'bet_confirmations.json').write_bytes(download_one(
                 bucket, 'board/bet_confirmations.json', state_dir / 'confirmation-check', allow_missing=True))
             return load_confirmations(state_dir)
@@ -96,6 +108,7 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
     result = alerts.run_alerts(ctx, cards, state_dir, sender=sender, now=now,
                               new_keys_by_sport=inputs.get("new_keys_by_sport"), receipt_checkpoint=checkpoint,
                               confirmation_reader=confirmation_reader)
+    checkpoint(result.alerts, result.telegram_state)  # Persist unsent first observations and queues too.
     records = list(result.alerts.get("records", {}).values())
     # A previous attempt may have saved R2 receipts but failed the D1 write.
     # Re-upsert retained receipts, including those deduped on this attempt.

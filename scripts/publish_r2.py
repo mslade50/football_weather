@@ -130,7 +130,8 @@ def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
     return [key for key, _, _ in items]
 
 
-def download_one(bucket: str, key: str, target: Path, *, run=subprocess.run, allow_missing: bool = False) -> bytes:
+def download_one(bucket: str, key: str, target: Path, *, run=subprocess.run, allow_missing: bool = False,
+                 missing_bytes: bytes = b'{"schema_version":1,"bets":{}}') -> bytes:
     target.mkdir(parents=True, exist_ok=True)
     path = target / key.replace('/', '_')
     result = run([shutil.which('npx') or 'npx', '--yes', 'wrangler@4', 'r2', 'object', 'get',
@@ -139,7 +140,7 @@ def download_one(bucket: str, key: str, target: Path, *, run=subprocess.run, all
     if result.returncode != 0:
         import re
         if allow_missing and re.search(r'NoSuchKey|does not exist|not found|\b404\b', (result.stderr or '') + (result.stdout or ''), re.I):
-            return b'{"schema_version":1,"bets":{}}'
+            return missing_bytes
         raise RuntimeError(f'Publication verification fetch failed: {key}')
     return path.read_bytes()
 

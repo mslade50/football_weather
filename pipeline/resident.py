@@ -266,7 +266,11 @@ def main(argv=None) -> int:
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     with OwnerLock(args.root / 'owner.lock'):
-        worker = ResidentCollector(args.root, sha, lambda sport: load_board(client, cfg.bucket, sport), max_games=args.max_games)
+        def selected_board(sport):
+            if revision() != sha:
+                raise RuntimeError('Selected quote source changed during execution')
+            return load_board(client, cfg.bucket, sport)
+        worker = ResidentCollector(args.root, sha, selected_board, max_games=args.max_games)
         if args.publish:
             worker.publisher = ConditionalPublisher(client, cfg.bucket, worker.owner_id, utc_now())
         while not stop.is_set():

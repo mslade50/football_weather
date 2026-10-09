@@ -8,15 +8,35 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 
 def routine_slot(now):
     local = now.astimezone(ZoneInfo("America/New_York"))
-    # The first successful pass in these hours delivers the named local slot.
-    # Exact minute depends on the separately enabled local scheduler.
-    return f"{local.date()}|{local.hour:02d}" if local.hour in (8, 17) else None
+    # Scheduler targets the exact minute; bounded recovery tolerates a late
+    # transport/retry without turning the entire hour into a routine slot.
+    return f"{local.date()}|{local.hour:02d}" if local.hour in (8, 17) and local.minute < 5 else None
+
+
+def next_routine_at(now):
+    zone = ZoneInfo('America/New_York')
+    local = now.astimezone(zone)
+    for offset in (0, 1):
+        for hour in (8, 17):
+            candidate = datetime.combine(local.date() + timedelta(days=offset), time(hour), zone)
+            if candidate > local:
+                return candidate.astimezone(now.tzinfo)
+    raise AssertionError('Next routine slot unavailable')
+
+
+def routine_available(alerts, cfg, now):
+    slot = routine_slot(now)
+    if not slot:
+        return False
+    ledger = alerts.get('routine_delivery') or {}
+    prefix = f"{cfg.chat_default}|{slot.split('|')[0]}|"
+    return f'{cfg.chat_default}|{slot}' not in ledger and sum(key.startswith(prefix) for key in ledger) < 2
 
 
 def confirmed_for(confirmations, game_id):
@@ -134,6 +154,9 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
                 for candidate in first:
                     candidate.text += "\n" + late_context(card)
                     candidate.summary = compact_notice(card, cfg)
+                    if not routine_available(alerts, cfg, now) and candidate.kickoff_utc <= next_routine_at(now):
+                        candidate.record['first_notice_reason'] = 'kickoff_before_next_routine_slot'
+                        candidate.text += '\nFirst notice now: kickoff is before the next routine update.'
                 out += first
             elif slot:
                 edge = A._play_edge(card)
@@ -183,7 +206,8 @@ def plan(candidates, alerts, tg, now, cfg):
                 },
             )
             candidate.record.update(observed)
-        if candidate.family == "clear" or (candidate.family == "edge" and candidate.tier in A.BYPASS_TIERS):
+        if candidate.family == "clear" or (candidate.family == "edge" and (
+                candidate.tier in A.BYPASS_TIERS or candidate.record.get('first_notice_reason') == 'kickoff_before_next_routine_slot')):
             result.send.append(candidate)
         elif slot:
             candidate.record["routine_slot"] = slot
@@ -216,9 +240,13 @@ def dispatch(result, alerts, sender, now, cfg, checkpoint=None, confirmation_rea
     slot = routine_slot(now)
     if not slot:
         return outcome
+    if result.digest and not cfg.chat_default:
+        raise RuntimeError('Routine delivery requires one shared default chat')
     by_chat = {}
     for candidate in result.digest:
-        by_chat.setdefault(cfg.chat_for(candidate.sport), []).append(candidate)
+        # One shared routine destination combines NFL/CFB into the same two
+        # messages. Immediate first/CLEAR notices retain sport-specific routing.
+        by_chat.setdefault(cfg.chat_default or cfg.chat_for(candidate.sport), []).append(candidate)
     for chat, candidates in by_chat.items():
         confirmations = latest()
         candidates = [c for c in candidates if not confirmed_for(confirmations, c.game_id)]

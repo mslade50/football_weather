@@ -7,15 +7,23 @@ param(
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedSha,
     [string]$Repository = (Split-Path -Parent $PSScriptRoot),
     [string]$TaskName = 'Football Weather Resident Quotes',
+    [ValidateSet('Quotes','Notifications')][string]$Mode = 'Quotes',
     [switch]$Install,
     [switch]$Activate,
     [switch]$Publish
 )
 $repoPath = (Resolve-Path -LiteralPath $Repository).Path
 $pythonExe = (Resolve-Path -LiteralPath $PythonPath).Path
-$residentRoot = Join-Path $repoPath 'data\resident'
-$arguments = '-m pipeline.resident --sport all --expected-sha ' + $ExpectedSha + ' --root "' + $residentRoot + '"'
-if ($Publish) { $arguments += ' --publish' }
+if ($Mode -eq 'Notifications') {
+    if ($Publish) { throw '-Publish applies to quote mode only.' }
+    if (-not $PSBoundParameters.ContainsKey('TaskName')) { $TaskName = 'Football Weather Notification Clock' }
+    $residentRoot = Join-Path $repoPath 'data\notification-resident'
+    $arguments = '-m pipeline.notification_scheduler --run --expected-sha ' + $ExpectedSha + ' --root "' + $residentRoot + '"'
+} else {
+    $residentRoot = Join-Path $repoPath 'data\resident'
+    $arguments = '-m pipeline.resident --sport all --expected-sha ' + $ExpectedSha + ' --root "' + $residentRoot + '"'
+    if ($Publish) { $arguments += ' --publish' }
+}
 $plan = [ordered]@{TaskName=$TaskName;Executable=$pythonExe;Arguments=$arguments;WorkingDirectory=$repoPath;Install=[bool]$Install;Activate=[bool]$Activate;Publish=[bool]$Publish;InitiallyDisabled=$true}
 $plan | ConvertTo-Json
 if (-not $Install) {
