@@ -39,6 +39,42 @@ notification runner also needs the existing `TELEGRAM_BOT_TOKEN`, one shared
 archive. Bot/chat presence in one `.env` does not establish delivery permission
 or scheduled-process access.
 
+A bounded names-only desktop preflight found the existing `GolfRichShotCollector`
+uses `DESKTOP-2KI41V6\McKinley Slade` with Interactive/Limited task identity and
+`C:\Users\McKinley Slade\AppData\Local\Programs\Python\Python310\python.exe`.
+Its hidden launcher runs `shot_collector.rich_service` in the isolated
+`golf_scraping-collector-prod` checkout. This identity/executable/task pattern
+can be reused without changing golf. No football task was present. The actual
+user/machine registry environment exposed no football R2 SDK provider names;
+the user scope declared only the relevant golf `IMG_SHOT_INGEST_TOKEN`.
+The inspected golf wrappers inject no relevant credentials, the collector
+checkout has no `.env`, the golf odds `.env` declares no R2 provider names, and
+this user's `.aws` directory is absent. These are provider-name/path findings,
+not a claim that no key exists anywhere or that declared values are valid.
+Football's SDK implementation has no Wrangler, keyring or AWS-profile fallback.
+
+The existing GitHub/Cloudflare **Wrangler** path can publish the first immutable
+generation without new S3 credentials: after separately approved PR #17
+merge/deploy, explicitly request one `pipeline.yml` run on released `main` with
+`sport=all`, `scope=exchanges`, `safe_refresh=true`, `force=false`. This makes
+schedule/weather/exchange reads and writes `football-board` R2 raw, snapshot,
+legacy and generation objects/meta plus `football-odds` D1 history, with no
+Telegram sends or bets. Merging/deploying alone does not refresh data. Keep
+the gates enabled and verify the actual receipt/source/hash/counts afterward.
+For the current local SDK runners, securely supplying an existing authorized
+R2 key pair to the selected runtime (or separately authorizing a new scoped
+pair) remains necessary. Do not paste keys into chat or put them in task
+arguments. The golf ingest token is not a football storage credential.
+
+The exact planned disabled task names are `Football Weather Resident Quotes`
+and `Football Weather Notification Clock`. Both start at user logon if later
+activated. Quotes targets 10-second cycles with four-game rotating cohorts;
+long reads may take up to 28 seconds. Notification Clock polls at most every
+10 seconds and targets 08:00/17:00 America/New_York. `--verify-only` is one-shot
+no-send/no-remote-write inspection; `--run` is capable of real Telegram delivery.
+No continuously running no-send notification mode is claimed. Keep installation
+disabled and activation/owner handoff separately approved.
+
 Select one clean checkout of the approved full SHA, a known Python executable,
 Node in the scheduled user's PATH, writable canonical state roots, and a host
 that remains logged in and awake. Resolve the 512 MiB raw-capture archival policy

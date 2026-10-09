@@ -60,8 +60,13 @@ Only explicit user confirmation changes bet state. Silence, viewing a quote,
 requesting a preview, and seeing $500 depth do not confirm a bet. Once confirmed,
 stronger weather, line movement, threshold oscillation, and routine reminders
 are suppressed. CLEAR requires a known hard invalidation or complete, current
-weather that no longer meets the encoded rules; missing or degraded providers
-cannot prove invalidation. The production notification path rereads the
+weather that no longer meets the encoded rules. Unknown roof or CFB opening
+spread, missing schedule identity/kickoff, and degraded/partial/missing provider
+receipts cannot prove invalidation or consume a CLEAR marker. Weather invalidation
+requires complete current full-member provenance, rechecked original source
+clocks/versions and the actual encoded signal computed from current inputs;
+an old label or a raised alert-tier preference cannot invalidate a bet.
+The production notification path rereads the
 Worker-owned confirmation ledger after depth work and immediately before each
 message/group. Read failure stops delivery. A confirmation accepted after that
 last read and during the external delivery request remains a narrow transport
@@ -83,9 +88,10 @@ recommendation capacity threshold, not a universal user bet stake.
 | `board/live_quotes.json` | One explicitly selected resident collector | Conditional R2 writes; current owner, full SHA, run identity, heartbeat, depth clocks and expiry required |
 | `board/bet_confirmations.json` | Authenticated admin confirmation endpoint | Explicit acknowledgement; immutable bet ID/details; conditional R2 updates; pipeline never uploads this ledger |
 | `board/notification_owner.json` | Explicit operator selection, outside this implementation | Schema 1; `kind: local`, exact full SHA, hostname and canonical state root select one local sender; pipeline abstains and local OS lock prevents duplicate runners |
-| `board/alerts.json`, `board/telegram_state.json` | One production notification sender | Durable receipt checkpoint before proceeding to another message |
+| `board/alerts.json`, `board/telegram_state.json` | One production notification sender | Durable receipt checkpoint before proceeding to another message; generic SDK/Wrangler state and board publication never uploads cached copies, even with pipeline notification ownership |
 | `board/alerts_live_feed.json` | Published notification receipt checkpoint | Live receipts overlay only their matching current run; historical generation reads stay immutable |
 | `board/cf_heartbeat.json` | Existing Cloudflare cron handler | Pipeline reads but never overwrites this operational heartbeat |
+| `board/backtest.json` | Independent weekly backtest workflow | Its own run/date and exact content SHA identify the weekly result; current reads are separate from the weather generation, while historical board reads never import a newer weekly result |
 
 The collector uses an OS-held local owner lock, and R2 `If-Match`/`If-None-Match`
 conditions prevent competing remote writers. It refuses a clean remote owner
@@ -219,8 +225,8 @@ unverified because direct live-board access is denied.
 
 ## Reproducible staged checks
 
-The completed staged phase passed 1,329 Python tests (one existing xlsxwriter
-version warning), 113 Worker/UI tests, and Ruff. Exact pushed-commit CI must
+The completed staged phase passed 1,366 Python tests (one existing xlsxwriter
+version warning), 114 Worker/UI tests, and Ruff. Exact pushed-commit CI must
 also pass before release approval. No production operations are exercised
 by these tests.
 
@@ -242,9 +248,13 @@ node --test site/worker/test/*.test.mjs
 The tests exercise conditional ownership, raw capture before parsing,
 source/generation rejection, stale/future quotes, immutable publication
 corruption and partial replacement, independent current-run alert receipts,
+interleaved resident receipts surviving build publication, independent weekly
+backtest content identity without altering historical weather generations,
 bounded noncooperative R2/provider reads, explicit confirmation idempotency,
 confirmation arriving after planning, Eastern/DST routine caps, failed-send
 retry, CLEAR once, degraded weather withholding CLEAR, authoritative opening
+spread/roof/schedule evidence and original provider-version currentness before
+CLEAR, recovery after unknown invalidation without consuming permanent markers,
 spread eligibility, unknown original prices, and compact first-notice priority.
 Live provider timing, operating-system scheduling, host credentials and full
 browser/phone acceptance require the separately approved activation work above.
