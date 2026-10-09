@@ -20,7 +20,7 @@ test('Admin refresh buttons dispatch the selected sport and distinct scopes thro
     return new Response(null, { status: fail ? 500 : 204 });
   };
   try {
-    const ctx = vm.createContext({ document: { getElementById: id => nodes.get(id), querySelectorAll: () => buttons },
+    const ctx = vm.createContext({ AbortController, clearTimeout: () => {}, Date, document: { getElementById: id => nodes.get(id), querySelectorAll: () => buttons },
       setTimeout: () => {}, fetch: async (url, init) => handleFetch(new Request('https://board.example/refresh', {
         ...init, headers: { ...init.headers, Authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` },
       }), env) });

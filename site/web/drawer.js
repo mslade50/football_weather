@@ -12,11 +12,22 @@ function destroyWxPlots() {
 
 function setupDrawer() {
   document.getElementById("drawer-close").addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  document.addEventListener("keydown", (e) => {
+    const drawer = document.getElementById("drawer");
+    if (drawer.hidden) return;
+    if (e.key === "Escape") closeDrawer();
+    if (e.key === "Tab") {
+      const nodes = [...drawer.querySelectorAll('button:not(:disabled), a[href], input, select, [tabindex="0"]')];
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    }
+  });
 }
 function closeDrawer() {
   const d = document.getElementById("drawer");
   d.hidden = true;
+  DRAWER.returnFocus?.focus();
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }
   destroyWxPlots();
   DRAWER.game = null;
@@ -30,6 +41,7 @@ const yesno = (v) => (v == null ? "-" : String(v));
 
 function uncertaintyLabel(wx) {
   const labels = {
+    retained_members_degraded: "Retained ensemble; current source verification failed",
     full_members: "Full ensemble",
     aged_members: "Older verified ensemble (distant game)",
     partial_members_degraded: "Partial ensemble coverage",
@@ -57,6 +69,8 @@ function weatherTable(g) {
     ...(g.expired_markets?.length ? [["Current prices", "Prices excluded for expiry; current comparisons unavailable"]] : []),
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
+    ["Unverified ensemble sources", esc((wx.ensemble_unverified_sources || []).join(", ") || "None supplied")],
+    ["Ensemble verification errors", esc(Object.entries(wx.ensemble_verification_errors || {}).map(([source, error]) => `${source}: ${error}`).join("; ") || "None supplied")],
     ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
     ["Ensemble dataset initialized", Object.entries(wx.ensemble_source_versions || {}).map(([source, versions]) => {
       const times = Object.values(versions || {}).map(v => v?.last_run_initialisation_time).filter(v => isNum(v) && v > 0);
@@ -83,16 +97,39 @@ function backtestRows(g) {
 
 function totalPriceTable(g) {
   const quotes = totalPriceQuotes(g);
-  if (!quotes.length) return '<p class="muted">No fresh total prices with a usable fair.</p>';
-  const rows = quotes.map((quote) => `<tr><td>${esc(bookLabel(quote.book))}</td><td>${totalPriceLabel(quote)}</td>`
-    + `<td>${pricePercent(quote.cost_prob)}</td><td>${pricePercent(quote.fair_cost)}</td>`
-    + `<td>${pricePercent(quote.win_prob)}</td><td>${pricePercent(quote.push_prob)}</td>`
-    + `<td>${roiLabel(quote.ev_roi)}</td></tr>`).join("");
-  return '<p class="muted">Estimated return per dollar staked, including quoted vig and known taker fees. '
-    + 'Pushes return the stake. Main totals only; excludes slippage and size-specific fee rounding. '
-    + 'Exact-score probabilities are model estimates, not calibrated key-number frequencies.</p>'
-    + '<table class="kv"><thead><tr><th>Book</th><th>Offer</th><th>Cost</th><th>Fair cost</th>'
-    + `<th>Win</th><th>Push</th><th>Est. EV</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = quotes.map(q => {
+    const stamp = quoteClock(q), age = Date.now() - Date.parse(stamp);
+    const fresh = age >= 0 && age <= 30000;
+    return `<tr><td>${esc(bookLabel(q.book))}<span class="sub">${q.side === "under" ? "Under" : "Over"} ${fmtTotal(q.line)} ${fmtOdds(q.odds)}</span></td>
+      <td>${fresh ? "Reference quote only" : "Stale / unknown quote"}<span class="sub">${q.fetched_at ? "Fetched" : "Quote updated (fetch unknown)"}: ${esc(clockLabel(stamp))}</span></td>
+      <td>${finiteValue(q.fees) ? "$" + q.fees.toFixed(2) : "Fee amount unknown"}<span class="sub">${finiteValue(q.cost_prob) ? "Indicative cost " + pricePercent(q.cost_prob) + "; size rounding unverified" : "All-in cost unknown"}</span></td>
+      <td>${finiteValue(q.available_cash_stake) ? "$" + q.available_cash_stake.toFixed(2) + " reported stake" : "Stake capacity unknown"}<span class="sub">Depth: ${esc(clockLabel(q.depth_fetched_at))}</span></td></tr>`;
+  }).join("");
+  return `<p>${exchangeOfferHtml(g)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
+    <button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>
+    <p id="verify-exchange-result" role="status"></p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
+}
+function setupStakeCheck(g) {
+  const button = document.getElementById("verify-exchange-stake"), status = document.getElementById("verify-exchange-result");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const line = g.consensus?.total_now;
+    if (!finiteValue(line)) { status.textContent = "No exact current under line available"; return; }
+    button.disabled = true; DRAWER.stakePending = true;
+    status.textContent = "Checking exchange depth and fees; no orders sent.";
+    try {
+      const params = new URLSearchParams({game_id: g.game_id, line, stake: "500", budget: "500", max_price: ".99"});
+      const response = await fetch(`/api/execution-preview?${params}`, {cache: "no-store", signal: AbortSignal.timeout(28000)});
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Unavailable");
+      if (!status.isConnected || DRAWER.game?.game_id !== g.game_id) return;
+      VERIFIED_OFFERS.set(g.game_id, result);
+      status.innerHTML = exchangeOfferHtml(g);
+      if (!verifiedOffer(g)) status.innerHTML += '<span class="sub">The service did not verify $500 principal, fees, depth clocks and matching rules. Preview remains unqualified.</span>';
+      if (STATE.view !== "execution") render();
+    } catch (e) { if (status.isConnected) status.textContent = `Exchange check unavailable: ${e.message}. Existing quotes remain unchanged.`; }
+    finally { button.disabled = false; DRAWER.stakePending = false; }
+  });
 }
 
 function oddsTable(g) {
@@ -132,7 +169,9 @@ function gameInfoTable(g) {
     ["Weakest Wind", esc(st.weakest_wind_effect || "—")],
     ["Roof", `${esc(st.roof_type || "—")}${st.roof_state ? ` · ${esc(st.roof_state)}` : ""}`],
     ["Elevation", isNum(st.elevation_m) ? `${Math.round(Number(st.elevation_m))} m${isNum(g.travel_alt) ? ` · travel Δ ${Math.round(Number(g.travel_alt))} m` : ""}` : "—"],
-    ["Game Location", `${esc(st.name || "")}${isNum(st.lat) ? ` <span class="sub">${Number(st.lat).toFixed(3)}, ${Number(st.lon).toFixed(3)}</span>` : ""}`],
+    ["Game Location", `${esc(st.name || "Unknown venue")} ${coordinateControl(g)}`],
+    ["Venue provenance", esc(g.venue_provenance?.resolution || "Resolution not supplied")],
+    ["Discovery", discoveryHtml(g)],
     ["Status", `${esc(g.status || "scheduled")}${g.neutral ? " · neutral" : ""}`],
     ["Game ID", `<span class="sub">${esc(g.game_id)}</span>`],
   ];
@@ -371,6 +410,7 @@ function compassCard(g) {
 function refreshDrawerQuotes() {
   const g = findGame(STATE.game);
   if (!g) return;
+  if (document.getElementById("drawer").hidden) DRAWER.returnFocus = document.activeElement;
   DRAWER.game = g;
   renderDrawerTitle(g);
   for (const [id, html] of [["drawer-weather", weatherTable(g)], ["drawer-prices", totalPriceTable(g)],
@@ -378,6 +418,7 @@ function refreshDrawerQuotes() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   }
+  if (!DRAWER.stakePending) setupStakeCheck(g);
 }
 
 function renderDrawerTitle(g) {
@@ -392,6 +433,7 @@ function renderDrawerTitle(g) {
 function openDrawer(gameId) {
   const g = findGame(gameId);
   if (!g) return;
+  if (document.getElementById("drawer").hidden) DRAWER.returnFocus = document.activeElement;
   DRAWER.game = g;
   STATE.game = gameId;
   writeHash();
@@ -421,10 +463,12 @@ function openDrawer(gameId) {
     <div class="chart" id="hist-chart"></div>
     <h3>Alerts</h3><div id="drawer-alerts" class="sub">${(g.alerts || []).length ? "loading…" : "none sent for this game"}</div>`;
   d.hidden = false;
+  document.getElementById("drawer-close").focus();
   document.getElementById("hist-market").value = DRAWER.market;
   document.getElementById("hist-book").value = DRAWER.book;
   document.getElementById("hist-market").addEventListener("change", (e) => { DRAWER.market = e.target.value; loadHistory(g); });
   document.getElementById("hist-book").addEventListener("change", (e) => { DRAWER.book = e.target.value; loadHistory(g); });
+  setupStakeCheck(g);
   renderHourlyChart(g);
   renderDriftChart(g);
   loadHistory(g);

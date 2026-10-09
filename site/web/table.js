@@ -71,6 +71,9 @@ function marketCoverage(g, market) {
   }).length;
 }
 function totalBaselineLabel(g, quote, consensus = false) {
+  const kind = quote[consensus ? "total_open_kind" : "open_kind"];
+  if (kind === "true_open") return "true opener";
+  if (kind === "first_seen") return "first seen";
   if (g.sport !== "cfb") return "first seen";
   const prefix = consensus ? "total_open" : "open";
   const seen = parseTs(quote[`${prefix}_ts`]), target = parseTs(quote[`${prefix}_target_ts`]);
@@ -154,51 +157,27 @@ function bookTotalCell(g, bk) {
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
 function totalPriceQuotes(g, side = null) {
-  if ((parseTs(g.kickoff_utc)?.getTime() || 0) <= Date.now()) return [];
-  return ((g.total_prices || {}).quotes || []).filter((quote) => {
-    const age = Date.now() - (parseTs(quote.updated_at)?.getTime() || 0);
-    return (!side || quote.side === side) && (!STATE.book || quote.book === STATE.book)
-      && age >= 0 && age <= 3600000 && isNum(quote.ev_roi);
-  }).sort((a, b) => b.ev_roi - a.ev_roi);
+  if (!(Date.parse(g.kickoff_utc) > Date.now())) return [];
+  return ((g.total_prices || {}).quotes || []).filter(q => EXCHANGE_BOOKS.has(q.book)
+    && (!side || q.side === side) && (!STATE.book || q.book === STATE.book))
+    .sort((a, b) => (Date.parse(quoteClock(b)) || 0) - (Date.parse(quoteClock(a)) || 0));
 }
 function pricePercent(value) { return isNum(value) ? `${(Number(value) * 100).toFixed(1)}%` : "—"; }
 function roiLabel(value) { return `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`; }
 function totalPriceLabel(quote) {
   return `${quote.side === "under" ? "U" : "O"} ${fmtTotal(quote.line)} · ${fmtOdds(quote.odds)}`;
 }
-function bestPriceCell(g) {
-  const quote = totalPriceQuotes(g, "under")[0];
-  if (!quote) return '<td class="muted" title="No fresh price with a usable fair total; comparison requires at least two total books">—</td>';
-  const hk = ++HK;
-  HOVER[hk] = {
-    label: `Best under price · ${gameLabel(g)}`,
-    lines: [
-      ["offer", `${bookLabel(quote.book)} · ${totalPriceLabel(quote)}`],
-      ["cost incl. vig/fees", pricePercent(quote.cost_prob)],
-      ["fair cost (excl. pushes)", pricePercent(quote.fair_cost)],
-      ["estimated win / push", `${pricePercent(quote.win_prob)} / ${pricePercent(quote.push_prob)}`],
-      ["estimated ROI", `${roiLabel(quote.ev_roi)} per dollar staked`],
-      ["model", "Discrete score estimate; exact-score probabilities are not calibrated"],
-      ["scope", "Displayed main totals; excludes slippage and size-specific fee rounding"],
-      ["updated", fmtShortET(quote.updated_at)],
-    ],
-  };
-  return `<td class="book best-price" data-hk="${hk}">${esc(bookLabel(quote.book))}<span class="sub">${totalPriceLabel(quote)}</span>`
-    + `<span class="sub">Est. EV ${roiLabel(quote.ev_roi)}${quote.ev_roi <= 0 ? " · no +EV" : ""}</span></td>`;
-}
-
-function coordinateLabel(g) {
-  const st = g.stadium || {};
-  return isNum(st.lat) && isNum(st.lon)
-    ? `${Number(st.lat).toFixed(2)}, ${Number(st.lon).toFixed(2)}` : "";
-}
+function bestPriceCell(g) { return `<td class="book best-price">${exchangeOfferHtml(g)}</td>`; }
+function coordinateLabel(g) { return stadiumCoordinates(g); }
 
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff ET. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Lat, Lon", "Venue coordinates to two decimals; select and copy into Windy", coordinateLabel],
+    ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
+    ["Exchange under", "Verified $500 principal stake; fees additional, fresh matching depth and settlement rules", g => verifiedOffer(g)?.average_price ?? Infinity],
+    ["Lat, Lon", "Exact supplied stadium coordinates; copy into Windy", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
     ["Gust", "Forecast gust mph", w("gust_fg")],
@@ -208,8 +187,6 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Signal", "Weather signal severity + matched filters", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus baseline → now. CFB targets kickoff minus 6 days, falling back to first observed if collected later; NFL uses first seen. Pinnacle-weighted.", cons("total_now")],
-    ["Best under", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
-      (g) => totalPriceQuotes(g, "under")[0]?.ev_roi ?? -Infinity, bestPriceCell],
   ];
   for (const bk of books) {
     if (withSpreads) {
@@ -236,13 +213,16 @@ function renderTable(rows, opts = {}) {
   const cols = tableColumns(books, BOOK_SPREADS);
   thead.innerHTML = "<tr>" + cols.map(([label, title], i) => {
     const arrow = STATE.sort === i ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
-    return `<th data-col="${i}" class="sortable" title="${esc(title)}">${esc(label)}${arrow}</th>`;
+    return `<th data-col="${i}" tabindex="0" role="button" aria-sort="${STATE.sort === i ? (STATE.dir < 0 ? "descending" : "ascending") : "none"}" class="sortable" title="${esc(title)}">${esc(label)}${arrow}</th>`;
   }).join("") + "</tr>";
   thead.querySelectorAll("th.sortable").forEach((th) => th.addEventListener("click", () => {
     const c = +th.dataset.col; STATE.dir = STATE.sort === c ? -STATE.dir : -1; STATE.sort = c; render();
   }));
 
-  rows = rows.slice();
+  thead.querySelectorAll("th.sortable").forEach(th => th.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
+  }));
+  rows = rows.filter(hardEligible);
   if (STATE.sort != null && cols[STATE.sort]) {
     const key = cols[STATE.sort][2];
     rows.sort((a, b) => {
@@ -254,7 +234,7 @@ function renderTable(rows, opts = {}) {
     rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0));
   }
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">No games for this sport/week/filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">${typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[STATE.sport]) ? "Game data unavailable; reload to retry." : "No eligible candidates for these filters. Inspect low likelihood / unknown to review other open-air games."}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((g) => {
@@ -264,8 +244,10 @@ function renderTable(rows, opts = {}) {
     const v1 = (g.impact && g.impact.v1) || {};
     const coordinates = coordinateLabel(g);
     const tds = [
-      `<td class="game" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
-      `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinates ? `<span class="coordinates">${esc(coordinates)}</span>` : '<span class="muted">—</span>'}</td>`,
+      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
+      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}</td>`,
+      bestPriceCell(g),
+      `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinateControl(g)}</td>`,
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
       `<td>${fmtNum(wx.gust_fg, 0)}</td>`,
@@ -279,5 +261,5 @@ function renderTable(rows, opts = {}) {
     for (const col of cols) { if (typeof col[3] === "function") tds.push(col[3](g)); }
     return `<tr class="${dome ? "dome" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
   }).join("");
-  tbody.querySelectorAll("td.game").forEach((td) => td.addEventListener("click", () => openDrawer(td.dataset.game)));
+  tbody.querySelectorAll(".game-detail").forEach((button) => button.addEventListener("click", () => openDrawer(button.dataset.game)));
 }
