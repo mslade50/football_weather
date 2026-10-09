@@ -8,6 +8,13 @@ PR #17 and resident activation remain separate approval gates. PR #13 and the
 existing automation schedules are unchanged. Breakout and the canceled BetCRIS
 repair are outside this work.
 
+The resident notification runner is now an **owner-review outbox producer**,
+not a Telegram sender or a connected ChatGPT delivery service. Default, inspection
+and resident modes have zero notification transports and no Telegram token/chat
+requirement. Actual ChatGPT delivery belongs to a separately approved supported
+assistant automation. Its delivery/acknowledgment integration is currently unwired.
+See `docs/owner-review-outbox.md` for the read and receipt boundary.
+
 ## What changes
 
 The former fixed board objects could be overwritten independently while readers
@@ -38,15 +45,15 @@ original observations cannot be recovered by this migration. D1 opener writes
 use `INSERT OR IGNORE`; reconciliation of already inaccurate historical rows
 requires separate evidence and approval.
 
-The alert policy retains existing signal tiers and rules. Production
+The existing pipeline Telegram alert policy retains signal tiers and rules. Production
 `Config.from_env()` enables the interview policy; directly constructed
 `Config()` keeps legacy caller compatibility. First High/Very High signals and
 verified CLEAR invalidations may be immediate. Other first notices and
 pre-confirmation reminders enter the 08:00 or 17:00 Eastern routine slot, with
 at most two successful routine messages in the shared default chat per local day.
 NFL and CFB share that routine message; immediate notices retain sport routing.
-The local clock targets the exact minute across DST changes, with a five-minute
-transport/retry recovery window. A running, awake host and functioning providers
+Routine policy targets the exact minute across DST changes, with a five-minute
+recovery window for an invoked sender. A running, awake host and functioning providers
 are required; external delivery cannot be guaranteed at the exact second.
 Failed delivery
 does not mark the notice or consume its slot. First notices take priority over
@@ -87,7 +94,10 @@ recommendation capacity threshold, not a universal user bet stake.
 | `board/meta.json` and `board/generations/<sha256>/...` | Serialized pipeline publication | Check manifest, source/run identity, sport counts, and every referenced byte checksum before commit |
 | `board/live_quotes.json` | One explicitly selected resident collector | Conditional R2 writes; current owner, full SHA, run identity, heartbeat, depth clocks and expiry required |
 | `board/bet_confirmations.json` | Authenticated admin confirmation endpoint | Explicit acknowledgement; immutable bet ID/details; conditional R2 updates; pipeline never uploads this ledger |
-| `board/notification_owner.json` | Explicit operator selection, outside this implementation | Schema 1; `kind: local`, exact full SHA, hostname and canonical state root select one local sender; pipeline abstains and local OS lock prevents duplicate runners |
+| `board/notification_owner.json` | Existing explicit Telegram owner selection, unchanged | No outbox runner reads/writes this object; Telegram retirement remains the separate PR #13 gate |
+| `data/review-outbox/outbox.json` | One locally locked outbox producer | Atomic durable observations/current review items; local reader checks fresh validity and matching committed heartbeat; generation never means delivery |
+| `board/owner_review_outbox.json` | Separately authorized outbox publisher | Explicit `--publish`, independent `board/review_outbox_owner.json` selection and conditional write; no production writer selected here |
+| `board/owner_review_receipts.json` | Reserved future authenticated delivery adapter, currently unwired | Generic builds exclude it; this producer never writes claims, delivery acknowledgments or receipts |
 | `board/alerts.json`, `board/telegram_state.json` | One production notification sender | Durable receipt checkpoint before proceeding to another message; generic SDK/Wrangler state and board publication never uploads cached copies, even with pipeline notification ownership |
 | `board/alerts_live_feed.json` | Published notification receipt checkpoint | Live receipts overlay only their matching current run; historical generation reads stay immutable |
 | `board/cf_heartbeat.json` | Existing Cloudflare cron handler | Pipeline reads but never overwrites this operational heartbeat |
@@ -133,15 +143,18 @@ starts at logon, prevents overlapping task instances, and restarts on failure.
 It requires the host to remain logged in and awake. The OS lock provides a
 second overlap guard even if another task starts the collector directly.
 
-`-Mode Notifications` selects a separate disabled task for the notification
-clock; it never changes existing automations or PR #13. The runner defaults to
-printing its next local target. `--verify-only` validates publication/state and
-collects candidates without sending or writing remote receipts. Only `--run`
-enables transports, and only an explicitly configured local owner with matching
-host, source SHA and canonical state root permits it. One shared
-`TELEGRAM_CHAT_ID` is required for the two routine messages. Ownership is checked
-again before delivery and receipt uploads. Safe handoff still requires draining
-the preceding sender before the operator switches ownership.
+`-Mode ReviewOutbox` selects the separate disabled task named `Football Weather
+Owner Review Outbox`; it never changes Telegram ownership, automations or PR #13.
+The runner defaults to printing its next target. `--verify-only` validates source
+publication and confirmations without writing outbox/receipt state. `--run`
+produces a durable local outbox and sends nothing. `--read-outbox` consumes the
+local file without network or writes. An independently approved `--publish`
+additionally requires a matching `review_outbox` owner (host/root/full SHA) and
+writes only the separate R2 outbox through CAS. No mode needs a Telegram token,
+chat, or D1 receipt-archive permission. Installation selects local-only production.
+Outbox generation cannot enforce actual ChatGPT daily delivery caps, produce
+pre-bet reminders after confirmed delivery, or dedupe delivered notices until a
+supported delivery adapter and authenticated acknowledgment path are integrated.
 
 The default cohort is four games per nominal 10-second cycle, with at most
 twelve mapped market references per game and four concurrent games. Cohorts
@@ -203,15 +216,17 @@ unverified because direct live-board access is denied.
 6. Verify the explicit confirmation UI and prove it never triggers an order.
    Use test ledgers and fake notification senders for acknowledgement,
    retry/idempotency, post-confirmation suppression and CLEAR-only behavior.
-   Then select one durable production notification owner. The quote resident
-   does not provide an alert sender. Do not enable a second sender beside the
-   pipeline without shared ownership and receipt discipline.
-7. Activate and verify the staged 08:00/17:00 America/New_York clock only after
-   approval, without merging or altering PR #13 or existing automations. Prove
-   both DST transitions, failed-send retry without consuming a slot, same-slot
-   and restart deduplication, shared NFL/CFB two-message daily cap, digest
-   overflow, and late-first discovery before kickoff. No always-running host
-   or timely provider/transport delivery has been established by unit tests.
+   Do not select/retire Telegram ownership as part of outbox registration.
+7. Separately approve outbox evaluation, then verify stable notice/batch identities,
+   durable first observations, combined NFL/CFB routine review at 08:00/17:00
+   America/New_York, DST, immediate massive/late-first/CLEAR review readiness,
+   expiry, degraded readers, and confirmation/publication race rejection. Generation,
+   reads and claims must never consume delivery markers. Connect actual ChatGPT
+   delivery through a separately authorized supported assistant automation and
+   verify its receipt contract, actual two-message cap, dedupe, reminders and
+   uncertain-outcome reconciliation before calling notifications operational.
+   No automation or acknowledgment writer is installed by this phase; PR #13
+   retirement remains separate. Host/provider timing remains unverified.
 8. Integrate documented provider-attested opening data. No existing adapter in
    this phase supplies the new attestation fields, so true opener and true
    opener movement may remain unknown. Use separate evidence for historical
@@ -225,7 +240,7 @@ unverified because direct live-board access is denied.
 
 ## Reproducible staged checks
 
-The completed staged phase passed 1,366 Python tests (one existing xlsxwriter
+The completed staged phase passed 1,374 Python tests (one existing xlsxwriter
 version warning), 114 Worker/UI tests, and Ruff. Exact pushed-commit CI must
 also pass before release approval. No production operations are exercised
 by these tests.
@@ -256,6 +271,8 @@ retry, CLEAR once, degraded weather withholding CLEAR, authoritative opening
 spread/roof/schedule evidence and original provider-version currentness before
 CLEAR, recovery after unknown invalidation without consuming permanent markers,
 spread eligibility, unknown original prices, and compact first-notice priority.
+Outbox checks also prove no token/sender requirement, unacknowledged generation,
+read-only consumption, expiry/degraded/hash rejection, and CAS/input-race failure.
 Live provider timing, operating-system scheduling, host credentials and full
 browser/phone acceptance require the separately approved activation work above.
 See `docs/resident-activation-checklist.md` for the current blockers, commands,

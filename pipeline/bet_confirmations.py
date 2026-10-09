@@ -12,6 +12,11 @@ def load_confirmations(directory: Path) -> dict:
         return {'schema_version': 1, 'bets': {}}
     except (ValueError, OSError) as exc:
         raise StateSchemaError('Bet confirmations could not be read safely') from exc
+    return validate_confirmations(data)
+
+
+def validate_confirmations(data: dict) -> dict:
+    """Pure validation shared by file readers and read-only remote inspections."""
     if not isinstance(data, dict) or data.get('schema_version') != 1 or not isinstance(data.get('bets'), dict):
         raise StateSchemaError('Unsupported bet confirmation ledger')
     for bid, row in data['bets'].items():

@@ -7,17 +7,17 @@ param(
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedSha,
     [string]$Repository = (Split-Path -Parent $PSScriptRoot),
     [string]$TaskName = 'Football Weather Resident Quotes',
-    [ValidateSet('Quotes','Notifications')][string]$Mode = 'Quotes',
+    [ValidateSet('Quotes','ReviewOutbox')][string]$Mode = 'Quotes',
     [switch]$Install,
     [switch]$Activate,
     [switch]$Publish
 )
 $repoPath = (Resolve-Path -LiteralPath $Repository).Path
 $pythonExe = (Resolve-Path -LiteralPath $PythonPath).Path
-if ($Mode -eq 'Notifications') {
+if ($Mode -eq 'ReviewOutbox') {
     if ($Publish) { throw '-Publish applies to quote mode only.' }
-    if (-not $PSBoundParameters.ContainsKey('TaskName')) { $TaskName = 'Football Weather Notification Clock' }
-    $residentRoot = Join-Path $repoPath 'data\notification-resident'
+    if (-not $PSBoundParameters.ContainsKey('TaskName')) { $TaskName = 'Football Weather Owner Review Outbox' }
+    $residentRoot = Join-Path $repoPath 'data\review-outbox'
     $arguments = '-m pipeline.notification_scheduler --run --expected-sha ' + $ExpectedSha + ' --root "' + $residentRoot + '"'
 } else {
     $residentRoot = Join-Path $repoPath 'data\resident'

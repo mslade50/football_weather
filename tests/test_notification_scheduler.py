@@ -1,12 +1,20 @@
-from datetime import datetime, timedelta
+import io
+import json
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from pipeline import alert_policy as P
 from pipeline import alerts as A
-from pipeline.notification_scheduler import NotificationClock, check_owner, inspect_inputs, main, seconds_until_tick
-from tests.test_interview_alert_policy import CFG, CTX, GID, NOW, card, run
+from pipeline import notification_scheduler as N
+from pipeline.publication import BUILD_PROTECTED_NAMES, digest, encoded
+from pipeline.resident import atomic_json
+from tests.test_interview_alert_policy import GID, NOW, card
+
+SHA = 'a' * 40
+META = {'run_id': 'fixture', 'git_sha': SHA, 'publication': {'generation': 'fixture'}}
+EMPTY = {'schema_version': 1, 'bets': {}}
 
 
 def test_exact_local_targets_follow_both_dst_transitions():
@@ -17,108 +25,205 @@ def test_exact_local_targets_follow_both_dst_transitions():
         ('2026-10-09T12:00:00+00:00', '2026-10-09T21:00:00+00:00'),
     ):
         assert P.next_routine_at(datetime.fromisoformat(before)).isoformat() == expected
-    assert seconds_until_tick(datetime.fromisoformat('2026-10-09T11:59:59+00:00')) == 1
-    assert P.routine_slot(NOW + timedelta(minutes=4))
-    assert P.routine_slot(NOW + timedelta(minutes=5)) is None
+    assert N.seconds_until_tick(datetime.fromisoformat('2026-10-09T11:59:59+00:00')) == 1
 
 
-def test_clock_failed_work_retries_completed_slots_and_runs_dedupe():
-    clock = NotificationClock()
-    assert clock.due(NOW - timedelta(minutes=1), 'run', 'ledger')
-    assert clock.due(NOW - timedelta(minutes=1), 'run', 'ledger')  # failure never completes
-    clock.complete(NOW - timedelta(minutes=1), 'run', 'ledger')
-    assert not clock.due(NOW - timedelta(seconds=1), 'run', 'ledger')
-    assert clock.due(NOW, 'run', 'ledger')
-    clock.complete(NOW, 'run', 'ledger')
-    assert not clock.due(NOW + timedelta(seconds=20), 'run', 'ledger')
-    assert clock.due(NOW + timedelta(seconds=20), 'next-run', 'ledger')
-    assert clock.due(NOW + timedelta(seconds=20), 'run', 'new-confirmation')
-    assert clock.due(NOW + timedelta(hours=9), 'run', 'ledger')
+def forbid_transports(monkeypatch):
+    monkeypatch.delenv('TELEGRAM_BOT_TOKEN', raising=False)
+    monkeypatch.delenv('TELEGRAM_CHAT_ID', raising=False)
+    monkeypatch.setenv('TELEGRAM_DISABLED', '1')
+    for name in ('default_sender', 'dispatch', '_mark'):
+        monkeypatch.setattr(A, name, lambda *a, **kw: pytest.fail('No delivery/receipt path permitted'))
+    monkeypatch.setattr(A.Config, 'from_env', lambda *a, **kw: pytest.fail('No Telegram config permitted'))
+    monkeypatch.setattr(P, 'dispatch', lambda *a, **kw: pytest.fail('No policy dispatch permitted'))
 
 
-def test_late_pending_overflow_rechecks_after_routine_recovery_window():
-    clock = NotificationClock()
-    candidate = A.Candidate('unsent', 'edge', 'nfl', 'text', kickoff_utc=NOW + timedelta(hours=2))
-    clock.complete(NOW, 'run', 'ledger', SimpleNamespace(candidates=[candidate], alerts={'sent': {}}))
-    assert clock.due(NOW + timedelta(minutes=1), 'run', 'ledger')
-    assert clock.due(NOW + timedelta(minutes=5), 'run', 'ledger')
-    clock.complete(NOW + timedelta(minutes=5), 'run', 'ledger', SimpleNamespace(candidates=[candidate], alerts={'sent': {'unsent': 'sent'}}))
-    assert not clock.due(NOW + timedelta(minutes=6), 'run', 'ledger')
+class Client:
+    def __init__(self, root, cards=None):
+        self.owner = {'schema_version': 1, 'kind': 'review_outbox', 'git_sha': SHA,
+                      'hostname': 'fixture', 'root': root.resolve().as_posix()}
+        self.confirmations = EMPTY
+        self.meta = META
+        self.writes = []
+        self.reads = []
+        self.remote = None
+    def get_object(self, **kwargs):
+        key = kwargs['Key']
+        self.reads.append(key)
+        if key == N.OUTBOX_KEY and self.remote is None:
+            raise RuntimeError('NoSuchKey')
+        value = self.owner if key == N.OWNER_KEY else self.confirmations if key.endswith('bet_confirmations.json') else self.remote if key == N.OUTBOX_KEY else self.meta
+        return {'Body': io.BytesIO(encoded(value)), 'ETag': 'fixture-etag'}
+    def put_object(self, **kwargs):
+        self.writes.append(kwargs)
+        self.remote = json.loads(kwargs['Body'])
 
 
-def test_first_low_signal_before_next_slot_is_immediate_once_then_no_unscheduled_reminders():
-    alerts, sent = {}, []
-    when = NOW + timedelta(hours=10)  # 18:00 Eastern
-    data = card()
+def setup_runtime(monkeypatch, tmp_path, cards=None):
+    forbid_transports(monkeypatch)
+    client = Client(tmp_path)
+    monkeypatch.setenv('COMPUTERNAME', 'fixture')
+    monkeypatch.setattr(N, 'revision', lambda: SHA)
+    monkeypatch.setattr(N, 'load_repo_dotenv', lambda: None)
+    monkeypatch.setattr(N.r2, 'config_from_env', lambda: SimpleNamespace(bucket='bucket'))
+    monkeypatch.setattr(N.r2, 'make_client', lambda *a, **kw: client)
+    monkeypatch.setattr(N, 'load_board', lambda *_: (client.meta, cards or []))
+    return client
+
+
+def test_default_plan_zero_io_without_any_credentials(tmp_path, monkeypatch, capsys):
+    forbid_transports(monkeypatch)
+    monkeypatch.setattr(N, 'load_repo_dotenv', lambda: pytest.fail('Default must not load credentials'))
+    monkeypatch.setattr(N.r2, 'make_client', lambda *a, **kw: pytest.fail('Default must not resolve client'))
+    assert N.main(['--expected-sha', SHA, '--root', str(tmp_path)]) == 0
+    assert '"activation": false' in capsys.readouterr().out
+    assert not list(tmp_path.iterdir())
+
+
+def test_verify_only_no_token_no_sends_no_remote_or_local_outbox_write(tmp_path, monkeypatch, capsys):
+    client = setup_runtime(monkeypatch, tmp_path)
+    assert N.main(['--expected-sha', SHA, '--root', str(tmp_path), '--verify-only']) == 0
+    assert not client.writes and not list(tmp_path.iterdir())
+    assert '"remote_writes": 0' in capsys.readouterr().out
+    assert not any('telegram' in key or key.endswith('/alerts.json') for key in client.reads)
+
+
+def test_resident_default_run_durable_local_outbox_without_token_sends_or_remote_writes(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    args = ['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once']
+    assert N.main(args) == 0
+    result = N.read_outbox(tmp_path, datetime.now(timezone.utc))
+    assert result['delivery_integration'] == 'unwired' and result['notification_transports'] == 0
+    assert not client.writes and N.OWNER_KEY not in client.reads
+    assert N.main(args) == 0  # restart preserves observations and never synthesizes receipts
+    assert not any('telegram' in key or key.endswith('/alerts.json') for key in client.reads)
+
+
+def test_generating_reading_and_regenerating_never_mark_delivered(monkeypatch, tmp_path):
+    forbid_transports(monkeypatch)
+    first = N.make_outbox(META, [card('High Impact')], EMPTY, None, NOW)
+    second = N.make_outbox(META, [card('High Impact')], EMPTY, first, NOW + timedelta(seconds=10))
+    assert first['items'][0]['outbox_id'] == second['items'][0]['outbox_id']
+    assert second['observations'] == first['observations']
+    assert second['items'][0]['status'] == 'generated'
+    assert second['items'][0]['delivery_state'] == 'unacknowledged'
+    assert not any(key in second for key in ('sent', 'cleared_bets', 'routine_delivery', 'claims', 'receipts'))
+    atomic_json(tmp_path / 'outbox.json', second)
+    atomic_json(tmp_path / 'heartbeat.json', {'status': 'running', 'outbox_sha256': digest(encoded(second))})
+    before = (tmp_path / 'outbox.json').read_bytes()
+    N.read_outbox(tmp_path, NOW + timedelta(seconds=11))
+    assert (tmp_path / 'outbox.json').read_bytes() == before
+
+
+def test_one_routine_batch_combines_sports_and_waiting_not_delivered():
+    cfb = card()
+    cfb.update(sport='cfb', game_id='cfb:2026:6:c@d')
+    result = N.make_outbox(META, [card(), cfb], EMPTY, None, NOW)
+    assert len(result['items']) == 1 and result['items'][0]['timing'] == 'routine'
+    assert {c['sport'] for c in result['items'][0]['candidates']} == {'nfl', 'cfb'}
+    later = N.make_outbox(META, [card()], EMPTY, result, NOW + timedelta(minutes=6))
+    assert not later['items'] and later['waiting']
+    assert later['routine_delivery_limit_per_local_day'] == 2
+
+
+def test_late_first_notice_and_missing_liquidity_do_not_suppress_watch():
+    when, data = NOW + timedelta(hours=10), card()
     data['kickoff_utc'] = (when + timedelta(hours=2)).isoformat()
-    assert run(alerts, when, data, lambda text, chat: sent.append(text) or True).sent
-    assert 'First notice now' in sent[0] and 'Probably too late' in sent[0]
-    assert not run(alerts, when + timedelta(minutes=1), data, lambda *_: True).sent
-    confirmed = {'bets': {'fixture': {'bet_id': 'fixture', 'game_id': GID, 'confirmed': True,
-                  'source': 'explicit_user_confirmation', 'line': 48, 'stake': 125}}}
-    assert not P.collect(CTX, {'nfl': [data]}, {}, CFG, when, confirmed)
+    result = N.make_outbox(META, [data], EMPTY, None, when)
+    row = result['items'][0]['candidates'][0]
+    assert result['items'][0]['timing'] == 'immediate'
+    assert 'First notice now' in row['text_html'] and 'Probably too late' in row['text_html']
+    assert row['classification'] == 'weather_watch' and row['verified_cash_recommendation'] is False
+    assert not N.make_outbox(META, [data], EMPTY, result, when + timedelta(hours=2))['items']
 
 
-def test_started_games_do_not_get_late_notice_and_failed_notice_retries():
-    alerts, data = {}, card()
-    when = NOW + timedelta(hours=10)
-    data['kickoff_utc'] = (when + timedelta(minutes=10)).isoformat()
-    assert run(alerts, when, data, lambda *_: False).failed
-    assert run(alerts, when + timedelta(minutes=1), data, lambda *_: True).sent
-    assert not run({}, when + timedelta(minutes=10), data, lambda *_: pytest.fail('At kickoff')).sent
+def test_explicit_confirmation_withdraws_watch_clear_stays_unacknowledged(monkeypatch):
+    forbid_transports(monkeypatch)
+    bets = {'schema_version': 1, 'bets': {'fixture': {'bet_id': 'fixture', 'game_id': GID, 'confirmed': True,
+            'source': 'explicit_user_confirmation', 'line': 48, 'stake': 125}}}
+    original = N.make_outbox(META, [card('High Impact')], EMPTY, None, NOW)
+    assert original['items']
+    assert not N.make_outbox(META, [card('Very High Impact')], bets, original, NOW)['items']
+    closed = card()
+    closed['stadium']['roof_type'] = 'dome'
+    clear = N.make_outbox(META, [closed], bets, original, NOW)
+    again = N.make_outbox(META, [closed], bets, clear, NOW + timedelta(seconds=10))
+    assert clear['items'][0]['candidates'][0]['classification'] == 'clear_invalidation'
+    assert again['items'][0]['outbox_id'] == clear['items'][0]['outbox_id']
+    assert again['items'][0]['delivery_state'] == 'unacknowledged' and 'cleared_bets' not in again
+    unknown = card('No Impact')
+    unknown['weather']['ensemble_status'] = 'point_only'
+    assert not N.make_outbox(META, [unknown], bets, clear, NOW)['items']
 
 
-def test_first_notice_after_consumed_slot_does_not_wait_past_near_kickoff():
-    alerts, sent = {}, []
-    assert run(alerts, NOW, card(), lambda text, chat: sent.append(text) or True).sent
-    new_game = card()
-    new_game['game_id'] = 'nfl:2026:6:c@d'
-    new_game['kickoff_utc'] = (NOW + timedelta(minutes=3)).isoformat()
-    outcome = run(alerts, NOW + timedelta(minutes=2), new_game, lambda text, chat: sent.append(text) or True)
-    assert outcome.sent and outcome.sent[0].record['first_notice_reason'] == 'kickoff_before_next_routine_slot'
-    assert len(alerts['routine_delivery']) == 1  # First-notice exception does not consume another routine slot.
+@pytest.mark.parametrize('mode', ['expired', 'future', 'degraded', 'hash'])
+def test_reader_fails_closed_after_expiry_clock_error_failure_or_uncommitted_write(tmp_path, mode):
+    payload = N.make_outbox(META, [], EMPTY, None, NOW)
+    atomic_json(tmp_path / 'outbox.json', payload)
+    atomic_json(tmp_path / 'heartbeat.json', {'status': 'degraded' if mode == 'degraded' else 'running',
+        'outbox_sha256': 'wrong' if mode == 'hash' else digest(encoded(payload))})
+    when = NOW + timedelta(seconds=30) if mode == 'expired' else NOW - timedelta(seconds=1) if mode == 'future' else NOW
+    with pytest.raises(RuntimeError):
+        N.read_outbox(tmp_path, when)
 
 
-def test_local_owner_pins_host_root_and_sha_and_default_mode_has_no_activation(tmp_path, capsys):
-    sha = 'a' * 40
-    owner = {'schema_version': 1, 'kind': 'local', 'git_sha': sha, 'hostname': 'fixture', 'root': tmp_path.resolve().as_posix()}
-    check_owner(owner, sha, 'fixture', tmp_path)
+def test_source_change_or_confirmation_race_never_commits_batch(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    old = N.read_confirmations
+    calls = []
+    def changed(*args):
+        value = old(*args)
+        calls.append(1)
+        return value if len(calls) == 1 else {**value, 'changed': True}
+    monkeypatch.setattr(N, 'read_confirmations', changed)
+    assert N.main(['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once']) == 1
+    assert not (tmp_path / 'outbox.json').exists() and not client.writes
+    assert json.loads((tmp_path / 'heartbeat.json').read_text())['status'] == 'degraded'
+
+
+def test_publish_requires_separate_owner_and_cas_never_touches_telegram(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    args = ['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once', '--publish']
+    client.owner['kind'] = 'local'
+    assert N.main(args) == 1 and not client.writes
+    client.owner['kind'] = 'review_outbox'
+    assert N.main(args) == 0 and client.writes[0]['IfNoneMatch'] == '*'
+    assert N.main(args) == 0 and client.writes[1]['IfMatch'] == 'fixture-etag'
+    assert all(w['Key'] == N.OUTBOX_KEY for w in client.writes)
+    assert not any('telegram' in key or key.endswith('/notification_owner.json') for key in client.reads)
+    assert {'owner_review_outbox', 'review_outbox_owner', 'owner_review_receipts'} <= BUILD_PROTECTED_NAMES
+
+
+def test_wrong_owner_and_invalid_modes_fail_closed(tmp_path):
+    owner = Client(tmp_path).owner
+    N.check_owner(owner, SHA, 'fixture', tmp_path)
     for change in ({'kind': 'pipeline'}, {'git_sha': 'b' * 40}, {'hostname': 'other'}, {'root': str(tmp_path / 'other')}):
         with pytest.raises(RuntimeError):
-            check_owner({**owner, **change}, sha, 'fixture', tmp_path)
-    assert main(['--expected-sha', sha]) == 0
-    assert '"activation": false' in capsys.readouterr().out
+            N.check_owner({**owner, **change}, SHA, 'fixture', tmp_path)
+    for flags in (['--run', '--verify-only'], ['--verify-only', '--publish'], ['--publish']):
+        with pytest.raises(SystemExit):
+            N.main(['--expected-sha', SHA, *flags])
 
 
-def test_no_notification_input_inspection_never_sends_or_writes_remote_state(tmp_path, monkeypatch):
-    import io
-    import json
-
-    from pipeline import notification_scheduler as N
-
-    sha = 'a' * 40
-    owner = {'schema_version': 1, 'kind': 'local', 'git_sha': sha, 'hostname': 'fixture', 'root': tmp_path.resolve().as_posix()}
-    class Client:
-        def get_object(self, **kwargs):
-            payload = owner if kwargs['Key'] == N.OWNER_KEY else {'schema_version': 1, 'bets': {}} if kwargs['Key'].endswith('bet_confirmations.json') else {'schema_version': 1}
-            return {'Body': io.BytesIO(json.dumps(payload).encode())}
-        def put_object(self, **kwargs):
-            pytest.fail('Inspection must never write remote state')
-    monkeypatch.setattr(N, 'load_board', lambda *_: ({'run_id': 'fixture', 'git_sha': sha, 'publication': {'generation': 'fixture'}}, []))
-    monkeypatch.setattr(A, 'default_sender', lambda: pytest.fail('Inspection must never resolve a sender'))
-    proof = inspect_inputs(Client(), 'bucket', sha, 'fixture', tmp_path)
-    assert proof['owner_ready'] and proof['notification_transports'] == 0 and proof['remote_writes'] == 0
-    with pytest.raises(SystemExit):
-        main(['--expected-sha', sha, '--run', '--verify-only'])
+def test_remote_cas_failure_is_not_retried_or_counted_as_delivery(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    attempted = []
+    def conflict(**kwargs):
+        attempted.append(kwargs)
+        raise RuntimeError('PreconditionFailed')
+    monkeypatch.setattr(client, 'put_object', conflict)
+    assert N.main(['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once', '--publish']) == 1
+    assert len(attempted) == 1 and not client.writes
+    assert json.loads((tmp_path / 'heartbeat.json').read_text())['status'] == 'degraded'
+    with pytest.raises(RuntimeError):
+        N.read_outbox(tmp_path, datetime.now(timezone.utc))
 
 
-def test_shared_routine_destination_combines_sports_with_two_messages_total():
-    cfg = A.Config(interview_policy=True, chat_default='shared', chat_by_sport={'nfl': 'nfl-only', 'cfb': 'cfb-only'})
-    alerts, sent = {}, []
-    candidates = [A.Candidate(sport, 'edge', sport, 'notice', game_id=sport, tier='mid', summary=sport) for sport in ('nfl', 'cfb')]
-    for when in (NOW, NOW + timedelta(hours=9)):
-        current = candidates if when == NOW else [A.Candidate('reminder-' + c.key, 'reminder', c.sport, 'reminder', game_id=c.game_id, summary=c.sport) for c in candidates]
-        plan = P.plan(current, alerts, {}, when, cfg)
-        P.dispatch(plan, alerts, lambda text, chat: sent.append((text, chat)) or True, when, cfg)
-    assert len(sent) == 2 and all(chat == 'shared' for text, chat in sent)
-    assert all('nfl' in text and 'cfb' in text for text, chat in sent)
+def test_invalid_confirmation_or_new_source_stops_without_commit(tmp_path, monkeypatch):
+    client = setup_runtime(monkeypatch, tmp_path)
+    client.confirmations = {'schema_version': 1, 'bets': {'bad': {'confirmed': False}}}
+    args = ['--expected-sha', SHA, '--root', str(tmp_path), '--run', '--once']
+    assert N.main(args) == 1 and not (tmp_path / 'outbox.json').exists()
+    client.confirmations = EMPTY
+    client.meta = {**META, 'git_sha': 'b' * 40}
+    assert N.main(args) == 1 and not (tmp_path / 'outbox.json').exists()

@@ -13,6 +13,7 @@ from pathlib import Path
 BUILD_PROTECTED_NAMES = frozenset({
     'alerts', 'telegram_state', 'alerts_live_feed', 'notification_owner',
     'bet_confirmations', 'cf_heartbeat', 'live_quotes',
+    'owner_review_outbox', 'review_outbox_owner', 'owner_review_receipts',
 })
 
 PUBLIC_NAMES = {
