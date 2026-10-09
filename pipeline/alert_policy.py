@@ -50,31 +50,83 @@ def confirmed_for(confirmations, game_id):
     ]
 
 
+def evidence_time(value):
+    """An assumed timezone must never upgrade missing provenance to evidence."""
+    try:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return parsed if parsed.tzinfo is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def clear_reason(card, cfg, now):
     from pipeline import alerts as A
+    from pipeline.model import config, signals
+    from pipeline.stadiums.roofs import resolve_roof_state
+    from pipeline.weather.first_pass import aged
+    from pipeline.weather.member_cache import SOURCES, version
 
-    stadium = card.get("stadium") or {}
-    if stadium.get("roof_state") in ("closed", "dome") or stadium.get("roof_type") == "dome":
-        return "Stadium roof is closed"
-    spread = A._num((card.get("consensus") or {}).get("spread_open"))
-    if card.get("sport") == "cfb" and spread is not None and abs(spread) > 10:
-        return "CFB spread exceeds the encoded eligibility limit"
-    wx = card.get("weather") or {}
-    fetched = A._dt(wx.get("fetched_at"))
-    if (
-        fetched is None
-        or fetched > now
-        or now - fetched > timedelta(hours=3)
-        or wx.get("point_aged") is not False
-        or wx.get("ensemble_unverified_sources")
-        or wx.get("ensemble_aged_sources")
-        or any(A._num(wx.get(key)) is None for key in ("wind_fg", "temp_fg", "rain_fg"))
-    ):
-        return None  # Missing, stale or degraded providers cannot prove invalidation.
-    label = A._signal_label(card)
-    if (label == A.SIGNAL_NONE or A.signal_slug(label) in A.TIER_RANK) and not A._qualifying_signal(card, cfg):
-        return "Complete current weather no longer meets the encoded signal rules"
-    return None
+    # Qualification is boolean, but its negation includes UNKNOWN. CLEAR needs
+    # positive evidence of invalidation, never the negation of eligibility.
+    sport, kickoff = card.get('sport'), evidence_time(card.get('kickoff_utc'))
+    if (sport not in ('nfl', 'cfb') or not card.get('game_id')
+            or str(card.get('status') or '').lower() != 'scheduled'
+            or not A._within_alert_window(kickoff, now, cfg)
+            or any(not isinstance(card.get(team), dict) or not any(card[team].get(key) for key in ('id', 'short', 'name'))
+                   for team in ('home', 'away'))):
+        return None
+    stadium = card.get('stadium') or {}
+    roof_type = stadium.get('roof_type')
+    roof = resolve_roof_state(roof_type, stadium.get('roof_state') or card.get('roof_state'))
+    if roof_type in ('open', 'dome', 'retractable') and roof in ('closed', 'dome'):
+        return 'Stadium roof is closed'
+    spread = A._num((card.get('consensus') or {}).get('spread_open'))
+    if sport == 'cfb' and spread is not None and abs(spread) > config.CFB_OPEN_SPREAD_MAX:
+        return 'CFB spread exceeds the encoded eligibility limit'
+    if roof_type not in ('open', 'dome', 'retractable') or roof not in ('outdoors', 'open') or (sport == 'cfb' and spread is None):
+        return None
+    wx = card.get('weather') or {}
+    fetched = evidence_time(wx.get('fetched_at'))
+    values = [A._num(wx.get(key)) for key in ('wind_fg', 'temp_fg', 'rain_fg')]
+    if (fetched is None or not timedelta(0) <= now - fetched <= timedelta(hours=3)
+            or wx.get('point_aged') is not False
+            or wx.get('point_stage') not in ('nws_first_pass', 'global_first_pass', 'refined_multimodel', 'refined_split_fields')
+            or wx.get('ensemble_status') != 'full_members' or wx.get('ensemble_eligible') is not True
+            or A._num(wx.get('ensemble_members')) is None or wx['ensemble_members'] < 82
+            or wx.get('ensemble_unverified_sources') != [] or wx.get('ensemble_aged_sources') != []
+            or wx.get('ensemble_verification_errors') != {}
+            or any(value is None for value in values)):
+        return None
+    wind, temp, rain = values
+    if wind < 0 or rain < 0:
+        return None
+    if wx['point_stage'] == 'nws_first_pass' and aged({'updateTime': (wx.get('point_source_updated_at') or {}).get('nws')}, now):
+        return None
+    clocks, versions = wx.get('ensemble_fetched_at'), wx.get('ensemble_source_versions')
+    if not isinstance(clocks, dict) or not isinstance(versions, dict) or set(clocks) != set(SOURCES) or set(versions) != set(SOURCES):
+        return None
+    try:
+        for source, (_, models) in SOURCES.items():
+            clock = evidence_time(clocks[source])
+            if clock is None or not timedelta(0) <= now - clock <= timedelta(hours=3) or set(versions[source]) != set(models):
+                return None
+            for dataset in versions[source].values():
+                version(dataset, now)  # Recheck future, settling and overdue clocks now.
+                if dataset['data_end_time'] < (kickoff + timedelta(hours=3)).timestamp():
+                    return None
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    if sport == 'cfb':
+        # Missing ancillary inputs are unknown only where their predicate could
+        # still fire. A cold forecast does not need warm-climate/altitude data.
+        if (temp > 75 and A._num(card.get('travel_alt')) is None) or (
+                temp > 80 and any(A._num(card.get(key)) is None for key in ('home_temp', 'away_temp'))):
+            return None
+        signal = signals.cfb_signal(wind, temp, rain, spread, card.get('travel_alt'), card.get('home_temp'), card.get('away_temp'), 0)
+    else:
+        signal = signals.nfl_signal(wind, temp, rain)
+    # A configured alert-tier threshold or an old label is not bet invalidation.
+    return 'Complete current weather no longer meets the encoded signal rules' if signal.label == signals.NO else None
 
 
 def late_context(card):
