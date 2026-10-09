@@ -52,8 +52,8 @@ export async function alertLiquidity(game, fetchImpl = fetch, now = Date.now(), 
         liquidity_fees: Number(first.cost.fee) / MICROS, liquidity_debit: Number(first.cost.total) / MICROS,
         liquidity_payout: first.payout, fee_model: venue.fee_model, fee_coefficient: venue.coefficient,
         cost_prob: cost, odds: Math.round(cost >= .5 ? -100 * cost / (1 - cost) : 100 * (1 - cost) / cost),
-        ev_roi: first.roi, quote_observed_at: q.updated_at, depth_fetched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString() } };
+        ev_roi: first.roi, quote_observed_at: q.updated_at, depth_fetched_at: venue.depth_fetched_at,
+        updated_at: venue.depth_fetched_at } };
     } catch (error) { return { update: { ...update, liquidity_reason: error.message } }; }
   }));
   if (Date.now() - started >= PREVIEW_TTL_MS) {

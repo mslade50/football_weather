@@ -104,7 +104,7 @@ function totalPriceTable(g) {
   const quotes = totalPriceQuotes(g);
   const rows = quotes.map(q => {
     const stamp = quoteClock(q), age = Date.now() - Date.parse(stamp);
-    const fresh = age >= 0 && age <= 30000;
+    const fresh = age >= 0 && age <= 30000 && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
     return `<tr><td>${esc(bookLabel(q.book))}<span class="sub">${q.side === "under" ? "Under" : "Over"} ${fmtTotal(q.line)} ${fmtOdds(q.odds)}</span></td>
       <td>${fresh ? "Reference quote only" : "Stale / unknown quote"}<span class="sub">${q.fetched_at ? "Fetched" : "Quote updated (fetch unknown)"}: ${esc(clockLabel(stamp))}</span></td>
       <td>${finiteValue(q.fees) ? "$" + q.fees.toFixed(2) : "Fee amount unknown"}<span class="sub">${finiteValue(q.cost_prob) ? "Indicative cost " + pricePercent(q.cost_prob) + "; size rounding unverified" : "All-in cost unknown"}</span></td>
@@ -115,8 +115,9 @@ function totalPriceTable(g) {
     <button type="button" class="controlbtn" id="cancel-exchange-stake" hidden>Cancel exchange check</button>
     <p id="verify-exchange-result" role="status">${stakeCheckStatusHtml(g)}</p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
 }
+function stakeLine(g) { return g.fresh_odds?.selected_line ?? g.consensus?.total_now; }
 function stakeIdentity(g) {
-  return `${g.game_id}|${g.consensus?.total_now}|${g.kickoff_utc}`;
+  return `${g.game_id}|${stakeLine(g)}|${g.kickoff_utc}`;
 }
 function cancelStakeCheck(gameId, reason = "Exchange check cancelled. Preview again for current prices.") {
   const request = STAKE_CHECKS.get(gameId);
@@ -165,7 +166,7 @@ async function startStakeCheck() {
   if (!g || STATE.game !== g.game_id || document.getElementById("drawer").hidden) return;
   syncStakeCheck(g);
   if (STAKE_CHECKS.get(g.game_id)?.phase === "pending") return;
-  const line = g.consensus?.total_now;
+  const line = stakeLine(g);
   if (!finiteValue(line)) {
     STAKE_CHECKS.set(g.game_id, {identity: stakeIdentity(g), phase: "error", error: "No exact current under line available"});
     paintStakeCheckState(); return;

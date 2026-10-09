@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { allocateDepth, sliceCost, kalshiDepth, polymarketDepth, previewGame } from '../execution-preview.js';
+import { allocateDepth, allocatePrincipal, sliceCost, kalshiDepth, polymarketDepth, previewGame, boundedPreviewGame } from '../execution-preview.js';
 import { handleFetch } from '../index.js';
 
 const kickoff = '2030-10-02T01:00:00Z';
@@ -58,6 +58,15 @@ test('Depth requests use Workers-compatible manual redirects and reject redirect
     assert.equal(options.redirect, 'manual');
     return new Response(null, { status: 302, headers: { location: 'https://other.test/' } });
   }), /HTTP 302/);
+});
+
+test('Depth acquisition clock precedes a slower fee metadata response rather than being renewed by it', async () => {
+  const base = exchangeFetch();
+  const venue = await kalshiDepth(game.execution_markets[0], game, async (url, options) => {
+    if (String(url).includes('/series/')) await new Promise(resolve => setTimeout(resolve, 30));
+    return base(url, options);
+  });
+  assert.ok(Date.now() - Date.parse(venue.depth_fetched_at) >= 20);
 });
 
 test('Allocation walks fee-inclusive depth across venues without exceeding the budget', () => {
@@ -150,9 +159,60 @@ test('Preview endpoint requires admin auth, validates inputs, uses server mappin
     const result = await response.json();
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    assert.deepEqual([...new Set(result.allocations.map(a => a.book))], ['kalshi', 'polymarket_us']);
+    assert.deepEqual([...new Set(result.allocations.map(a => a.book))], ['polymarket_us']);
+    assert.ok(result.allocations.every(a => a.rules_key === result.rules_key));
     assert.ok(result.spend <= 500);
   } finally { globalThis.fetch = original; }
+});
+
+test('Principal stake targets $500 cash separately from fees and qualifies in the discovery UI', async () => {
+  const calls = [];
+  const result = await previewGame(game, { line: 57.5, budget: 500, stake: 500, maxPrice: .99 }, exchangeFetch({}, calls));
+  assert.equal(result.stake_mode, 'principal');
+  assert.equal(result.principal, 500);
+  assert.ok(result.spend > 500);
+  assert.equal(result.spend, result.principal + result.fees);
+  assert.equal(result.cash_liquidity_verified, true);
+  assert.equal(result.settlement_verified, true);
+  assert.ok(result.depth_fetched_at);
+  assert.ok(result.allocations.every(a => a.line === 57.5 && a.side === 'under' && a.rules_key === result.rules_key));
+  assert.ok(calls.every(c => c.options.method === 'GET' && !c.options.headers.Authorization));
+  const ctx = vm.createContext({ Date, g: { ...game, execution_preview: result }, LOAD_ERRORS: {} });
+  vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
+  assert.equal(vm.runInContext('verifiedOffer(g)?.principal', ctx), 500);
+});
+
+test('Principal preview cannot pool $300 offers with incompatible venue terms into $500', async () => {
+  const fetcher = exchangeFetch();
+  const limited = async (url, options) => {
+    if (String(url).includes('/orderbook')) return Response.json({ orderbook_fp: { yes_dollars: [['.5', '600']] } });
+    if (String(url).includes('/book?')) return Response.json({ marketData: { marketSlug: polyId, state: 'MARKET_STATE_OPEN',
+      bids: [{ px: { value: '.5', currency: 'USD' }, qty: 600 }] } });
+    return fetcher(url, options);
+  };
+  const result = await previewGame(game, { line: 57.5, budget: 500, stake: 500, maxPrice: .99 }, limited);
+  assert.equal(result.principal, 300);
+  assert.equal(result.cash_liquidity_verified, false);
+  assert.equal(result.unfilled_principal, 200);
+  assert.equal(new Set(result.allocations.map(a => a.rules_key)).size, 1);
+});
+
+test('Principal allocation uses one-cent native payouts and whole-contract cash overshoot', () => {
+  const native = allocatePrincipal([{ book: 'novig', coefficient: 0, contract_value: .01,
+    fee_model: 'novig_5dp_half_up', levels: [{ price: .5, quantity: 100000 }] }], 500, .99);
+  assert.equal(native.principal, 500);
+  assert.equal(native.allocations[0].quantity, 100000);
+  const whole = allocatePrincipal([{ book: 'kalshi', coefficient: .07, fee_model: 'kalshi_direct',
+    levels: [{ price: .492, quantity: 2000 }] }], 500, .99);
+  assert.ok(whole.principal >= 500 && whole.principal < 500.492);
+  assert.ok(Math.abs(whole.spend - whole.principal - whole.fees) < .000001);
+});
+
+test('Principal preview has its own hard deadline even when a provider ignores abort', async () => {
+  const started = performance.now();
+  await assert.rejects(boundedPreviewGame(game, { line: 57.5, budget: 500, stake: 500, maxPrice: .99 },
+    () => new Promise(() => {}), 100), /deadline/);
+  assert.ok(performance.now() - started < 1000);
 });
 
 test('Execution game picker includes upcoming games regardless of table filters and excludes started games', () => {

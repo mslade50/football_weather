@@ -421,7 +421,9 @@ function setupRefresh(auth) {
         body: JSON.stringify({sport: request.sport, scope, request_id: request.id, requested_at: new Date(started).toISOString()})});
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
-      if (applyRefresh(result, request)) { msg.textContent = "Requested publication loaded. Check quote and depth clocks for freshness."; setDisabled(false); }
+      if (applyRefresh(result, request)) { msg.textContent = result.delivery_mode === 'direct_public_depth'
+        ? `Requested exchange quote result loaded${result.partial ? ' (partial)' : ''}. Weather publication unchanged; check source clocks.`
+        : "Requested publication loaded. Check quote and depth clocks for freshness."; setDisabled(false); }
       else {
         msg.textContent = result.already_running ? "A run is already in progress. Existing quotes unchanged; awaiting this request's result."
           : scope === "exchanges" ? "Exchange request queued; awaiting correlated result (30s limit). Existing quotes unchanged."
