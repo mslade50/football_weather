@@ -22,7 +22,7 @@ from pathlib import Path
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline.publication import prepare_generation, verify_generation  # noqa: E402
+from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, verify_generation  # noqa: E402
 
 ROOT = Path("data")
 MAX_WORKERS = 8
@@ -82,12 +82,12 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
     if phase == "board":
         base = ROOT / "board"
         return [(f"board/{p.name}", p, "application/json")
-                for p in sorted(base.glob("*.json")) if p.is_file() and p.name != "meta.json"] if base.is_dir() else []
+                for p in sorted(base.glob("*.json")) if p.is_file() and p.name != "meta.json"
+                and p.stem not in BUILD_PROTECTED_NAMES] if base.is_dir() else []
     if phase == "state":
-        excluded = {'cf_heartbeat', 'bet_confirmations', 'live_quotes'}  # Other owners' live receipts.
         names = os.environ.get("STATE_FILES", " ".join(STATE_FILES)).split()
         return [(f"board/{name}.json", ROOT / "state" / f"{name}.json", "application/json")
-                for name in names if name not in excluded and (ROOT / "state" / f"{name}.json").is_file()]
+                for name in names if name not in BUILD_PROTECTED_NAMES and (ROOT / "state" / f"{name}.json").is_file()]
     if phase == "meta":
         path = ROOT / "board" / "meta.json"
         return [("board/meta.json", path, "application/json")] if path.is_file() else []

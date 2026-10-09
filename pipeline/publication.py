@@ -7,6 +7,14 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+# Generic builds have stale snapshots of these other writers' live state.
+# Notification ledgers belong exclusively to the post-publication notifier,
+# including when that notifier runs in the pipeline. Never round-trip them.
+BUILD_PROTECTED_NAMES = frozenset({
+    'alerts', 'telegram_state', 'alerts_live_feed', 'notification_owner',
+    'bet_confirmations', 'cf_heartbeat', 'live_quotes',
+})
+
 PUBLIC_NAMES = {
     "meta.json",
     "games_nfl.json",

@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from pipeline.publication import BUILD_PROTECTED_NAMES
+
 logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
@@ -188,8 +190,8 @@ def put_state(client: Any, bucket: str, state_dir: PathLike, names: Sequence[str
               prefix: str = BOARD_PREFIX, sleep: Callable[[float], None] = time.sleep) -> list[str]:
     pushed = []
     for name in names:
-        if name in {'cf_heartbeat', 'bet_confirmations', 'live_quotes'}:
-            continue  # Worker/resident owned; never replace with a build's cached copy.
+        if name in BUILD_PROTECTED_NAMES:
+            continue  # Never replace another writer's receipts with build-time state.
         p = Path(state_dir) / f"{name}.json"
         if not p.is_file():
             continue
@@ -226,7 +228,8 @@ def publish(client: Any, bucket: str, files: dict[str, PathLike], sleep: Callabl
     mid-loop leaves the old meta (readers see the previous consistent run).
     Raises on the first key that fails all retries."""
     pushed: list[str] = []
-    files = {key: path for key, path in files.items() if key not in {'board/bet_confirmations.json', 'board/cf_heartbeat.json', 'board/live_quotes.json'}}
+    protected = {f'board/{name}.json' for name in BUILD_PROTECTED_NAMES}
+    files = {key: path for key, path in files.items() if key not in protected}
     if META_KEY in files and 'sport_counts' in json.loads(Path(files[META_KEY]).read_bytes()):
         from pipeline.publication import prepare_generation, verify_generation
         immutable, pointer = prepare_generation(files, Path(files[META_KEY]).parent.parent / 'publication')

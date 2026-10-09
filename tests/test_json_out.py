@@ -502,6 +502,27 @@ def test_get_state_skips_nosuchkey_but_raises_otherwise(tmp_path: Path):
     assert r2.is_no_such_key(SimpleNamespace(response={"ResponseMetadata": {"HTTPStatusCode": 404}}, __class__=type("ClientError", (Exception,), {})))
 
 
+@pytest.mark.parametrize('publish_method', ['put_state', 'publish'])
+def test_build_snapshot_cannot_roll_back_new_resident_delivery_receipts(tmp_path, publish_method):
+    ledgers = {
+        'alerts': {'sent': {'first': 'sent-now'}, 'routine_delivery': {'chat|date|08': 'sent-now'}, 'cleared_bets': {'bet': 'sent-now'}},
+        'telegram_state': {'queue': [{'key': 'pending-now'}]},
+        'notification_owner': {'schema_version': 1, 'kind': 'local'},
+        'alerts_live_feed': {'alerts': [{'key': 'clear-now'}]},
+    }
+    client = _FakeClient(objects={f'board/{name}.json': b'{}' for name in ledgers})
+    r2.get_state(client, 'bucket', tmp_path, names=tuple(ledgers))  # Pipeline fetched old state.
+    latest = {f'board/{name}.json': json.dumps(value).encode() for name, value in ledgers.items()}
+    client.objects.update(latest)  # Resident checkpoint interleaves during the build.
+    (tmp_path / 'openers.json').write_text('{"original":"preserved"}')
+    if publish_method == 'put_state':
+        pushed = r2.put_state(client, 'bucket', tmp_path, names=(*ledgers, 'openers'), sleep=lambda _: None)
+    else:
+        pushed = r2.publish(client, 'bucket', {f'board/{name}.json': tmp_path / f'{name}.json' for name in (*ledgers, 'openers')}, sleep=lambda _: None)
+    assert pushed == ['board/openers.json']
+    assert all(client.objects[key] == body for key, body in latest.items())
+
+
 def test_self_check_run_id_and_content_floor(tmp_path: Path):
     meta = {"run_id": "r2", "sport_counts": {"nfl": 4, "cfb": 60}}
     prev = {"run_id": "r1", "sport_counts": {"nfl": 14, "cfb": 60}}
