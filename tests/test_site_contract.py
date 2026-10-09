@@ -213,6 +213,27 @@ def test_backtest_tab_renders_legacy_sheet_until_first_grading() -> None:
     assert ".bt-banner" in css and "tr.bt-grp" in css
 
 
+def test_directional_wind_backtest_controls_and_report_fields() -> None:
+    bt = (WEB / "backtest.js").read_text(encoding="utf-8")
+    assert '<option value="wind">Wind direction</option>' in bt
+    for control in ('id="bt-wind-basis"', 'id="bt-wind-cohort"', 'id="bt-wind-season"', 'id="bt-wind-band"'):
+        assert control in bt
+    assert 'option value="forecast">Last pregame forecast' in bt
+    assert 'option value="actual">Game-time historical model' in bt
+    assert 'option value="signal">Signal-filter games' in bt
+    assert 'option value="all_windy">All windy games' in bt
+    for field in ("directional_wind", "coverage", "groups", "comparisons", "matched_cross_n", "matched_along_n",
+                  "win_ci_low", "win_ci_high", "avg_move", "avg_wind"):
+        assert field in bt
+    assert "directionalWindSectionHtml(d.directional_wind, BT.sport)" in bt
+    assert "&& group.wind_band === bandFilter" in bt
+    assert '<th class="left">Sport</th>' in bt and 'Fewer than 30 resolved games in this group' in bt
+    assert 'title="${esc(`${fmtInt(group.move_n)} of ${fmtInt(group.n)} games with both opener and close`)}"' in bt
+    assert 'methodText([basis])' in bt and 'methodText(["direction"])' in bt and 'methodText(["grading"])' in bt
+    assert 'Full methodology and exclusions' in bt
+    assert "ROI assumes -110 and is not realized betting return." in bt
+
+
 def test_backtest_hover_record_roi_lookup_wired() -> None:
     """Hover Record / ROI by first-match bucket on the map popup, the table total cell and the drawer."""
     for js in ("map.js", "table.js", "drawer.js"):

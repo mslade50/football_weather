@@ -20,6 +20,9 @@
 //              actual_total, under_result "W"|"L"|"P", margin, Signal, Sample, Margin, ROI ],
 //     alerts_clv: { n, by_tier [..], by_league [..], by_book [..], by_model [ {key "v1"|"v2", n, avg_clv, pos, pos_frac} ],
 //                   alerts [ {alert_key, season, week, ..., closing_line, clv_pts} ] } }
+//     directional_wind: { methodology, coverage [{basis, sport, input_games, included_games, excluded, seasons}],
+//       groups [{basis, sport, cohort, season, wind_band, direction, n, wins, losses, pushes, win_pct,
+//                win_ci_low, win_ci_high, roi, margin, avg_move, avg_wind}], comparisons [...] }
 //   Snake-case spellings (wind_lo/wind_hi/.., wins/losses/.., team/stadium/record/pct, a `clv` block with a
 //   dict-shaped by_model) are accepted too.
 //
@@ -44,7 +47,8 @@ function saveBtLegacy(on) {
 }
 const BT_NO_GRADED_BANNER = "No graded 2026 games yet (first grading after Week 0 settles) — showing legacy sheet results.";
 
-const BT = { data: null, loaded: false, loading: null, sport: "", section: "postmortem", q: "", sort: null, dir: -1, legacy: loadBtLegacy() };
+const BT = { data: null, loaded: false, loading: null, sport: "", section: "postmortem", q: "", sort: null, dir: -1, legacy: loadBtLegacy(),
+  windBasis: "forecast", windCohort: "signal", windSeason: "all", windBand: "all" };
 
 const BT_SPORT = { nfl: "NFL", cfb: "NCAAF" };
 const btNum = (...vals) => { for (const v of vals) if (isNum(v)) return Number(v); return null; };
@@ -178,6 +182,16 @@ function normalizePostmortem(d) {
       by_week: normRollup(season.by_week), by_sport: normRollup(season.by_sport), by_tier: normRollup(season.by_tier),
       by_book: normRollup(season.by_book), by_model: normRollup(season.by_model) } };
 }
+function normalizeDirectionalWind(raw) {
+  const d = raw && typeof raw === "object" ? raw : {};
+  const methodology = d.methodology && typeof d.methodology === "object" ? d.methodology : {};
+  return {
+    methodology,
+    coverage: Array.isArray(d.coverage) ? d.coverage.filter((r) => r && typeof r === "object") : [],
+    groups: Array.isArray(d.groups) ? d.groups.filter((r) => r && typeof r === "object") : [],
+    comparisons: Array.isArray(d.comparisons) ? d.comparisons.filter((r) => r && typeof r === "object") : [],
+  };
+}
 function normalizeBacktest(payload) {
   const d = payload && typeof payload === "object" ? payload : {};
   const meta = d.meta && typeof d.meta === "object" ? d.meta : {};
@@ -190,11 +204,12 @@ function normalizeBacktest(payload) {
   const games = (Array.isArray(d.games) ? d.games : Array.isArray(d.matched_games) ? d.matched_games : []).map(normalizeBtGame);
   const clv = normalizeClv(d);
   const postmortem = normalizePostmortem(d);
+  const directional_wind = normalizeDirectionalWind(d.directional_wind);
   const lg = meta.legacy && typeof meta.legacy === "object" ? meta.legacy : {};
   const legacy = { source: btStr(lg.source), seasons: btStr(lg.seasons), n_buckets: btNum(lg.n_buckets) };
   return { run_id: meta.run_id || d.run_id || null, generated_at: meta.generated_at || meta.last_updated || d.generated_at || d.last_updated || null,
     bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks),
-    grid, stadiums, stadiums_legacy, games, clv, postmortem, legacy };
+    grid, stadiums, stadiums_legacy, games, clv, postmortem, directional_wind, legacy };
 }
 
 async function loadBacktest(force = false) {
@@ -376,6 +391,58 @@ function gamesSectionHtml(rows) {
   }).join("");
   return `<div class="wrap bt-wrap"><table class="bt"><thead>${head}</thead><tbody>${body || `<tr><td colspan="13" class="empty">no matched games</td></tr>`}</tbody></table></div>`;
 }
+function directionalWindSectionHtml(report, sport) {
+  const basis = BT.windBasis === "actual" ? "actual" : "forecast";
+  const cohort = BT.windCohort === "all_windy" ? "all_windy" : "signal";
+  const wantedSport = sport || "";
+  const seasons = [...new Set(report.groups.filter((group) => group.basis === basis && group.cohort === cohort
+    && (!wantedSport || group.sport === wantedSport) && group.season !== "all" && group.season != null)
+    .map((group) => String(group.season)))].sort((a, b) => Number(b) - Number(a));
+  if (BT.windSeason !== "all" && !seasons.includes(String(BT.windSeason))) BT.windSeason = "all";
+  const season = BT.windSeason;
+  const bandFilter = BT.windBand;
+  const filtered = report.groups.filter((group) => group.basis === basis && group.cohort === cohort
+    && (!wantedSport || group.sport === wantedSport)
+    && (season === "all" ? group.season === "all" : String(group.season) === String(season))
+    && group.wind_band === bandFilter);
+  const coverage = report.coverage.filter((r) => r.basis === basis && (!wantedSport || r.sport === wantedSport));
+  const exclusions = (obj) => Object.entries(obj && typeof obj === "object" ? obj : {})
+    .filter(([, n]) => isNum(n) && Number(n) > 0)
+    .map(([reason, n]) => `${reason.replaceAll("_", " ")}: ${fmtInt(n)}`).join(" · ") || "none reported";
+  const coverageHtml = coverage.length ? `<div class="statusbar bt-wind-coverage">${coverage.map((r) =>
+    `<span class="seg"><b>${esc(String(r.sport || "").toUpperCase())}</b> · ${fmtInt(r.included_games)} / ${fmtInt(r.input_games)} direction-ready windy games (before cohort, season and band filters) · excluded: ${esc(exclusions(r.excluded))}</span>`
+  ).join("")}</div>` : `<div class="sub bt-note">No coverage report for this sport and weather basis.</div>`;
+  const methodology = report.methodology || {};
+  const methodText = (keys) => keys.map((key) => methodology[key]).filter((value) => typeof value === "string" && value.trim())
+    .map((value) => esc(value)).join(" ");
+  const primaryMethod = [methodText([basis]), methodText(["direction"]), methodText(["grading"])].filter(Boolean).join(" ");
+  const fullMethod = Object.entries(methodology).filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => `<li><b>${esc(key.replaceAll("_", " "))}:</b> ${esc(value)}</li>`).join("");
+  const methodHtml = `<div class="sub bt-note">${primaryMethod} ROI assumes -110 and is not realized betting return. Historical splits are descriptive, not causal proof.</div>`
+    + `<details class="bt-wind-method"><summary>Full methodology and exclusions</summary><ul>${fullMethod || '<li>Methodology details unavailable.</li>'}</ul></details>`;
+  const rows = filtered.map((group) => {
+    const resolved = (btNum(group.wins) ?? 0) + (btNum(group.losses) ?? 0);
+    const smallSample = typeof group.small_sample === "boolean" ? group.small_sample : resolved < 30;
+    const small = smallSample ? '<br><span class="sub" title="Fewer than 30 resolved games in this group">small sample</span>' : "";
+    return `<tr><td class="left">${esc(String(group.sport || "").toUpperCase())}</td><td class="left">${esc(String(group.direction || "").replaceAll("_", " "))}</td>`
+    + `<td>${fmtInt(group.n)}${small}</td><td>${fmtInt(group.wins)}-${fmtInt(group.losses)}-${fmtInt(group.pushes)}</td>`
+    + `<td>${fmtPct(group.win_pct)}${isNum(group.win_ci_low) && isNum(group.win_ci_high) ? `<br><span class="sub">95% CI ${fmtPct(group.win_ci_low)}–${fmtPct(group.win_ci_high)}</span>` : ""}</td>`
+    + `<td class="${roiClass(group.roi)}">${fmtRoi(group.roi)}</td><td>${isNum(group.margin) ? fmtNum(group.margin, 2) : "—"}</td>`
+    + `<td title="${esc(`${fmtInt(group.move_n)} of ${fmtInt(group.n)} games with both opener and close`)}">${isNum(group.avg_move) ? fmtNum(group.avg_move, 2) : "—"}</td><td>${isNum(group.avg_wind) ? `${fmtNum(group.avg_wind, 1)} mph` : "—"}</td></tr>`;
+  }).join("");
+  const table = `<div class="wrap bt-wrap"><table class="bt bt-wind"><thead><tr><th class="left">Sport</th><th class="left">Direction</th><th>n</th><th>Under record</th><th title="Win fraction and Wilson 95% interval">Win %</th><th title="ROI at assumed -110 pricing">ROI*</th><th title="Closing total − actual total; positive favors the under">Margin</th><th title="Opening total − closing total; positive means the line moved down">Avg move</th><th>Avg wind</th></tr></thead><tbody>${rows || '<tr><td colspan="9" class="empty">No directional-wind samples for these filters.</td></tr>'}</tbody></table></div>`;
+  const comparisons = report.comparisons.filter((comparison) => comparison.basis === basis && comparison.cohort === cohort
+    && (!wantedSport || comparison.sport === wantedSport) && comparison.season === "all");
+  const comparisonHtml = season === "all" && bandFilter === "all" && comparisons.length
+    ? `<div class="statusbar bt-wind-comparison">${comparisons.map((comparison) => `<span class="seg"><b>${esc(String(comparison.sport || "").toUpperCase())} matched comparison</b> · crosswind n=${fmtInt(comparison.matched_cross_n)}, along-field n=${fmtInt(comparison.matched_along_n)} · crosswind − along-field margin ${isNum(comparison.margin_difference) ? `${comparison.margin_difference >= 0 ? "+" : ""}${fmtNum(comparison.margin_difference, 2)} pts` : "—"} · win-rate difference ${isNum(comparison.win_pct_difference) ? `${comparison.win_pct_difference >= 0 ? "+" : ""}${fmtPct(comparison.win_pct_difference)}` : "—"}</span>`).join("")}</div>`
+    : `<div class="sub bt-note">Matched comparison is shown only for all seasons and all wind bands.</div>`;
+  return `<div class="controls bt-wind-controls">
+      <label class="sub" for="bt-wind-basis">Weather basis</label><select id="bt-wind-basis"><option value="forecast">Last pregame forecast</option><option value="actual">Game-time historical model</option></select>
+      <label class="sub" for="bt-wind-cohort">Cohort</label><select id="bt-wind-cohort"><option value="signal">Signal-filter games</option><option value="all_windy">All windy games</option></select>
+      <label class="sub" for="bt-wind-season">Season</label><select id="bt-wind-season"><option value="all">All seasons</option>${seasons.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select>
+      <label class="sub" for="bt-wind-band">Wind</label><select id="bt-wind-band"><option value="all">All wind speeds</option><option value="14–20">14–20 mph</option><option value="20–25">20–25 mph</option><option value="25+">25+ mph</option></select>
+    </div>${methodHtml}${coverageHtml}${comparisonHtml}${table}`;
+}
 function clvSummaryHtml(clv) {
   if (!clv || !Object.keys(clv.by_model || {}).length) return "";
   const cell = (k) => {
@@ -512,7 +579,7 @@ async function renderBacktest() {
     + (lg.source ? ` · legacy: ${esc(lg.source)}${lg.seasons ? ` (${esc(lg.seasons)})` : ""}` : "");
   const controls = `<div class="controls btctl">
     <select id="bt-sport"><option value="">Sport: all</option><option value="cfb">CFB (NCAAF)</option><option value="nfl">NFL</option></select>
-    <select id="bt-section"><option value="postmortem">Weekly post-mortem</option><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
+    <select id="bt-section"><option value="postmortem">Weekly post-mortem</option><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option><option value="wind">Wind direction</option></select>
     <input id="bt-q" placeholder="Filter team / stadium…" />
     ${BT.section === "grid" ? `<label class="chk" title="Show the legacy sheet's Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV % next to this season's"><input type="checkbox" id="bt-legacy" /> legacy</label>` : ""}
     <span class="sub" id="bt-count"></span>
@@ -521,7 +588,8 @@ async function renderBacktest() {
   </div>`;
   const banner = BT.section === "grid" && d.n_graded === 0 && d.grid.length ? `<div class="banner warn bt-banner">${esc(BT_NO_GRADED_BANNER)}</div>` : "";
   let section = "";
-  if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length && !d.postmortem.season.bets.length) {
+  if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length && !d.postmortem.season.bets.length
+      && !d.directional_wind.groups.length && !d.directional_wind.coverage.length) {
     section = `<div class="empty">no backtest published yet (backtest.yml writes board/backtest.json every Tuesday)</div>`;
   } else if (BT.section === "postmortem") {
     section = postmortemSectionHtml(d.postmortem, flt.bets);
@@ -529,15 +597,27 @@ async function renderBacktest() {
     section = stadiumSectionHtml(flt.stadiums);
   } else if (BT.section === "games") {
     section = gamesSectionHtml(flt.games);
+  } else if (BT.section === "wind") {
+    section = directionalWindSectionHtml(d.directional_wind, BT.sport);
   } else {
     section = gridSectionHtml(flt.grid);
   }
   host.innerHTML = controls + banner + clvSummaryHtml(d.clv) + section;
-  const counts = { postmortem: `${flt.bets.length} plays`, grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
+  const counts = { postmortem: `${flt.bets.length} plays`, grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games`, wind: `${d.directional_wind.groups.length} directional groups` };
   document.getElementById("bt-count").textContent = counts[BT.section] || "";
   document.getElementById("bt-sport").value = BT.sport;
   document.getElementById("bt-section").value = BT.section;
   document.getElementById("bt-q").value = BT.q;
+  if (BT.section === "wind") {
+    document.getElementById("bt-wind-basis").value = BT.windBasis;
+    document.getElementById("bt-wind-cohort").value = BT.windCohort;
+    document.getElementById("bt-wind-season").value = BT.windSeason;
+    document.getElementById("bt-wind-band").value = BT.windBand;
+    document.getElementById("bt-wind-basis").addEventListener("change", (ev) => { BT.windBasis = ev.target.value; BT.windSeason = "all"; renderBacktest(); });
+    document.getElementById("bt-wind-cohort").addEventListener("change", (ev) => { BT.windCohort = ev.target.value; BT.windSeason = "all"; renderBacktest(); });
+    document.getElementById("bt-wind-season").addEventListener("change", (ev) => { BT.windSeason = ev.target.value; renderBacktest(); });
+    document.getElementById("bt-wind-band").addEventListener("change", (ev) => { BT.windBand = ev.target.value; renderBacktest(); });
+  }
   if (document.getElementById("bt-legacy")) document.getElementById("bt-legacy").checked = BT.legacy;
   document.getElementById("bt-sport").addEventListener("change", (ev) => { BT.sport = ev.target.value; renderBacktest(); });
   document.getElementById("bt-section").addEventListener("change", (ev) => { BT.section = ev.target.value; renderBacktest(); });

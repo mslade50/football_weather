@@ -467,7 +467,7 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games", "directional_wind"}
     assert payload["postmortem"]["latest"]["summary"]["bets"] == 0
     # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
     assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}

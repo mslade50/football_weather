@@ -96,7 +96,7 @@ BATCH = 50
 NETWORK_BUDGET_S = 600.0
 HTTP_TIMEOUT_S = 20.0
 
-PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv", "postmortem")
+PARQUET_TABLES = ("games", "grid", "stadium_results", "alerts_clv", "postmortem", "directional_groups", "directional_games")
 LEGACY_SEASONS = "pre-2026"   # the sheet does not say which seasons it covers (AUDIT §4.3)
 LEGACY_SPORT = "cfb"          # the Stadiums sheet is CFB-only
 WIND_MATERIALIZATION_MPH = min(threshold for threshold, _ in model_config.WIND_TIERS)
@@ -270,12 +270,15 @@ class GameRow:
     roof_state: Optional[str] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
+    orientation_deg: Optional[float] = None
     # forecast the bettor saw (last snapshot before kickoff)
     temp_fc: Optional[float] = None
     wind_fc: Optional[float] = None
     gust_fc: Optional[float] = None
     rain_fc: Optional[float] = None
     wind_dir_fc: Optional[str] = None
+    wind_dir_deg_fc: Optional[float] = None
+    forecast_at: Optional[str] = None
     lead_fc: Optional[float] = None
     gs_fg_v1: Optional[float] = None
     away_fg_v1: Optional[float] = None
@@ -299,6 +302,7 @@ class GameRow:
     gust_act: Optional[float] = None
     rain_act: Optional[float] = None
     wind_dir_act: Optional[str] = None
+    wind_dir_deg_act: Optional[float] = None
     # market
     total_open: Optional[float] = None
     total_close: Optional[float] = None
@@ -432,8 +436,10 @@ def row_from_snapshots(game_id: str, snaps: Sequence[tuple[datetime, Mapping[str
         home_name=(close.get("home") or {}).get("name"), away_name=(close.get("away") or {}).get("name"),
         stadium_id=st.get("stadium_id"), stadium_name=st.get("name"), neutral=bool(close.get("neutral")),
         roof_state=st.get("roof_state"), lat=_num(st.get("lat")), lon=_num(st.get("lon")),
+        orientation_deg=_num(st.get("orient_deg", st.get("orientation_deg"))),
         temp_fc=_num(wx.get("temp_fg")), wind_fc=_num(wx.get("wind_fg")), gust_fc=_num(wx.get("gust_fg")),
         rain_fc=_num(wx.get("rain_fg")), wind_dir_fc=wx.get("wind_dir_fg"), lead_fc=_num(wx.get("lead_hours")),
+        wind_dir_deg_fc=_num(wx.get("wind_dir_deg")), forecast_at=utc_iso(ts_close),
         gs_fg_v1=_num(_impact(close, "v1").get("gs_fg_pct")), away_fg_v1=_num(_impact(close, "v1").get("away_fg_pct")),
         gs_fg_v2=_num(_impact(close, "v2").get("gs_fg_pct")), away_fg_v2=_num(_impact(close, "v2").get("away_fg_pct")),
         fair_total_v1=_num(fair.get("fair_total")), fair_total_v2=_num(fair.get("fair_total_v2")),
@@ -578,6 +584,7 @@ def rows_from_games(games: Iterable[Mapping[str, Any]], stadiums: Iterable[Mappi
             home_name=(tm_by.get(g.get("home_id")) or {}).get("name"), away_name=(tm_by.get(g.get("away_id")) or {}).get("name"),
             stadium_id=g.get("stadium_id"), stadium_name=st.get("name"), neutral=bool(g.get("neutral")),
             roof_state=g.get("roof_state"), lat=_num(st.get("lat")), lon=_num(st.get("lon")),
+            orientation_deg=_num(st.get("orientation_deg")),
             gs_fg_v1=_num(g.get("gs_fg")), away_fg_v1=_num(g.get("away_fg")),
             gs_fg_v2=_num(g.get("gs_fg_v2")), away_fg_v2=_num(g.get("away_fg_v2")),
         )
@@ -644,19 +651,21 @@ def apply_final_weather(rows: Mapping[str, GameRow], weather_history: Iterable[M
     filled = 0
     for gid, (fetched, raw) in latest.items():
         row = rows[gid]
+        existing_at, kickoff = _dt(row.forecast_at), _dt(row.kickoff_utc)
+        if existing_at is not None and kickoff is not None and existing_at < kickoff and row.wind_fc is not None:
+            # Keep the snapshot's weather packet intact. Filling its direction
+            # from a different D1 forecast would silently mix forecast vintages.
+            continue
         values = {
             "temp_fc": _num(raw.get("temp_f")), "wind_fc": _num(raw.get("wind_mph")),
             "gust_fc": _num(raw.get("gust_mph")), "rain_fc": _num(raw.get("precip_mm")),
             "wind_dir_fc": raw.get("wind_dir"), "lead_fc": _num(raw.get("lead_hours")),
+            "wind_dir_deg_fc": _num(raw.get("wind_dir_deg")), "forecast_at": utc_iso(fetched),
         }
-        changed = False
         for name, value in values.items():
-            if getattr(row, name) is None and value is not None:
-                setattr(row, name, value)
-                changed = True
-        if changed:
-            row.src_forecast = row.src_forecast or f"d1_weather:{utc_iso(fetched)}"
-            filled += 1
+            setattr(row, name, value)
+        row.src_forecast = f"d1_weather:{utc_iso(fetched)}"
+        filled += 1
     return filled
 
 
@@ -778,6 +787,7 @@ def fetch_actuals(rows: Iterable[GameRow], *, get: Callable[[str, Mapping[str, s
                 if st["wind"] is None and st["temp"] is None:
                     continue
                 r.temp_act, r.wind_act, r.gust_act, r.rain_act, r.wind_dir_act = st["temp"], st["wind"], st["gust"], st["rain"], st["dir"]
+                r.wind_dir_deg_act = st["dir_deg"]
                 r.src_actual = f"openmeteo_hist:{params['models']}"
                 n += 1
             sleep(NET_SLEEP_S)
@@ -1325,6 +1335,7 @@ class BacktestResult:
     sources: dict[str, Any]
     stadiums_legacy: list[dict[str, Any]] = field(default_factory=list)   # the sheet's Stadiums rows (load_stadium_sheet)
     legacy: dict[str, Any] = field(default_factory=dict)                  # meta.legacy (legacy_meta)
+    directional_wind: dict[str, Any] = field(default_factory=dict)
 
     def payload(self, *, now: Optional[datetime] = None, run_id: Optional[str] = None, on: str = "forecast") -> dict[str, Any]:
         ts = utc_iso(now or now_utc())
@@ -1334,6 +1345,7 @@ class BacktestResult:
                      "sources": self.sources, "legacy": self.legacy},
             "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
             "alerts_clv": self.alerts, "postmortem": self.postmortem, "games": self.games,
+            "directional_wind": self.directional_wind,
         })
 
 
@@ -1386,7 +1398,9 @@ def assemble(rows: Sequence[GameRow], defs: Sequence[Bucket], alert_records: Ite
              sources: Optional[dict[str, Any]] = None, on: str = "forecast", now: Optional[str] = None,
              stadiums_legacy: Sequence[Mapping[str, Any]] = (), legacy: Optional[Mapping[str, Any]] = None,
              weather_history: Iterable[Mapping[str, Any]] = (),
-             closings: Iterable[Mapping[str, Any]] = ()) -> BacktestResult:
+             closings: Iterable[Mapping[str, Any]] = (),
+             directional_rows: Iterable[Mapping[str, Any]] = ()) -> BacktestResult:
+    from pipeline.directional_backtest import build_report
     rows = [finalize_row(r) for r in rows]
     grid = grid_stats(rows, defs, on)
     records = list(alert_records)
@@ -1394,7 +1408,8 @@ def assemble(rows: Sequence[GameRow], defs: Sequence[Bucket], alert_records: Ite
     return BacktestResult(list(rows), grid, stadium_results(rows, utc_iso(now_dt)), alerts_clv(records),
                           build_postmortem(rows, records, weather_history, closings=closings, now=now_dt),
                           matched_games(rows, defs, grid, on), sources or {},
-                          [dict(s) for s in stadiums_legacy], dict(legacy or {}))
+                          [dict(s) for s in stadiums_legacy], dict(legacy or {}),
+                          build_report([r.to_dict() for r in rows] + list(directional_rows)))
 
 
 def write_parquet(res: BacktestResult, out_dir: PathLike) -> dict[str, Path]:
@@ -1408,6 +1423,8 @@ def write_parquet(res: BacktestResult, out_dir: PathLike) -> dict[str, Path]:
         "stadium_results": pd.DataFrame(res.stadiums),
         "alerts_clv": pd.DataFrame(res.alerts.get("alerts") or []),
         "postmortem": pd.DataFrame((res.postmortem.get("season") or {}).get("bets") or []),
+        "directional_groups": pd.DataFrame([{**g, "season": str(g["season"])} for g in res.directional_wind.get("groups") or []]),
+        "directional_games": pd.DataFrame(res.directional_wind.get("games") or []),
     }
     written = {}
     for name, df in tables.items():
@@ -1435,6 +1452,14 @@ def d1_statements(res: BacktestResult, new_closings: Sequence[dict[str, Any]] = 
 
 # ---- CLI ---------------------------------------------------------------------------------------------
 
+def _directional_inputs(path: Path | None, sport: str | None, season: int | None) -> list[dict]:
+    from pipeline.directional_backtest import load_rows
+    if path is None:
+        return []
+    return [r for r in load_rows(path) if (not sport or r.get('sport') == sport)
+            and (season is None or r.get('season') == season)]
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m pipeline.backtest", description=__doc__.split("\n\n")[0])
     p.add_argument("--snapshot-dir", type=Path, default=DEFAULT_SNAPSHOT_DIR)
@@ -1445,6 +1470,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--parquet-dir", type=Path, default=DEFAULT_PARQUET_DIR)
     p.add_argument("--d1-sql", type=Path, default=None, help="write closings/stadium_results SQL here")
     p.add_argument("--grid", type=Path, default=GRID_FIXTURE, help="legacy xlsx with the bucket definitions")
+    p.add_argument("--directional-input", type=Path, default=None, help="retained historical directional game rows (JSON or parquet)")
     p.add_argument("--season", type=int, default=None)
     p.add_argument("--sport", choices=("nfl", "cfb"), default=None)
     p.add_argument("--bucket-on", choices=("forecast", "actual"), default="forecast")
@@ -1485,6 +1511,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"  clv: froze {len(res_clv.frozen)} keys ({len(res_clv.new)} new), settled {len(res_clv.settled)} alerts")
 
     rows = build_rows(snapshots=snaps, d1=d1, closings_state=closings_state, sport=args.sport, season=args.season, now=now)
+    # Resolve only the recorded venue ID; home-stadium/name guesses misclassify neutral games.
+    from pipeline.stadiums.loader import load_stadium_book
+    book = load_stadium_book()
+    for row in rows:
+        stadium = book.stadiums.get(row.stadium_id)
+        if stadium and row.orientation_deg is None:
+            row.orientation_deg = stadium.orientation_deg
     sources: dict[str, Any] = {"snapshots": len(snaps), "d1_games": len(d1.games), "network": not args.no_network}
     if rows and not args.no_network:
         network_started = time.monotonic()
@@ -1511,7 +1544,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     postmortem_closings = list(d1.closings) + clv_mod.closing_rows(closings_state)
     res = assemble(rows, defs, records, sources, on=args.bucket_on, now=utc_iso(now),
                    stadiums_legacy=sheet_stadiums, legacy=legacy_meta(defs, args.grid),
-                   weather_history=d1.weather_history, closings=postmortem_closings)
+                   weather_history=d1.weather_history, closings=postmortem_closings,
+                   directional_rows=_directional_inputs(args.directional_input, args.sport, args.season))
     written = write_outputs(res, board_dir=args.board_dir, parquet_dir=args.parquet_dir, now=now, on=args.bucket_on)
     graded = sum(1 for r in rows if r.under_result is not None)
     print(f"  rows: {len(rows)} games ({graded} graded); buckets with samples: {sum(1 for g in res.grid if g['Sample'])}; "

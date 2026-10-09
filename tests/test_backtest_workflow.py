@@ -132,8 +132,22 @@ def test_backtest_and_calibrate_use_no_s3_keys(bt: str, cal: str):
 def test_backtest_cli_flags_exist_in_module():
     """The flags the workflow passes must be real pipeline.backtest arguments."""
     src = (WF_DIR.parents[1] / "pipeline" / "backtest.py").read_text(encoding="utf-8")
-    for flag in ("--state-dir", "--snapshot-dir", "--export-dir", "--board-dir", "--parquet-dir", "--d1-sql"):
+    for flag in ("--state-dir", "--snapshot-dir", "--export-dir", "--board-dir", "--parquet-dir", "--d1-sql", "--directional-input"):
         assert f'"{flag}"' in src, flag
+
+
+def test_historical_directional_input_is_readonly_and_transport_errors_fail(bt: str):
+    fetch = _step(bt, "Fetch historical directional inputs (read-only)")
+    assert 'r2 object get "$R2_BUCKET/backtest/directional_inputs.parquet"' in fetch
+    assert '--file=data/backtest/directional_inputs.download' in fetch
+    assert 'mv data/backtest/directional_inputs.download data/backtest/directional_inputs.parquet' in fetch
+    assert "NoSuchKey" in fetch and "exit 1" in fetch
+    assert "r2 object put" not in fetch and "continue-on-error" not in fetch
+    run = _step(bt, "Run backtest")
+    assert 'DIRECTION_ARGS=(--directional-input data/backtest/directional_inputs.parquet)' in run
+    assert '"${DIRECTION_ARGS[@]}"' in run
+    push = _step(bt, "Push backtest to R2")
+    assert '[ "$(basename "$p")" = "directional_inputs.parquet" ] && continue' in push
 
 
 def test_backtest_sends_postmortem_via_alerts_module(bt: str):

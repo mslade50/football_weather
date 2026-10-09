@@ -124,6 +124,21 @@ jobs:
             fi
           done
           ls -la data/d1_export
+      - name: Fetch historical directional inputs (read-only)
+        # Prepared separately from retained forecasts and historical-model weather.
+        # Keep this immutable input out of the mutable current-season games.parquet.
+        run: |
+          mkdir -p data/backtest
+          if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/backtest/directional_inputs.parquet" --file=data/backtest/directional_inputs.download --remote 2>&1)"; then
+            mv data/backtest/directional_inputs.download data/backtest/directional_inputs.parquet
+            echo "historical directional inputs fetched"
+          elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
+            echo "::notice::No historical directional inputs; reporting current-season coverage only"
+          else
+            echo "$OUT"
+            echo "::error::Historical directional input fetch failed"
+            exit 1
+          fi
       - name: Mirror snapshots from R2 (wrangler, read-only)
         # snapshots/{sport}/{season}/{week}/{run_id}.json are the per-run GameCard lists the
         # backtest replays for lead-N forecasts. wrangler cannot list a prefix, so the keys
@@ -166,8 +181,12 @@ jobs:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
         run: |
           mkdir -p data/board data/backtest
+          DIRECTION_ARGS=()
+          if [ -f data/backtest/directional_inputs.parquet ]; then
+            DIRECTION_ARGS=(--directional-input data/backtest/directional_inputs.parquet)
+          fi
           python -m pipeline.backtest --state-dir data/state --snapshot-dir data/snapshots --export-dir data/d1_export \
-            --board-dir data/board --parquet-dir data/backtest --d1-sql data/d1_backtest.sql
+            --board-dir data/board --parquet-dir data/backtest --d1-sql data/d1_backtest.sql "${DIRECTION_ARGS[@]}"
           python - <<'PY'
           import json
           d = json.load(open("data/board/backtest.json"))
@@ -189,6 +208,8 @@ jobs:
           }
           for p in data/backtest/*.parquet; do
             [ -f "$p" ] || continue
+            # Historical inputs are read-only; only publish generated outputs here.
+            [ "$(basename "$p")" = "directional_inputs.parquet" ] && continue
             put "backtest/$(basename "$p")" "$p" "application/octet-stream"
           done
           put "board/backtest.json" "data/board/backtest.json" "application/json"

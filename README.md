@@ -69,6 +69,16 @@ archive; the older aggregate stadium records do not imply game-level signal
 history. Results refresh with the Sunday/Tuesday backtest job; **Reload
 results** fetches its latest output without starting a new grading job.
 
+In **Backtest → Wind direction**, compare crosswind, along-field head/tail wind,
+and oblique wind by sport, season and wind-speed band. Forecast cohorts use the
+last saved pregame forecast; game-time historical-model cohorts are retrospective.
+The canonical NFL/CFB wind filters and a broader windy-game cohort are available.
+Results grade the under against the closing total at assumed -110 pricing, with
+sample sizes, win-rate intervals, coverage exclusions, and a matched comparison
+within weather/spread/season bands. They are not first-alert execution returns or
+proof that wind direction alone causes an edge. Historical input preparation and
+offline replay are documented in `docs/DIRECTIONAL_BACKTEST.md`.
+
 ## Local run
 
 ```
