@@ -54,24 +54,58 @@ export function allocateDepth(venues, budget, maxPrice) {
   let remaining = fixed(budget);
   const limit = fixed(maxPrice);
   const slices = venues.flatMap(v => v.levels.map(l => ({ ...l, book: v.book, coefficient: v.coefficient,
-    contract_value: v.contract_value ?? 1, fee_model: v.fee_model ?? 'conservative_cent' })))
-    .sort((a, b) => (a.price + a.coefficient * a.price * (1 - a.price))
-      - (b.price + b.coefficient * b.price * (1 - b.price)) || a.book.localeCompare(b.book));
+    contract_value: v.contract_value ?? 1, fee_model: v.fee_model ?? 'conservative_cent' })));
   const allocations = [];
   let principal = 0n, fees = 0n, payout = 0n;
-  for (const level of slices) {
-    let lo = 0, hi = Math.floor(level.quantity);
-    // A level above the all-in ceiling cannot become eligible by increasing size.
-    if (level.price + level.coefficient * level.price * (1 - level.price) > maxPrice) continue;
-    while (lo < hi) {
-      const mid = Math.ceil((lo + hi) / 2);
-      if (sliceCost(level.price, mid, level.coefficient, level.contract_value, level.fee_model).total <= remaining) lo = mid;
-      else hi = mid - 1;
+  const costOf = (level, q) => sliceCost(level.price, q, level.coefficient, level.contract_value, level.fee_model);
+  // Recompute affordable order sizes after each fill. Actual rounded debit at
+  // that size determines eligibility and ranking, including downward fee ties.
+  while (slices.length && remaining > 0n) {
+    const candidates = [];
+    for (const level of slices) {
+      if (fixed(level.price) > limit) continue;
+      let lo = 0, hi = Math.floor(level.quantity);
+      const p = fixed(level.price), r = fixed(level.coefficient), value = fixed(level.contract_value);
+      const above = value * (p * SCALE * SCALE + r * p * (SCALE - p) - limit * SCALE * SCALE);
+      if (above > 0n) {
+        const discount = level.fee_model === 'polymarket_us_cent_half_even' ? CENT / 2n
+          : level.fee_model === 'novig_5dp_half_up' ? 5n : 0n;
+        // Upward-only models cannot pass. Nearest rounding can discount at
+        // most half a fee quantum; retain every quantity within that bound.
+        if (!discount) continue;
+        hi = Math.min(hi, Number(discount * SCALE * SCALE * SCALE / above));
+      }
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (costOf(level, mid).total <= remaining) lo = mid;
+        else hi = mid - 1;
+      }
+      let q = lo, steps = 0;
+      while (q > 0) {
+        const cost = costOf(level, q), levelPayout = fixed(level.contract_value) * BigInt(q);
+        if (cost.total * SCALE <= limit * levelPayout) {
+          candidates.push({ level, q, cost, levelPayout });
+          break;
+        }
+        // No smaller quantity with this same total debit can pass the ceiling.
+        // Jump to the largest lower debit, rather than checking every contract.
+        if (++steps > 4096) throw new Error('Exact fee ceiling calculation exceeded its safe work limit');
+        let left = 0, right = q - 1;
+        while (left < right) {
+          const mid = Math.ceil((left + right) / 2);
+          if (costOf(level, mid).total < cost.total) left = mid;
+          else right = mid - 1;
+        }
+        q = left;
+      }
     }
-    if (!lo) continue;
-    const cost = sliceCost(level.price, lo, level.coefficient, level.contract_value, level.fee_model);
-    const levelPayout = fixed(level.contract_value) * BigInt(lo);
-    if (cost.total * SCALE > limit * levelPayout) continue;
+    if (!candidates.length) break;
+    candidates.sort((a, b) => {
+      const difference = a.cost.total * b.levelPayout - b.cost.total * a.levelPayout;
+      return difference < 0n ? -1 : difference > 0n ? 1 : a.level.book.localeCompare(b.level.book);
+    });
+    const { level, q: lo, cost, levelPayout } = candidates[0];
+    slices.splice(slices.indexOf(level), 1);
     remaining -= cost.total;
     principal += cost.principal;
     fees += cost.fee;

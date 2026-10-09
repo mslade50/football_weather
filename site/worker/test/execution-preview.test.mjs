@@ -89,6 +89,25 @@ test('Price ceiling, insufficient liquidity, empty books and fee rounding leave 
   }
 });
 
+test('Actual half-even fee admits a one-contract fill below the ceiling despite its nominal fee', () => {
+  const result = allocateDepth([{ book: 'polymarket_us', coefficient: .06,
+    fee_model: 'polymarket_us_cent_half_even', levels: [{ price: .49, quantity: 1 }] }], .51, .502);
+  assert.equal(result.allocations.length, 1);
+  assert.equal(result.spend, .5);
+  assert.equal(result.fees, .01);
+});
+
+test('Actual rounded debit ranks Kalshi ahead of a cheaper nominal Poly quote at one contract', () => {
+  const result = allocateDepth([
+    { book: 'polymarket_us', coefficient: .07, fee_model: 'polymarket_us_cent_half_even',
+      levels: [{ price: .49, quantity: 1 }] },
+    { book: 'kalshi', coefficient: .07, fee_model: 'kalshi_direct',
+      levels: [{ price: .492, quantity: 1 }] },
+  ], .51, .99);
+  assert.equal(result.allocations[0].book, 'kalshi');
+  assert.equal(result.spend, .5095);
+});
+
 test('Preview isolates a failed venue, excludes different totals and never claims balances or execution', async () => {
   const result = await previewGame(game, { line: 57.5, budget: 500, maxPrice: .99 }, exchangeFetch({ kalshi: { status: 'closed' } }));
   assert.equal(result.mode, 'preview_only');
