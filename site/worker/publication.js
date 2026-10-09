@@ -53,9 +53,25 @@ export async function pinPublication(bucket, requestedGeneration = null) {
     if (!Array.isArray(payload.alerts)) throw new Error('Delivery receipt stream invalid');
     return fromBytes(new TextEncoder().encode(JSON.stringify({ ...payload, delivery_stream_status: 'current_run_receipts' })));
   };
+  const weeklyBacktest = async () => {
+    // A requested historical board never imports a later weekly result. Older
+    // manifests which sealed this file remain readable as archived snapshots.
+    if (requestedGeneration) return read('backtest.json');
+    const object = await bucket.get('board/backtest.json');
+    if (!object) return null;
+    const raw = await bytes(object), payload = JSON.parse(new TextDecoder().decode(raw));
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Weekly backtest payload invalid');
+    // One object read produces one exact content identity. Its own run/date are
+    // preserved; this is not a weather-generation or producer-attestation claim.
+    const publication = { kind: 'independent_weekly_backtest', content_sha256: await sha(raw),
+      run_id: payload.meta?.run_id || payload.run_id || null,
+      generated_at: payload.meta?.generated_at || payload.meta?.last_updated || payload.generated_at || payload.last_updated || null };
+    return fromBytes(new TextEncoder().encode(JSON.stringify({ ...payload, independent_publication: publication })));
+  };
   return { meta, verified: true, bucket: {
     get: async key => key === 'board/meta.json' ? fromBytes(new TextEncoder().encode(JSON.stringify(meta)))
       : key === 'board/alerts_feed.json' ? deliveryFeed()
+      : key === 'board/backtest.json' ? weeklyBacktest()
       : key.startsWith('board/') && NAMES.has(key.slice(6)) ? read(key.slice(6)) : bucket.get(key),
     put: (...args) => bucket.put(...args),
   } };

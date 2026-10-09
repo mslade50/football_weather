@@ -50,3 +50,14 @@ def test_generation_receipt_rejects_corruption_mixed_games_counts_and_incomplete
         prepare_generation(inputs, tmp_path / "publication")
     with pytest.raises(ValueError, match="missing"):
         prepare_generation({"board/meta.json": inputs["board/meta.json"]}, tmp_path / "publication")
+
+
+def test_weekly_backtest_is_not_silently_sealed_as_current_weather(tmp_path):
+    inputs = files(tmp_path)
+    backtest = tmp_path / 'backtest.json'
+    backtest.write_text('{"meta":{"run_id":"weekly"},"grid":[]}')
+    inputs['board/backtest.json'] = backtest
+    sealed, pointer = prepare_generation(inputs, tmp_path / 'publication')
+    manifest = verify_generation(json.loads(pointer.read_bytes()), lambda key: sealed[key].read_bytes() if key in sealed else None)
+    assert 'backtest.json' not in manifest['objects']
+    assert not any(key.endswith('/backtest.json') for key in sealed)

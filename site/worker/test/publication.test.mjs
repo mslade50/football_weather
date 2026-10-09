@@ -62,3 +62,24 @@ test('New delivery receipts are visible only on their current run; archived gene
   store.set('board/alerts_live_feed.json', JSON.stringify({ meta: { run_id: 'other' }, alerts: [{ alert_key: 'wrong-run' }] }));
   assert.equal(await pinned.bucket.get('board/alerts_feed.json'), null);
 });
+
+test('Verified normal board serves independently versioned weekly backtest without importing it into archived weather', async () => {
+  const store = new Map(), meta = seal(store, 'weather-run'); store.set('board/meta.json', JSON.stringify(meta));
+  const first = JSON.stringify({ meta: { run_id: 'weekly-old', generated_at: '2026-10-06T12:00:00Z' }, grid: [{ id: 1 }], games: [] });
+  store.set('board/backtest.json', first);
+  const pinned = await pinPublication(bucket(store));
+  const response = await handleFetch(new Request('https://fixture.invalid/data/backtest.json'), { ODDS: bucket(store) });
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.grid[0].id, 1);
+  assert.equal(data.meta.run_id, 'weekly-old');
+  assert.equal(data.independent_publication.kind, 'independent_weekly_backtest');
+  assert.equal(data.independent_publication.content_sha256, hash(first));
+  assert.equal(data.independent_publication.generated_at, '2026-10-06T12:00:00Z');
+  const next = JSON.stringify({ meta: { run_id: 'weekly-new', generated_at: '2026-10-13T12:00:00Z' }, grid: [{ id: 2 }] });
+  store.set('board/backtest.json', next);
+  assert.equal((await (await pinned.bucket.get('board/backtest.json')).json()).independent_publication.content_sha256, hash(next));
+  assert.equal((await (await pinned.bucket.get('board/games_nfl.json')).json()).games[0].run_id, 'weather-run');
+  const archive = await pinPublication(bucket(store), meta.publication.generation);
+  assert.equal(await archive.bucket.get('board/backtest.json'), null);
+});

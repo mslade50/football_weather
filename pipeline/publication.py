@@ -41,7 +41,7 @@ def prepare_generation(files: dict[str, Path], target: Path) -> tuple[dict[str, 
     paths = {
         Path(key).name: Path(path)
         for key, path in files.items()
-        if key.startswith("board/") and Path(key).name in PUBLIC_NAMES
+        if key.startswith("board/") and Path(key).name in PUBLIC_NAMES and Path(key).name != 'backtest.json'
     }
     if "meta.json" not in paths:
         raise ValueError("Publication metadata missing")
