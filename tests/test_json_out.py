@@ -111,7 +111,7 @@ def test_weekly_alert_opener_exports_even_without_current_betonline_quotes():
     assert card["odds"]["betonline"]["total"]["line"] is None
     assert card["odds"]["betonline"]["total"]["open_line"] == 39.0
     assert card["odds"]["betonline"]["total"]["open_under"] == -110
-    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-22T12:00:00Z"
+    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-26T12:00:00Z"
     assert card["odds"]["betonline"]["ml"]["home"] is None
     assert card["odds"]["betonline"]["ml"]["open_home"] == -150
     assert card["weekly_total_open"] == weekly  # weekly opening-window snapshot remains separate
@@ -214,7 +214,8 @@ def test_card_odds_block_uses_openers_and_derives_home_line():
     card = _card()
     bo = card["odds"]["betonline"]
     assert bo["spread"] == {"home_line": -3.0, "home_odds": -108, "away_odds": -112, "open_line": -2.5, "open_odds": -110,
-                            "updated_at": "2026-09-26T12:00:00Z"}
+                              "updated_at": "2026-09-26T12:00:00Z", 'open_ts': '2026-09-26T12:00:00Z',
+                              'open_source': 'betonline', 'open_basis': 'first_seen'}
     assert bo["total"]["line"] == 38.0 and bo["total"]["open_line"] == 39.0 and bo["total"]["under"] == -110
     assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None, "updated_at": "2026-09-26T12:00:00Z"}
     pin = card["odds"]["pinnacle"]
@@ -294,8 +295,8 @@ def test_total_open_provenance_is_exported_only_when_available():
     pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0)], "2026-09-21T16:45:00Z")
     first_seen_card = _card(openers=first_seen, lines=[])
     first_seen_total = first_seen_card["odds"]["betonline"]["total"]
-    assert first_seen_total["open_ts"] == "2026-09-21T16:45:00Z"
-    assert "open_target_ts" not in first_seen_total and "open_basis" not in first_seen_total
+    assert first_seen_total["open_ts"] == "2026-09-26T12:00:00Z"
+    assert "open_target_ts" not in first_seen_total and first_seen_total['open_basis'] == 'first_seen'
     assert "total_open_target_ts" not in first_seen_card["consensus"]
     assert "total_open_basis" not in first_seen_card["consensus"]
 

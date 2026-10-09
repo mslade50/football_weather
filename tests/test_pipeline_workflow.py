@@ -184,7 +184,7 @@ def test_self_check_after_publish(text: str, name: str):
     step = _step(text, name)
     assert 'r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote' in step
     assert 'python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID"' in step
-    assert "--meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
+    assert "--meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
     assert "continue-on-error" not in step
 
 

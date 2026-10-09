@@ -165,7 +165,10 @@ export function allocatePrincipal(venues, stake, maxPrice) {
     worst_price: allocations.length ? Math.max(...allocations.map(a => a.all_in_price)) : null };
 }
 
-async function getJson(url, fetchImpl) {
+const rawReceiptClocks = new WeakMap();
+export function recordRawReceipt(response, fetchedAt) { rawReceiptClocks.set(response, fetchedAt); }
+
+async function getJson(url, fetchImpl, receipt = false) {
   // Poly's gateway can cache books for 30s even with no-cache and omit Age.
   // A unique query was verified against both public APIs; never reuse that cache.
   const freshUrl = new URL(url);
@@ -174,12 +177,12 @@ async function getJson(url, fetchImpl) {
     cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error(`Depth service returned HTTP ${response.status}`);
   if (numeric(response.headers.get("age")) > 5) throw new Error("Exchange returned a cached snapshot");
-  return response.json();
+  const payload = await response.json();
+  return receipt ? { payload, fetched_at: rawReceiptClocks.get(response) || new Date().toISOString() } : payload;
 }
 
 async function getDepthJson(url, fetchImpl) {
-  const payload = await getJson(url, fetchImpl);
-  return { payload, fetched_at: new Date().toISOString() };
+  return getJson(url, fetchImpl, true);
 }
 
 function depth(rows, priceOf, quantityOf, maxQuantity = 1000000) {
@@ -364,18 +367,21 @@ export async function executionPreviewRoute(request, env) {
     const data = object ? await object.json() : [];
     const game = (Array.isArray(data) ? data : data.games || []).find(g => g.game_id === gameId);
     if (!game) return respond({ ok: false, error: "Game is not on the current board" }, 404);
-    return respond(await boundedPreviewGame(game, { line, budget, stake, maxPrice }));
+    const result = await boundedPreviewGame(game, { line, budget, stake, maxPrice }, fetch, 25000, env.QUOTE_ABORT_SIGNAL);
+    return respond({ ...result, board_run_id: game.run_id,
+      publication_generation: env.PUBLICATION_META?.publication?.generation ?? null,
+      publication_status: env.PUBLICATION_META?.publication_status ?? 'legacy_unverified' });
   } catch (error) {
     return respond({ ok: false, error: error.message || "Preview unavailable" }, 502);
   }
 }
 
-export async function boundedPreviewGame(game, params, fetchImpl = fetch, deadlineMs = 25000) {
+export async function boundedPreviewGame(game, params, fetchImpl = fetch, deadlineMs = 25000, outerSignal = null) {
   const controller = new AbortController();
   let timer;
   try {
     const boundedFetch = (url, options) => fetchImpl(url, { ...options,
-      signal: AbortSignal.any([controller.signal, options.signal]) });
+        signal: AbortSignal.any([controller.signal, options.signal, outerSignal].filter(Boolean)) });
     return await Promise.race([previewGame(game, params, boundedFetch), new Promise((_, reject) => {
       timer = setTimeout(() => { controller.abort(); reject(new Error('Depth preview deadline exceeded')); }, Math.min(25000, deadlineMs));
     })]);

@@ -304,7 +304,8 @@ def _signal_block(sig: Any, flags: Sequence[str], dow_base: Optional[float] = No
 
 
 def _opener(openers: dict, key: str) -> dict:
-    return pstate.get_opener(openers, key) or {}
+    row = pstate.get_baseline(openers, key) or {}
+    return {**row, 'basis': row.get('basis') or 'first_seen', 'source': row.get('source') or key.rsplit('|', 1)[-1]} if row else {}
 
 
 def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
@@ -354,6 +355,7 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 "open_odds": op_home.get("odds"),
                 "updated_at": getattr(ref, "scraped_at", None),
             }
+            _add_open_metadata(entry['spread'], op_home if op_home.get('line') is not None else op_away)
         to = markets.get("total") or {}
         if to:
             over, under = to.get("over"), to.get("under")
@@ -392,7 +394,8 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
 
     # Preserve historical openers when a book/market has no current quote. This
     # makes an expired or temporarily missing current price visible as open → —.
-    opener_store = (openers or {}).get("openers") or {}
+    opener_store = {**(openers.get('openers') or {}), **(openers.get('true_openers') or {}),
+                    **((openers.get('references') or {}).get('t_minus_6d') or {})}
     opener_markets: set[tuple[str, str]] = set()
     for key in opener_store:
         parts = key.split("|")
@@ -411,6 +414,7 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 open_line = -op_away["line"]
             quote = {"home_line": None, "home_odds": None, "away_odds": None, "open_line": open_line,
                      "open_odds": op_home.get("odds"), "updated_at": None}
+            _add_open_metadata(quote, op_home if op_home.get('line') is not None else op_away)
         elif market == "total":
             op_under = _opener(openers, pstate.odds_key(game_id, market, "under", book))
             op_over = _opener(openers, pstate.odds_key(game_id, market, "over", book))
@@ -430,7 +434,7 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
 def _add_open_metadata(quote: dict[str, Any], opener: dict[str, Any], *, prefix: str = "open") -> None:
     """Carry baseline provenance only when the persistent opener has it."""
     for source, target in (("ts", f"{prefix}_ts"), ("target_ts", f"{prefix}_target_ts"),
-                           ("basis", f"{prefix}_basis")):
+                           ("basis", f"{prefix}_basis"), ('source', f'{prefix}_source'), ('observed_at', f'{prefix}_observed_at')):
         if opener.get(source) is not None:
             quote[target] = opener[source]
 
@@ -486,6 +490,28 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
         "total_thin": total_n_books < 2,
     }
     _add_open_metadata(result, op_to, prefix="total_open")
+    spread_rows = []
+    for book in SPREAD_CONSENSUS_BOOKS:
+        home = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', book))
+        away = _opener(openers, pstate.odds_key(game_id, 'spread', 'away', book))
+        row = home if home.get('line') is not None else away
+        if row.get('line') is not None:
+            spread_rows.append(row)
+    if not spread_rows:
+        fallback = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', 'consensus'))
+        spread_rows = [fallback] if fallback else []
+    result['spread_open_source'] = _open_src
+    result['spread_open_basis'] = spread_rows[0].get('basis') if spread_rows and all(r.get('basis') == spread_rows[0].get('basis') for r in spread_rows) else 'mixed_reference' if spread_rows else 'unknown'
+    result['spread_open_observations'] = [{'source': r.get('source'), 'ts': r.get('ts'), 'basis': r.get('basis')} for r in spread_rows]
+    true_store = openers.get('true_openers') or {}
+    ref_book = getattr(to, 'ref_book', None)
+    genuine = true_store.get(pstate.odds_key(game_id, 'total', 'under', 'consensus'))
+    if genuine is None and ref_book:
+        genuine = true_store.get(pstate.odds_key(game_id, 'total', 'under', ref_book))
+    result['true_total_open'] = genuine.get('line') if genuine else None
+    result['true_total_open_status'] = 'attested' if genuine else 'unknown'
+    if genuine:
+        _add_open_metadata(result, genuine, prefix='true_total_open')
     return result
 
 
@@ -589,6 +615,12 @@ def build_card(
         "signal": _signal_block(signal, flags),
         "odds": odds_block(game.game_id, lines, openers),
         "weekly_total_open": (openers.get("weekly_totals") or {}).get(game.game_id),
+        'odds_baselines': {
+            'first_observed': {k: v for k, v in (openers.get('openers') or {}).items() if k.startswith(game.game_id + '|')},
+            'true_openers': {k: v for k, v in (openers.get('true_openers') or {}).items() if k.startswith(game.game_id + '|')},
+            'time_references': {basis: {k: v for k, v in rows.items() if k.startswith(game.game_id + '|')}
+                                for basis, rows in (openers.get('references') or {}).items()},
+        },
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
         "total_prices": compare_totals(sport, lines, fair),
@@ -672,7 +704,9 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "lead_hours": wx.get("lead_hours"),
         "model_version": (card.get("impact") or {}).get("model_version"),
     }
-    for key in ("total_open_ts", "total_open_target_ts", "total_open_basis"):
+    for key in ('total_open_ts', 'total_open_target_ts', 'total_open_basis', 'total_open_source',
+                'spread_open_basis', 'spread_open_source', 'spread_open_observations',
+                'true_total_open', 'true_total_open_status', 'true_total_open_ts', 'true_total_open_source'):
         if key in cons:
             row[key] = cons[key]
     return row

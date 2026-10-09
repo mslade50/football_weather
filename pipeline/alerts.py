@@ -171,6 +171,7 @@ class Config:
     include_openers: bool = DEFAULT_INCLUDE_OPENERS
     system_alerts: bool = False
     open_signal_snapshots: bool = False
+    interview_policy: bool = False  # Direct legacy callers; production from_env opts into the interview policy.
 
     @classmethod
     def from_env(cls, env: Optional[dict[str, str]] = None) -> Config:
@@ -204,6 +205,7 @@ class Config:
             include_openers=include_openers,
             system_alerts=system_alerts,
             open_signal_snapshots=str(e.get("TELEGRAM_OPEN_SIGNAL_SNAPSHOTS") or "0").strip().lower() in ("1", "true", "yes", "on"),
+            interview_policy=True,
         )
 
     def chat_for(self, sport: Optional[str]) -> Optional[str]:
@@ -1591,6 +1593,9 @@ def collect_candidates(
     prev_meta_ts: Optional[datetime] = None,
     include_ops: bool = True,
 ) -> list[Candidate]:
+    if cfg.interview_policy:
+        from pipeline import alert_policy
+        return alert_policy.collect(ctx, cards_by_sport, alerts, cfg, now, alerts.get('_confirmations') or {})
     run_id = getattr(ctx, "run_id", None)
     out: list[Candidate] = []
     for sport, cards in cards_by_sport.items():
@@ -1629,6 +1634,9 @@ def plan(candidates: Sequence[Candidate], alerts: dict, tg: dict, now: datetime,
     ET) in ``tg['queue']``, release the queue outside quiet hours as one digest,
     and send no more than three alerts individually. The rest becomes a SUMMARY;
     the default plan is therefore at most four messages before per-chat/size splits."""
+    if cfg.interview_policy:
+        from pipeline import alert_policy
+        return alert_policy.plan(candidates, alerts, tg, now, cfg)
     p = Plan()
     quiet = in_quiet_hours(now)
     fresh: list[Candidate] = []
@@ -1730,6 +1738,8 @@ def _mark(c: Candidate, alerts: dict, now: datetime, outcome: Outcome) -> None:
     """The golf ``_alert_once`` tail: mark + record + feed, only after success."""
     ts = utc_iso(now)
     pstate.mark_alert(alerts, c.key, ts)
+    if c.family == 'clear':
+        alerts.setdefault('cleared_bets', {})[c.record['bet_id']] = ts
     fields = dict(c.record)
     fields.setdefault("family", c.family)
     fields["status"] = c.status if c.family != "edge" else "open"
@@ -1830,7 +1840,11 @@ def _send_group(title: str, members: Sequence[Candidate], sender: Sender, alerts
 
 
 def dispatch(p: Plan, alerts: dict, sender: Sender, now: datetime, cfg: Config,
-             checkpoint: Optional[Callable[[], None]] = None) -> Outcome:
+             checkpoint: Optional[Callable[[], None]] = None,
+             confirmation_reader: Optional[Callable[[], dict]] = None) -> Outcome:
+    if cfg.interview_policy:
+        from pipeline import alert_policy
+        return alert_policy.dispatch(p, alerts, sender, now, cfg, checkpoint, confirmation_reader)
     outcome = Outcome()
     for c in p.silent:
         # Reconcile state without claiming a message was sent or adding a feed item.
@@ -1905,6 +1919,7 @@ def run_alerts(
     now: Optional[datetime] = None,
     fetch_rows: Optional[Callable[[], Any]] = None,
     receipt_checkpoint: Optional[Callable[[dict, dict], None]] = None,
+    confirmation_reader: Optional[Callable[[], dict]] = None,
 ) -> AlertsRun:
     """Collect → plan → dispatch → persist. With ``enabled=False`` or ``dry_run``
     the candidates are printed with their keys and nothing is sent or marked."""
@@ -1913,6 +1928,9 @@ def run_alerts(
     now = ensure_utc(now) if now else now_utc()
     state_dir = Path(state_dir)
     alerts, source = pstate.load_alerts_rehydrated(state_dir, fetch_rows)
+    if cfg.interview_policy:
+        from pipeline.bet_confirmations import load_confirmations
+        alerts['_confirmations'] = load_confirmations(state_dir)
     tg = pstate.load_telegram_state(state_dir)
     history = _load_backtest(state_dir / "backtest.json")
     archive = _load_backtest(state_dir / "wind-history-v1.json")
@@ -1923,6 +1941,8 @@ def run_alerts(
                           if _qualifying_signal(card, cfg) and _card_within_alert_window(card, now, cfg)])
         if not supplied_now:
             now = now_utc()
+        if cfg.interview_policy and confirmation_reader:
+            alerts['_confirmations'] = confirmation_reader()
     cands = collect_candidates(ctx, cards_by_sport, alerts, cfg, now, new_keys_by_sport=new_keys_by_sport,
                                heartbeat_ts=_heartbeat_ts(state_dir), prev_meta_ts=_prev_meta_ts(state_dir))
     live = enabled and not dry_run
@@ -1935,10 +1955,10 @@ def run_alerts(
     p = plan(cands, alerts, tg, now, cfg)
     send = sender or default_sender()
     checkpoint = (lambda: receipt_checkpoint(alerts, tg)) if receipt_checkpoint is not None else None
-    outcome = dispatch(p, alerts, send, now, cfg, checkpoint)
+    outcome = dispatch(p, alerts, send, now, cfg, checkpoint, confirmation_reader)
     # Signal/update candidates already dedupe against persisted state. A complete
     # snapshot after every stage repeated those plays and bypassed quiet hours.
-    snapshots = open_signal_summaries(cards_by_sport, cfg, now) if cfg.open_signal_snapshots else []
+    snapshots = open_signal_summaries(cards_by_sport, cfg, now) if cfg.open_signal_snapshots and not cfg.interview_policy else []
     for snapshot in snapshots:
         try:
             ok = bool(send(snapshot.text, cfg.chat_for(snapshot.sport)))

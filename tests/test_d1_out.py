@@ -180,8 +180,8 @@ def test_d1_statements_include_rebased_existing_opener():
 
     sql = "\n".join(build.d1_statements(ctx, [result], KICK + timedelta(minutes=1)))
 
-    assert "INSERT INTO openers" in sql
-    assert "ON CONFLICT(game_id, book, market, side) DO UPDATE" in sql
+    assert 'INSERT OR IGNORE INTO openers' in sql
+    assert 'ON CONFLICT(game_id, book, market, side) DO UPDATE' not in sql
     assert f"'{gid}','consensus','total','under',49.5,-108" in sql
 
 
@@ -220,10 +220,10 @@ def test_run_row_and_statement_order_and_write_sql(tmp_path: Path):
         runs=[run],
     )
     heads = [s.split(" (", 1)[0] for s in stmts]
-    assert heads == ["INSERT INTO stadiums", "INSERT INTO games", "INSERT INTO openers",
+    assert heads == ["INSERT INTO stadiums", "INSERT INTO games", "INSERT OR IGNORE INTO openers",
                      "INSERT OR IGNORE INTO odds_history", "INSERT INTO runs"]
     assert "ON CONFLICT(stadium_id) DO UPDATE" in stmts[0] and "ON CONFLICT(game_id) DO UPDATE" in stmts[1]
-    assert "ON CONFLICT(game_id, book, market, side) DO UPDATE" in stmts[2]
+    assert 'ON CONFLICT' not in stmts[2]
     assert "ON CONFLICT(run_id) DO UPDATE" in stmts[-1]
     p = tmp_path / "d1_inserts.sql"
     assert d1_out.write_sql(p, stmts) == p
@@ -252,7 +252,7 @@ def _fake_run_sport(ctx: RunContext, sport: str, raw: Any, season: Any, books: A
     odds = build.OddsResult(lines, {}, openers, {GID: lines}, [], {"betonline": 2}, scraped=lines, deltas=deltas, new_opener_keys=new_keys)
     imp = compute_impact_v1(sport="nfl", month=9, temp_fg=41.0, wind_fg=18.0, rain_fg_mm=0.8, travel_alt_m=0.0,
                             away_temp=60.0, home_temp=55.0, roof_state="outdoors")
-    card = {"game_id": GID, "sport": "nfl", "season": 2026, "week": 3, "kickoff_utc": "2026-09-27T17:00:00Z",
+    card = {"game_id": GID, 'run_id': ctx.run_id, "sport": "nfl", "season": 2026, "week": 3, "kickoff_utc": "2026-09-27T17:00:00Z",
             "date_label": "SUN 09/27", "time_label": "01:00 PM", "home": {"short": "NE", "name": "NE"},
             "away": {"short": "SEA", "name": "SEA"}, "neutral": False, "weather": {"wind_fg": 18.0}, "impact": {"v1": {"gs_fg_pct": -6.0}},
             "signal": {"label": "High", "flags": []}, "consensus": {}, "fair": {}, "stadium": {"name": "Gillette"}}
@@ -283,8 +283,8 @@ def test_build_writes_board_d1_sql_and_manifest(tmp_path: Path, monkeypatch: pyt
     assert (board / "games_nfl.json").exists() and (board / "board.json").exists() and (board / "history.json").exists()
     assert (snaps / "nfl" / "2026" / "3" / "r1.json").exists()
     text = sql.read_text(encoding="utf-8")
-    assert "INSERT OR IGNORE INTO odds_history" in text and "INSERT INTO openers" in text
-    assert "ON CONFLICT(game_id, book, market, side) DO UPDATE" in text
+    assert 'INSERT OR IGNORE INTO odds_history' in text and 'INSERT OR IGNORE INTO openers' in text
+    assert 'ON CONFLICT(game_id, book, market, side) DO UPDATE' not in text
     assert "INSERT OR IGNORE INTO weather_history" in text and "INSERT INTO runs" in text and "INSERT INTO games" in text
     manifest = json.loads((tmp_path / build.PUBLISH_MANIFEST).read_text(encoding="utf-8"))
     keys = list(manifest)

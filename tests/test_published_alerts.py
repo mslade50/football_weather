@@ -7,7 +7,7 @@ import pytest
 from pipeline import alerts, published_alerts, state
 from pipeline.outputs import json_out
 
-NOW = datetime(2026, 10, 8, 19, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 8, 21, tzinfo=timezone.utc)  # Scheduled 17:00 Eastern slot.
 RUN = "published-test"
 
 
@@ -65,6 +65,7 @@ def test_receipt_survives_d1_failure_and_prevents_repeat(board):
     assert len(messages) == 1
     assert remote["board/alerts.json"]["sent"]
     assert len(remote["board/alerts_feed.json"]["alerts"]) == 1
+    assert remote['board/alerts_live_feed.json'] == remote['board/alerts_feed.json']
     archived = []
     second = published_alerts.notify_published(*board, RUN, "bucket", verifier=lambda *args: None,
                                               uploader=upload, archiver=lambda path: archived.append(path.read_text()),

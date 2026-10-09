@@ -42,7 +42,8 @@ function harness() {
     renderDrawerTitle = () => {}; weatherTable = () => ''; oddsTable = () => '';
     gameInfoTable = () => ''; compassCard = () => ''; hourlyStrip = () => '';
     renderHourlyChart = () => {}; renderDriftChart = () => {}; loadHistory = () => {}; renderDrawerAlerts = () => {};`, ctx);
-  const game = id => ({game_id: id, sport: 'cfb', kickoff_utc: '2026-10-11T18:00:00Z',
+  vm.runInContext("RAW_META = {run_id: 'fixture', publication_status: 'manifest_verified', publication: {generation: 'fixture-generation'}}", ctx);
+  const game = id => ({game_id: id, run_id: 'fixture', sport: 'cfb', kickoff_utc: '2026-10-11T18:00:00Z',
     consensus: {total_now: 46.5, spread_open: -3}, stadium: {roof_state: 'open'}, total_prices: {quotes: []}});
   ctx.games = [game('a'), game('b')];
   vm.runInContext('DATA.games.cfb = games; openDrawer("a")', ctx);
@@ -50,7 +51,7 @@ function harness() {
     clock += ms;
     for (const [id, timer] of [...timers]) if (timer.at <= clock) { timers.delete(id); timer.callback(); }
   }
-  const result = gameId => ({ok: true, game_id: gameId, side: 'under', line: 46.5, stake_mode: 'principal',
+  const result = gameId => ({ok: true, game_id: gameId, board_run_id: 'fixture', publication_generation: 'fixture-generation', side: 'under', line: 46.5, stake_mode: 'principal',
     settlement_verified: true, rules_key: 'full-game', principal: 500, fees: 5, payout_if_win: 1000, average_price: .505,
     fetched_at: new Date(clock).toISOString(), depth_fetched_at: new Date(clock).toISOString(),
     expires_at: new Date(clock + 15000).toISOString(),

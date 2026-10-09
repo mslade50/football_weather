@@ -844,6 +844,7 @@ def test_sender_exception_is_a_failed_send():
 
 def test_chat_routing_per_sport_and_ops_default():
     cfg = A.Config.from_env({"TELEGRAM_CHAT_ID": "D", "TELEGRAM_CHAT_ID_CFB": "CF", "BOARD_URL": "https://x/"})
+    cfg.interview_policy = False  # This fixture tests the retained legacy OPS router.
     assert cfg.chat_for("cfb") == "CF" and cfg.chat_for("nfl") == "D" and cfg.chat_for(None) == "D"
     assert cfg.board_url == "https://x"
     alerts, tg = _fresh()
@@ -937,7 +938,7 @@ def test_run_alerts_live_persists_and_unchanged_rerun_is_silent(tmp_path: Path):
     assert run.n_alerts == 1 and len(rec.sent) == 1      # New signal only
     assert run.keys_for(GID) == [EKEY]
     saved = json.loads((tmp_path / "alerts.json").read_text(encoding="utf-8"))
-    assert saved["schema_version"] == 1 and len(saved["sent"]) == 1 and len(saved["feed"]) == 1
+    assert saved['schema_version'] == pstate.KIND_VERSIONS['alerts'] and len(saved['sent']) == 1 and len(saved['feed']) == 1
     assert (tmp_path / "telegram_state.json").exists()
     rec2 = Recorder()
     run2 = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW + timedelta(hours=1), sender=rec2,

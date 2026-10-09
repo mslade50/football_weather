@@ -14,6 +14,7 @@ from pathlib import Path
 from pipeline import alerts, state
 from pipeline.current_quotes import expire_card
 from pipeline.outputs import d1_out, json_out
+from pipeline.publication import verify_generation
 from pipeline.run_context import RunContext
 from utils.timeutil import now_utc
 
@@ -24,8 +25,11 @@ def verify_published(bucket: str, run_id: str) -> None:
         subprocess.run([shutil.which("npx") or "npx", "--yes", "wrangler@4", "r2", "object", "get",
                         f"{bucket}/board/meta.json", f"--file={target}", "--remote"], check=True, timeout=90,
                        capture_output=True)
-        if json.loads(target.read_text(encoding="utf-8")).get("run_id") != run_id:
+        meta = json.loads(target.read_text(encoding='utf8'))
+        if meta.get('run_id') != run_id:
             raise RuntimeError("Published run changed; refusing to send notifications for a different board")
+        from scripts.publish_r2 import download_one
+        verify_generation(meta, lambda key: download_one(bucket, key, Path(directory) / 'objects'))
 
 
 def archive_receipts(path: Path) -> None:
@@ -45,6 +49,15 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
     if meta.get("run_id") != run_id:
         raise RuntimeError("Local board run does not match the requested notification run")
     verifier(bucket, run_id)  # No message or delivery-state write until this succeeds.
+    confirmation_reader = None
+    if verifier is verify_published:
+        from pipeline.bet_confirmations import load_confirmations
+        from scripts.publish_r2 import download_one
+        def confirmation_reader():
+            (state_dir / 'bet_confirmations.json').write_bytes(download_one(
+                bucket, 'board/bet_confirmations.json', state_dir / 'confirmation-check', allow_missing=True))
+            return load_confirmations(state_dir)
+        confirmation_reader()
     if uploader is None:
         from scripts.publish_r2 import upload_one
         uploader = upload_one
@@ -69,6 +82,9 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
         feed_path = board_dir / "alerts_feed.json"
         json_out.dump_json(feed_path, json_out.build_alerts_feed(alert_state, meta))
         uploader(bucket, "board/alerts_feed.json", feed_path, "application/json")
+        # Delivery receipts advance independently of the sealed weather/model
+        # generation. Readers only overlay this stream on its matching run.
+        uploader(bucket, "board/alerts_live_feed.json", feed_path, "application/json")
 
     checkpoint(state.load_alerts(state_dir), state.load_telegram_state(state_dir))  # Preflight receipt storage.
     inputs_path = board_dir.parent / "alert_inputs.json"
@@ -78,7 +94,8 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
     # Keep production time live: liquidity retrieval may cross kickoff. Only a
     # caller-supplied test/replay clock should freeze run_alerts' time refresh.
     result = alerts.run_alerts(ctx, cards, state_dir, sender=sender, now=now,
-                              new_keys_by_sport=inputs.get("new_keys_by_sport"), receipt_checkpoint=checkpoint)
+                              new_keys_by_sport=inputs.get("new_keys_by_sport"), receipt_checkpoint=checkpoint,
+                              confirmation_reader=confirmation_reader)
     records = list(result.alerts.get("records", {}).values())
     # A previous attempt may have saved R2 receipts but failed the D1 write.
     # Re-upsert retained receipts, including those deduped on this attempt.

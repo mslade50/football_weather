@@ -54,6 +54,7 @@
 
 const DATA = { meta: {}, games: { nfl: [], cfb: [] }, history: null };
 let QUOTES = null, RAW_META = {}, RAW_GAMES = {nfl: [], cfb: []};
+let RESIDENT = null;
 let QUOTE_HEALTH = "";
 const LOAD_ERRORS = {};
 let OFFER_EXPIRY_TIMER;
@@ -462,24 +463,40 @@ function startMetaPoll() {
   setInterval(async () => {
     try {
       const m = await fetchJson("data/meta.json?t=" + Date.now());
+      if (RESIDENT && m?.run_id === RAW_META.run_id) {
+        RAW_META.resident = m.resident;
+        for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), m.resident));
+        render();
+        if (STATE.game && !document.getElementById('drawer').hidden) refreshDrawerQuotes();
+      }
+        if (m?.run_id && m.run_id !== RAW_META.run_id) {
+          LOAD_ERRORS.meta = 'A newer publication is available. Reload to refresh this game and its model.';
+          VERIFIED_OFFERS.clear();
+          if (STATE.game) cancelStakeCheck(STATE.game, 'Publication changed. Reload before checking this game.');
+          render();
+        }
       // reload only when a newer run landed and the user isn't reading a drawer
       if (m && m.last_updated && LAST_UPDATED && m.last_updated !== LAST_UPDATED && STATE.view !== "execution" && document.getElementById("drawer").hidden) {
         location.reload();
       }
     } catch (_) { /* ignore */ }
-  }, 5 * 60 * 1000);
+  }, 15000);
 }
 
 // ── boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   QUOTES = await import("./current-quotes.mjs");
+  RESIDENT = await import('./resident-quotes.mjs');
   readHash();
   const bust = "?t=" + Date.now();
-  const [meta, nfl, cfb, auth] = await Promise.all([
+  const [meta, auth] = await Promise.all([
     fetchJson(`data/meta.json${bust}`).catch(e => { LOAD_ERRORS.meta = e.message; return {}; }),
-    fetchJson(`data/games_nfl.json${bust}`).catch(e => { LOAD_ERRORS.nfl = e.message; return null; }),
-    fetchJson(`data/games_cfb.json${bust}`).catch(e => { LOAD_ERRORS.cfb = e.message; return null; }),
     fetch(`auth/me${bust}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ]);
+  const generation = meta.publication?.generation ? '&generation=' + encodeURIComponent(meta.publication.generation) : '';
+  const [nfl, cfb] = await Promise.all([
+    fetchJson(`data/games_nfl.json${bust}${generation}`).catch(e => { LOAD_ERRORS.nfl = e.message; return null; }),
+    fetchJson(`data/games_cfb.json${bust}${generation}`).catch(e => { LOAD_ERRORS.cfb = e.message; return null; }),
   ]);
   DATA.meta = meta || {};
   IS_ADMIN = auth?.role === "admin";
@@ -491,6 +508,7 @@ async function boot() {
   }
   RAW_META = DATA.meta;
   RAW_GAMES = {nfl: DATA.games.nfl, cfb: DATA.games.cfb};
+  for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), meta.resident));
   // No sport in the URL and the default sport has no games on the board (NFL before its
   // 10-day window opens, CFB in January): open on the sport that does.
   if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length) {

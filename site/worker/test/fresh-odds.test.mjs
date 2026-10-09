@@ -14,7 +14,10 @@ const game = { game_id: 'nfl:2030:4:lar@phi', sport: 'nfl', kickoff_utc: kickoff
 const url = `https://board.test/api/fresh-odds?game_id=${encodeURIComponent(game.game_id)}`;
 function environment(row = game) {
   return { BOARD_PASSWORD: 'viewer', ODDS: {
-    get: async key => { assert.equal(key, 'board/games_nfl.json'); return { json: async () => [row] }; },
+    get: async key => {
+      if (key === 'board/meta.json') return { json: async () => ({run_id: row.run_id}) };
+      assert.equal(key, 'board/games_nfl.json'); return { json: async () => [row] };
+    },
     put: () => assert.fail('Fresh odds must not publish') },
     GH_DISPATCH_TOKEN: 'fake-dispatch-token', DB: { prepare: () => assert.fail('No database or dispatch on quote path') } };
 }

@@ -12,7 +12,8 @@ function ui() {
     const source = readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, '');
     vm.runInContext(source, ctx);
   }
-  ctx.game = {game_id: 'game', sport: 'cfb', week: 6, kickoff_utc: '2026-10-11T18:00:00Z',
+  vm.runInContext("RAW_META = {run_id: 'fixture', publication_status: 'manifest_verified', publication: {generation: 'fixture-generation'}}", ctx);
+  ctx.game = {game_id: 'game', run_id: 'fixture', sport: 'cfb', week: 6, kickoff_utc: '2026-10-11T18:00:00Z',
     home: {name: 'Home'}, away: {name: 'Away'}, stadium: {lat: 51.603333, lon: -.066389, roof_state: 'open'},
     consensus: {spread_open: -3, total_now: 46.5}, weather: {wind_fg: 18, temp_fg: 58, rain_fg: 0},
     signal: {label: 'Low (Wind)'}, total_prices: {quotes: []}};
@@ -74,7 +75,7 @@ test('Exact stadium coordinate copy preserves latitude-longitude order, precisio
   assert.match(run(ctx, 'gameInfoTable(game)'), /51\.603333/);
 });
 function offer(ctx) {
-  ctx.game.execution_preview = {ok: true, game_id: 'game', side: 'under', line: 46.5, stake_mode: 'principal',
+  ctx.game.execution_preview = {ok: true, game_id: 'game', board_run_id: 'fixture', publication_generation: 'fixture-generation', side: 'under', line: 46.5, stake_mode: 'principal',
     settlement_verified: true, rules_key: 'full-game-ot', principal: 500, fees: 5, payout_if_win: 1000, average_price: .505,
     fetched_at: '2026-10-09T17:59:55Z', depth_fetched_at: '2026-10-09T17:59:55Z', expires_at: '2026-10-09T18:00:10Z',
     allocations: [{book: 'kalshi', line: 46.5, side: 'under', rules_key: 'full-game-ot', principal: 500, fees: 5}]};

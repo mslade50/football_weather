@@ -361,7 +361,7 @@ def build_statements(
     if games:
         stmts += upsert_sql("games", GAME_COLS, ["game_id"], games)
     if openers:
-        stmts += upsert_sql("openers", OPENER_COLS, ["game_id", "book", "market", "side"], openers)
+        stmts += insert_ignore_sql("openers", OPENER_COLS, openers)
     if odds:
         stmts += insert_ignore_sql("odds_history", ODDS_COLS, odds)
     if weather:

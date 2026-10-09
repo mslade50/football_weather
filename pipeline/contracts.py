@@ -223,6 +223,11 @@ class GameLine(_AsDict):
     # Retain upstream observation time and provider expiry across publications.
     source_updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    # Only explicit provider original-line evidence, never first-seen/created-time inference.
+    opening_line: Optional[float] = None
+    opening_odds: Optional[int] = None
+    opened_at: Optional[datetime] = None
+    opening_source: Optional[str] = None
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")
