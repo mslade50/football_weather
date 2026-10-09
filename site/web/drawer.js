@@ -3,6 +3,10 @@
 // pages/nfl_weather.py + pages/cfb_weather.py), hourly strip, and a uPlot line-history chart
 // fed by /api/history (D1 odds_history) with /data/history.json as fallback.
 
+const STAKE_CHECKS = new Map();
+const STAKE_BUTTONS = new WeakSet();
+let STAKE_REQUEST_ID = 0;
+
 const DRAWER = { game: null, plot: null, wxPlots: [], histCache: {}, wxCache: {}, market: "total", book: "" };
 
 function destroyWxPlots() {
@@ -12,11 +16,23 @@ function destroyWxPlots() {
 
 function setupDrawer() {
   document.getElementById("drawer-close").addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  document.addEventListener("keydown", (e) => {
+    const drawer = document.getElementById("drawer");
+    if (drawer.hidden) return;
+    if (e.key === "Escape") closeDrawer();
+    if (e.key === "Tab") {
+      const nodes = [...drawer.querySelectorAll('button:not(:disabled), a[href], input, select, [tabindex="0"]')];
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    }
+  });
 }
 function closeDrawer() {
   const d = document.getElementById("drawer");
+  cancelStakeCheck(DRAWER.game?.game_id);
   d.hidden = true;
+  DRAWER.returnFocus?.focus();
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }
   destroyWxPlots();
   DRAWER.game = null;
@@ -30,6 +46,7 @@ const yesno = (v) => (v == null ? "-" : String(v));
 
 function uncertaintyLabel(wx) {
   const labels = {
+    retained_members_degraded: "Retained ensemble; current source verification failed",
     full_members: "Full ensemble",
     aged_members: "Older verified ensemble (distant game)",
     partial_members_degraded: "Partial ensemble coverage",
@@ -57,6 +74,8 @@ function weatherTable(g) {
     ...(g.expired_markets?.length ? [["Current prices", "Prices excluded for expiry; current comparisons unavailable"]] : []),
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
+    ["Unverified ensemble sources", esc((wx.ensemble_unverified_sources || []).join(", ") || "None supplied")],
+    ["Ensemble verification errors", esc(Object.entries(wx.ensemble_verification_errors || {}).map(([source, error]) => `${source}: ${error}`).join("; ") || "None supplied")],
     ["Ensemble retrieved", Object.entries(wx.ensemble_fetched_at || {}).map(([source, stamp]) => `${esc(source.toUpperCase())}: ${esc(fmtShortET(stamp))}`).join("; ") || "-"],
     ["Ensemble dataset initialized", Object.entries(wx.ensemble_source_versions || {}).map(([source, versions]) => {
       const times = Object.values(versions || {}).map(v => v?.last_run_initialisation_time).filter(v => isNum(v) && v > 0);
@@ -83,16 +102,118 @@ function backtestRows(g) {
 
 function totalPriceTable(g) {
   const quotes = totalPriceQuotes(g);
-  if (!quotes.length) return '<p class="muted">No fresh total prices with a usable fair.</p>';
-  const rows = quotes.map((quote) => `<tr><td>${esc(bookLabel(quote.book))}</td><td>${totalPriceLabel(quote)}</td>`
-    + `<td>${pricePercent(quote.cost_prob)}</td><td>${pricePercent(quote.fair_cost)}</td>`
-    + `<td>${pricePercent(quote.win_prob)}</td><td>${pricePercent(quote.push_prob)}</td>`
-    + `<td>${roiLabel(quote.ev_roi)}</td></tr>`).join("");
-  return '<p class="muted">Estimated return per dollar staked, including quoted vig and known taker fees. '
-    + 'Pushes return the stake. Main totals only; excludes slippage and size-specific fee rounding. '
-    + 'Exact-score probabilities are model estimates, not calibrated key-number frequencies.</p>'
-    + '<table class="kv"><thead><tr><th>Book</th><th>Offer</th><th>Cost</th><th>Fair cost</th>'
-    + `<th>Win</th><th>Push</th><th>Est. EV</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = quotes.map(q => {
+    const stamp = quoteClock(q), age = Date.now() - Date.parse(stamp);
+    const fresh = age >= 0 && age <= 30000 && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
+    return `<tr><td>${esc(bookLabel(q.book))}<span class="sub">${q.side === "under" ? "Under" : "Over"} ${fmtTotal(q.line)} ${fmtOdds(q.odds)}</span></td>
+      <td>${fresh ? "Reference quote only" : "Stale / unknown quote"}<span class="sub">${q.fetched_at ? "Fetched" : "Quote updated (fetch unknown)"}: ${esc(clockLabel(stamp))}</span></td>
+      <td>${finiteValue(q.fees) ? "$" + q.fees.toFixed(2) : "Fee amount unknown"}<span class="sub">${finiteValue(q.cost_prob) ? "Indicative cost " + pricePercent(q.cost_prob) + "; size rounding unverified" : "All-in cost unknown"}</span></td>
+      <td>${finiteValue(q.available_cash_stake) ? "$" + q.available_cash_stake.toFixed(2) + " reported stake" : "Stake capacity unknown"}<span class="sub">Depth: ${esc(clockLabel(q.depth_fetched_at))}</span></td></tr>`;
+  }).join("");
+  return `<p>${exchangeOfferHtml(g)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
+    <button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>
+    <button type="button" class="controlbtn" id="cancel-exchange-stake" hidden>Cancel exchange check</button>
+    <p id="verify-exchange-result" role="status">${stakeCheckStatusHtml(g)}</p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
+}
+function stakeLine(g) { return g.fresh_odds?.selected_line ?? g.consensus?.total_now; }
+function stakeIdentity(g) {
+  return `${g.game_id}|${stakeLine(g)}|${g.kickoff_utc}`;
+}
+function cancelStakeCheck(gameId, reason = "Exchange check cancelled. Preview again for current prices.") {
+  const request = STAKE_CHECKS.get(gameId);
+  if (!request || request.phase !== "pending") return;
+  request.phase = "cancelled";
+  request.error = reason;
+  clearTimeout(request.timer);
+  request.controller.abort();
+  paintStakeCheckState();
+}
+function syncStakeCheck(g) {
+  const request = STAKE_CHECKS.get(g.game_id);
+  if (request?.phase === "pending" && request.identity !== stakeIdentity(g)) {
+    cancelStakeCheck(g.game_id, "Game or under line changed. Preview again for current prices.");
+  }
+  return request;
+}
+function stakeCheckStatusHtml(g) {
+  const request = STAKE_CHECKS.get(g.game_id);
+  if (!request) return "";
+  if (request.identity !== stakeIdentity(g)) return "Game or under line changed. Preview again for current prices.";
+  if (request.phase === "pending") return "Checking exchange depth and fees; no orders sent.";
+  if (request.phase === "completed") return exchangeOfferHtml(g) + (verifiedOffer(g) ? ""
+    : '<span class="sub">Snapshot unqualified or expired. Preview again for verified principal, fees, depth clocks and matching rules.</span>');
+  return esc(request.error || "Exchange check unavailable. Existing quotes remain unchanged.");
+}
+function paintStakeCheckState() {
+  const g = DRAWER.game;
+  if (!g || STATE.game !== g.game_id || document.getElementById("drawer").hidden) return;
+  const request = STAKE_CHECKS.get(g.game_id);
+  const pending = request?.phase === "pending" && request.identity === stakeIdentity(g);
+  const button = document.getElementById("verify-exchange-stake"), cancel = document.getElementById("cancel-exchange-stake");
+  const status = document.getElementById("verify-exchange-result");
+  if (button) button.disabled = pending;
+  if (cancel) cancel.hidden = !pending;
+  if (status) status.innerHTML = stakeCheckStatusHtml(g);
+}
+function stakeRequestIsCurrent(request) {
+  return STAKE_CHECKS.get(request.gameId) === request && request.phase === "pending"
+    && !request.controller.signal.aborted && STATE.game === request.gameId
+    && DRAWER.game?.game_id === request.gameId && stakeIdentity(DRAWER.game) === request.identity
+    && !document.getElementById("drawer").hidden;
+}
+async function startStakeCheck() {
+  const g = DRAWER.game;
+  if (!g || STATE.game !== g.game_id || document.getElementById("drawer").hidden) return;
+  syncStakeCheck(g);
+  if (STAKE_CHECKS.get(g.game_id)?.phase === "pending") return;
+  const line = stakeLine(g);
+  if (!finiteValue(line)) {
+    STAKE_CHECKS.set(g.game_id, {identity: stakeIdentity(g), phase: "error", error: "No exact current under line available"});
+    paintStakeCheckState(); return;
+  }
+  const request = {id: ++STAKE_REQUEST_ID, gameId: g.game_id, identity: stakeIdentity(g), line,
+    phase: "pending", controller: new AbortController(), result: null};
+  STAKE_CHECKS.set(g.game_id, request);
+  request.timer = setTimeout(() => {
+    if (STAKE_CHECKS.get(g.game_id) !== request || request.phase !== "pending") return;
+    request.phase = "error";
+    request.error = "Exchange check timed out after 28 seconds. Existing quotes remain unchanged.";
+    request.controller.abort(); paintStakeCheckState();
+  }, 28000);
+  paintStakeCheckState();
+  try {
+    const params = new URLSearchParams({game_id: request.gameId, line, stake: "500", budget: "500", max_price: ".99"});
+    const response = await fetch(`/api/execution-preview?${params}`, {cache: "no-store", signal: request.controller.signal});
+    const result = await response.json();
+    if (!stakeRequestIsCurrent(request)) {
+      if (STAKE_CHECKS.get(request.gameId) === request && request.phase === "pending") cancelStakeCheck(request.gameId, "Game or under line changed. Preview again for current prices.");
+      return;
+    }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Unavailable");
+    request.phase = "completed";
+    request.result = result;
+    VERIFIED_OFFERS.set(request.gameId, result);
+    if (STATE.view !== "execution") render();
+  } catch (e) {
+    if (stakeRequestIsCurrent(request)) {
+      request.phase = "error";
+      request.error = `Exchange check unavailable: ${e.message}. Existing quotes remain unchanged.`;
+    }
+  } finally {
+    clearTimeout(request.timer);
+    // Always paint the current game's state into current DOM; old responses cannot enable a newer request's button.
+    paintStakeCheckState();
+  }
+}
+function setupStakeCheck(g) {
+  syncStakeCheck(g);
+  const button = document.getElementById("verify-exchange-stake"), cancel = document.getElementById("cancel-exchange-stake");
+  if (button && !STAKE_BUTTONS.has(button)) { STAKE_BUTTONS.add(button); button.addEventListener("click", startStakeCheck); }
+  if (cancel && !STAKE_BUTTONS.has(cancel)) {
+    STAKE_BUTTONS.add(cancel);
+    cancel.addEventListener("click", () => cancelStakeCheck(DRAWER.game?.game_id));
+  }
+  paintStakeCheckState();
 }
 
 function oddsTable(g) {
@@ -132,7 +253,9 @@ function gameInfoTable(g) {
     ["Weakest Wind", esc(st.weakest_wind_effect || "—")],
     ["Roof", `${esc(st.roof_type || "—")}${st.roof_state ? ` · ${esc(st.roof_state)}` : ""}`],
     ["Elevation", isNum(st.elevation_m) ? `${Math.round(Number(st.elevation_m))} m${isNum(g.travel_alt) ? ` · travel Δ ${Math.round(Number(g.travel_alt))} m` : ""}` : "—"],
-    ["Game Location", `${esc(st.name || "")}${isNum(st.lat) ? ` <span class="sub">${Number(st.lat).toFixed(3)}, ${Number(st.lon).toFixed(3)}</span>` : ""}`],
+    ["Game Location", `${esc(st.name || "Unknown venue")} ${coordinateControl(g)}`],
+    ["Venue provenance", esc(g.venue_provenance?.resolution || "Resolution not supplied")],
+    ["Discovery", discoveryHtml(g)],
     ["Status", `${esc(g.status || "scheduled")}${g.neutral ? " · neutral" : ""}`],
     ["Game ID", `<span class="sub">${esc(g.game_id)}</span>`],
   ];
@@ -371,6 +494,7 @@ function compassCard(g) {
 function refreshDrawerQuotes() {
   const g = findGame(STATE.game);
   if (!g) return;
+  if (document.getElementById("drawer").hidden) DRAWER.returnFocus = document.activeElement;
   DRAWER.game = g;
   renderDrawerTitle(g);
   for (const [id, html] of [["drawer-weather", weatherTable(g)], ["drawer-prices", totalPriceTable(g)],
@@ -378,6 +502,7 @@ function refreshDrawerQuotes() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   }
+  setupStakeCheck(g);
 }
 
 function renderDrawerTitle(g) {
@@ -392,6 +517,8 @@ function renderDrawerTitle(g) {
 function openDrawer(gameId) {
   const g = findGame(gameId);
   if (!g) return;
+  if (DRAWER.game && DRAWER.game.game_id !== gameId) cancelStakeCheck(DRAWER.game.game_id);
+  if (document.getElementById("drawer").hidden) DRAWER.returnFocus = document.activeElement;
   DRAWER.game = g;
   STATE.game = gameId;
   writeHash();
@@ -421,10 +548,12 @@ function openDrawer(gameId) {
     <div class="chart" id="hist-chart"></div>
     <h3>Alerts</h3><div id="drawer-alerts" class="sub">${(g.alerts || []).length ? "loading…" : "none sent for this game"}</div>`;
   d.hidden = false;
+  document.getElementById("drawer-close").focus();
   document.getElementById("hist-market").value = DRAWER.market;
   document.getElementById("hist-book").value = DRAWER.book;
   document.getElementById("hist-market").addEventListener("change", (e) => { DRAWER.market = e.target.value; loadHistory(g); });
   document.getElementById("hist-book").addEventListener("change", (e) => { DRAWER.book = e.target.value; loadHistory(g); });
+  setupStakeCheck(g);
   renderHourlyChart(g);
   renderDriftChart(g);
   loadHistory(g);

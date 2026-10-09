@@ -122,6 +122,49 @@ export function allocateDepth(venues, budget, maxPrice) {
     worst_price: allocations.length ? Math.max(...allocations.map(a => a.all_in_price)) : null };
 }
 
+export async function settlementKey(venue) {
+  if (typeof venue.rules !== 'string' || !venue.rules.trim()) throw new Error('Settlement terms unavailable');
+  const terms = venue.rules.trim().replace(/\s+/g, ' ');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${venue.book}:${terms}`));
+  return `${venue.book}:${[...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Principal target excludes fees. Whole native contracts may slightly exceed
+// the requested cash stake; report the exact stake and separate fee debit.
+export function allocatePrincipal(venues, stake, maxPrice) {
+  let remaining = fixed(stake);
+  const levels = venues.flatMap(v => v.levels.map(l => ({ ...v, levels: [l] })));
+  const allocations = [];
+  while (remaining > 0n && levels.length) {
+    const candidates = levels.map(venue => {
+      const level = venue.levels[0], value = venue.contract_value ?? 1;
+      const unit = fixed(level.price) * fixed(value);
+      const quantity = Math.min(Math.floor(level.quantity), Number(ceilDiv(remaining * SCALE, unit)));
+      if (!quantity) return null;
+      const debit = sliceCost(level.price, quantity, venue.coefficient, value, venue.fee_model).total;
+      const result = allocateDepth([{ ...venue, levels: [{ ...level, quantity }] }], dollars(debit), maxPrice);
+      return result.allocations.length ? { venue, result } : null;
+    }).filter(Boolean).sort((a, b) => {
+      const difference = fixed(a.result.spend) * fixed(b.result.payout_if_win)
+        - fixed(b.result.spend) * fixed(a.result.payout_if_win);
+      return difference < 0n ? -1 : difference > 0n ? 1 : a.venue.book.localeCompare(b.venue.book);
+    });
+    if (!candidates.length) break;
+    const { venue, result } = candidates[0];
+    levels.splice(levels.indexOf(venue), 1);
+    allocations.push(...result.allocations);
+    remaining -= fixed(result.principal);
+  }
+  const principal = allocations.reduce((n, a) => n + fixed(a.principal), 0n);
+  const fees = allocations.reduce((n, a) => n + fixed(a.fees), 0n);
+  const payout = allocations.reduce((n, a) => n + fixed(a.payout_if_win), 0n);
+  return { allocations, principal: dollars(principal), fees: dollars(fees), spend: dollars(principal + fees),
+    requested_stake: stake, unfilled_principal: dollars(remaining > 0n ? remaining : 0n),
+    payout_if_win: dollars(payout), profit_if_win: dollars(payout - principal - fees),
+    average_price: payout ? Number(principal + fees) / Number(payout) : null,
+    worst_price: allocations.length ? Math.max(...allocations.map(a => a.all_in_price)) : null };
+}
+
 async function getJson(url, fetchImpl) {
   // Poly's gateway can cache books for 30s even with no-cache and omit Age.
   // A unique query was verified against both public APIs; never reuse that cache.
@@ -132,6 +175,11 @@ async function getJson(url, fetchImpl) {
   if (!response.ok) throw new Error(`Depth service returned HTTP ${response.status}`);
   if (numeric(response.headers.get("age")) > 5) throw new Error("Exchange returned a cached snapshot");
   return response.json();
+}
+
+async function getDepthJson(url, fetchImpl) {
+  const payload = await getJson(url, fetchImpl);
+  return { payload, fetched_at: new Date().toISOString() };
 }
 
 function depth(rows, priceOf, quantityOf, maxQuantity = 1000000) {
@@ -153,12 +201,12 @@ export async function kalshiDepth(ref, game, fetchImpl = fetch) {
   const series = game.sport === "cfb" ? "KXNCAAFTOTAL" : "KXNFLTOTAL";
   if (!new RegExp(`^${series}-[A-Z0-9]+-[0-9]+$`).test(ref.source_id)) throw new Error("Unverified market identity");
   const id = encodeURIComponent(ref.source_id);
-  const [meta, book, fee] = await Promise.all([
+  const [meta, receipt, fee] = await Promise.all([
     getJson(`${KALSHI}/markets/${id}`, fetchImpl),
-    getJson(`${KALSHI}/markets/${id}/orderbook`, fetchImpl),
+    getDepthJson(`${KALSHI}/markets/${id}/orderbook`, fetchImpl),
     getJson(`${KALSHI}/series/${series}`, fetchImpl),
   ]);
-  const m = meta.market, s = fee.series;
+  const book = receipt.payload, m = meta.market, s = fee.series;
   if (!m || m.ticker !== ref.source_id || m.status !== "active" || m.market_type !== "binary"
       || m.strike_type !== "greater" || numeric(m.floor_strike) !== ref.line
       || numeric(m.notional_value_dollars) !== 1 || !/^(?:Full Game: )?Over /i.test(m.title || "")
@@ -169,6 +217,7 @@ export async function kalshiDepth(ref, game, fetchImpl = fetch) {
       || !Number.isFinite(multiplier) || multiplier < 0 || multiplier > 10)
     throw new Error("Current taker fees unavailable");
   return { book: "kalshi", source_id: ref.source_id, coefficient: .07 * multiplier, fee_model: 'kalshi_direct',
+    depth_fetched_at: receipt.fetched_at,
     // Buying NO (under) takes the complementary YES bid, never the YES ask.
     levels: depth(book.orderbook_fp?.yes_dollars, r => 1 - numeric(r[0]), r => numeric(r[1])),
     rules: `${m.rules_primary}\n${m.rules_secondary}`,
@@ -179,10 +228,10 @@ export async function polymarketDepth(ref, game, fetchImpl = fetch) {
   if (!new RegExp(`^tsc-${game.sport}-[a-z0-9-]+-total-[0-9]+pt5$`).test(ref.source_id))
     throw new Error("Unverified market identity");
   const id = encodeURIComponent(ref.source_id);
-  const [meta, payload] = await Promise.all([
-    getJson(`${POLY}/market/slug/${id}`, fetchImpl), getJson(`${POLY}/markets/${id}/book`, fetchImpl),
+  const [meta, receipt] = await Promise.all([
+    getJson(`${POLY}/market/slug/${id}`, fetchImpl), getDepthJson(`${POLY}/markets/${id}/book`, fetchImpl),
   ]);
-  const m = meta.market, b = payload.marketData;
+  const m = meta.market, b = receipt.payload.marketData;
   const coefficient = numeric(m?.feeCoefficient);
   const under = m?.marketSides?.find(s => s.description?.toLowerCase() === "under");
   if (!m || m.slug !== ref.source_id || !m.active || m.closed || m.hidden || m.archived
@@ -197,6 +246,7 @@ export async function polymarketDepth(ref, game, fetchImpl = fetch) {
   if (!(numeric(m.minimumTradeQty) > 0 && numeric(m.minimumTradeQty) <= 1))
     throw new Error("Unsupported minimum trade size");
   return { book: "polymarket_us", source_id: ref.source_id, coefficient, fee_model: 'polymarket_us_cent_half_even',
+    depth_fetched_at: receipt.fetched_at,
     levels: depth(b.bids, r => r.px?.currency === "USD" ? 1 - numeric(r.px.value) : NaN, r => numeric(r.qty)),
     rules: m.description, rules_url: "https://docs.polymarket.us/markets/market-rules" };
 }
@@ -212,12 +262,12 @@ export async function novigDepth(ref, game, fetchImpl = fetch) {
       || ref.outcome_ids.over === ref.outcome_ids.under)
     throw new Error('Novig outcome mapping unavailable; refresh exchange lines');
   const [eventId, marketId] = ref.source_id.split(':');
-  const [event, market, book] = await Promise.all([
+  const [event, market, receipt] = await Promise.all([
     getJson(`${NOVIG}/events/${eventId}`, fetchImpl),
     getJson(`${NOVIG}/markets/${marketId}`, fetchImpl),
-    getJson(`${NOVIG}/markets/${marketId}/book`, fetchImpl),
+    getDepthJson(`${NOVIG}/markets/${marketId}/book`, fetchImpl),
   ]);
-  const outcomes = market.outcomes;
+  const book = receipt.payload, outcomes = market.outcomes;
   if (event.eventId !== eventId || event.sport !== 'FOOTBALL'
       || event.league !== ({ nfl: 'NFL', cfb: 'NCAAF' })[game.sport] || event.status !== 'OPEN_PREGAME'
       || event.startsTs !== Date.parse(game.kickoff_utc) || event.startsTs <= Date.now()
@@ -233,6 +283,7 @@ export async function novigDepth(ref, game, fetchImpl = fetch) {
   if (!Number.isFinite(rate) || rate < 0 || rate > 1 || !['WHEN_LIVE', 'ALWAYS'].includes(charged))
     throw new Error('Current taker fees unavailable');
   return { book: 'novig', source_id: ref.source_id, contract_value: .01,
+    depth_fetched_at: receipt.fetched_at,
     coefficient: charged === 'WHEN_LIVE' ? 0 : rate, fee_model: 'novig_5dp_half_up', submission: 'manual',
     levels: depth(book.orders[ref.outcome_ids.over] ?? [], r => 1 - numeric(r.price),
       r => Number.isSafeInteger(r.qty) && r.qty > 0 ? r.qty : NaN, 100000000),
@@ -243,7 +294,7 @@ export async function novigDepth(ref, game, fetchImpl = fetch) {
 
 export const DEPTH_ADAPTERS = { kalshi: kalshiDepth, polymarket_us: polymarketDepth, novig: novigDepth };
 
-export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = fetch, now = Date.now()) {
+export async function previewGame(game, { line, budget, stake = null, maxPrice }, fetchImpl = fetch, now = Date.now()) {
   const started = Date.now();
   if (!(Date.parse(game.kickoff_utc) > now) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || ""))
     throw new Error("Pre-game previews only; this game has started or is unavailable");
@@ -256,7 +307,8 @@ export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = 
       ? "Ambiguous market mapping" : "No mapped market at this exact total; refresh exchange lines if needed" };
     try {
       const v = await DEPTH_ADAPTERS[book](matches[0], game, fetchImpl);
-      return { ...v, status: v.levels.length ? "available" : "empty", fetched_at: new Date().toISOString() };
+      return { ...v, rules_key: await settlementKey(v), settlement_verified: true,
+        status: v.levels.length ? "available" : "empty", fetched_at: new Date().toISOString() };
     } catch (error) {
       return { book, status: "unavailable", reason: error.name === "TimeoutError"
         ? "Exchange depth request timed out" : error.message };
@@ -266,10 +318,26 @@ export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = 
   if (finished >= Date.parse(game.kickoff_utc)) throw new Error("Game started while fetching depth");
   if (finished - started >= PREVIEW_TTL_MS) throw new Error("Depth snapshot expired; preview again");
   const available = results.filter(v => v.status === "available");
+  // Each current adapter has distinct void/postponement terms. Choose one
+  // verified group; never combine different policies into a stake promise.
+  const choices = available.map(v => ({ venue: v, allocation: stake === null
+    ? allocateDepth([v], budget, maxPrice) : allocatePrincipal([v], stake, maxPrice) }));
+  choices.sort((a, b) => Number(b.allocation.principal >= (stake ?? 0)) - Number(a.allocation.principal >= (stake ?? 0))
+    || (a.allocation.average_price ?? Infinity) - (b.allocation.average_price ?? Infinity)
+    || b.allocation.principal - a.allocation.principal || a.venue.book.localeCompare(b.venue.book));
+  const selected = choices[0];
+  const allocation = selected?.allocation ?? (stake === null ? allocateDepth([], budget, maxPrice) : allocatePrincipal([], stake, maxPrice));
+  allocation.allocations = allocation.allocations.map(a => ({ ...a, side: 'under', line,
+    rules_key: selected.venue.rules_key, settlement_verified: true,
+    rules: selected.venue.rules, rules_url: selected.venue.rules_url }));
   return { ok: true, mode: "preview_only", can_execute: false, balances_checked: false,
     game_id: game.game_id, line, side: "under", budget, max_price: maxPrice,
+    stake_mode: stake === null ? 'fee_inclusive_budget' : 'principal',
+    settlement_verified: !!selected, rules_key: selected?.venue.rules_key ?? null,
+    cash_liquidity_verified: stake !== null && allocation.principal >= stake,
+    depth_fetched_at: selected?.venue.depth_fetched_at ?? null,
     fetched_at: new Date(started).toISOString(), expires_at: new Date(started + PREVIEW_TTL_MS).toISOString(),
-    ...allocateDepth(available, budget, maxPrice),
+    ...allocation,
     venues: results.map(({ levels, ...v }) => ({ ...v, depth_levels: levels?.length || 0 })),
     notes: ["Public liquidity simulation; account balances and trading eligibility are not checked. No orders are sent.",
       "Same full-game total only. Payout assumes a normally completed game; postponement and cancellation rules differ by exchange.",
@@ -283,10 +351,12 @@ export async function executionPreviewRoute(request, env) {
   const url = new URL(request.url);
   const gameId = url.searchParams.get("game_id") || "";
   const line = numeric(url.searchParams.get("line")), budget = numeric(url.searchParams.get("budget"));
+  const stake = url.searchParams.has('stake') ? numeric(url.searchParams.get('stake')) : null;
   const maxPrice = numeric(url.searchParams.get("max_price"));
   if (!/^(nfl|cfb):\d{4}:\d{1,2}:[a-z0-9_.-]+@[a-z0-9_.-]+$/.test(gameId) || gameId.length > 150
       || !Number.isFinite(line) || line < .5 || line > 150 || line % 1 !== .5
       || !Number.isFinite(budget) || budget < 1 || budget > 10000 || Math.abs(budget * 100 - Math.round(budget * 100)) > .000001
+      || (stake !== null && (!Number.isFinite(stake) || stake < 1 || stake > 10000 || Math.abs(stake * 100 - Math.round(stake * 100)) > .000001))
       || !Number.isFinite(maxPrice) || maxPrice < .01 || maxPrice > .99)
     return respond({ ok: false, error: "Select a half-point total, a $1–$10,000 budget, and a 1–99¢ all-in price limit" }, 400);
   try {
@@ -294,8 +364,20 @@ export async function executionPreviewRoute(request, env) {
     const data = object ? await object.json() : [];
     const game = (Array.isArray(data) ? data : data.games || []).find(g => g.game_id === gameId);
     if (!game) return respond({ ok: false, error: "Game is not on the current board" }, 404);
-    return respond(await previewGame(game, { line, budget, maxPrice }));
+    return respond(await boundedPreviewGame(game, { line, budget, stake, maxPrice }));
   } catch (error) {
     return respond({ ok: false, error: error.message || "Preview unavailable" }, 502);
   }
+}
+
+export async function boundedPreviewGame(game, params, fetchImpl = fetch, deadlineMs = 25000) {
+  const controller = new AbortController();
+  let timer;
+  try {
+    const boundedFetch = (url, options) => fetchImpl(url, { ...options,
+      signal: AbortSignal.any([controller.signal, options.signal]) });
+    return await Promise.race([previewGame(game, params, boundedFetch), new Promise((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error('Depth preview deadline exceeded')); }, Math.min(25000, deadlineMs));
+    })]);
+  } finally { clearTimeout(timer); controller.abort(); }
 }

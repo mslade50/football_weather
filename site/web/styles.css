@@ -318,3 +318,54 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .alertctl .al-clv { margin-left: auto; }
 .alertctl .al-clv b { color: var(--text); }
 @media (max-width: 800px) { .status-grid, .bt-pm-summary { grid-template-columns: 1fr; } }
+
+
+.mobile-sort { display: none; }
+/* Discovery and source clocks stay visible without hover on touch screens. */
+.discovery-note { margin: 8px 12px; color: #8b949e; font-size: 13px; }
+.discovery-note.error { color: #ffb4a8; border: 1px solid #e5484d; padding: 12px; }
+.discovery { display: block; font-weight: 700; color: #b8e7cb; }
+.discovery.near { color: #ffd79a; }
+.discovery.unknown, .discovery.quiet { color: #b7bfcc; }
+.game-detail { background: transparent; color: inherit; border: 0; padding: 8px 0; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.copy-coordinates { display: block; margin-top: 6px; }
+.coordinates { user-select: all; white-space: normal; overflow-wrap: anywhere; }
+.best-price { min-width: 180px; max-width: 260px; white-space: normal; }
+.best-price .sub { white-space: normal; }
+.best-price .muted { color: #a9b5c7; }
+.marker-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #0b0f16ed; color: #e6edf3; border-radius: 4px; padding: 3px 5px; font-size: 11px; white-space: nowrap; }
+.popup .hc-li { flex-wrap: wrap; gap: 5px; }
+.popup .hc-li > span:last-child { overflow-wrap: anywhere; }
+.popup { max-height: 65vh; overflow-y: auto; }
+#mapwrap { height: auto; }
+#map { position: relative; height: max(400px, 65dvh); }
+button.tab { font: inherit; color: inherit; background: transparent; border: 0; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .mobile-sort { display: block; }
+  .controlbtn, .controls select, .controls input, .refreshbtn, .game-detail { min-height: 44px; }
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tab { flex-shrink: 0; }
+  .controls { gap: 6px; }
+  .controls #search { width: 100%; flex: 1 1 100%; }
+  .wrap { max-height: none; }
+  #table td.game { min-width: 112px; max-width: 140px; white-space: normal; }
+  #table td.left { min-width: 130px; max-width: 160px; white-space: normal; }
+  #table .best-price { min-width: 175px; }
+  #map { height: max(320px, 55dvh); }
+  .maplegend { position: relative; left: auto; bottom: auto; margin: 8px 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .maplegend .lg-ctl { width: 100%; }
+  .drawer { width: 100vw; max-width: 100vw; }
+  .drawer-grid { grid-template-columns: 1fr; }
+  #table, #table tbody { display: block; width: 100%; }
+  #table thead { display: none; }
+  #table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); padding: 10px; gap: 6px; border-bottom: 1px solid var(--line); }
+  #table tbody td { display: none; }
+  #table tbody td:nth-child(-n+4) { display: block; border: 0; padding: 4px; min-width: 0; max-width: none; text-align: left; }
+  #table tbody td.game { grid-column: 1 / -1; position: static; background: transparent; }
+  #table tbody td.game .sub { display: inline; margin-left: 6px; }
+  #table tbody td:nth-child(4) { grid-column: 1 / -1; }
+  #table tbody td.empty { display: block; grid-column: 1 / -1; }
+  #table .best-price { color: #d0d7de; }
+  .wrap { overflow-x: hidden; }
+}

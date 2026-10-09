@@ -178,7 +178,8 @@ test("refresh: admin only, validates sport/scope, dispatches with string inputs"
     body: JSON.stringify({ sport: "nfl", scope: "bogus" }),
   }), env);
   assert.equal(badScope.status, 400);
-  const unconfigured = await handleFetch(req("/refresh", { method: "POST", headers: basic("mslade", "admin-pw") }), fakeEnv());
+  const unconfigured = await handleFetch(req("/refresh", { method: "POST",
+    headers: { ...basic("mslade", "admin-pw"), "content-type": "application/json" }, body: '{}' }), fakeEnv());
   assert.equal(unconfigured.status, 503);
   // CSRF: a cross-site form POST (simple content type, params in the query) is rejected.
   const form = await handleFetch(req("/refresh?sport=all&scope=full&force=1", {

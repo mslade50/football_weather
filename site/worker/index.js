@@ -9,6 +9,7 @@
 
 import { executionPreviewRoute } from "./execution-preview.js";
 import { freshOddsRoute } from "./fresh-odds.js";
+import { exchangeRefresh } from './exchange-refresh.js';
 import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
 
 const DATA_PREFIX = "/data/";
@@ -287,9 +288,6 @@ async function refreshRoute(url, request, env, identity) {
   if (identity.role !== "admin") {
     return jsonResponse({ ok: false, error: "refresh is restricted to the admin login" }, 403);
   }
-  if (!env.GH_DISPATCH_TOKEN) {
-    return jsonResponse({ ok: false, error: "refresh not configured (GH_DISPATCH_TOKEN unset)" }, 503);
-  }
   // CSRF guard: browsers replay cached Basic Auth on cross-site form POSTs, so
   // only accept JSON bodies (a non-simple content type forces a CORS preflight
   // this Worker never answers). app.js always posts application/json.
@@ -310,6 +308,14 @@ async function refreshRoute(url, request, env, identity) {
   const force = body.force === true || url.searchParams.get("force") === "1";
   if (!SPORTS.has(sport) || !SCOPES.has(scope)) {
     return jsonResponse({ ok: false, error: "sport must be nfl|cfb|all and scope weather|light|full|exchanges" }, 400);
+  }
+  if (scope === 'exchanges') {
+    try { return jsonResponse(await exchangeRefresh(env, { sport, request_id: body.request_id, requested_at: body.requested_at })); }
+    catch (error) { return jsonResponse({ ok: false, request_id: body.request_id, sport, scope,
+      can_execute: false, error: error.message || 'Exchange quotes unavailable' }, 503); }
+  }
+  if (!env.GH_DISPATCH_TOKEN) {
+    return jsonResponse({ ok: false, error: "refresh not configured (GH_DISPATCH_TOKEN unset)" }, 503);
   }
   // Forced refreshes skip the dedup (an active run is usually a ~20s gate-skip);
   // pipeline.yml's concurrency group queues rather than races.

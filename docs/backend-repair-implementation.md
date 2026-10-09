@@ -41,4 +41,14 @@ Validation: 1,297 Python tests passed (one existing xlsxwriter-version warning);
 
 ## Remaining integration work
 
-Resident local collection/supervision and incremental publication; opener/spread provenance and late movement; explicit bet confirmation and CLEAR lifecycle; daily alert policy; weather-confidence/degradation lifecycle; immutable publication generations; UI integration; production activation, exact-SHA verification and rollback. PR #13 remains untouched and separately gated. No external alerts, bets/orders, credentials, or unrelated Breakout changes were made.
+Resident local collection/supervision and incremental publication; opener/spread provenance and late movement; explicit bet confirmation and CLEAR lifecycle; daily alert policy; weather-confidence/degradation lifecycle; immutable publication generations; production activation and exact-generation acceptance. PR #13 remains untouched and separately gated. No external alerts, bets/orders, credentials, or unrelated Breakout changes were made.
+
+## UI and principal/refresh contract integration
+
+Reviewed UI commits `278c981` and `abe2f8d` are integrated in the isolated integration branch. They share table/map eligibility and search rules, hide low likelihood/unknown cases by default, preserve exact stadium coordinates, display explicit reference/fee/depth evidence, retain pending stake checks across quote refreshes, and preserve focused raw search text/caret.
+
+The backend now accepts `stake` as principal cash, excludes fees from that target, preserves actual settlement terms in each allocation and selects one exact-line compatible group. Whole contracts may exceed the requested stake by less than one contract's cash cost. A fixture's principal is $500 while debit exceeds $500; the real response passes the discovery UI's verifier. The two incompatible $300 venues remain insufficient for that request.
+
+Exchange refresh no longer waits on a GitHub workflow. It returns a direct request-correlated public-depth snapshot with a 25-second hard deadline, no production storage writes and no dispatch. Original weather/publication generation and acquisition clocks are retained. Per-game `fresh_odds` records provider status and nearest mapped exact line for an explicit stake check; this is not a replacement consensus or true opener. Missing maps/failures stay unavailable/partial and no fresh quote result cannot complete successfully. This does not discover unmapped new lines or establish a resident collector, and actual provider/board latency remains unverified.
+
+Incident: canceled deploy run `37978198965` still activated Worker `32cfca67-880c-47bd-b870-c19651d50aa2` at 19:09:41 UTC. Official Cloudflare deployment metadata confirms this. Automatic approval review rejected a restore to prior version `3056b9b5-b4cd-490a-ba61-f26892ecb503` because its available authorization required read-only auditing. No rollback occurred; production operations are held pending explicit approval. PR #15 hotfix commit `c0c29aa` passed exact-SHA CI and independent focused review. UI integration is separate and has not been deployed.

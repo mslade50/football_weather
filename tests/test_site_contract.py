@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
 
-JS_FILES = ["app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
+JS_FILES = ["discovery.js", "app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
 
 # variable names that hold GameCard (sub)objects in the JS, mapped to the spec section
 CARD_VARS = ("g", "wx", "st", "c", "s", "t", "o", "v1", "v2", "e", "be", "es", "et", "f", "p", "sig")
@@ -28,7 +28,7 @@ NOT_CARD_KEYS = {
     "message", "closest", "addEventListener", "stopPropagation", "remove", "getElement",
     "querySelector", "best_total", "best_spread", "edges",
     # drawer.js normalized chart points / uPlot handles
-    "ts", "destroy",
+    "ts", "destroy", "kind", "note", "probability",
 }
 
 # keys json_out._stadium_block emits beyond the ARCH §5 GameCard block (provenance / display only)
@@ -47,6 +47,8 @@ def _spec_keys() -> set[str]:
     # top-level ids referenced by the cards but declared in §4.1
     keys |= {"home_id", "away_id", "roof_state"}
     keys |= STADIUM_EXTRA_KEYS
+    # Optional backend contracts are documented in site/web/INTEGRATION.md.
+    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery"}
     return keys
 
 
@@ -68,7 +70,7 @@ def test_index_has_required_dom_ids() -> None:
     html = (WEB / "index.html").read_text(encoding="utf-8")
     for el_id in ("event", "updated", "nextrun", "bookchips", "banners", "statusbar", "table", "map",
                   "maplegend", "drawer", "drawer-body", "drawer-title", "hovercard", "sport", "week",
-                  "signal", "book", "minedge", "search", "refreshbtn", "lightrefreshbtn"):
+                  "signal", "book", "focus", "loadnotice", "mapnotice", "search", "refreshbtn", "lightrefreshbtn"):
         assert f'id="{el_id}"' in html, f"missing #{el_id}"
 
 

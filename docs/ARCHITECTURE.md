@@ -285,6 +285,8 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
        edges [Edge...], best_total, best_spread},
  total_prices {method, model_version, fair_total, best_under, best_over,
                quotes [{book, side, line, odds, cost_prob, fair_cost, win_prob, push_prob, loss_prob, ev_roi, updated_at}]},
+ fresh_odds? {status, request_id, checked_at, expires_at, selected_line, quotes_checked,
+              markets_not_checked, provider_results} (direct public-depth response only),
  alerts [alert_key...], run_id}
 ```
 
@@ -501,25 +503,27 @@ total and a maximum all-in cost per $1 payout. No orders, account connections,
 fund transfers, or balance queries are implemented. This is a public liquidity
 simulation, not a trade authorization or a reserved quote.
 
-`GameCard.execution_markets` retains canonical Kalshi and Polymarket US market
+`GameCard.execution_markets` retains canonical Kalshi, Polymarket US and Novig market
 identifiers for main and alternate half-point totals. The Worker resolves IDs
 from the current server-side card, never client-supplied market IDs. It fetches
 live metadata, fee parameters and full depth using GET only, rejects closed or
 unverified contracts, and converts over/YES bids into under/NO asks. A failed
-venue is reported separately. Novig, ProphetX and 4CX remain explicitly
-unavailable until their depth/account integration is verified.
+venue is reported separately. Novig's typed event, market and opposing outcome
+IDs, kickoff, live fee schedule and native one-cent payout are validated.
+ProphetX and 4CX remain unavailable until their depth/account integration is verified.
 
-The router walks levels in ascending fee-adjusted unit cost, simulates whole
-contracts, and rounds each level's estimated debit up to cents. It enforces the
-total budget and all-in price ceiling using integer microdollars. Remaining
-funds stay unallocated when depth, limits or contract granularity prevent a
-fill. Fees are estimates, including conservative rounding, with no deferred
-rebates. Kalshi's quadratic taker rate is 0.07 times its live series multiplier;
-Polymarket US supplies its live `feeCoefficient`. Unknown fee models fail
-closed. Snapshots expire 15 seconds after fetching starts; new input invalidates
-the displayed allocation. Identical point totals do not imply identical
-postponement rules: the combined payout assumes a normally completed game and
-the UI exposes venue settlement terms.
+The router ranks actual size-specific rounded taker debits and enforces price
+ceilings using integer microdollars. Kalshi uses six-decimal fee and four-decimal
+direct-member debit; Polymarket US rounds fees to cents half-even; Novig rounds
+fees to five decimals half-up and contracts pay one cent. Rates come from live
+venue metadata. Unknown fee models fail closed; deferred rebates are excluded.
+Legacy `budget` is fee-inclusive. `stake` targets cash principal separately from
+fees, with a possible whole-contract overshoot reported exactly. One exact total
+and verified actual settlement group is selected; distinct venue void and
+postponement policies are never pooled into a stake promise. Snapshots expire
+15 seconds after acquisition begins, with a 25-second route-owned response
+deadline even if a provider ignores cancellation. These previews do not verify
+account balances or eligibility and never authorize an order.
 
 References: [Kalshi order book](https://docs.kalshi.com/api-reference/market/get-market-orderbook),
 [Kalshi fee rounding](https://docs.kalshi.com/getting_started/fee_rounding),
