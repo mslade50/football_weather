@@ -1,12 +1,22 @@
 // Alert snapshots share the execution preview's validated public depth and fee math.
-import { DEPTH_ADAPTERS, allocateDepth, sliceCost } from './execution-preview.js';
+import { DEPTH_ADAPTERS, sliceCost, PREVIEW_TTL_MS } from './execution-preview.js';
 
-export async function alertLiquidity(game, fetchImpl = fetch, now = Date.now()) {
+const MICROS = 1000000;
+const REQUIRED_CASH_STAKE = 500;
+
+export async function alertLiquidity(game, fetchImpl = fetch, now = Date.now(), { fresh = false } = {}) {
+  const started = Date.now();
   const quotes = (game.total_prices?.quotes || []).filter(q => q.side === 'under'
-    && Object.hasOwn(DEPTH_ADAPTERS, q.book) && Number.isFinite(q.win_prob)
-    && q.win_prob >= 0 && q.win_prob <= 1 && q.push_prob === 0
-    && now - Date.parse(q.updated_at) >= 0 && now - Date.parse(q.updated_at) <= 3600000);
-  const result = { checked_at: new Date(now).toISOString(), quotes: [], allocations: [], spend: 0, unspent: 500 };
+    && Object.hasOwn(DEPTH_ADAPTERS, q.book)
+    && (fresh || (Number.isFinite(q.win_prob) && q.win_prob >= 0 && q.win_prob <= 1))
+    && q.push_prob === 0
+    && (fresh || (now - Date.parse(q.updated_at) >= 0 && now - Date.parse(q.updated_at) <= 3600000)));
+  const result = { checked_at: new Date(now).toISOString(), expires_at: new Date(now + PREVIEW_TTL_MS).toISOString(),
+    quotes: [], allocations: [], required_cash_stake: REQUIRED_CASH_STAKE, cash_stake_capacity: 0,
+    fee_capacity: 0, debit_capacity: 0, payout_capacity: 0, cash_liquidity_verified: false,
+    // Capacity is independent of the user's chosen bet size. Never a $500 budget.
+    capacity_status: 'unknown', spend: 0, unspent: REQUIRED_CASH_STAKE, can_execute: false,
+    probability_status: game.total_prices?.probability_status || 'empirically_unvalidated' };
   if (!(Date.parse(game.kickoff_utc) > now) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || '')) return result;
   const books = await Promise.all(quotes.map(async q => {
     const refs = (game.execution_markets || []).filter(r => r.book === q.book && r.line === q.line);
@@ -15,30 +25,53 @@ export async function alertLiquidity(game, fetchImpl = fetch, now = Date.now()) 
     try {
       const venue = await DEPTH_ADAPTERS[q.book](refs[0], game, fetchImpl);
       if (Date.now() >= Date.parse(game.kickoff_utc)) throw new Error('Game started');
-      const levels = venue.levels.map(l => ({ ...l, book: q.book, line: q.line, coefficient: venue.coefficient,
-        contract_value: venue.contract_value ?? 1,
-        roi: q.win_prob / (l.price + venue.coefficient * l.price * (1 - l.price)) - 1 }));
+      const value = venue.contract_value ?? 1;
+      const levels = venue.levels.map(l => {
+        const cost = sliceCost(l.price, l.quantity, venue.coefficient, value, venue.fee_model);
+        const payout = l.quantity * value;
+        return { ...l, book: q.book, line: q.line, coefficient: venue.coefficient, fee_model: venue.fee_model,
+          contract_value: value, cost, payout, roi: Number.isFinite(q.win_prob) && q.win_prob >= 0 && q.win_prob <= 1
+            ? q.win_prob * payout / (Number(cost.total) / MICROS) - 1 : null };
+      });
       const first = levels[0];
       if (!first) return { update: { ...update, liquidity_status: 'empty', liquidity_reason: 'No offers available' } };
-      const cost = first.price + venue.coefficient * first.price * (1 - first.price);
+      const cost = Number(first.cost.total) / MICROS / first.payout;
       return { levels, update: { ...update, liquidity_status: 'verified', liquidity_shares: first.quantity,
+        execution_status: 'public_taker_depth_verified', fee_status: 'current_fee_verified',
         contract_value: first.contract_value,
-        liquidity_dollars: Number(sliceCost(first.price, first.quantity, venue.coefficient, first.contract_value).total) / 1000000,
+        liquidity_dollars: Number(first.cost.principal) / MICROS,
+        liquidity_fees: Number(first.cost.fee) / MICROS, liquidity_debit: Number(first.cost.total) / MICROS,
+        liquidity_payout: first.payout, fee_model: venue.fee_model, fee_coefficient: venue.coefficient,
         cost_prob: cost, odds: Math.round(cost >= .5 ? -100 * cost / (1 - cost) : 100 * (1 - cost) / cost),
-        ev_roi: first.roi, updated_at: new Date().toISOString() } };
+        ev_roi: first.roi, quote_observed_at: q.updated_at, depth_fetched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString() } };
     } catch (error) { return { update: { ...update, liquidity_reason: error.message } }; }
   }));
-  result.quotes = books.map(b => b.update);
-  const levels = books.flatMap(b => b.levels || []).sort((a, b) => b.roi - a.roi || a.book.localeCompare(b.book));
-  for (const level of levels) {
-    const fill = allocateDepth([{ book: level.book, coefficient: level.coefficient,
-      contract_value: level.contract_value, levels: [level] }], result.unspent, .99);
-    if (!fill.allocations.length) continue;
-    const allocation = fill.allocations[0];
-    result.allocations.push({ ...allocation, line: level.line, ev_roi: level.roi, available_shares: level.quantity,
-      available_dollars: Number(sliceCost(level.price, level.quantity, level.coefficient, level.contract_value).total) / 1000000 });
-    result.spend = Math.round((result.spend + fill.spend) * 100) / 100;
-    result.unspent = Math.round((500 - result.spend) * 100) / 100;
+  if (Date.now() - started >= PREVIEW_TTL_MS) {
+    result.capacity_status = 'expired';
+    return result;
   }
+  result.quotes = books.map(b => b.update);
+  const levels = books.flatMap(b => b.levels || []).filter(l => Number.isFinite(l.roi) && l.roi > 0)
+    .sort((a, b) => b.roi - a.roi || a.book.localeCompare(b.book));
+  let principal = 0n, fees = 0n, debit = 0n;
+  for (const level of levels) {
+    const cost = level.cost;
+    principal += cost.principal; fees += cost.fee; debit += cost.total;
+    result.payout_capacity += level.payout;
+    result.allocations.push({ book: level.book, line: level.line, ev_roi: level.roi, quantity: level.quantity,
+      ask: level.price, contract_value: level.contract_value, fee_model: level.fee_model,
+      payout_if_win: level.payout, principal: Number(cost.principal) / MICROS,
+      fees: Number(cost.fee) / MICROS, spend: Number(cost.total) / MICROS,
+      all_in_price: Number(cost.total) / MICROS / level.payout,
+      available_shares: level.quantity, available_dollars: Number(cost.principal) / MICROS });
+  }
+  result.cash_stake_capacity = Number(principal) / MICROS;
+  result.fee_capacity = Number(fees) / MICROS;
+  result.debit_capacity = result.spend = Number(debit) / MICROS;
+  result.unspent = Math.max(0, REQUIRED_CASH_STAKE - result.cash_stake_capacity);
+  result.cash_liquidity_verified = principal >= BigInt(REQUIRED_CASH_STAKE * MICROS);
+  result.capacity_status = result.cash_liquidity_verified ? 'verified_cash_capacity' :
+    result.quotes.some(q => q.liquidity_status === 'verified') ? 'insufficient_cash_capacity' : 'unknown';
   return result;
 }

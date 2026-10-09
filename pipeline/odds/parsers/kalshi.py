@@ -50,12 +50,14 @@ Use ``event_teams`` to recover display names / abbreviations per ``game_id``.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any
 
 from pipeline.contracts import GameLine
+from pipeline.odds.kalshi_fees import effective_price as rounded_effective_price
 
 BOOK = "kalshi"
 
@@ -91,18 +93,19 @@ def taker_fee(price: float) -> float:
     return TAKER_FEE_RATE * price * (1 - price)
 
 
-def effective_price(ask: float) -> float:
-    """Cost to buy at the ask including the taker fee, capped at 0.99."""
+def effective_price(ask: float, coefficient: float = TAKER_FEE_RATE) -> float:
+    """Fee-inclusive direct-member debit; never cap an expensive quote."""
     if ask <= 0 or ask >= 1:
         return ask
-    return min(ask + taker_fee(ask), 0.99)
+    return rounded_effective_price(ask, coefficient)
 
 
 def _dollars(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
 
@@ -188,6 +191,8 @@ def event_teams(payload: dict[str, Iterable[dict[str, Any]]], sport: str) -> dic
     """{game_id: {away, home, away_name, home_name, date}} across every series."""
     out: dict[str, dict[str, Any]] = {}
     for events in payload.values():
+        if isinstance(events, dict):
+            events = events.get("events") or []
         for ev in events or []:
             ident = event_identity(ev, sport)
             if ident and ident["game_id"] not in out:
@@ -218,10 +223,11 @@ def _pair(
     is_main: bool,
     scraped_at: datetime | None,
     run_id: str | None,
+    coefficient: float = TAKER_FEE_RATE,
 ) -> list[GameLine]:
     mid = (bid + ask) / 2.0
-    yes_odds = dollar_to_american(effective_price(ask))
-    no_odds = dollar_to_american(effective_price(1.0 - bid))
+    yes_odds = dollar_to_american(effective_price(ask, coefficient))
+    no_odds = dollar_to_american(effective_price(1.0 - bid, coefficient))
     rows: list[GameLine] = []
     if yes_odds:
         rows.append(GameLine(sport=sport, game_id=game_id, book=BOOK, market=market, side=yes_side, odds=yes_odds,
@@ -244,7 +250,7 @@ def _pick_main(candidates: list[tuple[float, float]]) -> float | None:
     return best[0]
 
 
-def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None) -> list[GameLine]:
+def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None, coefficient: float = TAKER_FEE_RATE) -> list[GameLine]:
     ident = event_identity(event, sport)
     if ident is None:
         return []
@@ -261,7 +267,7 @@ def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime |
         # Each team has its own market; emit only the Yes side so the two
         # markets do not double-count (the No of TEN == the Yes of SEA).
         bid, ask = q
-        odds = dollar_to_american(effective_price(ask))
+        odds = dollar_to_american(effective_price(ask, coefficient))
         if not odds:
             continue
         out.append(GameLine(sport=sport, game_id=game_id, book=BOOK, market="ml", side=side, odds=odds,
@@ -270,7 +276,7 @@ def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime |
     return out
 
 
-def parse_spread_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None) -> list[GameLine]:
+def parse_spread_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None, coefficient: float = TAKER_FEE_RATE) -> list[GameLine]:
     ident = event_identity(event, sport)
     if ident is None:
         return []
@@ -299,11 +305,11 @@ def parse_spread_event(event: dict[str, Any], sport: str, scraped_at: datetime |
         # Yes side: "<team> wins by over X.5" == that team -X.5; No side: other team +X.5
         strike = abs(home_line)
         out.extend(_pair(sport, game_id, "spread", side, other, -strike, strike, bid, ask, ticker,
-                         is_main=(main_line is not None and home_line == main_line), scraped_at=scraped_at, run_id=run_id))
+                         is_main=(main_line is not None and home_line == main_line), scraped_at=scraped_at, run_id=run_id, coefficient=coefficient))
     return out
 
 
-def parse_total_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None) -> list[GameLine]:
+def parse_total_event(event: dict[str, Any], sport: str, scraped_at: datetime | None, run_id: str | None, coefficient: float = TAKER_FEE_RATE) -> list[GameLine]:
     ident = event_identity(event, sport)
     if ident is None:
         return []
@@ -319,7 +325,7 @@ def parse_total_event(event: dict[str, Any], sport: str, scraped_at: datetime | 
     out: list[GameLine] = []
     for strike, bid, ask, ticker in priced:
         out.extend(_pair(sport, game_id, "total", "over", "under", strike, strike, bid, ask, ticker,
-                         is_main=(strike == main_line), scraped_at=scraped_at, run_id=run_id))
+                         is_main=(strike == main_line), scraped_at=scraped_at, run_id=run_id, coefficient=coefficient))
     return out
 
 
@@ -341,11 +347,30 @@ def parse(
         if market is None or SERIES_BY_SPORT[sport].get(market) != series:
             continue
         if isinstance(events, dict):
+            coefficient = series_fee_coefficient(events.get("fee_metadata")) if "fee_metadata" in events else TAKER_FEE_RATE
+            if coefficient is None:
+                continue
+            stamp = events.get("received_at")
+            at = datetime.fromisoformat(stamp) if stamp else scraped_at
             events = events.get("events") or []
+        else:
+            coefficient, at = TAKER_FEE_RATE, scraped_at
         fn = _PARSERS[market]
         for ev in events or []:
-            out.extend(fn(ev, sport, scraped_at, run_id))
+            out.extend(fn(ev, sport, at, run_id, coefficient))
     return out
+
+
+def series_fee_coefficient(payload: Any) -> float | None:
+    series = payload.get("series") if isinstance(payload, dict) else None
+    if not isinstance(series, dict) or series.get("fee_type") not in ("quadratic", "quadratic_with_maker_fees"):
+        return None
+    multiplier = series.get("fee_multiplier")
+    try:
+        n = float(multiplier)
+    except (ValueError, TypeError):
+        return None
+    return TAKER_FEE_RATE * n if not isinstance(multiplier, bool) and math.isfinite(n) and 0 <= n <= 10 else None
 
 
 __all__ = [

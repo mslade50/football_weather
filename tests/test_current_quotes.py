@@ -120,7 +120,9 @@ def test_expiry_recomputes_from_remaining_main_quotes_without_losing_openers(mod
     assert {edge["book"] for edge in expired_card["fair"]["edges"]} <= {"pinnacle", "fanduel", "draftkings"}
     assert all(edge["book"] != "betcris" for edge in expired_card["fair"]["edges"])
     assert expired_card["total_prices"] != original["total_prices"]
-    assert {quote["book"] for quote in expired_card["total_prices"]["quotes"]} == {
+    assert expired_card["total_prices"]["quotes"] == []
+    assert expired_card["total_prices"]["best_under"] is None
+    assert {quote["book"] for quote in expired_card["total_prices"]["reference_quotes"]} == {
         "pinnacle", "fanduel", "draftkings"}
     assert expired_card["odds"]["pinnacle"]["total"]["line"] == 51
     assert json_out.table_row(expired_card)["quote_expires_at"] == NOW + timedelta(hours=1)

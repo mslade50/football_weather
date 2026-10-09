@@ -19,16 +19,34 @@ function fixed(value) {
 }
 const ceilDiv = (a, b) => (a + b - 1n) / b;
 const dollars = n => Number(n) / Number(SCALE);
+function nearestQuantum(numerator, denominator, quantum, halfEven = false) {
+  const divisor = denominator * quantum, whole = numerator / divisor, remainder = numerator % divisor;
+  const up = remainder * 2n > divisor || (remainder * 2n === divisor && (!halfEven || whole % 2n === 1n));
+  return (whole + (up ? 1n : 0n)) * quantum;
+}
 
 // Each displayed slice is priced as a separate taker limit order. Round its
 // total debit UP to cents (also conservative for Poly's half-even fee rounding).
 // No speculative weekly rebates. Whole contracts only in this first preview.
-export function sliceCost(price, quantity, coefficient, contractValue = 1) {
+export function sliceCost(price, quantity, coefficient, contractValue = 1, feeModel = 'conservative_cent') {
   const p = fixed(price), q = BigInt(quantity), r = fixed(coefficient);
   const value = fixed(contractValue);
   const principal = ceilDiv(p * q * value, SCALE);
-  const fee = ceilDiv(r * p * (SCALE - p) * q * value, SCALE * SCALE * SCALE);
-  const total = ceilDiv(principal + fee, CENT) * CENT;
+  const numerator = r * p * (SCALE - p) * q * value, denominator = SCALE * SCALE * SCALE;
+  let fee, total;
+  if (feeModel === 'kalshi_direct') {
+    fee = ceilDiv(numerator, denominator);
+    total = ceilDiv(principal + fee, 100n) * 100n;
+  } else if (feeModel === 'polymarket_us_cent_half_even') {
+    fee = nearestQuantum(numerator, denominator, CENT, true);
+    total = principal + fee;
+  } else if (feeModel === 'novig_5dp_half_up') {
+    fee = nearestQuantum(numerator, denominator, 10n);
+    total = principal + fee;
+  } else if (feeModel === 'conservative_cent') {
+    fee = ceilDiv(numerator, denominator);
+    total = ceilDiv(principal + fee, CENT) * CENT;
+  } else throw new Error('Unknown taker fee precision');
   return { total, principal, fee: total - principal };
 }
 
@@ -36,7 +54,7 @@ export function allocateDepth(venues, budget, maxPrice) {
   let remaining = fixed(budget);
   const limit = fixed(maxPrice);
   const slices = venues.flatMap(v => v.levels.map(l => ({ ...l, book: v.book, coefficient: v.coefficient,
-    contract_value: v.contract_value ?? 1 })))
+    contract_value: v.contract_value ?? 1, fee_model: v.fee_model ?? 'conservative_cent' })))
     .sort((a, b) => (a.price + a.coefficient * a.price * (1 - a.price))
       - (b.price + b.coefficient * b.price * (1 - b.price)) || a.book.localeCompare(b.book));
   const allocations = [];
@@ -47,11 +65,11 @@ export function allocateDepth(venues, budget, maxPrice) {
     if (level.price + level.coefficient * level.price * (1 - level.price) > maxPrice) continue;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      if (sliceCost(level.price, mid, level.coefficient, level.contract_value).total <= remaining) lo = mid;
+      if (sliceCost(level.price, mid, level.coefficient, level.contract_value, level.fee_model).total <= remaining) lo = mid;
       else hi = mid - 1;
     }
     if (!lo) continue;
-    const cost = sliceCost(level.price, lo, level.coefficient, level.contract_value);
+    const cost = sliceCost(level.price, lo, level.coefficient, level.contract_value, level.fee_model);
     const levelPayout = fixed(level.contract_value) * BigInt(lo);
     if (cost.total * SCALE > limit * levelPayout) continue;
     remaining -= cost.total;
@@ -59,7 +77,7 @@ export function allocateDepth(venues, budget, maxPrice) {
     fees += cost.fee;
     payout += levelPayout;
     allocations.push({ book: level.book, quantity: lo, ask: level.price,
-      contract_value: level.contract_value, payout_if_win: dollars(levelPayout),
+      contract_value: level.contract_value, fee_model: level.fee_model, payout_if_win: dollars(levelPayout),
       principal: dollars(cost.principal), fees: dollars(cost.fee), spend: dollars(cost.total),
       all_in_price: dollars(cost.total) / dollars(levelPayout) });
   }
@@ -116,7 +134,7 @@ export async function kalshiDepth(ref, game, fetchImpl = fetch) {
   if (!["quadratic", "quadratic_with_maker_fees"].includes(s?.fee_type)
       || !Number.isFinite(multiplier) || multiplier < 0 || multiplier > 10)
     throw new Error("Current taker fees unavailable");
-  return { book: "kalshi", source_id: ref.source_id, coefficient: .07 * multiplier,
+  return { book: "kalshi", source_id: ref.source_id, coefficient: .07 * multiplier, fee_model: 'kalshi_direct',
     // Buying NO (under) takes the complementary YES bid, never the YES ask.
     levels: depth(book.orderbook_fp?.yes_dollars, r => 1 - numeric(r[0]), r => numeric(r[1])),
     rules: `${m.rules_primary}\n${m.rules_secondary}`,
@@ -144,7 +162,7 @@ export async function polymarketDepth(ref, game, fetchImpl = fetch) {
     throw new Error("Current taker fees unavailable");
   if (!(numeric(m.minimumTradeQty) > 0 && numeric(m.minimumTradeQty) <= 1))
     throw new Error("Unsupported minimum trade size");
-  return { book: "polymarket_us", source_id: ref.source_id, coefficient,
+  return { book: "polymarket_us", source_id: ref.source_id, coefficient, fee_model: 'polymarket_us_cent_half_even',
     levels: depth(b.bids, r => r.px?.currency === "USD" ? 1 - numeric(r.px.value) : NaN, r => numeric(r.qty)),
     rules: m.description, rules_url: "https://docs.polymarket.us/markets/market-rules" };
 }
@@ -181,7 +199,7 @@ export async function novigDepth(ref, game, fetchImpl = fetch) {
   if (!Number.isFinite(rate) || rate < 0 || rate > 1 || !['WHEN_LIVE', 'ALWAYS'].includes(charged))
     throw new Error('Current taker fees unavailable');
   return { book: 'novig', source_id: ref.source_id, contract_value: .01,
-    coefficient: charged === 'WHEN_LIVE' ? 0 : rate, submission: 'manual',
+    coefficient: charged === 'WHEN_LIVE' ? 0 : rate, fee_model: 'novig_5dp_half_up', submission: 'manual',
     levels: depth(book.orders[ref.outcome_ids.over] ?? [], r => 1 - numeric(r.price),
       r => Number.isSafeInteger(r.qty) && r.qty > 0 ? r.qty : NaN, 100000000),
     rules: `Full-game total. Each contract pays $0.01 if it wins. Void settlement: ${market.voids === 'FMV'
@@ -221,7 +239,7 @@ export async function previewGame(game, { line, budget, maxPrice }, fetchImpl = 
     venues: results.map(({ levels, ...v }) => ({ ...v, depth_levels: levels?.length || 0 })),
     notes: ["Public liquidity simulation; account balances and trading eligibility are not checked. No orders are sent.",
       "Same full-game total only. Payout assumes a normally completed game; postponement and cancellation rules differ by exchange.",
-      "Whole native contracts: Novig pays 1¢ each; Kalshi and Polymarket US pay $1 each. Estimated debits rounded up to cents per price level; excludes delayed rebates. Prices are not reserved.",
+      "Whole native contracts: Novig pays 1¢ each; Kalshi and Polymarket US pay $1 each. Taker fees use venue precision; Kalshi assumes a direct member account. Partial fills can change rounding. Delayed rebates excluded; prices are not reserved.",
       "Novig allocations require manual submission in Novig. A preview is not an order or a confirmed fill."] };
 }
 

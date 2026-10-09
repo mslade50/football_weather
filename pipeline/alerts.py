@@ -745,7 +745,7 @@ def _total_quotes(card: dict[str, Any], side: str) -> list[dict[str, Any]]:
     if not kickoff or kickoff <= now:
         return []
     return sorted((q for q in (card.get("total_prices") or {}).get("quotes", [])
-                   if q.get("side") == side and q.get("liquidity_status") != "empty" and _num(q.get("ev_roi")) is not None
+                   if q.get("book") in PRICE_EXCHANGES and q.get("side") == side and q.get("liquidity_status") != "empty" and _num(q.get("ev_roi")) is not None
                    and _num(q.get("line")) is not None and _num(q.get("odds")) is not None
                    and _fresh_price(q.get("updated_at"), now)),
                   key=lambda q: (-q["ev_roi"], q["book"]))
@@ -766,14 +766,23 @@ def _liquidity_context(card: dict[str, Any]) -> list[str]:
             return ["Liquidity: unverified"]
         return []
     stamp = _dt(snapshot.get("checked_at"))
-    rows = ["Liquidity · fees included" + (f" · {to_et(stamp):%I:%M %p %Z}" if stamp else "")]
+    rows = ["Cash stake capacity · taker fees separate" + (f" · {to_et(stamp):%I:%M %p %Z}" if stamp else "")]
     for i, fill in enumerate(snapshot["allocations"], 1):
         manual = " · manual" if fill["book"] == "novig" else ""
         p = fill["all_in_price"]
         odds = round(-100 * p / (1 - p) if p >= .5 else 100 * (1 - p) / p)
         rows.append(f"{i}) {_book_label(fill['book'])} U{_fmt_line(fill['line'])} ({_fmt_odds(odds)}): "
-                    f"${fill['available_dollars']:,.2f} available · use ${fill['spend']:,.2f}{manual}")
-    rows.append(f"$500 coverage: ${snapshot['spend']:,.2f} · ${snapshot['unspent']:,.2f} remaining")
+                    f"${fill['available_dollars']:,.2f} cash stake available · fees ${fill.get('fees', 0):,.2f} "
+                    f"· debit ${fill['spend']:,.2f}{manual}")
+    capacity = snapshot.get("cash_stake_capacity")
+    if capacity is None:
+        rows.append("Weather watch · cash stake capacity unverified")
+    else:
+        verified = snapshot.get("cash_liquidity_verified") is True and capacity >= 500
+        rows.append(f"${capacity:,.2f} cash stake capacity · " + ("$500 minimum verified" if verified else "$500 minimum not met"))
+        rows.append(f"Fees ${snapshot.get('fee_capacity', 0):,.2f} · total debit ${snapshot.get('debit_capacity', 0):,.2f} "
+                    f"· winning payout ${snapshot.get('payout_capacity', 0):,.2f}")
+        rows.append("Weather watch · probability estimate empirically unvalidated")
     return rows
 
 
@@ -1087,6 +1096,8 @@ def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
         if not quotes:
             now = _dt(card.get("_alert_at")) or now_utc()
             for book, markets in (card.get("odds") or {}).items():
+                if book not in PRICE_EXCHANGES:
+                    continue
                 total = markets.get("total") or {}
                 if any(q.get("book") == book and q.get("side") == "under" and q.get("line") == total.get("line")
                        and q.get("liquidity_status") == "empty" for q in (card.get("total_prices") or {}).get("quotes", [])):

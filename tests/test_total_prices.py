@@ -48,20 +48,30 @@ def test_push_refunds_stake_and_fair_coinflip_at_even_money():
 
 
 def test_rank_by_roi_not_points_and_keep_negative_best_honest():
-    lines = [offer("cheap", 46.5, 108), offer("higher", 47.5, -111)]
+    lines = [offer("novig", 46.5, 108), offer("kalshi", 47.5, -111), offer("draftkings", 49.5, 500)]
     prices = compare_totals("nfl", lines, fair(), now=NOW)
-    assert prices["best_under"]["book"] == "cheap"
+    assert prices["best_under"]["book"] == "novig"
+    assert {q["book"] for q in prices["quotes"]} == {"novig", "kalshi"}
+    assert [q["book"] for q in prices["reference_quotes"]] == ["draftkings"]
     assert prices["best_under"]["ev_roi"] > 0
     negative = compare_totals("nfl", lines, fair(60), now=NOW)
     assert negative["best_under"]["ev_roi"] < 0
     assert negative["best_over"] is None
 
 
-def test_skip_stale_unknown_price_and_thin_model_and_alternate_quotes():
+def test_skip_stale_unknown_price_and_thin_model_but_keep_executable_alternate_quotes():
     lines = [offer("old", 46.5, 200, scraped_at=NOW-timedelta(hours=2)),
-             offer("invalid", 46.5, 0), offer("fresh", 46.5, -110),
-             offer("fresh", 70.5, 200, is_main=False)]
-    assert len(compare_totals("nfl", lines, fair(), now=NOW)["quotes"]) == 1
+             offer("kalshi", 46.5, 0), offer("kalshi", 46.5, -110),
+             offer("kalshi", 70.5, 200, is_main=False)]
+    assert len(compare_totals("nfl", lines, fair(), now=NOW)["quotes"]) == 2
     assert compare_totals("nfl", lines, fair(thin=True), now=NOW)["best_under"] is None
     with pytest.raises(ValueError):
         outcome_probabilities("nfl", 46.5, 47.25, "under")
+
+
+def test_expired_exchange_quote_is_excluded_without_turning_sportsbook_reference_into_best():
+    rows = [offer("novig", 47.5, 110, expires_at=NOW), offer("draftkings", 50.5, 150)]
+    result = compare_totals("nfl", rows, fair(), now=NOW)
+    assert result["quotes"] == [] and result["best_under"] is None
+    assert result["reference_quotes"][0]["execution_status"] == "reference_only"
+    assert result["probability_status"] == "empirically_unvalidated"

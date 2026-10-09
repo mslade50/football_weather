@@ -55,7 +55,8 @@ def test_best_prices_use_roi_same_side_freshness_and_all_four_exchanges(monkeypa
                                               dict(quote("wrong-side", .9), side="over")]}
     for exchange in ("novig", "kalshi", "prophetx", "polymarket_us"):
         text = A.format_edge(c, _edge())
-        assert "Best price: Betcris · Under 46.5 (+108) · est. EV +8.0%" in text
+        assert "Best price: Betcris" not in text
+        assert f"Best price: {'NoVig' if exchange == 'novig' else A._book_label(exchange)}" in text
         assert f"Best exchange: {'NoVig' if exchange == 'novig' else A._book_label(exchange)}" in text
         c["total_prices"]["quotes"] = [q for q in c["total_prices"]["quotes"] if q["book"] != exchange]
     assert "Best exchange: unavailable" in A.format_edge(c, _edge())

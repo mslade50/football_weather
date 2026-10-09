@@ -21,7 +21,8 @@ def snapshot():
     return dict(checked_at=NOW.isoformat(), quotes=[dict(book="polymarket_us", side="under", line=46.5,
                 odds=150, ev_roi=.5, updated_at=NOW.isoformat(), liquidity_status="verified",
                 liquidity_shares=6, liquidity_dollars=2.4)], spend=2.4, unspent=497.6,
-                allocations=[dict(book="polymarket_us", line=46.5, all_in_price=.4, quantity=6, spend=2.4,
+                cash_stake_capacity=2.4, fee_capacity=0, debit_capacity=2.4, payout_capacity=6,
+                cash_liquidity_verified=False, allocations=[dict(book="polymarket_us", line=46.5, all_in_price=.4, quantity=6, spend=2.4,
                                   available_shares=6, available_dollars=2.4)])
 
 
@@ -31,7 +32,7 @@ def test_bridge_updates_price_and_size_together_without_mutating_source_quotes(m
     old_books = c["odds"]
     original = deepcopy(c["total_prices"])
     def run(args, **kw):
-        assert args[0] == "node" and kw["timeout"] == 60 and not kw.get("shell")
+        assert args[0] == "node" and kw["timeout"] == 30 and not kw.get("shell")
         assert json.loads(kw["input"])[0]["game_id"] == c["game_id"]
         return SimpleNamespace(stdout=json.dumps({c["game_id"]: snapshot()}))
     monkeypatch.setattr(L.subprocess, "run", run)
@@ -43,16 +44,18 @@ def test_bridge_updates_price_and_size_together_without_mutating_source_quotes(m
     assert c["odds"]["polymarket_us"]["total"]["under"] == 150
     assert old_books["polymarket_us"]["total"]["under"] == 100
     text = A.format_edge(c, A._play_edge(c))
-    assert "$2.40 available" in text
-    assert "use $2.40" in text
-    assert "$497.60 remaining" in text
+    assert "$2.40 cash stake available" in text
+    assert "debit $2.40" in text
+    assert "$500 minimum not met" in text
     assert "shares" not in text and "Ranked by" not in text
     summary = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
-    assert "$2.40 available" in summary and "rain 0.8 mm" in summary
+    assert "$2.40 cash stake available" in summary and "rain 0.8 mm" in summary
     assert A._liquidity_context(c) == [
-        "Liquidity · fees included · 11:00 AM EDT",
-        "1) Polymarket US U46.5 (+150): $2.40 available · use $2.40",
-        "$500 coverage: $2.40 · $497.60 remaining",
+        "Cash stake capacity · taker fees separate · 11:00 AM EDT",
+        "1) Polymarket US U46.5 (+150): $2.40 cash stake available · fees $0.00 · debit $2.40",
+        "$2.40 cash stake capacity · $500 minimum not met",
+        "Fees $0.00 · total debit $2.40 · winning payout $6.00",
+        "Weather watch · probability estimate empirically unvalidated",
     ]
 
 
@@ -82,9 +85,9 @@ def test_novig_alert_formats_native_cent_contracts_and_manual_submission(monkeyp
     monkeypatch.setattr(L, "now_utc", lambda: NOW)
     L.enrich_liquidity([c])
     for text in [A.format_edge(c, A._play_edge(c)), A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text]:
-        assert "$2.40 available · use $2.40 · manual" in text
+        assert "$2.40 cash stake available · fees $0.00 · debit $2.40 · manual" in text
         assert "contracts" not in text
-        assert "$497.60 remaining" in text
+        assert "$500 minimum not met" in text
 
 
 def test_empty_verified_book_cannot_return_through_posted_quote_fallback():

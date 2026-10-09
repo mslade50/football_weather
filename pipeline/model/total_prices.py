@@ -1,4 +1,4 @@
-"""Compare main total offers by estimated return per dollar at risk.
+"""Compare mapped exchange total offers by estimated return per dollar at risk.
 
 The existing total-point probability slope calibrates a logistic CDF locally
 around the model fair. Discretizing at half points assigns mass to integer
@@ -15,7 +15,9 @@ from typing import Any
 
 from pipeline.contracts import GameLine
 from pipeline.model.config import PTS_PROB_TOTAL
-from pipeline.model.fair import american_to_prob, main_lines
+from pipeline.model.fair import american_to_prob
+
+EXECUTION_BOOKS = frozenset({"kalshi", "polymarket_us", "novig"})
 
 
 def outcome_probabilities(sport: str, fair: float, line: float, side: str,
@@ -51,29 +53,44 @@ def expected_roi(win: float, push: float, cost: float) -> float:
 def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     result: dict[str, Any] = {"method": "discrete_logistic_estimate", "quotes": [], "best_under": None,
-                              "best_over": None, "model_version": None}
+                              "best_over": None, "model_version": None, "reference_quotes": [],
+                              "probability_status": "empirically_unvalidated",
+                              "fair_adjustment_status": "full_weather_adjustment_on_current_market",
+                              "recommendation_status": "weather_watch"}
     consensus = getattr(fair, "total", None)
     if fair is None or fair.fair_total is None or consensus is None or consensus.thin:
         return result
     result["fair_total"] = fair.fair_total
     result["model_version"] = next((e.model_version for e in fair.edges), "v1")
     base = 1 - fair.total.prob if fair.total.prob is not None else .5
-    for book, sides in main_lines(lines, "total").items():
-        for side, row in sides.items():
+    seen = set()
+    for row in lines:
+        if row.market == "total":
+            book, side = row.book, row.side
             if (side not in ("over", "under") or row.line is None or abs(row.odds) < 100
                     or row.scraped_at is None or row.scraped_at.tzinfo is None
-                    or not timedelta(0) <= now - row.scraped_at <= timedelta(hours=1)):
+                    or not timedelta(0) <= now - row.scraped_at <= timedelta(hours=1)
+                    or (row.expires_at is not None and row.expires_at <= now)):
                 continue
+            key = (book, side, row.line, row.source_id)
+            if key in seen:
+                continue
+            seen.add(key)
             try:
                 win, push, loss = outcome_probabilities(sport, fair.fair_total, float(row.line), side, base)
             except ValueError:
                 continue
             cost = american_to_prob(row.odds)  # exchange parsers already include taker fees
             roi = expected_roi(win, push, cost)
-            result["quotes"].append({"book": book, "side": side, "line": row.line, "odds": row.odds,
+            target = "quotes" if book in EXECUTION_BOOKS else "reference_quotes"
+            result[target].append({"book": book, "side": side, "line": row.line, "odds": row.odds,
                                      "cost_prob": cost, "win_prob": win, "push_prob": push, "loss_prob": loss,
                                      "fair_cost": win / (1 - push), "ev_roi": roi,
-                                     "updated_at": row.scraped_at.isoformat()})
+                                     "updated_at": row.scraped_at.isoformat(),
+                                     "source_updated_at": row.source_updated_at.isoformat() if row.source_updated_at else None,
+                                     "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+                                     "execution_status": "posted_quote_depth_unverified" if book in EXECUTION_BOOKS else "reference_only",
+                                     "fee_status": "requires_current_depth_fee_verification" if book in EXECUTION_BOOKS else "reference_only"})
     result["quotes"].sort(key=lambda q: (-q["ev_roi"], q["book"], q["side"]))
     for side in ("under", "over"):
         result[f"best_{side}"] = next((q for q in result["quotes"] if q["side"] == side), None)
