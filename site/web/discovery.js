@@ -47,8 +47,9 @@ function filterDiscovery(rows, state, preset = null) {
     if (state.week != null && String(g.week) !== String(state.week)) return false;
     if (state.signal && signalTier(g.signal) !== state.signal) return false;
     if (preset && (!preset.sports.includes(g.sport) || !hasFlag(g, preset.flag))) return false;
-    const haystack = [gameLabel(g), g.home?.name, g.away?.name, g.stadium?.name].filter(Boolean).join(" ").toLowerCase();
-    return !state.q || haystack.includes(state.q.toLowerCase());
+    const haystack = [gameLabel(g), g.home?.name, g.away?.name, g.stadium?.name].filter(Boolean).join(" ").toLowerCase().replace(/\s+/g, " ");
+    const query = (state.q || "").trim().toLowerCase().replace(/\s+/g, " ");
+    return !query || haystack.includes(query);
   });
 }
 function stadiumCoordinates(g) {

@@ -3,6 +3,10 @@
 // pages/nfl_weather.py + pages/cfb_weather.py), hourly strip, and a uPlot line-history chart
 // fed by /api/history (D1 odds_history) with /data/history.json as fallback.
 
+const STAKE_CHECKS = new Map();
+const STAKE_BUTTONS = new WeakSet();
+let STAKE_REQUEST_ID = 0;
+
 const DRAWER = { game: null, plot: null, wxPlots: [], histCache: {}, wxCache: {}, market: "total", book: "" };
 
 function destroyWxPlots() {
@@ -26,6 +30,7 @@ function setupDrawer() {
 }
 function closeDrawer() {
   const d = document.getElementById("drawer");
+  cancelStakeCheck(DRAWER.game?.game_id);
   d.hidden = true;
   DRAWER.returnFocus?.focus();
   if (DRAWER.plot) { DRAWER.plot.destroy(); DRAWER.plot = null; }
@@ -107,29 +112,107 @@ function totalPriceTable(g) {
   }).join("");
   return `<p>${exchangeOfferHtml(g)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
     <button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>
-    <p id="verify-exchange-result" role="status"></p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
+    <button type="button" class="controlbtn" id="cancel-exchange-stake" hidden>Cancel exchange check</button>
+    <p id="verify-exchange-result" role="status">${stakeCheckStatusHtml(g)}</p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
+}
+function stakeIdentity(g) {
+  return `${g.game_id}|${g.consensus?.total_now}|${g.kickoff_utc}`;
+}
+function cancelStakeCheck(gameId, reason = "Exchange check cancelled. Preview again for current prices.") {
+  const request = STAKE_CHECKS.get(gameId);
+  if (!request || request.phase !== "pending") return;
+  request.phase = "cancelled";
+  request.error = reason;
+  clearTimeout(request.timer);
+  request.controller.abort();
+  paintStakeCheckState();
+}
+function syncStakeCheck(g) {
+  const request = STAKE_CHECKS.get(g.game_id);
+  if (request?.phase === "pending" && request.identity !== stakeIdentity(g)) {
+    cancelStakeCheck(g.game_id, "Game or under line changed. Preview again for current prices.");
+  }
+  return request;
+}
+function stakeCheckStatusHtml(g) {
+  const request = STAKE_CHECKS.get(g.game_id);
+  if (!request) return "";
+  if (request.identity !== stakeIdentity(g)) return "Game or under line changed. Preview again for current prices.";
+  if (request.phase === "pending") return "Checking exchange depth and fees; no orders sent.";
+  if (request.phase === "completed") return exchangeOfferHtml(g) + (verifiedOffer(g) ? ""
+    : '<span class="sub">Snapshot unqualified or expired. Preview again for verified principal, fees, depth clocks and matching rules.</span>');
+  return esc(request.error || "Exchange check unavailable. Existing quotes remain unchanged.");
+}
+function paintStakeCheckState() {
+  const g = DRAWER.game;
+  if (!g || STATE.game !== g.game_id || document.getElementById("drawer").hidden) return;
+  const request = STAKE_CHECKS.get(g.game_id);
+  const pending = request?.phase === "pending" && request.identity === stakeIdentity(g);
+  const button = document.getElementById("verify-exchange-stake"), cancel = document.getElementById("cancel-exchange-stake");
+  const status = document.getElementById("verify-exchange-result");
+  if (button) button.disabled = pending;
+  if (cancel) cancel.hidden = !pending;
+  if (status) status.innerHTML = stakeCheckStatusHtml(g);
+}
+function stakeRequestIsCurrent(request) {
+  return STAKE_CHECKS.get(request.gameId) === request && request.phase === "pending"
+    && !request.controller.signal.aborted && STATE.game === request.gameId
+    && DRAWER.game?.game_id === request.gameId && stakeIdentity(DRAWER.game) === request.identity
+    && !document.getElementById("drawer").hidden;
+}
+async function startStakeCheck() {
+  const g = DRAWER.game;
+  if (!g || STATE.game !== g.game_id || document.getElementById("drawer").hidden) return;
+  syncStakeCheck(g);
+  if (STAKE_CHECKS.get(g.game_id)?.phase === "pending") return;
+  const line = g.consensus?.total_now;
+  if (!finiteValue(line)) {
+    STAKE_CHECKS.set(g.game_id, {identity: stakeIdentity(g), phase: "error", error: "No exact current under line available"});
+    paintStakeCheckState(); return;
+  }
+  const request = {id: ++STAKE_REQUEST_ID, gameId: g.game_id, identity: stakeIdentity(g), line,
+    phase: "pending", controller: new AbortController(), result: null};
+  STAKE_CHECKS.set(g.game_id, request);
+  request.timer = setTimeout(() => {
+    if (STAKE_CHECKS.get(g.game_id) !== request || request.phase !== "pending") return;
+    request.phase = "error";
+    request.error = "Exchange check timed out after 28 seconds. Existing quotes remain unchanged.";
+    request.controller.abort(); paintStakeCheckState();
+  }, 28000);
+  paintStakeCheckState();
+  try {
+    const params = new URLSearchParams({game_id: request.gameId, line, stake: "500", budget: "500", max_price: ".99"});
+    const response = await fetch(`/api/execution-preview?${params}`, {cache: "no-store", signal: request.controller.signal});
+    const result = await response.json();
+    if (!stakeRequestIsCurrent(request)) {
+      if (STAKE_CHECKS.get(request.gameId) === request && request.phase === "pending") cancelStakeCheck(request.gameId, "Game or under line changed. Preview again for current prices.");
+      return;
+    }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Unavailable");
+    request.phase = "completed";
+    request.result = result;
+    VERIFIED_OFFERS.set(request.gameId, result);
+    if (STATE.view !== "execution") render();
+  } catch (e) {
+    if (stakeRequestIsCurrent(request)) {
+      request.phase = "error";
+      request.error = `Exchange check unavailable: ${e.message}. Existing quotes remain unchanged.`;
+    }
+  } finally {
+    clearTimeout(request.timer);
+    // Always paint the current game's state into current DOM; old responses cannot enable a newer request's button.
+    paintStakeCheckState();
+  }
 }
 function setupStakeCheck(g) {
-  const button = document.getElementById("verify-exchange-stake"), status = document.getElementById("verify-exchange-result");
-  if (!button) return;
-  button.addEventListener("click", async () => {
-    const line = g.consensus?.total_now;
-    if (!finiteValue(line)) { status.textContent = "No exact current under line available"; return; }
-    button.disabled = true; DRAWER.stakePending = true;
-    status.textContent = "Checking exchange depth and fees; no orders sent.";
-    try {
-      const params = new URLSearchParams({game_id: g.game_id, line, stake: "500", budget: "500", max_price: ".99"});
-      const response = await fetch(`/api/execution-preview?${params}`, {cache: "no-store", signal: AbortSignal.timeout(28000)});
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "Unavailable");
-      if (!status.isConnected || DRAWER.game?.game_id !== g.game_id) return;
-      VERIFIED_OFFERS.set(g.game_id, result);
-      status.innerHTML = exchangeOfferHtml(g);
-      if (!verifiedOffer(g)) status.innerHTML += '<span class="sub">The service did not verify $500 principal, fees, depth clocks and matching rules. Preview remains unqualified.</span>';
-      if (STATE.view !== "execution") render();
-    } catch (e) { if (status.isConnected) status.textContent = `Exchange check unavailable: ${e.message}. Existing quotes remain unchanged.`; }
-    finally { button.disabled = false; DRAWER.stakePending = false; }
-  });
+  syncStakeCheck(g);
+  const button = document.getElementById("verify-exchange-stake"), cancel = document.getElementById("cancel-exchange-stake");
+  if (button && !STAKE_BUTTONS.has(button)) { STAKE_BUTTONS.add(button); button.addEventListener("click", startStakeCheck); }
+  if (cancel && !STAKE_BUTTONS.has(cancel)) {
+    STAKE_BUTTONS.add(cancel);
+    cancel.addEventListener("click", () => cancelStakeCheck(DRAWER.game?.game_id));
+  }
+  paintStakeCheckState();
 }
 
 function oddsTable(g) {
@@ -418,7 +501,7 @@ function refreshDrawerQuotes() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   }
-  if (!DRAWER.stakePending) setupStakeCheck(g);
+  setupStakeCheck(g);
 }
 
 function renderDrawerTitle(g) {
@@ -433,6 +516,7 @@ function renderDrawerTitle(g) {
 function openDrawer(gameId) {
   const g = findGame(gameId);
   if (!g) return;
+  if (DRAWER.game && DRAWER.game.game_id !== gameId) cancelStakeCheck(DRAWER.game.game_id);
   if (document.getElementById("drawer").hidden) DRAWER.returnFocus = document.activeElement;
   DRAWER.game = g;
   STATE.game = gameId;
