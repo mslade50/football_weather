@@ -28,6 +28,8 @@ function renderHeader(meta) {
 
 function renderBookChips(books) {
   const el = document.getElementById("bookchips");
+  if (!el) return;
+  el.hidden = true;
   const order = [...BOOKS, ...Object.keys(books).filter((b) => !BOOKS.includes(b))];
   el.innerHTML = order.filter((b) => b !== "consensus").map((b) => {
     const bs = books[b] || {};
@@ -42,41 +44,70 @@ function renderBookChips(books) {
   }).join("");
 }
 
+// Shared warnings have one home; the Status tab still carries the full run history.
 function renderBanners(meta) {
   const el = document.getElementById("banners");
-  const degs = (meta.degradations || []).filter((d) => d && (d.severity || "warn") !== "info");
-  if (QUOTES?.refreshOverdue(meta)) degs.push({component: "scheduler", severity: "warn",
-    reason: "Expected refresh is overdue; trigger outcome unknown"});
-  el.innerHTML = degs.map((d) => {
-    const sev = d.severity === "error" || d.severity === "critical" ? "error" : "warn";
-    return `<div class="banner ${sev}">⚠ <b>${esc(d.component || "pipeline")}</b>: ${esc(d.reason || "")}${d.ts ? ` <span class="sub">(${esc(fmtShortET(d.ts))})</span>` : ""}</div>`;
-  }).join("");
+  if (el) { el.innerHTML = ""; el.hidden = true; }
 }
-
-// Run health: books reporting vs expected, counts vs baseline, unresolved names.
+const HEALTH_RENDER = new WeakMap();
+function boardDiagnostics(meta) {
+  const grouped = new Map();
+  const add = (component, severity, reason, stamp = null) => {
+    const text = String(reason || "Details unavailable").trim().replace(/\s+/g, " ");
+    const key = JSON.stringify([component, severity, text]);
+    const existing = grouped.get(key);
+    if (existing) { existing.count++; if (stamp) existing.stamps.add(stamp); }
+    else grouped.set(key, {component, severity, reason: text, count: 1, stamps: new Set(stamp ? [stamp] : [])});
+  };
+  for (const d of meta.degradations || []) if (d && (d.severity || "warn") !== "info")
+    add(d.component || "pipeline", d.severity || "warn", d.reason, d.ts);
+  if (QUOTES?.refreshOverdue(meta)) add("scheduler", "warn", "Expected refresh is overdue; trigger outcome unknown");
+  const loads = typeof LOAD_ERRORS !== "undefined" ? Object.entries(LOAD_ERRORS).filter(([, reason]) => reason) : [];
+  for (const [source, reason] of loads) add("load", "error", `${source}: ${reason}`);
+  const books = meta.books || {}, names = Object.keys(books).filter(b => b !== "consensus");
+  const red = names.filter(b => (books[b].status || "green") === "red"), amber = names.filter(b => books[b].status === "amber");
+  // Preserve the existing health predicate. This changes presentation, not price qualification or validation.
+  const ok = !red.length && !amber.length && !QUOTES?.refreshOverdue(meta) && !loads.length
+    && meta.resident?.status === "fresh" && meta.publication_status === "manifest_verified"
+    && !(meta.degradations || []).some(d => (d.severity || "warn") !== "info");
+  return {ok, names, red, amber, loads, items: [...grouped.values()].map(d => ({...d, stamps: [...d.stamps]}))};
+}
 function renderStatusbar(meta) {
   const el = document.getElementById("statusbar");
   if (!el) return;
-  const books = meta.books || {};
-  const names = Object.keys(books).filter((b) => b !== "consensus");
-  const red = names.filter((b) => (books[b].status || "green") === "red");
-  const amber = names.filter((b) => books[b].status === "amber");
-  const ok = !red.length && !amber.length && !QUOTES?.refreshOverdue(meta)
-    && !(typeof LOAD_ERRORS !== 'undefined' && Object.values(LOAD_ERRORS).some(Boolean))
-    && meta.resident?.status === 'fresh'
-    && meta.publication_status === 'manifest_verified'
-    && !(meta.degradations || []).some((d) => (d.severity || "warn") !== "info");
-  const pill = ok ? '<span class="pill ok">✓ OK</span>' : '<span class="pill warn">⚠ Degraded</span>';
-  const segs = [];
-  segs.push(`<span class="seg">Publication <b>${esc(meta.publication_status || 'unverified')}</b></span>`);
-  segs.push(`<span class="seg">Resident quotes <b>${esc(meta.resident?.status || 'unavailable')}</b>${meta.resident?.fresh_games != null ? ` (${meta.resident.fresh_games} games)` : ''}</span>`);
-  if (names.length) segs.push(`<span class="seg">Books <b>${names.length - red.length}/${names.length}</b> reporting</span>`);
-  if (red.length) segs.push(`<span class="seg bad">Dark: <b>${red.map(bookLabel).join(", ")}</b></span>`);
-  if (amber.length) segs.push(`<span class="seg">Thin: <b>${amber.map(bookLabel).join(", ")}</b></span>`);
-  const unresolved = meta.unresolved_names || [];
-  if (unresolved.length) segs.push(`<span class="seg" title="${esc(unresolved.join(", "))}">Unresolved names <b>${unresolved.length}</b></span>`);
-  if (meta.model_version) segs.push(`<span class="seg">Model <b>${esc(meta.model_version)}</b></span>`);
-  el.innerHTML = pill + segs.join('<span class="sep">·</span>');
+  const health = boardDiagnostics(meta), errors = health.items.filter(d => ["error", "critical"].includes(d.severity));
+  const state = health.ok ? "OK" : health.loads.length ? "Board unavailable" : "Degraded";
+  const publication = meta.publication_status === "manifest_verified" ? "Publication verified" : "Publication unverified";
+  const quotes = meta.resident?.status === "fresh" ? `Resident quotes fresh${meta.resident.fresh_games != null ? ` (${meta.resident.fresh_games} games)` : ""}` : `Resident quotes ${meta.resident?.status || "unavailable"}`;
+  const notices = health.items.length + health.red.length + health.amber.length;
+  const signature = JSON.stringify([state, publication, quotes, health, meta.books, meta.unresolved_names, meta.run_id, meta.publication, meta.model_version]);
+  if (HEALTH_RENDER.get(el) === signature) return;
+  const previous = el.querySelector?.("#board-health-details");
+  const expanded = !!previous?.open;
+  const booksExpanded = !!el.querySelector?.("#board-health-books")?.open;
+  const bookScroll = el.querySelector?.(".health-books .execution-scroll");
+  const scroll = bookScroll ? {top: bookScroll.scrollTop, left: bookScroll.scrollLeft} : null;
+  const focusId = el.contains?.(document.activeElement) ? document.activeElement?.id : null;
+  const grouped = new Map();
+  for (const d of health.items) (grouped.get(d.component) || grouped.set(d.component, []).get(d.component)).push(d);
+  const diagnostics = [...grouped].map(([component, items]) => `<section class="health-group"><h3>${esc(component)}</h3><ul>${items.map(d =>
+    `<li class="${["error", "critical"].includes(d.severity) ? "health-error" : ""}">${esc(d.reason)}${d.count > 1 ? ` <span class="sub">(${d.count} reports)</span>` : ""}${d.stamps.length ? `<span class="sub">Reported ${d.stamps.map(stamp => esc(fmtShortET(stamp))).join(", ")}</span>` : ""}</li>`).join("")}</ul></section>`).join("");
+  el.innerHTML = `<div class="health-overview"><span class="pill ${health.ok ? "ok" : "warn"}">${state}</span>
+      <span class="health-fact ${meta.publication_status === "manifest_verified" ? "" : "health-error"}">${publication}</span>
+      <span class="health-fact ${meta.resident?.status === "fresh" ? "" : "health-error"}">${esc(quotes)}</span>
+      ${errors.length ? `<b class="health-error">${errors.length} ${errors.length === 1 ? "failure" : "failures"}</b><span class="health-error health-critical">${esc(errors[0].component)}: ${esc(errors[0].reason.length > 96 ? errors[0].reason.slice(0, 96) + "…" : errors[0].reason)}</span>` : ""}</div>
+    <details id="board-health-details" ${expanded ? "open" : ""}><summary id="board-health-summary">Status details${notices ? ` · ${notices} ${notices === 1 ? "notice" : "notices"}` : ""}</summary>
+      <div class="health-details"><p class="health-guidance">Prices marked unusable have no verified $500 principal stake. Quotes need fresh depth, taker fees and compatible settlement rules. Fees are additional. Open a game for exact source clocks and venue details.</p>
+      <p class="health-guidance">Signals and near signals are weather screens. Unknown likelihood is not a probability estimate. Closed roofs and ineligible opening spreads stay excluded; liquidity never determines discovery.</p>
+      <div class="health-facts"><span>${publication}</span><span>${esc(quotes)}</span><span>Run ${esc(meta.run_id || "unknown")}</span><span>Generation ${esc(meta.publication?.generation || "unknown")}</span>${meta.model_version ? `<span>Model ${esc(meta.model_version)}</span>` : ""}
+        <span>${health.names.length ? `${health.names.length - health.red.length}/${health.names.length} books reporting` : "Book coverage unknown"}</span>
+        ${(meta.unresolved_names || []).length ? `<span>${meta.unresolved_names.length} unresolved names: ${esc(meta.unresolved_names.join(", "))}</span>` : ""}</div>
+      ${health.names.length ? `<details id="board-health-books" class="health-books" ${booksExpanded ? "open" : ""}><summary id="board-health-book-summary">Book coverage${health.red.length ? ` · ${health.red.length} unavailable` : ""}${health.amber.length ? ` · ${health.amber.length} thin` : ""}</summary><div class="execution-scroll">${bookCountsHtml(meta.books, {})}</div></details>` : ""}
+      ${diagnostics || '<p class="sub">No reported pipeline diagnostics. Publication and quote verification are shown above.</p>'}</div></details>`;
+  HEALTH_RENDER.set(el, signature);
+  const nextBookScroll = el.querySelector?.(".health-books .execution-scroll");
+  if (scroll && nextBookScroll) { nextBookScroll.scrollTop = scroll.top; nextBookScroll.scrollLeft = scroll.left; }
+  if (["board-health-summary", "board-health-book-summary"].includes(focusId)) el.querySelector?.(`#${focusId}`)?.focus();
 }
 
 // ── Status tab ────────────────────────────────────────────────────────────
@@ -161,7 +192,7 @@ function bookCountsHtml(books, runCounts) {
     const cnt = bs.count != null ? bs.count : rc[b];
     const st = bs.status || (cnt > 0 ? "green" : "red");
     return `<tr><td>${esc(bookLabel(b))}</td><td>${cnt != null ? esc(cnt) : "—"}</td><td>${bs.baseline != null ? esc(bs.baseline) : "—"}</td>`
-      + `<td><span class="chip ${esc(st)}">${esc(st)}</span></td><td>${bs.last_ok ? esc(fmtShortET(bs.last_ok)) : "—"}</td></tr>`;
+      + `<td><span class="chip ${esc(st)}">${esc(st)}</span></td><td>${bs.last_ok ? esc(fmtShortET(bs.last_ok)) : "—"}${bs.reason ? `<span class="sub">${esc(bs.reason)}</span>` : ""}</td></tr>`;
   }).join("")}</table>`;
 }
 

@@ -237,10 +237,8 @@ function render() {
   if (expiries.length) OFFER_EXPIRY_TIMER = setTimeout(() => { render(); if (STATE.game) refreshDrawerQuotes(); }, Math.max(1, Math.min(...expiries) - Date.now()));
   const notice = document.getElementById("loadnotice");
   if (notice) {
-    const failures = [LOAD_ERRORS.meta, LOAD_ERRORS[STATE.sport]].filter(Boolean);
-    notice.textContent = failures.length ? `Board unavailable: ${failures.join("; ")}. Reload to retry. Publication and prices are unverified.`
-      : "Signal and near-signal candidates · likelihood unknown unless explicitly supplied · prices never determine inclusion";
-    notice.classList.toggle("error", !!failures.length);
+    notice.hidden = true;
+    notice.textContent = "";
   }
   if (QUOTES) {
     DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
@@ -269,7 +267,7 @@ function render() {
   document.getElementById("tablemode").value = STATE.tableMode;
   document.getElementById("historybar").style.display = isHistorical ? "" : "none";
   document.getElementById("historyinfo").style.display = isHistorical ? "" : "none";
-  document.getElementById("statusbar").style.display = isHistorical || isExecution ? "none" : "";
+  document.getElementById("statusbar").style.display = "";
   const isGames = !isAlerts && !isStatus && !isBacktest && !isExecution;
   document.getElementById("tablewrap").style.display = isGames && !isMap ? "" : "none";
   document.getElementById("mapwrap").style.display = isMap ? "" : "none";
@@ -530,7 +528,7 @@ async function boot() {
     QUOTE_HEALTH = health;
     for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
     if (STATE.view !== "execution") render();
-    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); }
+    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); renderStatusbar(DATA.meta); }
     if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
   }, 15000);
 

@@ -56,6 +56,17 @@ function signalPill(sig, game) {
   const flags = matched.length ? ` · ${matched.join(", ")}` : "";
   return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
+function weatherCoverageHtml(g) {
+  const wx = g.weather || {}, issues = [];
+  const missing = ["temp_fg", "wind_fg", "rain_fg"].filter(key => !finiteValue(wx[key]));
+  if (missing.length) issues.push("Forecast incomplete");
+  if (wx.point_aged) issues.push("Point forecast aged");
+  if (wx.ensemble_status === "retained_members_degraded" || (wx.ensemble_unverified_sources || []).length) issues.push("Ensemble unverified");
+  else if (wx.ensemble_status === "partial_members_degraded") issues.push("Partial ensemble");
+  else if (wx.ensemble_status === "unavailable_degraded") issues.push("Ensemble unavailable");
+  else if (wx.ensemble_status === "aged_members") issues.push("Older ensemble");
+  return issues.length ? `<span class="coverage-note">${esc(issues.join(" · "))}</span>` : "";
+}
 function spreadSrcLabel(src) {
   if (!src) return "?";
   return src === "fallback" ? "fallback (weighted median)" : `avg of ${src}`;
@@ -97,7 +108,7 @@ function consensusSpreadCell(g) {
     ],
   };
   return `<td data-hk="${hk}" title="${esc(spreadSrcLabel(c.spread_src))}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
-    + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "no current books"}</span>` : ""}</td>`;
+    + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "0 books"}</span>` : ""}</td>`;
 }
 function consensusTotalCell(g) {
   const c = g.consensus || {};
@@ -245,7 +256,7 @@ function renderTable(rows, opts = {}) {
     const coordinates = coordinateLabel(g);
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
-      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}</td>`,
+      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       bestPriceCell(g),
       `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinateControl(g)}</td>`,
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,

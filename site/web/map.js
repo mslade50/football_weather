@@ -168,6 +168,7 @@ function popupHtml(g) {
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
     ${row("Discovery", discoveryHtml(g))}
+    ${weatherCoverageHtml(g) ? row("Coverage", weatherCoverageHtml(g)) : ""}
     ${row("Signal", `<span class="sig" style="background:${signalColor(g.signal)}">${esc(signalLabel(g.signal))}</span>${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
     ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
     ${row("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}

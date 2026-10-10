@@ -37,7 +37,7 @@ function discoveryState(g) {
 }
 function discoveryHtml(g) {
   const s = discoveryState(g);
-  return `<span class="discovery ${s.kind}">${esc(s.label)}</span><span class="sub">${esc(s.probability == null ? "Likelihood unknown" : s.note)}</span>`;
+  return `<span class="discovery ${s.kind}">${esc(s.label)}</span>${s.probability == null ? "" : `<span class="sub">${esc(s.note)}</span>`}`;
 }
 function filterDiscovery(rows, state, preset = null) {
   return rows.filter(g => {
@@ -92,11 +92,16 @@ function verifiedOffer(g) {
   const principal = r.allocations.reduce((n, a) => n + a.principal, 0), fees = r.allocations.reduce((n, a) => n + a.fees, 0);
   return Math.abs(principal - r.principal) < .011 && Math.abs(fees - r.fees) < .011 ? r : null;
 }
-function exchangeOfferHtml(g) {
+function clockAge(stamp) {
+  const age = Math.floor((Date.now() - Date.parse(stamp)) / 1000);
+  return Number.isFinite(age) && age >= 0 ? `${age}s old` : "time unknown / future";
+}
+function exchangeOfferHtml(g, detailed = false) {
   const r = verifiedOffer(g);
   return r ? `<b>U ${fmtTotal(r.line)} · ${(r.average_price * 100).toFixed(2)}¢ all-in</b>
     <span class="sub">$${r.principal.toFixed(2)} stake + $${r.fees.toFixed(2)} fees</span>
     <span class="sub">${esc(r.allocations.map(a => bookLabel(a.book)).join(" + "))}</span>
-    <span class="sub">${esc(clockLabel(r.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(r.depth_fetched_at))}</span>`
-    : '<span class="muted">No verified $500 stake</span><span class="sub">Fresh depth, fees and matching rules required. Tap game to inspect exchanges.</span>';
+    <span class="sub">Quote ${esc(clockAge(r.fetched_at))} · depth ${esc(clockAge(r.depth_fetched_at))}</span>
+    ${detailed ? `<span class="sub">Quote ${esc(clockLabel(r.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(r.depth_fetched_at))}</span>` : ""}`
+    : '<span class="offer-unusable">Unusable</span><span class="sub">No verified $500 stake</span>';
 }
