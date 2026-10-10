@@ -70,8 +70,11 @@ def test_index_has_required_dom_ids() -> None:
     html = (WEB / "index.html").read_text(encoding="utf-8")
     for el_id in ("event", "updated", "nextrun", "bookchips", "banners", "statusbar", "table", "map",
                   "maplegend", "drawer", "drawer-body", "drawer-title", "hovercard", "sport", "week",
-                  "signal", "book", "focus", "loadnotice", "mapnotice", "search", "refreshbtn", "lightrefreshbtn"):
+                  "signal", "book", "showallgames", "loadnotice", "mapnotice", "search", "refreshbtn", "lightrefreshbtn"):
         assert f'id="{el_id}"' in html, f"missing #{el_id}"
+    toggle = re.search(r'<input[^>]+id="showallgames"[^>]*>', html)
+    assert toggle and 'type="checkbox"' in toggle.group()
+    assert "checked" not in toggle.group(), "signals and near signals must be the default"
 
 
 def test_app_js_documents_shape_and_endpoints() -> None:
@@ -124,6 +127,9 @@ def test_signals_view_wiring() -> None:
     assert 'data-view="signals"' in html
     for el_id in ("signalsbar", "presetchip"):
         assert f'id="{el_id}"' in html, f"missing #{el_id}"
+    toggle = re.search(r'<input[^>]+id="showallgames"[^>]*>', html)
+    assert toggle and 'type="checkbox"' in toggle.group()
+    assert "checked" not in toggle.group(), "signals and near signals must be the default"
     sig = (WEB / "signals.js").read_text(encoding="utf-8")
     for preset in ("CFB Wind", "NFL Wind", "Heat", "Alt+Heat"):
         assert f'"{preset}"' in sig, f"signals.js must define the {preset} preset"

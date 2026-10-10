@@ -110,7 +110,7 @@ function totalPriceTable(g) {
       <td>${finiteValue(q.fees) ? "$" + q.fees.toFixed(2) : "Fee amount unknown"}<span class="sub">${finiteValue(q.cost_prob) ? "Indicative cost " + pricePercent(q.cost_prob) + "; size rounding unverified" : "All-in cost unknown"}</span></td>
       <td>${finiteValue(q.available_cash_stake) ? "$" + q.available_cash_stake.toFixed(2) + " reported stake" : "Stake capacity unknown"}<span class="sub">Depth: ${esc(clockLabel(q.depth_fetched_at))}</span></td></tr>`;
   }).join("");
-  return `<p>${exchangeOfferHtml(g)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
+  return `<p>${exchangeOfferHtml(g, true)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
     <button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>
     <button type="button" class="controlbtn" id="cancel-exchange-stake" hidden>Cancel exchange check</button>
     <p id="verify-exchange-result" role="status">${stakeCheckStatusHtml(g)}</p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
@@ -140,7 +140,7 @@ function stakeCheckStatusHtml(g) {
   if (!request) return "";
   if (request.identity !== stakeIdentity(g)) return "Game or under line changed. Preview again for current prices.";
   if (request.phase === "pending") return "Checking exchange depth and fees; no orders sent.";
-  if (request.phase === "completed") return exchangeOfferHtml(g) + (verifiedOffer(g) ? ""
+  if (request.phase === "completed") return exchangeOfferHtml(g, true) + (verifiedOffer(g) ? ""
     : '<span class="sub">Snapshot unqualified or expired. Preview again for verified principal, fees, depth clocks and matching rules.</span>');
   return esc(request.error || "Exchange check unavailable. Existing quotes remain unchanged.");
 }

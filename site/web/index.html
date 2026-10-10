@@ -6,7 +6,7 @@
 <title>Football Weather Board</title>
 <link rel="stylesheet" href="vendor/maplibre-gl.css" />
 <link rel="stylesheet" href="vendor/uPlot.min.css" />
-<link rel="stylesheet" href="styles.css?v=discovery-1" />
+<link rel="stylesheet" href="styles.css?v=warning-cleanup-2" />
 </head>
 <body>
   <header>
@@ -54,7 +54,7 @@
       <option value="No">No signal</option>
     </select>
     <select id="book" title="Reference book columns; discovery is independent of prices"></select>
-<select id="focus" aria-label="Discovery focus"><option value="candidates">Signals + near signals</option><option value="all">Inspect low likelihood / unknown</option></select>
+<label class="chk show-all" title="Include quiet, unknown and ineligible upcoming games. Clears signal filters; week and search still apply."><input type="checkbox" id="showallgames" /> Show all games</label>
     <label class="chk" title="Include watch-tier edges"><input type="checkbox" id="showwatch" checked /> watch edges</label>
     <label class="chk" title="Show one SPREAD column per book (consensus spread always shown)"><input type="checkbox" id="bookspreads" /> book spreads</label>
     <input id="search" placeholder="Filter team / stadium…" />
@@ -85,17 +85,17 @@
   </aside>
   <script src="vendor/maplibre-gl.js"></script>
   <script src="vendor/uPlot.iife.min.js"></script>
-  <script src="status.js?v=alert-context-3"></script>
-  <script src="discovery.js"></script>
-  <script src="table.js"></script>
+  <script src="status.js?v=warning-cleanup-2"></script>
+  <script src="discovery.js?v=warning-cleanup-2"></script>
+  <script src="table.js?v=warning-cleanup-2"></script>
   <script src="signals.js"></script>
-  <script src="map.js"></script>
+  <script src="map.js?v=warning-cleanup-2"></script>
   <script src="execution-preview.js?v=novig-depth-1"></script>
   <script src="bet-confirmation.js"></script>
-  <script src="drawer.js?v=discovery-1"></script>
+  <script src="drawer.js?v=warning-cleanup-2"></script>
   <script src="alerts.js"></script>
   <script src="backtest.js?v=history-table-1"></script>
   <script src="history-table.js?v=history-table-3"></script>
-  <script src="app.js?v=discovery-1"></script>
+  <script src="app.js?v=warning-cleanup-2"></script>
 </body>
 </html>

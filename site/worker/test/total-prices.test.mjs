@@ -28,7 +28,7 @@ test('Only exchange references appear; unverified depth cannot become a recommen
   const ctx = preview();
   assert.equal(vm.runInContext('totalPriceQuotes(game, "under").length', ctx), 2);
   assert.ok(vm.runInContext('totalPriceQuotes(game).every(q => q.book !== "draftkings")', ctx));
-  assert.match(vm.runInContext('bestPriceCell(game)', ctx), /No verified \$500 stake/);
+  assert.match(vm.runInContext('bestPriceCell(game)', ctx), /Liquidity unverified/);
   ctx.STATE.book = 'novig';
   assert.equal(vm.runInContext('totalPriceQuotes(game)[0].book', ctx), 'novig');
 });
@@ -37,7 +37,7 @@ test('Missing and started games show no verified recommendation', () => {
   const ctx = preview();
   ctx.game.kickoff_utc = new Date(Date.now() - 1000).toISOString();
   assert.equal(vm.runInContext('totalPriceQuotes(game).length', ctx), 0);
-  assert.match(vm.runInContext('bestPriceCell(game)', ctx), /No verified/);
+  assert.match(vm.runInContext('bestPriceCell(game)', ctx), /Liquidity unverified/);
 });
 
 test('Spread coverage is independent of total coverage in both new and older payloads', () => {

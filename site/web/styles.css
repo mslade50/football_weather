@@ -378,3 +378,29 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   #table .best-price { color: #d0d7de; }
   .wrap { overflow-x: hidden; }
 }
+.coverage-note { display: block; color: #ffd79a; font-size: 11px; margin-top: 4px; white-space: normal; }
+.offer-unusable { display: inline-block; color: #ffd79a; font-weight: 600; }
+#bookchips { display: none; }
+#statusbar { display: block; padding: 8px 12px; }
+.health-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.health-fact { font-size: 12px; color: #9da9b8; }
+.health-error { color: #ffb4a8; }
+#board-health-details { margin-top: 4px; }
+#board-health-details > summary, .health-books > summary { cursor: pointer; width: fit-content; padding: 7px 0; font-size: 12px; color: #a9b5c7; }
+.health-details { border-top: 1px solid var(--line); padding-top: 8px; max-width: 1100px; }
+.health-guidance { font-size: 12px; line-height: 1.5; margin: 4px 0 8px; color: #a9b5c7; }
+.health-facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; }
+.health-group h3 { font-size: 12px; margin: 10px 0 4px; text-transform: none; }
+.health-group ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.health-group li { margin: 4px 0; }
+.health-group li .sub { font-size: 11px; }
+.health-books .execution-scroll { max-height: 280px; }
+@media (max-width: 600px) {
+  #board-health-details > summary, .health-books > summary { min-height: 44px; display: flex; align-items: center; padding: 0; }
+  .health-overview { gap: 5px 10px; }
+  .health-fact { font-size: 11px; }
+}
+
+.discovery.ineligible { color: #ffd79a; }
+.show-all { min-height: 44px; cursor: pointer; }
+.show-all[hidden] { display: none; }

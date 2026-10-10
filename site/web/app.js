@@ -60,7 +60,7 @@ const LOAD_ERRORS = {};
 let OFFER_EXPIRY_TIMER;
 const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
-  signal: "", book: "", minEdge: null, showDomes: false, showWatch: true, game: null, focus: "candidates",
+  signal: "", book: "", minEdge: null, showDomes: false, showWatch: true, game: null, focus: "candidates", showAllGames: false,
   preset: null,   // Signals preset id (signals.js PRESETS) — filters Table + maps while set
   tableMode: "live", executionGame: null,
 };
@@ -204,7 +204,8 @@ function readHash() {
   if (params.get("signal")) STATE.signal = params.get("signal");
   if (params.get("book")) STATE.book = params.get("book");
   if (params.get("minEdge")) STATE.minEdge = parseFloat(params.get("minEdge"));
-  STATE.focus = params.get("focus") === "all" ? "all" : "candidates";
+  STATE.focus = "candidates";
+  STATE.showAllGames = params.get("all_games") === "1" || params.get("focus") === "all";
   STATE.q = params.get("q") || "";
   STATE.preset = params.get("preset") || null;
   STATE.tableMode = params.get("past") === "1" ? "history" : "live";
@@ -220,7 +221,7 @@ function writeHash() {
   if (STATE.signal) params.set("signal", STATE.signal);
   if (STATE.book) params.set("book", STATE.book);
   if (STATE.minEdge != null) params.set("minEdge", STATE.minEdge);
-  if (STATE.focus === "all") params.set("focus", "all");
+  if (STATE.showAllGames) params.set("all_games", "1");
   if (STATE.q) params.set("q", STATE.q);
   if (STATE.preset) params.set("preset", STATE.preset);
   if (typeof writeHistoricalHash === "function") writeHistoricalHash(params);
@@ -237,10 +238,8 @@ function render() {
   if (expiries.length) OFFER_EXPIRY_TIMER = setTimeout(() => { render(); if (STATE.game) refreshDrawerQuotes(); }, Math.max(1, Math.min(...expiries) - Date.now()));
   const notice = document.getElementById("loadnotice");
   if (notice) {
-    const failures = [LOAD_ERRORS.meta, LOAD_ERRORS[STATE.sport]].filter(Boolean);
-    notice.textContent = failures.length ? `Board unavailable: ${failures.join("; ")}. Reload to retry. Publication and prices are unverified.`
-      : "Signal and near-signal candidates · likelihood unknown unless explicitly supplied · prices never determine inclusion";
-    notice.classList.toggle("error", !!failures.length);
+    notice.hidden = true;
+    notice.textContent = "";
   }
   if (QUOTES) {
     DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
@@ -254,8 +253,8 @@ function render() {
     t.classList.toggle("active", active);
   });
   document.getElementById("sport").value = STATE.sport;
-  const focus = document.getElementById("focus");
-  if (focus) focus.value = STATE.focus;
+  const showAll = document.getElementById("showallgames");
+  if (showAll) { showAll.checked = STATE.showAllGames; if (showAll.parentElement) showAll.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table"; }
   document.getElementById("signal").value = STATE.signal;
   const mobileSort = document.getElementById("mobile-sort");
   if (mobileSort) mobileSort.value = [1, 2].includes(STATE.sort) ? String(STATE.sort) : "";
@@ -269,7 +268,7 @@ function render() {
   document.getElementById("tablemode").value = STATE.tableMode;
   document.getElementById("historybar").style.display = isHistorical ? "" : "none";
   document.getElementById("historyinfo").style.display = isHistorical ? "" : "none";
-  document.getElementById("statusbar").style.display = isHistorical || isExecution ? "none" : "";
+  document.getElementById("statusbar").style.display = "";
   const isGames = !isAlerts && !isStatus && !isBacktest && !isExecution;
   document.getElementById("tablewrap").style.display = isGames && !isMap ? "" : "none";
   document.getElementById("mapwrap").style.display = isMap ? "" : "none";
@@ -305,6 +304,15 @@ function switchView(view, sport) {
   STATE.sort = null;
   populateWeeks();
   render();
+}
+function setupShowAllGames() {
+  const toggle = document.getElementById("showallgames");
+  if (toggle) toggle.addEventListener("change", e => {
+    STATE.showAllGames = e.target.checked;
+    STATE.focus = "candidates";
+    if (STATE.showAllGames) { STATE.signal = ""; STATE.preset = null; }
+    render();
+  });
 }
 function setSport(sport) {
   STATE.sport = sport; STATE.week = null; STATE.sort = null;
@@ -530,7 +538,7 @@ async function boot() {
     QUOTE_HEALTH = health;
     for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
     if (STATE.view !== "execution") render();
-    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); }
+    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); renderStatusbar(DATA.meta); }
     if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
   }, 15000);
 
@@ -540,7 +548,7 @@ async function boot() {
   document.getElementById("tablemode").addEventListener("change", e => { STATE.tableMode = e.target.value; STATE.sort = null; render(); });
   document.getElementById("signal").addEventListener("change", (e) => { STATE.signal = e.target.value; render(); });
   document.getElementById("book").addEventListener("change", (e) => { STATE.book = e.target.value; render(); });
-  document.getElementById("focus").addEventListener("change", (e) => { STATE.focus = e.target.value; render(); });
+  setupShowAllGames();
   document.getElementById("showwatch").addEventListener("change", (e) => { STATE.showWatch = e.target.checked; render(); });
   setupSearch();
   const presetChipEl = document.getElementById("presetchip");

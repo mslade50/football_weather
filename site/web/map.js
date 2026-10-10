@@ -66,6 +66,7 @@ function markerRing(g) {
 }
 // fill: Signals preset → flag palette; otherwise impact tier palette
 function markerFill(g) {
+  if (!hardEligible(g)) return "#8b949e";
   if (discoveryState(g).kind === "near") return "#ffd79a";
   const preset = typeof activePreset === "function" ? activePreset() : null;
   if (preset && FLAG_COLORS[preset.flag]) return FLAG_COLORS[preset.flag];
@@ -132,7 +133,7 @@ function markerEl(g) {
   // opacity lives on the <svg>: maplibre's Marker owns the wrapper's style.opacity (terrain occlusion)
   el.innerHTML = `<svg viewBox="${-half} ${-half} ${size} ${size}" width="${size}" height="${size}" style="opacity:${markerOpacity(g).toFixed(2)}">${parts.join("")}</svg>`;
   el.insertAdjacentHTML("beforeend", `<span class="marker-label">${esc(gameLabel(g))} · ${esc(discoveryState(g).label)}</span>`);
-  el.title = `${gameLabel(g)} · ${signalLabel(g.signal)}`
+  el.title = `${gameLabel(g)} · ${discoveryState(g).label}`
     + (isNum(wx.wind_fg) ? ` · ${fmtNum(wx.wind_fg, 0)} mph${wx.wind_dir_fg ? " " + wx.wind_dir_fg : ""}` : "");
   return el;
 }
@@ -168,6 +169,7 @@ function popupHtml(g) {
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
     ${row("Discovery", discoveryHtml(g))}
+    ${weatherCoverageHtml(g) ? row("Coverage", weatherCoverageHtml(g)) : ""}
     ${row("Signal", `<span class="sig" style="background:${signalColor(g.signal)}">${esc(signalLabel(g.signal))}</span>${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
     ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
     ${row("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}
@@ -210,6 +212,7 @@ function renderLegend(rows) {
     ? `<div class="lg"><span class="dot" style="background:${FLAG_COLORS[preset.flag] || "#8b949e"}"></span>${esc(preset.label)} (preset)</div>`
     : tiers.map((t) => `<div class="lg"><span class="dot" style="background:${TIER_COLORS[t]}"></span>${esc(t)}</div>`).join("");
   el.innerHTML = fillRows
+    + (rows.some(g => !hardEligible(g)) ? '<div class="lg"><span class="dot" style="background:#8b949e"></span>Ineligible</div>' : "")
     + `<div class="lg"><span class="dot" style="background:#ffd79a"></span>Near signal = screening margin; likelihood may be unknown</div>`
     + `<div class="lg sub">size = impact${STATE.minEdge != null || STATE.book ? " (edge mode)" : ""}</div>`
     + (hasVectors ? `<div class="lg sub"><svg width="14" height="14" viewBox="-7 -7 14 14"><line class="axis" x1="0" y1="-6" x2="0" y2="6"/></svg>field axis · <svg width="14" height="14" viewBox="-7 -7 14 14"><g class="arrow"><line x1="0" y1="5" x2="0" y2="-2"/><polygon points="0,-6 -3,-1 3,-1"/></g></svg>wind (to) ∝ mph</div>` : "")
@@ -303,7 +306,7 @@ function renderMap(rows) {
     MAP.sport = STATE.sport;
   }
   renderLegend(rows);
-  MAP.rows = rows.filter(g => hardEligible(g) && stadiumCoordinates(g));
+  MAP.rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || hardEligible(g)) && stadiumCoordinates(g));
   if (MAP.popup && MAP.popupGame) {
     const g = MAP.rows.find(row => row.game_id === MAP.popupGame);
     if (!g) { MAP.popup.remove(); MAP.popup = null; MAP.popupGame = null; }
@@ -315,7 +318,7 @@ function renderMap(rows) {
   }
   const missing = rows.length - MAP.rows.length;
   document.getElementById("mapnotice").textContent = MAP.styleFailed ? "Map tiles unavailable; markers shown on a blank background."
-    : missing ? `${missing} eligible games have no verified coordinates; inspect them in Table.` : rows.length ? "" : "No eligible candidates for these filters.";
+    : missing ? `${missing} games have no verified coordinates; inspect them in Table.` : rows.length ? "" : showAllBoardGames(STATE) ? "No upcoming games for these filters." : "No eligible candidates for these filters.";
   const viewportKey = MAP.rows.map(g => `${g.game_id}:${stadiumCoordinates(g)}`).join("|");
   if (MAP.popup && !MAP.popupGame && viewportKey !== MAP.viewportKey) { MAP.popup.remove(); MAP.popup = null; }
   if (MAP.rows.length && viewportKey !== MAP.viewportKey) {
