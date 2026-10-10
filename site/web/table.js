@@ -50,6 +50,7 @@ function tierChip(e) {
   return `<span class="tierchip ${esc(tier)}" title="${esc(tip)}">${txt}</span>`;
 }
 function signalPill(sig, game) {
+  if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
   const label = signalLabel(sig);
   const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
     ? gameFlags(game) : ((sig && sig.flags) || []);
@@ -233,7 +234,7 @@ function renderTable(rows, opts = {}) {
   thead.querySelectorAll("th.sortable").forEach(th => th.addEventListener("keydown", e => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
   }));
-  rows = rows.filter(hardEligible);
+  rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || hardEligible(g)));
   if (STATE.sort != null && cols[STATE.sort]) {
     const key = cols[STATE.sort][2];
     rows.sort((a, b) => {

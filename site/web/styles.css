@@ -400,3 +400,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   .health-overview { gap: 5px 10px; }
   .health-fact { font-size: 11px; }
 }
+
+.discovery.ineligible { color: #ffd79a; }
+.show-all { min-height: 44px; cursor: pointer; }
+.show-all[hidden] { display: none; }

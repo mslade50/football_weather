@@ -9,9 +9,22 @@ function hardEligible(g) {
   return !["dome", "closed", "indoor"].includes(roof)
     && !(g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10);
 }
+function upcomingGame(g) {
+  return Date.parse(g.kickoff_utc) > Date.now() && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || "");
+}
+function showAllBoardGames(state) {
+  return !!state.showAllGames && (state.view === "map" || (state.view === "table" && state.tableMode !== "history"));
+}
+function ineligibleReason(g) {
+  const roof = String(g.stadium?.roof_state || g.roof_state || g.stadium?.roof_type || "").toLowerCase(), reasons = [];
+  if (["dome", "closed", "indoor"].includes(roof)) reasons.push(roof === "closed" ? "Closed roof" : "Indoor / dome");
+  if (g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10)
+    reasons.push("Opening spread outside ±10");
+  return reasons.join(" · ");
+}
 function discoveryState(g) {
-  if (!hardEligible(g)) return {kind: "ineligible", label: "Ineligible roof / opening spread"};
-  if (!(Date.parse(g.kickoff_utc) > Date.now()) || /final|cancel|postpon|suspend|live|progress/i.test(g.status || ""))
+  if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};
+  if (!upcomingGame(g))
     return {kind: "ineligible", label: "Not an upcoming scheduled game"};
   const w = g.weather || {}, cfb = g.sport === "cfb";
   if (cfb && !finiteValue(g.consensus?.spread_open)) return {kind: "unknown", label: "Opening spread unknown"};
@@ -42,8 +55,10 @@ function discoveryHtml(g) {
 function filterDiscovery(rows, state, preset = null) {
   return rows.filter(g => {
     const d = discoveryState(g);
-    if (d.kind === "ineligible") return false;
-    if (state.focus !== "all" && !["signal", "near"].includes(d.kind)) return false;
+    if (!upcomingGame(g)) return false;
+    const expanded = showAllBoardGames(state);
+    if (!expanded && d.kind === "ineligible") return false;
+    if (!expanded && state.focus !== "all" && !["signal", "near"].includes(d.kind)) return false;
     if (state.week != null && String(g.week) !== String(state.week)) return false;
     if (state.signal && signalTier(g.signal) !== state.signal) return false;
     if (preset && (!preset.sports.includes(g.sport) || !hasFlag(g, preset.flag))) return false;
@@ -98,10 +113,50 @@ function clockAge(stamp) {
 }
 function exchangeOfferHtml(g, detailed = false) {
   const r = verifiedOffer(g);
-  return r ? `<b>U ${fmtTotal(r.line)} · ${(r.average_price * 100).toFixed(2)}¢ all-in</b>
+  if (!r) {
+    if (!hardEligible(g)) return '<span class="offer-unusable">Not eligible</span>';
+    const shortfall = verifiedPrincipalShortfall(g);
+    if (!shortfall) return '<span class="offer-unusable">Liquidity unverified</span><span class="sub">No usable stake quote</span>';
+    return `<span class="offer-unusable">Checked depth below $500</span>
+      <span class="sub">U ${fmtTotal(shortfall.line)} · $${shortfall.principal.toFixed(2)} principal + $${shortfall.fees.toFixed(2)} fees</span>
+      <span class="sub">${esc(shortfall.allocations.map(a => bookLabel(a.book)).join(" + "))} · limit ${(shortfall.max_price * 100).toFixed(1)}¢ all-in</span>
+      ${detailed ? `<span class="sub">Matching settlement verified</span><span class="sub">Quote ${esc(clockLabel(shortfall.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(shortfall.depth_fetched_at))}</span>
+        <span class="sub">Expires ${esc(shortfall.expires_at)}</span>${shortfall.venues.map(v => `<span class="sub">${esc(bookLabel(v.book))}: ${esc(v.status)}${v.reason ? ` · ${esc(v.reason)}` : ""}</span>`).join("")}` : ""}`;
+  }
+  return `<b>U ${fmtTotal(r.line)} · ${(r.average_price * 100).toFixed(2)}¢ all-in</b>
     <span class="sub">$${r.principal.toFixed(2)} stake + $${r.fees.toFixed(2)} fees</span>
     <span class="sub">${esc(r.allocations.map(a => bookLabel(a.book)).join(" + "))}</span>
     <span class="sub">Quote ${esc(clockAge(r.fetched_at))} · depth ${esc(clockAge(r.depth_fetched_at))}</span>
-    ${detailed ? `<span class="sub">Quote ${esc(clockLabel(r.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(r.depth_fetched_at))}</span>` : ""}`
-    : '<span class="offer-unusable">Unusable</span><span class="sub">No verified $500 stake</span>';
+    ${detailed ? `<span class="sub">Quote ${esc(clockLabel(r.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(r.depth_fetched_at))}</span>` : ""}`;
+}
+
+// Display-only evidence for a partial checked stake. This never qualifies an offer.
+function verifiedPrincipalShortfall(g) {
+  const r = VERIFIED_OFFERS.get(g.game_id) || g.execution_preview;
+  const fresh = stamp => { const age = Date.now() - Date.parse(stamp); return age >= 0 && age <= 30000; };
+  if ((typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
+    || (typeof RAW_META !== "undefined" && (RAW_META.publication_status !== "manifest_verified"
+      || r?.board_run_id !== g.run_id || r?.publication_generation !== RAW_META.publication?.generation))
+    || !hardEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id || r.side !== "under"
+    || r.stake_mode !== "principal" || r.cash_liquidity_verified !== false || r.settlement_verified !== true
+    || !finiteValue(r.line) || r.line !== (g.fresh_odds?.selected_line ?? g.consensus?.total_now)
+    || !finiteValue(r.principal) || r.principal <= 0 || r.principal >= 500
+    || !finiteValue(r.fees) || r.fees < 0 || !finiteValue(r.payout_if_win) || r.payout_if_win <= 0
+    || !finiteValue(r.average_price) || r.average_price <= 0 || r.average_price >= 1
+    || Math.abs(r.average_price - (r.principal + r.fees) / r.payout_if_win) > .000001
+    || !fresh(r.fetched_at) || !fresh(r.depth_fetched_at) || !(Date.parse(r.expires_at) > Date.now())
+    || !finiteValue(r.max_price) || r.max_price <= 0 || r.max_price >= 1 || r.average_price > r.max_price + .000001
+    || !finiteValue(r.worst_price) || r.worst_price <= 0 || r.worst_price > r.max_price + .000001
+    || !Array.isArray(r.allocations) || !r.allocations.length
+    || !Array.isArray(r.venues) || r.venues.some(v => !v || !EXCHANGE_BOOKS.has(v.book) || !["available", "empty", "unavailable"].includes(v.status))
+    || !r.venues.some(v => v?.status === "available" && v.settlement_verified === true
+      && v.rules_key === r.rules_key && v.depth_fetched_at === r.depth_fetched_at && r.allocations.every(a => a?.book === v.book))
+    || r.allocations.some(a => !EXCHANGE_BOOKS.has(a.book) || !finiteValue(a.principal) || a.principal < 0
+      || !finiteValue(a.fees) || a.fees < 0 || a.line !== r.line || a.side !== "under" || !a.rules_key || a.rules_key !== r.rules_key
+      || !finiteValue(a.payout_if_win) || a.payout_if_win <= 0 || !finiteValue(a.all_in_price) || a.all_in_price <= 0
+      || a.all_in_price > r.max_price + .000001 || Math.abs(a.all_in_price - (a.principal + a.fees) / a.payout_if_win) > .000001)) return null;
+  const principal = r.allocations.reduce((n,a) => n+a.principal,0), fees = r.allocations.reduce((n,a) => n+a.fees,0);
+  const payout = r.allocations.reduce((n,a) => n+a.payout_if_win,0), worst = Math.max(...r.allocations.map(a=>a.all_in_price));
+  return Math.abs(principal-r.principal) < .011 && Math.abs(fees-r.fees) < .011
+    && Math.abs(payout-r.payout_if_win) < .011 && Math.abs(worst-r.worst_price) < .000001 ? r : null;
 }
