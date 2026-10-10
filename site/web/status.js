@@ -59,13 +59,17 @@ function renderStatusbar(meta) {
   if (!el) return;
   const books = meta.books || {};
   const names = Object.keys(books).filter((b) => b !== "consensus");
-  if (!names.length && !(meta.degradations || []).length && !QUOTES?.refreshOverdue(meta)) { el.innerHTML = ""; return; }
   const red = names.filter((b) => (books[b].status || "green") === "red");
   const amber = names.filter((b) => books[b].status === "amber");
   const ok = !red.length && !amber.length && !QUOTES?.refreshOverdue(meta)
+    && !(typeof LOAD_ERRORS !== 'undefined' && Object.values(LOAD_ERRORS).some(Boolean))
+    && meta.resident?.status === 'fresh'
+    && meta.publication_status === 'manifest_verified'
     && !(meta.degradations || []).some((d) => (d.severity || "warn") !== "info");
   const pill = ok ? '<span class="pill ok">✓ OK</span>' : '<span class="pill warn">⚠ Degraded</span>';
   const segs = [];
+  segs.push(`<span class="seg">Publication <b>${esc(meta.publication_status || 'unverified')}</b></span>`);
+  segs.push(`<span class="seg">Resident quotes <b>${esc(meta.resident?.status || 'unavailable')}</b>${meta.resident?.fresh_games != null ? ` (${meta.resident.fresh_games} games)` : ''}</span>`);
   if (names.length) segs.push(`<span class="seg">Books <b>${names.length - red.length}/${names.length}</b> reporting</span>`);
   if (red.length) segs.push(`<span class="seg bad">Dark: <b>${red.map(bookLabel).join(", ")}</b></span>`);
   if (amber.length) segs.push(`<span class="seg">Thin: <b>${amber.map(bookLabel).join(", ")}</b></span>`);

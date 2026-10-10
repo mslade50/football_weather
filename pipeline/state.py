@@ -7,13 +7,15 @@ embeds sport/season/week, so state is pruned by *active game ids* instead of
 reset wholesale. Every file carries ``schema_version`` and is passed through
 ``migrate()`` on load (ARCH §13: older versions upgrade, newer versions fail).
 
-Everything fails open: missing / corrupt state behaves as fresh state, so the
-board can never blank from a state problem — except an unknown *newer*
-schema_version, which raises so a downgraded pipeline never clobbers state it
-does not understand.
+Missing state starts fresh. Corrupt opener and alert state fails closed to
+protect original observations and delivery receipts. Unknown newer schemas
+raise so a downgraded pipeline cannot clobber state it does not understand.
 """
 import json
 import logging
+import math
+import os
+import tempfile
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +24,7 @@ from typing import Any, Optional, Union
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
+KIND_VERSIONS = {'openers': 2, 'alerts': 2}
 
 OPENERS_FILE = "openers.json"
 ARCHIVE_LAST_FILE = "archive_last.json"
@@ -39,7 +42,7 @@ _KEY_SEP = "|"
 
 # Default shape per state kind; ``migrate()`` fills these in for any version.
 _DEFAULTS: dict[str, dict[str, Any]] = {
-    "openers": {"openers": {}},
+    "openers": {"openers": {}, "true_openers": {}, "references": {}, "true_opener_conflicts": {}},
     "archive_last": {"last": {}},
     "baseline": {"scope": None, "peaks": {}, "alerted": [], "seen_books": {}, "scopes": {}},
     "alerts": {"sent": {}},   # + "records" / "feed" added lazily by the alert helpers below
@@ -74,11 +77,22 @@ def _load(path: PathLike) -> dict:
         return {}
 
 
-def _save(path: PathLike, data: dict) -> None:
-    data["schema_version"] = SCHEMA_VERSION
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, allow_nan=False)
+def _save(path: PathLike, data: dict, version: int = SCHEMA_VERSION) -> None:
+    data["schema_version"] = version
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, allow_nan=False)
+    temp = None
+    try:
+        with tempfile.NamedTemporaryFile('w', encoding='utf8', dir=target.parent, suffix='.tmp', delete=False) as f:
+            temp = f.name
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp, target)
+    finally:
+        if temp and Path(temp).exists():
+            Path(temp).unlink()
 
 
 # ── schema migration ───────────────────────────────────────────────────────────
@@ -102,12 +116,13 @@ def migrate(data: Optional[dict], kind: str) -> dict:
         version = int(out.get("schema_version") or 0)
     except (TypeError, ValueError):
         version = 0
-    if version > SCHEMA_VERSION:
+    supported = KIND_VERSIONS.get(kind, SCHEMA_VERSION)
+    if version > supported:
         raise StateSchemaError(
-            f"{kind} state has schema_version {version} > supported {SCHEMA_VERSION}"
+            f"{kind} state has schema_version {version} > supported {supported}"
         )
 
-    while version < SCHEMA_VERSION:
+    while version < supported:
         out = _MIGRATIONS[version](out, kind)
         version += 1
 
@@ -117,13 +132,13 @@ def migrate(data: Optional[dict], kind: str) -> dict:
                 out[k] = json.loads(json.dumps(v))  # fresh copy of the default
         else:
             out.setdefault(k, v)
-    out["schema_version"] = SCHEMA_VERSION
+    out["schema_version"] = supported
     return out
 
 
 def _fresh(kind: str) -> dict:
     d = json.loads(json.dumps(_DEFAULTS[kind]))
-    d["schema_version"] = SCHEMA_VERSION
+    d["schema_version"] = KIND_VERSIONS.get(kind, SCHEMA_VERSION)
     return d
 
 
@@ -135,10 +150,36 @@ def _migrate_0_to_1(d: dict, kind: str) -> dict:
     return d
 
 
-_MIGRATIONS = {0: _migrate_0_to_1}
+def _migrate_1_to_2(d: dict, kind: str) -> dict:
+    if kind == 'openers':
+        original = dict(d.get('openers') or {})
+        references = dict(d.get('references') or {})
+        t6 = dict(references.get('t_minus_6d') or {})
+        for key, row in list(original.items()):
+            if isinstance(row, dict) and row.get('basis') == 't_minus_6d':
+                t6.setdefault(key, dict(row))
+                del original[key]  # Already overwritten legacy firsts are unknown, never invented.
+        references['t_minus_6d'] = t6
+        d.update(openers=original, references=references)
+    d['schema_version'] = 2
+    return d
+
+
+_MIGRATIONS = {0: _migrate_0_to_1, 1: _migrate_1_to_2}
 
 
 def _load_kind(data_dir: PathLike, filename: str, kind: str) -> dict:
+    if kind in KIND_VERSIONS:
+        path = Path(data_dir) / filename
+        try:
+            data = json.loads(path.read_text(encoding='utf8'))
+        except FileNotFoundError:
+            data = {}
+        except (OSError, ValueError) as exc:
+            raise StateSchemaError(f'{kind} state cannot be read safely') from exc
+        if not isinstance(data, dict):
+            raise StateSchemaError(f'{kind} state must be an object')
+        return migrate(data, kind)
     return migrate(_load(Path(data_dir) / filename), kind)
 
 
@@ -159,8 +200,31 @@ def record_openers(openers: dict, lines: Iterable[Any], now: str) -> int:
         if not game_id or not book or odds is None:
             continue
         key = odds_key(game_id, market, side, book)
+        attr = ln.get if isinstance(ln, dict) else lambda name, default=None, ln=ln: getattr(ln, name, default)
+        observed = parse_utc(attr('scraped_at'))
+        current = parse_utc(now)
+        # RunContext.now_utc predates collection. Receipt clocks must not be
+        # rejected merely because collection finished after the run started.
+        limit = max(current, datetime.now(timezone.utc)) if current else datetime.now(timezone.utc)
+        if observed is not None and observed > limit:
+            continue
+        opened = parse_utc(attr('opened_at'))
+        opening_line, opening_odds, source = attr('opening_line'), attr('opening_odds'), attr('opening_source')
+        if (opened is not None and (observed or current) is not None and opened <= (observed or current)
+                and isinstance(opening_line, (int, float)) and not isinstance(opening_line, bool) and math.isfinite(opening_line)
+                and isinstance(opening_odds, (int, float)) and not isinstance(opening_odds, bool)
+                and math.isfinite(opening_odds) and opening_odds and isinstance(source, str) and source.strip()):
+            row = {'line': opening_line, 'odds': opening_odds, 'ts': _utc_text(opened), 'basis': 'true_opener',
+                   'source': source, 'observed_at': _utc_text(observed or current)}
+            known = openers.setdefault('true_openers', {}).get(key)
+            if known is None:
+                openers['true_openers'][key] = row
+            elif any(known.get(field) != row[field] for field in ('line', 'odds', 'ts', 'source')):
+                conflicts = openers.setdefault('true_opener_conflicts', {}).setdefault(key, [])
+                if not any(all(prior.get(field) == row[field] for field in ('line', 'odds', 'ts', 'source')) for prior in conflicts):
+                    conflicts.append(row)
         if key not in store:
-            store[key] = {"line": line, "odds": odds, "ts": now}
+            store[key] = {"line": line, "odds": odds, "ts": _utc_text(observed) if observed else now}
             added += 1
     return added
 
@@ -185,7 +249,8 @@ def retarget_openers(
     Returns keys whose stored row changed.  The caller can upsert those rows to
     durable storage without treating them as newly posted opener alerts.
     """
-    store = openers.setdefault("openers", {})
+    original = openers.setdefault('openers', {})
+    store = openers.setdefault('references', {}).setdefault('t_minus_6d', {})
     excluded = set(excluded_books)
     candidates: dict[str, list[tuple[datetime, Any, Any]]] = {}
 
@@ -196,7 +261,7 @@ def retarget_openers(
         candidates.setdefault(key, []).append((dt, line, odds))
 
     eligible: set[str] = set()
-    for key, val in store.items():
+    for key, val in list(original.items()) + list(store.items()):
         parts = key.split(_KEY_SEP)
         if len(parts) != 4:
             continue
@@ -225,7 +290,8 @@ def retarget_openers(
             continue
         key = odds_key(game_id, key_market, side, book)
         eligible.add(key)
-        add(key, now, line, odds)
+        scraped_at = ln.get('scraped_at') if isinstance(ln, dict) else getattr(ln, 'scraped_at', None)
+        add(key, scraped_at or now, line, odds)
 
     changed: list[str] = []
     for key in sorted(eligible):
@@ -265,23 +331,25 @@ def get_opener(openers: dict, key: str) -> Optional[dict]:
     return (openers.get("openers") or {}).get(key)
 
 
+def get_baseline(openers: dict, key: str) -> Optional[dict]:
+    """Encoded CFB totals use a T-6 reference, while first observations stay immutable."""
+    if key.startswith('cfb:') and '|total|' in key:
+        reference = ((openers.get('references') or {}).get('t_minus_6d') or {}).get(key)
+        if reference is not None:
+            return reference
+    genuine = (openers.get('true_openers') or {}).get(key)
+    if genuine is not None:
+        return genuine
+    return get_opener(openers, key)
+
+
 def prune_openers(openers: dict, active_game_ids: Iterable[str]) -> int:
-    """Drop openers for games no longer on the schedule (past weeks). Returns
-    the count removed."""
-    active = set(active_game_ids)
-    store = openers.setdefault("openers", {})
-    stale = [k for k in store if _key_game_id(k) not in active]
-    for k in stale:
-        del store[k]
-    weekly = openers.get("weekly_totals") or {}
-    for game_id in list(weekly):
-        if game_id not in active:
-            del weekly[game_id]
-    return len(stale)
+    """Compatibility hook: retain historical baseline evidence after board removal."""
+    return 0
 
 
 def save_openers(data_dir: PathLike, openers: dict) -> None:
-    _save(Path(data_dir) / OPENERS_FILE, openers)
+    _save(Path(data_dir) / OPENERS_FILE, openers, version=KIND_VERSIONS['openers'])
 
 
 # ── archive last-values (change-only D1 inserts) ───────────────────────────────
@@ -366,7 +434,7 @@ def mark_alert(alerts: dict, key: str, now: str, cap: int = ALERTS_CAP) -> None:
 
 
 def save_alerts(data_dir: PathLike, alerts: dict) -> None:
-    _save(Path(data_dir) / ALERTS_FILE, alerts)
+    _save(Path(data_dir) / ALERTS_FILE, alerts, version=KIND_VERSIONS['alerts'])
 
 
 # ---- alert records / feed (ARCH §10: alerts.json mirrors D1 ``alerts``) ----------

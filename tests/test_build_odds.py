@@ -264,10 +264,13 @@ def test_cfb_total_baseline_uses_t_minus_six_and_rebuilds_consensus():
 
     consensus_key = pstate.odds_key(gid, "total", "under", "consensus")
     assert set(changed) == {pin, bol, fd, consensus_key}
-    assert op["openers"][pin]["line"] == 50.0
-    assert op["openers"][bol]["line"] == 48.0
-    assert op["openers"][fd]["line"] == 60.0
-    assert op["openers"][consensus_key] == {
+    assert op['openers'][pin]['line'] == 47.0
+    assert op['openers'][bol]['line'] == 47.5
+    refs = op['references']['t_minus_6d']
+    assert refs[pin]['line'] == 50.0
+    assert refs[bol]['line'] == 48.0
+    assert refs[fd]['line'] == 60.0
+    assert refs[consensus_key] == {
         "line": 50.0,
         "odds": -105,
         "ts": "2026-09-13T19:00:00Z",

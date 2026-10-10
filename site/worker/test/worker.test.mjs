@@ -121,7 +121,10 @@ test("fetch: /data proxies R2 board/<name> with no-store; 404 otherwise", async 
   const ok = await handleFetch(req("/data/meta.json?bust=1", { headers: basic("a", "viewer-pw") }), env);
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "no-store");
-  assert.equal(await ok.text(), '{"run_id":"r1"}');
+  const meta = await ok.json();
+  assert.equal(meta.run_id, 'r1');
+  assert.equal(meta.publication_status, 'legacy_unverified');
+  assert.equal(meta.resident.status, 'unavailable');
   const miss = await handleFetch(req("/data/nope.json", { headers: basic("a", "viewer-pw") }), env);
   assert.equal(miss.status, 404);
   const bad = await handleFetch(req("/data/meta.txt", { headers: basic("a", "viewer-pw") }), env);

@@ -10,7 +10,7 @@ export async function freshOddsRoute(request, env, fetchImpl = fetch) {
   if (!/^(nfl|cfb):\d{4}:\d{1,2}:[a-z0-9_.-]+@[a-z0-9_.-]+$/.test(gameId) || gameId.length > 150
       || (requested !== null && (!Number.isFinite(requested) || requested < .5 || requested > 150 || requested % 1 !== .5)))
     return respond({ ok: false, error: 'Select a game and an optional half-point total' }, 400);
-  const started = Date.now(), deadline = AbortSignal.timeout(25000);
+  const started = Date.now(), deadline = AbortSignal.any([AbortSignal.timeout(25000), env.QUOTE_ABORT_SIGNAL].filter(Boolean));
   let timer;
   try {
     const operation = async () => {

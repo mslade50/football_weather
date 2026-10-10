@@ -193,6 +193,7 @@ function normalizeBacktest(payload) {
   const lg = meta.legacy && typeof meta.legacy === "object" ? meta.legacy : {};
   const legacy = { source: btStr(lg.source), seasons: btStr(lg.seasons), n_buckets: btNum(lg.n_buckets) };
   return { run_id: meta.run_id || d.run_id || null, generated_at: meta.generated_at || meta.last_updated || d.generated_at || d.last_updated || null,
+    independent_publication: d.independent_publication || null,
     bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks),
     grid, stadiums, stadiums_legacy, games, clv, postmortem, legacy };
 }
@@ -507,7 +508,8 @@ async function renderBacktest() {
   const d = BT.data;
   const flt = filteredBacktest();
   const lg = d.legacy || {};
-  const meta = (d.generated_at ? `updated ${esc(fmtShortET(d.generated_at))}` : "")
+  const meta = (d.independent_publication?.kind === 'independent_weekly_backtest' ? 'Independent weekly results · ' : '')
+    + (d.generated_at ? `updated ${esc(fmtShortET(d.generated_at))}` : "")
     + (d.bucket_on ? ` · buckets on ${esc(d.bucket_on)}` : "") + (isNum(d.n_graded) ? ` · ${d.n_graded} graded` : "")
     + (lg.source ? ` · legacy: ${esc(lg.source)}${lg.seasons ? ` (${esc(lg.seasons)})` : ""}` : "");
   const controls = `<div class="controls btctl">

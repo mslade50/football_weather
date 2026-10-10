@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from pipeline.publication import BUILD_PROTECTED_NAMES
+
 logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
@@ -49,6 +51,7 @@ RETRY_SLEEP_S = 5.0
 STATE_FILES: tuple[str, ...] = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
+    'bet_confirmations',
 )
 
 _CONTENT_TYPES = {
@@ -95,8 +98,9 @@ def configured(env: Optional[dict[str, str]] = None) -> bool:
     return config_from_env(env) is not None
 
 
-def make_client(cfg: R2Config) -> Any:
+def make_client(cfg: R2Config, *, bounded: bool = False) -> Any:
     import boto3  # optional dependency: only needed when publishing
+    from botocore.config import Config
 
     return boto3.client(
         "s3",
@@ -104,6 +108,7 @@ def make_client(cfg: R2Config) -> Any:
         aws_access_key_id=cfg.access_key_id,
         aws_secret_access_key=cfg.secret_access_key,
         region_name="auto",
+        **({'config': Config(connect_timeout=3, read_timeout=5, retries={'total_max_attempts': 2})} if bounded else {}),
     )
 
 
@@ -185,6 +190,8 @@ def put_state(client: Any, bucket: str, state_dir: PathLike, names: Sequence[str
               prefix: str = BOARD_PREFIX, sleep: Callable[[float], None] = time.sleep) -> list[str]:
     pushed = []
     for name in names:
+        if name in BUILD_PROTECTED_NAMES:
+            continue  # Never replace another writer's receipts with build-time state.
         p = Path(state_dir) / f"{name}.json"
         if not p.is_file():
             continue
@@ -221,6 +228,16 @@ def publish(client: Any, bucket: str, files: dict[str, PathLike], sleep: Callabl
     mid-loop leaves the old meta (readers see the previous consistent run).
     Raises on the first key that fails all retries."""
     pushed: list[str] = []
+    protected = {f'board/{name}.json' for name in BUILD_PROTECTED_NAMES}
+    files = {key: path for key, path in files.items() if key not in protected}
+    if META_KEY in files and 'sport_counts' in json.loads(Path(files[META_KEY]).read_bytes()):
+        from pipeline.publication import prepare_generation, verify_generation
+        immutable, pointer = prepare_generation(files, Path(files[META_KEY]).parent.parent / 'publication')
+        for key, path in immutable.items():
+            put_file(client, bucket, key, path, sleep=sleep)
+            pushed.append(key)
+        verify_generation(json.loads(pointer.read_bytes()), lambda key: get_object(client, bucket, key))
+        files = {**files, META_KEY: pointer}
     for key in order_keys(files.keys()):
         put_file(client, bucket, key, files[key], sleep=sleep)
         pushed.append(key)
@@ -277,7 +294,8 @@ def check_meta(meta: dict[str, Any], run_id: str, prev_meta: Optional[dict[str, 
 
 
 def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_file: Optional[PathLike] = None,
-               floor: float = CONTENT_FLOOR, force: bool = False, cfg: Optional[R2Config] = None) -> list[str]:
+               floor: float = CONTENT_FLOOR, force: bool = False, cfg: Optional[R2Config] = None,
+               verify_immutable: bool = False) -> list[str]:
     if meta_file is not None:
         meta = json.loads(Path(meta_file).read_text(encoding="utf-8"))
     else:
@@ -294,7 +312,21 @@ def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_f
             prev = json.loads(Path(prev_meta_file).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             prev = None
-    return check_meta(meta, run_id, prev, floor=floor, force=force)
+    problems = check_meta(meta, run_id, prev, floor=floor, force=force)
+    if verify_immutable or meta_file is None:
+        from pipeline.publication import verify_generation
+        try:
+            if meta_file is not None:
+                from scripts.publish_r2 import download_one
+                def reader(key):
+                    return download_one(os.environ.get('R2_BUCKET', DEFAULT_BUCKET), key, Path(meta_file).parent / 'objects')
+            else:
+                def reader(key):
+                    return get_object(make_client(cfg), cfg.bucket, key)
+            verify_generation(meta, reader)
+        except Exception as exc:
+            problems.append(f'Immutable publication verification failed: {exc}')
+    return problems
 
 
 # ---- CLI -----------------------------------------------------------------------------
@@ -302,6 +334,7 @@ def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_f
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m pipeline.outputs.r2")
     p.add_argument("--self-check", action="store_true")
+    p.add_argument('--verify-generation', action='store_true')
     p.add_argument("--run-id", default=None)
     p.add_argument("--meta-file", type=Path, default=None, help="local copy of board/meta.json (fetched by wrangler)")
     p.add_argument("--prev-meta", type=Path, default=None, help="meta.json as fetched BEFORE this run")
@@ -321,7 +354,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not args.run_id:
             print("::error::--self-check requires --run-id")
             return 2
-        problems = self_check(args.run_id, meta_file=args.meta_file, prev_meta_file=args.prev_meta, floor=args.floor, force=args.force)
+        problems = self_check(args.run_id, meta_file=args.meta_file, prev_meta_file=args.prev_meta,
+                              floor=args.floor, force=args.force, verify_immutable=args.verify_generation)
         for pr in problems:
             print(f"::error::self-check: {pr}")
         if not problems:

@@ -1037,7 +1037,7 @@ def retarget_cfb_total_openers(
         market="total",
         excluded_books=(CONSENSUS_BOOK,),
     ))
-    store = openers.setdefault("openers", {})
+    store = openers.setdefault('references', {}).setdefault('t_minus_6d', {})
 
     for game_id, target in targets.items():
         side_rows: dict[str, dict[str, tuple[dict[str, Any], datetime]]] = {}
@@ -1122,7 +1122,7 @@ def _pick(lines_by_game: dict[str, list[GameLine]], game_id: str, book: str, mar
 
 
 def _opener(openers: dict, game_id: str, market: str, side: str, book: str) -> dict | None:
-    return pstate.get_opener(openers, pstate.odds_key(game_id, market, side, book))
+    return pstate.get_baseline(openers, pstate.odds_key(game_id, market, side, book))
 
 
 def legacy_odds(

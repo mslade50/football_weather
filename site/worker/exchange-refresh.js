@@ -2,6 +2,7 @@
 import { alertLiquidity } from './alert-liquidity.js';
 import { DEPTH_ADAPTERS } from './execution-preview.js';
 import { expireCardQuotes } from '../web/current-quotes.mjs';
+import { pinPublication } from './publication.js';
 
 export async function exchangeRefresh(env, { sport, request_id, requested_at }, fetchImpl = fetch,
   { deadlineMs = 25000 } = {}) {
@@ -13,6 +14,9 @@ export async function exchangeRefresh(env, { sport, request_id, requested_at }, 
   const controller = new AbortController();
   let timer;
   const operation = async () => {
+    const pinned = await pinPublication(env.ODDS);
+    if (controller.signal.aborted) throw new Error('Publication verification deadline exceeded');
+    env = { ...env, ODDS: pinned.bucket };
     const [metaObject, gamesObject] = await Promise.all([
       env.ODDS.get('board/meta.json'), env.ODDS.get(`board/games_${sport}.json`),
     ]);

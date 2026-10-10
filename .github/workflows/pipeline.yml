@@ -117,7 +117,7 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
   # State files that round-trip through R2 board/ (ARCH §5).
-  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points
+  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations
 
 jobs:
   gate:
@@ -274,7 +274,7 @@ jobs:
           mkdir -p data/check
           npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
-            --meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+            --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' }}
         env:
@@ -393,7 +393,7 @@ jobs:
           mkdir -p data/check
           npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
-            --meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+            --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board (playwright)
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' }}
         env:

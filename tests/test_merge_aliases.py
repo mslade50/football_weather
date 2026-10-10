@@ -301,7 +301,7 @@ def test_opener_stability_across_runs(tmp_path: Path):
 
     # persisted file round-trips with schema_version and identical opener values
     saved = state_mod.load_openers(tmp_path)
-    assert saved["schema_version"] == state_mod.SCHEMA_VERSION
+    assert saved['schema_version'] == state_mod.KIND_VERSIONS['openers']
     assert saved["openers"][state_mod.odds_key(unc_tcu, "spread", "home", "fanduel")]["line"] == -3.0
 
 

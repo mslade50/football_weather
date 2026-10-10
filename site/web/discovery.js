@@ -77,6 +77,8 @@ function verifiedOffer(g) {
   const r = VERIFIED_OFFERS.get(g.game_id) || g.execution_preview;
   const age = Date.now() - Date.parse(r?.fetched_at), depthAge = Date.now() - Date.parse(r?.depth_fetched_at);
   if ((typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
+    || (typeof RAW_META !== 'undefined' && (RAW_META.publication_status !== 'manifest_verified'
+      || r?.board_run_id !== g.run_id || r?.publication_generation !== RAW_META.publication?.generation))
     || !hardEligible(g) || !(Date.parse(g.kickoff_utc) > Date.now()) || !r?.ok || r.game_id !== g.game_id
     || r.stake_mode !== "principal" || r.settlement_verified !== true || r.side !== "under"
     || !finiteValue(r.line) || !finiteValue(r.principal) || r.principal < 500

@@ -74,7 +74,7 @@ def test_weekly_opener_persists_and_prunes_with_existing_state(tmp_path):
     state.save_openers(tmp_path, openers)
     loaded = state.load_openers(tmp_path)
     state.prune_openers(loaded, ["active"])
-    assert loaded["weekly_totals"] == {"active": {"line": 44}}
+    assert loaded["weekly_totals"] == {"active": {"line": 44}, "old": {"line": 42}}
 
 
 def test_cfb_sunday_boundary_and_missing_under_juice():

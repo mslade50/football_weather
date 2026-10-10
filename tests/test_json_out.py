@@ -111,7 +111,7 @@ def test_weekly_alert_opener_exports_even_without_current_betonline_quotes():
     assert card["odds"]["betonline"]["total"]["line"] is None
     assert card["odds"]["betonline"]["total"]["open_line"] == 39.0
     assert card["odds"]["betonline"]["total"]["open_under"] == -110
-    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-22T12:00:00Z"
+    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-26T12:00:00Z"
     assert card["odds"]["betonline"]["ml"]["home"] is None
     assert card["odds"]["betonline"]["ml"]["open_home"] == -150
     assert card["weekly_total_open"] == weekly  # weekly opening-window snapshot remains separate
@@ -214,7 +214,8 @@ def test_card_odds_block_uses_openers_and_derives_home_line():
     card = _card()
     bo = card["odds"]["betonline"]
     assert bo["spread"] == {"home_line": -3.0, "home_odds": -108, "away_odds": -112, "open_line": -2.5, "open_odds": -110,
-                            "updated_at": "2026-09-26T12:00:00Z"}
+                              "updated_at": "2026-09-26T12:00:00Z", 'open_ts': '2026-09-26T12:00:00Z',
+                              'open_source': 'betonline', 'open_basis': 'first_seen'}
     assert bo["total"]["line"] == 38.0 and bo["total"]["open_line"] == 39.0 and bo["total"]["under"] == -110
     assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None, "updated_at": "2026-09-26T12:00:00Z"}
     pin = card["odds"]["pinnacle"]
@@ -294,8 +295,8 @@ def test_total_open_provenance_is_exported_only_when_available():
     pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0)], "2026-09-21T16:45:00Z")
     first_seen_card = _card(openers=first_seen, lines=[])
     first_seen_total = first_seen_card["odds"]["betonline"]["total"]
-    assert first_seen_total["open_ts"] == "2026-09-21T16:45:00Z"
-    assert "open_target_ts" not in first_seen_total and "open_basis" not in first_seen_total
+    assert first_seen_total["open_ts"] == "2026-09-26T12:00:00Z"
+    assert "open_target_ts" not in first_seen_total and first_seen_total['open_basis'] == 'first_seen'
     assert "total_open_target_ts" not in first_seen_card["consensus"]
     assert "total_open_basis" not in first_seen_card["consensus"]
 
@@ -499,6 +500,27 @@ def test_get_state_skips_nosuchkey_but_raises_otherwise(tmp_path: Path):
     with pytest.raises(RuntimeError, match="503"):
         r2.get_state(Broken(), "b", tmp_path, names=("openers",))
     assert r2.is_no_such_key(SimpleNamespace(response={"ResponseMetadata": {"HTTPStatusCode": 404}}, __class__=type("ClientError", (Exception,), {})))
+
+
+@pytest.mark.parametrize('publish_method', ['put_state', 'publish'])
+def test_build_snapshot_cannot_roll_back_new_resident_delivery_receipts(tmp_path, publish_method):
+    ledgers = {
+        'alerts': {'sent': {'first': 'sent-now'}, 'routine_delivery': {'chat|date|08': 'sent-now'}, 'cleared_bets': {'bet': 'sent-now'}},
+        'telegram_state': {'queue': [{'key': 'pending-now'}]},
+        'notification_owner': {'schema_version': 1, 'kind': 'local'},
+        'alerts_live_feed': {'alerts': [{'key': 'clear-now'}]},
+    }
+    client = _FakeClient(objects={f'board/{name}.json': b'{}' for name in ledgers})
+    r2.get_state(client, 'bucket', tmp_path, names=tuple(ledgers))  # Pipeline fetched old state.
+    latest = {f'board/{name}.json': json.dumps(value).encode() for name, value in ledgers.items()}
+    client.objects.update(latest)  # Resident checkpoint interleaves during the build.
+    (tmp_path / 'openers.json').write_text('{"original":"preserved"}')
+    if publish_method == 'put_state':
+        pushed = r2.put_state(client, 'bucket', tmp_path, names=(*ledgers, 'openers'), sleep=lambda _: None)
+    else:
+        pushed = r2.publish(client, 'bucket', {f'board/{name}.json': tmp_path / f'{name}.json' for name in (*ledgers, 'openers')}, sleep=lambda _: None)
+    assert pushed == ['board/openers.json']
+    assert all(client.objects[key] == body for key, body in latest.items())
 
 
 def test_self_check_run_id_and_content_floor(tmp_path: Path):

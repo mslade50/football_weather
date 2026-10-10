@@ -7,13 +7,14 @@ import pytest
 from pipeline import alerts, published_alerts, state
 from pipeline.outputs import json_out
 
-NOW = datetime(2026, 10, 8, 19, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 8, 21, tzinfo=timezone.utc)  # Scheduled 17:00 Eastern slot.
 RUN = "published-test"
 
 
 @pytest.fixture
 def board(tmp_path, monkeypatch):
     monkeypatch.delenv("TELEGRAM_DISABLED", raising=False)
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "test-shared-chat")
     monkeypatch.setattr(alerts, "enrich_liquidity", lambda cards: None)
     board_dir, state_dir = tmp_path / "board", tmp_path / "state"
     board_dir.mkdir()
@@ -65,6 +66,7 @@ def test_receipt_survives_d1_failure_and_prevents_repeat(board):
     assert len(messages) == 1
     assert remote["board/alerts.json"]["sent"]
     assert len(remote["board/alerts_feed.json"]["alerts"]) == 1
+    assert remote['board/alerts_live_feed.json'] == remote['board/alerts_feed.json']
     archived = []
     second = published_alerts.notify_published(*board, RUN, "bucket", verifier=lambda *args: None,
                                               uploader=upload, archiver=lambda path: archived.append(path.read_text()),
@@ -120,3 +122,31 @@ def test_liquidity_delay_crossing_kickoff_does_not_send(board, monkeypatch):
                                               uploader=lambda *args: None, archiver=lambda *args: None,
                                               sender=lambda *args: messages.append(args) or True)
     assert not messages and result.n_alerts == 0
+
+
+def test_unsent_first_observation_and_queue_are_durable_without_a_send(board):
+    remote = {}
+    def upload(bucket, key, path, content_type):
+        remote[key] = json.loads(path.read_text(encoding='utf8'))
+    when = NOW - timedelta(hours=1)
+    result = published_alerts.notify_published(*board, RUN, 'bucket', verifier=lambda *_: None,
+        uploader=upload, archiver=lambda *_: None, sender=lambda *_: pytest.fail('Outside routine slot'), now=when)
+    assert result.plan.queued
+    assert remote['board/alerts.json']['first_signals']
+    assert remote['board/telegram_state.json']['queue']
+    assert not remote['board/alerts.json']['sent']
+    observed = remote['board/alerts.json']['first_signals']
+    published_alerts.notify_published(*board, RUN, 'bucket', verifier=lambda *_: None,
+        uploader=upload, archiver=lambda *_: None, sender=lambda *_: pytest.fail('Outside routine slot'), now=when + timedelta(minutes=1))
+    assert remote['board/alerts.json']['first_signals'] == observed
+
+
+def test_selected_local_owner_blocks_pipeline_before_receipts_or_send(board, monkeypatch):
+    from scripts import publish_r2
+    monkeypatch.setattr(published_alerts, 'verify_published', lambda *_: None)
+    monkeypatch.setattr(publish_r2, 'download_one', lambda bucket, key, target, **kwargs:
+                        b'{"schema_version":1,"kind":"local"}')
+    result = published_alerts.notify_published(*board, RUN, 'bucket', verifier=published_alerts.verify_published,
+        uploader=lambda *_: pytest.fail('Pipeline must not write local sender state'),
+        sender=lambda *_: pytest.fail('Pipeline must not send'), now=NOW)
+    assert result is None

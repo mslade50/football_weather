@@ -93,6 +93,8 @@ test("health UI labels warning-only weather and thin books as degraded", () => {
   vm.runInContext("renderStatusbar(meta)", context);
   assert.match(el.innerHTML, /Degraded/);
   context.meta.degradations = [{severity: "info"}];
+  context.meta.resident = {status: 'fresh', fresh_games: 1};
+  context.meta.publication_status = 'manifest_verified';
   vm.runInContext("renderStatusbar(meta)", context);
   assert.match(el.innerHTML, /OK/);
   context.meta.books.pinnacle.status = "amber";

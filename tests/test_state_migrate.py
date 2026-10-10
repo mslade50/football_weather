@@ -29,7 +29,7 @@ def test_constants():
 def test_migrate_empty_gives_fresh_default(kind):
     for empty in (None, {}, [], "junk"):
         d = state.migrate(empty, kind)
-        assert d["schema_version"] == state.SCHEMA_VERSION
+        assert d["schema_version"] == state.KIND_VERSIONS.get(kind, state.SCHEMA_VERSION)
         for k, v in state._DEFAULTS[kind].items():
             assert k in d
             assert isinstance(d[k], type(v))
@@ -38,13 +38,13 @@ def test_migrate_empty_gives_fresh_default(kind):
 def test_migrate_v0_golf_style_openers():
     old = {"event_id": "123", "openers": {f"{G1}|total|over|betcris": {"line": 44.5, "odds": -110, "ts": "t0"}}}
     d = state.migrate(old, "openers")
-    assert d["schema_version"] == 1
+    assert d["schema_version"] == 2
     assert "event_id" not in d
     assert d["openers"][f"{G1}|total|over|betcris"]["line"] == 44.5
 
 
 def test_migrate_current_version_is_noop():
-    cur = {"schema_version": 1, "sent": {"k": "t"}}
+    cur = {"schema_version": 2, "sent": {"k": "t"}}
     assert state.migrate(cur, "alerts") == cur
 
 
@@ -57,7 +57,7 @@ def test_migrate_fills_missing_keys_and_fixes_wrong_types():
 
 def test_migrate_newer_version_fails():
     with pytest.raises(state.StateSchemaError):
-        state.migrate({"schema_version": state.SCHEMA_VERSION + 1, "sent": {}}, "alerts")
+        state.migrate({"schema_version": state.KIND_VERSIONS['alerts'] + 1, "sent": {}}, "alerts")
 
 
 def test_migrate_unknown_kind():
@@ -65,16 +65,16 @@ def test_migrate_unknown_kind():
         state.migrate({}, "nope")
 
 
-def test_corrupt_file_fails_open(tmp_path: Path):
+def test_corrupt_opener_file_fails_closed(tmp_path: Path):
     (tmp_path / state.OPENERS_FILE).write_text("{not json", encoding="utf-8")
-    d = state.load_openers(tmp_path)
-    assert d == {"schema_version": 1, "openers": {}}
+    with pytest.raises(state.StateSchemaError):
+        state.load_openers(tmp_path)
 
 
 def test_save_stamps_schema_version(tmp_path: Path):
     state.save_alerts(tmp_path, {"sent": {}})
     raw = json.loads((tmp_path / state.ALERTS_FILE).read_text(encoding="utf-8"))
-    assert raw["schema_version"] == state.SCHEMA_VERSION
+    assert raw["schema_version"] == state.KIND_VERSIONS['alerts']
     assert state.load_alerts(tmp_path)["sent"] == {}
 
 
@@ -101,8 +101,8 @@ def test_openers_skip_missing_odds_and_prune():
     assert op["openers"] == {}
     state.record_openers(op, [_line(G1, "ml", "home", "kalshi", None, -150),
                               _line(G2, "ml", "home", "kalshi", None, 120)], "t0")
-    assert state.prune_openers(op, [G2]) == 1
-    assert list(op["openers"]) == [state.odds_key(G2, "ml", "home", "kalshi")]
+    assert state.prune_openers(op, [G2]) == 0
+    assert len(op['openers']) == 2
 
 
 def test_retarget_openers_uses_line_in_force_at_target_and_late_fallback():
@@ -140,15 +140,17 @@ def test_retarget_openers_uses_line_in_force_at_target_and_late_fallback():
     )
 
     assert changed == [bol, pin]
-    assert op["openers"][pin] == {
+    assert op['openers'][pin]['line'] == 50.0
+    assert bol not in op['openers']  # History alone cannot invent a first collection receipt.
+    assert op['references']['t_minus_6d'][pin] == {
         "line": 52.0,
         "odds": -112,
         "ts": "2026-09-13T18:00:00Z",
         "basis": "t_minus_6d",
         "target_ts": "2026-09-13T20:00:00Z",
     }
-    assert op["openers"][bol]["line"] == 54.0
-    assert op["openers"][bol]["ts"] == "2026-09-14T03:00:00Z"
+    assert op['references']['t_minus_6d'][bol]['line'] == 54.0
+    assert op['references']['t_minus_6d'][bol]['ts'] == "2026-09-14T03:00:00Z"
     assert op["openers"][spread]["line"] == -3.0
     assert state.retarget_openers(
         op,

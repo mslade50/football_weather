@@ -10,6 +10,9 @@
 import { executionPreviewRoute } from "./execution-preview.js";
 import { freshOddsRoute } from "./fresh-odds.js";
 import { exchangeRefresh } from './exchange-refresh.js';
+import { residentEvidence } from '../web/resident-quotes.mjs';
+import { pinPublication } from './publication.js';
+import { betConfirmationsRoute } from './bet-confirmations.js';
 import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
 
 const DATA_PREFIX = "/data/";
@@ -394,11 +397,36 @@ export async function notifyTelegram(env, text, fetchImpl = fetch) {
 }
 
 // ── handlers ─────────────────────────────────────────────────────────────────
-export async function handleFetch(request, env) {
+export async function handleFetch(request, env, deadlineMs = 28000) {
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || !['/api/fresh-odds', '/api/execution-preview'].includes(url.pathname)) return handleFetchInner(request, env);
+  const controller = new AbortController();
+  let timer;
+  try {
+    return await Promise.race([handleFetchInner(request, { ...env, QUOTE_ABORT_SIGNAL: controller.signal }), new Promise(resolve => {
+      timer = setTimeout(() => { controller.abort(); resolve(jsonResponse({ ok: false, can_execute: false,
+        error: 'Quote request deadline exceeded, including publication verification' }, 503)); }, Math.min(28000, deadlineMs));
+    })]);
+  } finally { clearTimeout(timer); controller.abort(); }
+}
+
+async function handleFetchInner(request, env) {
   const url = new URL(request.url);
 
   const identity = boardIdentity(request, env);
   if (!identity.authenticated) return unauthorized();
+  if (['/api/fresh-odds', '/api/execution-preview'].includes(url.pathname) && request.method !== 'GET') return methodNotAllowed('GET');
+  if (url.pathname === '/api/execution-preview' && identity.role !== 'admin') return jsonResponse({ ok: false, error: 'Admin access required' }, 403);
+
+  if (env.ODDS && (url.pathname.startsWith(DATA_PREFIX) || ['/api/fresh-odds', '/api/execution-preview', '/api/status'].includes(url.pathname))) {
+    try {
+      const pinned = await pinPublication(env.ODDS, url.pathname.startsWith(DATA_PREFIX) ? url.searchParams.get('generation') : null);
+      if (env.QUOTE_ABORT_SIGNAL?.aborted) throw new Error('Publication verification deadline exceeded');
+      env = { ...env, ODDS: pinned.bucket, PUBLICATION_META: pinned.meta };
+    } catch {
+      return jsonResponse({ ok: false, can_execute: false, publication_status: 'unavailable', error: 'Publication generation could not be verified' }, 503);
+    }
+  }
 
   if (url.pathname === "/auth/me") {
     if (request.method !== "GET") return methodNotAllowed("GET");
@@ -411,6 +439,11 @@ export async function handleFetch(request, env) {
   }
 
   if (url.pathname === "/refresh") return refreshRoute(url, request, env, identity);
+
+  if (url.pathname === '/api/bet-confirmations') {
+    try { return await betConfirmationsRoute(request, env, identity); }
+    catch { return jsonResponse({ ok: false, error: 'Confirmation ledger unavailable' }, 503); }
+  }
 
   if (url.pathname === "/api/fresh-odds") return freshOddsRoute(request, env);
 
@@ -425,10 +458,18 @@ export async function handleFetch(request, env) {
     if (request.method !== "GET") return methodNotAllowed("GET");
     const name = sanitizeDataName(url.pathname);
     if (!name) return new Response("not found", { status: 404 });
-    const obj = await env.ODDS.get(`board/${name}`);
+      if (name === 'bet_confirmations.json') return jsonResponse({ ok: false, error: 'Use the admin confirmation endpoint' }, 403);
+      let obj;
+      try { obj = await env.ODDS.get(`board/${name}`); }
+      catch { return jsonResponse({ ok: false, error: 'Publication payload checksum failed', publication_status: 'unavailable' }, 503); }
     if (!obj) return new Response("not found", { status: 404 });
     if (/^(games_(nfl|cfb)|meta|status|board)\.json$/.test(name)) {
-      return jsonResponse(expirePayload(name, await obj.json()));
+        const payload = expirePayload(name, await obj.json());
+      if (name === 'meta.json') {
+          return jsonResponse({ ...payload, publication_status: env.PUBLICATION_META?.publication_status || 'legacy_unverified',
+            resident: residentEvidence(payload, await readR2Json(env, 'board/live_quotes.json')) });
+      }
+      return jsonResponse(payload);
     }
     return new Response(obj.body, {
       headers: {

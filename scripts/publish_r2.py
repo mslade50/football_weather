@@ -9,13 +9,20 @@ the GitHub runner while removing per-process latency from the serial upload loop
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import shutil
 import subprocess
 import sys
 import time
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, verify_generation  # noqa: E402
 
 ROOT = Path("data")
 MAX_WORKERS = 8
@@ -75,12 +82,12 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
     if phase == "board":
         base = ROOT / "board"
         return [(f"board/{p.name}", p, "application/json")
-                for p in sorted(base.glob("*.json")) if p.is_file() and p.name != "meta.json"] if base.is_dir() else []
+                for p in sorted(base.glob("*.json")) if p.is_file() and p.name != "meta.json"
+                and p.stem not in BUILD_PROTECTED_NAMES] if base.is_dir() else []
     if phase == "state":
-        excluded = {"cf_heartbeat"}  # Worker-owned; do not roll back a newer tick.
         names = os.environ.get("STATE_FILES", " ".join(STATE_FILES)).split()
         return [(f"board/{name}.json", ROOT / "state" / f"{name}.json", "application/json")
-                for name in names if name not in excluded and (ROOT / "state" / f"{name}.json").is_file()]
+                for name in names if name not in BUILD_PROTECTED_NAMES and (ROOT / "state" / f"{name}.json").is_file()]
     if phase == "meta":
         path = ROOT / "board" / "meta.json"
         return [("board/meta.json", path, "application/json")] if path.is_file() else []
@@ -88,11 +95,20 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
 
 
 def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
-                  upload_fn=upload_one) -> list[str]:
+                  upload_fn=upload_one, read_fn=None) -> list[str]:
     """Upload one phase with bounded concurrency; preserve errors and report keys."""
     items = files_for_phase(phase)
     if phase == "meta" and len(items) != 1:
         raise RuntimeError("board/meta.json is missing; refusing to report a completed publish")
+    if phase in ('board', 'meta'):
+        board_files = {f'board/{path.name}': path for path in (ROOT / 'board').glob('*.json')}
+        immutable, pointer = prepare_generation(board_files, ROOT / 'publication')
+        if phase == 'board':
+            items.extend((key, path, 'application/json') for key, path in immutable.items())
+        else:
+            reader = read_fn or (lambda key: download_one(bucket, key, ROOT / 'publication-check'))
+            verify_generation(json.loads(pointer.read_bytes()), reader)
+            items = [('board/meta.json', pointer, 'application/json')]
     if not items:
         print(f"No objects in R2 phase {phase}")
         return []
@@ -112,6 +128,21 @@ def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
             print(f"::error::R2 put {key} failed: {exc}", file=sys.stderr)
         raise RuntimeError(f"R2 phase {phase} failed for {len(failures)} of {len(items)} objects")
     return [key for key, _, _ in items]
+
+
+def download_one(bucket: str, key: str, target: Path, *, run=subprocess.run, allow_missing: bool = False,
+                 missing_bytes: bytes = b'{"schema_version":1,"bets":{}}') -> bytes:
+    target.mkdir(parents=True, exist_ok=True)
+    path = target / key.replace('/', '_')
+    result = run([shutil.which('npx') or 'npx', '--yes', 'wrangler@4', 'r2', 'object', 'get',
+                  f'{bucket}/{key}', f'--file={path}', '--remote'], text=True, capture_output=True,
+                 check=False, timeout=90)
+    if result.returncode != 0:
+        import re
+        if allow_missing and re.search(r'NoSuchKey|does not exist|not found|\b404\b', (result.stderr or '') + (result.stdout or ''), re.I):
+            return missing_bytes
+        raise RuntimeError(f'Publication verification fetch failed: {key}')
+    return path.read_bytes()
 
 
 def upload_files(bucket: str, files: dict[str, Path], *, workers: int = MAX_WORKERS,
