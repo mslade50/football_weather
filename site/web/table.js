@@ -9,6 +9,50 @@ const MOVE_EPS = 0.05;
 const BOOK_SPREADS_KEY = "fw.bookSpreads";
 let BOOK_SPREADS = loadBookSpreads();
 
+// Only the resolved stadium zone is venue evidence. GameCard.tz can default to
+// Eastern, and kickoff_local can carry the schedule provider's zone instead.
+function tableKickoffHtml(g) {
+  const status = String(g.status || "").toLowerCase();
+  if (status === "tbd" || /^tbd$/i.test(g.kickoff_utc || ""))
+    return '<span class="sub kickoff-eastern">Kickoff TBD</span>';
+  const utc = g.kickoff_utc;
+  const date = typeof utc === "string" && /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(utc) ? parseTs(utc) : null;
+  if (!date || status === "unknown") return '<span class="sub kickoff-eastern">Kickoff unknown</span>';
+
+  const eastern = kickoffClock(date, "America/New_York");
+  let html = `<span class="sub kickoff-eastern">${esc(eastern.date + ", " + eastern.time)}</span>`;
+  const zone = typeof g.stadium?.timezone === "string" ? g.stadium.timezone.trim() : "";
+  // Reject ambiguous fixed abbreviations such as EST; require an IANA location.
+  if (!zone.includes("/") && zone !== "UTC")
+    return html + '<span class="sub kickoff-local">Local time zone unknown</span>';
+  try {
+    const local = kickoffClock(date, zone);
+    if (local.offset !== eastern.offset) {
+      const label = (local.dateKey === eastern.dateKey ? "" : local.date + ", ") + local.time;
+      html += `<span class="sub kickoff-local">Local: ${esc(label)}</span>`;
+    }
+  } catch (_) {
+    html += '<span class="sub kickoff-local">Local time zone unknown</span>';
+  }
+  return html;
+}
+function kickoffClock(date, zone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone, weekday: "short", year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short",
+  }).formatToParts(date);
+  const value = key => parts.find(part => part.type === key)?.value;
+  const offset = new Intl.DateTimeFormat("en-US", {timeZone: zone, timeZoneName: "shortOffset"})
+    .formatToParts(date).find(part => part.type === "timeZoneName").value;
+  // en-US ICU often labels London summer as GMT+1. Use its local BST/GMT names.
+  const label = zone === "Europe/London" ? (offset === "GMT+1" ? "BST" : "GMT") : value("timeZoneName");
+  return {
+    date: `${value("weekday")}, ${value("month")}/${value("day")}`,
+    dateKey: `${value("year")}-${value("month")}-${value("day")}`,
+    time: `${value("hour")}:${value("minute")} ${value("dayPeriod")} ${label}`, offset,
+  };
+}
+
 function loadBookSpreads() {
   try { return localStorage.getItem(BOOK_SPREADS_KEY) === "1"; } catch (_) { return false; }
 }
@@ -186,7 +230,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
-    ["Game", "Away @ Home · kickoff ET. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
+    ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
     ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
     ["Exchange under", "Verified $500 principal stake; fees additional, fresh matching depth and settlement rules", g => verifiedOffer(g)?.average_price ?? Infinity],
     ["Lat, Lon", "Exact supplied stadium coordinates; copy into Windy", coordinateLabel],
@@ -256,7 +300,7 @@ function renderTable(rows, opts = {}) {
     const v1 = (g.impact && g.impact.v1) || {};
     const coordinates = coordinateLabel(g);
     const tds = [
-      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
+      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${tableKickoffHtml(g)}</td>`,
       `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       bestPriceCell(g),
       `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinateControl(g)}</td>`,
