@@ -373,6 +373,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   #table tbody td:nth-child(-n+4) { display: block; border: 0; padding: 4px; min-width: 0; max-width: none; text-align: left; }
   #table tbody td.game { grid-column: 1 / -1; position: static; background: transparent; }
   #table tbody td.game .sub { display: inline; margin-left: 6px; }
+    #table tbody td.game .kickoff-eastern, #table tbody td.game .kickoff-local { display: block; margin-left: 0; }
   #table tbody td:nth-child(4) { grid-column: 1 / -1; }
   #table tbody td.empty { display: block; grid-column: 1 / -1; }
   #table .best-price { color: #d0d7de; }
