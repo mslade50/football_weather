@@ -13,6 +13,7 @@ stitching never lets its nulls zero those fields (see merge.py).
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
@@ -50,6 +51,12 @@ UNIT_PARAMS = {
 BATCH_SIZE = 50
 USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
 RETRIES = 3
+# Point forecasts normally answer in 1-3 s. A 60 s timeout let one stalled
+# request cost ~125 s per run (two silent timeouts + backoff before a fast third
+# try, runs 38339837077 and 38402388816). Ensemble pulls keep their longer limit.
+FORECAST_TIMEOUT_S = 20.0
+
+log = logging.getLogger(__name__)
 
 # capture(source_name, payload, url)
 CaptureFn = Callable[[str, Any, str], None]
@@ -124,6 +131,9 @@ def _get_json(
         except (httpx.HTTPError, ValueError) as exc:  # ValueError: bad JSON
             last_exc = exc
             if attempt < RETRIES - 1:
+                # Timeouts never reach httpx's response log; make stalls visible.
+                log.warning("open-meteo attempt %d/%d failed (%s: %s); retrying",
+                            attempt + 1, RETRIES, type(exc).__name__, exc)
                 time.sleep(1.5 * (attempt + 1))
     raise RuntimeError(f"open-meteo request failed after {RETRIES} attempts: {last_exc}")
 
@@ -144,7 +154,7 @@ def fetch_forecast(
     if not points:
         return []
     own = client is None
-    c = client or httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
+    c = client or httpx.Client(timeout=FORECAST_TIMEOUT_S, headers={"User-Agent": USER_AGENT})
     out: list[ParsedLocation] = []
     try:
         for b, i in enumerate(range(0, len(points), BATCH_SIZE)):
@@ -174,7 +184,7 @@ def fetch_forecast_raw(
 ) -> Any:
     """Single-batch raw payload (<=50 points); handy for fixture building."""
     own = client is None
-    c = client or httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
+    c = client or httpx.Client(timeout=FORECAST_TIMEOUT_S, headers={"User-Agent": USER_AGENT})
     try:
         payload, _ = _get_json(c, FORECAST_URL, build_params(points[:BATCH_SIZE], start, end, models, forecast_days))
         return payload
