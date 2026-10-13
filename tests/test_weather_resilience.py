@@ -47,3 +47,42 @@ def test_openmeteo_429_is_not_retried_immediately():
     else:
         raise AssertionError("HTTP 429 should fail the batch")
     assert client.calls == 1
+
+
+def test_point_forecast_client_uses_short_timeout(monkeypatch):
+    seen: list[object] = []
+
+    class FakeClient:
+        def __init__(self, *, timeout, headers):
+            seen.append(timeout)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(OM.httpx, "Client", FakeClient)
+    monkeypatch.setattr(OM, "_get_json", lambda client, url, params, **kwargs: ({}, url))
+    monkeypatch.setattr(OM, "parse_forecast", lambda payload: [object()])
+    OM.fetch_forecast([(40.0, -75.0)], forecast_days=2)
+    assert seen == [OM.FORECAST_TIMEOUT_S] and OM.FORECAST_TIMEOUT_S <= 30.0
+
+
+def test_openmeteo_timeout_retry_is_logged(monkeypatch, caplog):
+    class StallingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, url, params):
+            self.calls += 1
+            if self.calls < 3:
+                raise OM.httpx.ReadTimeout("timed out")
+            return type("Response", (), {"status_code": 200, "url": url,
+                                         "raise_for_status": lambda self: None,
+                                         "json": lambda self: {"ok": True}})()
+
+    monkeypatch.setattr(OM.time, "sleep", lambda seconds: None)
+    client = StallingClient()
+    with caplog.at_level("WARNING", logger=OM.__name__):
+        payload, _ = OM._get_json(client, OM.FORECAST_URL, {})
+    assert payload == {"ok": True} and client.calls == 3
+    retries = [r.getMessage() for r in caplog.records if "open-meteo attempt" in r.getMessage()]
+    assert len(retries) == 2 and "ReadTimeout" in retries[0]
