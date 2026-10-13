@@ -49,21 +49,34 @@ def test_openmeteo_429_is_not_retried_immediately():
     assert client.calls == 1
 
 
-def test_point_forecast_client_uses_short_timeout(monkeypatch):
-    seen: list[object] = []
+def test_point_forecast_client_uses_short_timeout_and_is_reused(monkeypatch):
+    built: list[dict[str, object]] = []
 
     class FakeClient:
-        def __init__(self, *, timeout, headers):
-            seen.append(timeout)
+        is_closed = False
+
+        def __init__(self, **kwargs):
+            built.append(kwargs)
 
         def close(self):
-            pass
+            self.is_closed = True
 
     monkeypatch.setattr(OM.httpx, "Client", FakeClient)
-    monkeypatch.setattr(OM, "_get_json", lambda client, url, params, **kwargs: ({}, url))
+    monkeypatch.setattr(OM, "_CLIENTS", {})
+    used: list[object] = []
+    monkeypatch.setattr(OM, "_get_json", lambda client, url, params, **kwargs: (used.append(client), ({}, url))[1])
     monkeypatch.setattr(OM, "parse_forecast", lambda payload: [object()])
     OM.fetch_forecast([(40.0, -75.0)], forecast_days=2)
-    assert seen == [OM.FORECAST_TIMEOUT_S] and OM.FORECAST_TIMEOUT_S <= 30.0
+    OM.fetch_forecast([(41.0, -76.0)], forecast_days=2)
+    OM.fetch_forecast_raw([(42.0, -77.0)], forecast_days=2)
+    # One keep-alive client serves every point-forecast call: no new TLS handshake per call.
+    assert len(built) == 1 and built[0]["timeout"] == OM.FORECAST_TIMEOUT_S <= 30.0
+    assert built[0]["limits"].keepalive_expiry == OM.KEEPALIVE_EXPIRY_S > 5.0
+    assert len(used) == 3 and used[0] is used[1] is used[2] and not used[0].is_closed
+    # A different timeout (ensemble) gets its own client; closing all clears the cache.
+    assert OM._client(90.0) is not used[0] and len(built) == 2
+    OM._close_clients()
+    assert used[0].is_closed and OM._CLIENTS == {}
 
 
 def test_openmeteo_timeout_retry_is_logged(monkeypatch, caplog):
