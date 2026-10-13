@@ -115,25 +115,24 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
 
 
 @pytest.mark.parametrize("name", ["Fetch board state from R2", "Fetch board state from R2 (playwright)"])
-def test_r2_state_get_loop_fails_on_non_nosuchkey(text: str, name: str):
+def test_r2_state_fetch_fails_on_non_nosuchkey(text: str, name: str):
     step = _step(text, name)
-    assert "for f in $STATE_FILES meta; do" in step
-    assert 'DEST="data/state/prev_meta.json"' in step
-    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1' in step
-    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in step
-    assert "exit 1" in step
-    assert "::error::R2 state fetch failed" in step
-    assert "continue-on-error" not in step
+    # The fail-closed loop (NoSuchKey -> empty, anything else -> exit 1, ::error:: message) lives in
+    # scripts/fetch_r2.py and is pinned by tests/test_fetch_r2.py; the step must be a bare call.
+    assert "run: python scripts/fetch_r2.py state --dest data/state" in step
+    assert "|| true" not in step and "continue-on-error" not in step
+    assert "wrangler" not in step
 
 
 @pytest.mark.parametrize("name", ["Fetch wind-signal history", "Fetch wind-signal history (playwright)"])
 def test_alert_history_is_read_only_optional_context(text: str, name: str):
     step = _step(text, name)
-    assert 'r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote' in step
-    assert "::warning::Wind history unavailable" in step
-    assert 'r2 object get "$R2_BUCKET/backtest/wind-history-v1.json" --file=data/state/wind-history-v1.json --remote' in step
-    assert "::warning::Historical wind archive unavailable" in step
-    assert "r2 object put" not in step
+    assert "python scripts/fetch_r2.py object board/backtest.json data/state/backtest.json" in step
+    assert "--warn-message 'Wind history unavailable; alerts will label it unavailable'" in step
+    assert "python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json" in step
+    assert "--warn-message 'Historical wind archive unavailable; alerts will label the coverage gap'" in step
+    assert step.index("wind-history-v1.json") < step.index("board/backtest.json")
+    assert "r2 object put" not in step and "wrangler" not in step
 
 
 @pytest.mark.parametrize("name", ["Push to R2", "Push to R2 (playwright)"])
@@ -184,7 +183,8 @@ def test_d1_execute_gated_by_hashfiles(text: str, name: str):
 @pytest.mark.parametrize("name", ["Self-check published board", "Self-check published board (playwright)"])
 def test_self_check_after_publish(text: str, name: str):
     step = _step(text, name)
-    assert 'r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote' in step
+    assert "python scripts/fetch_r2.py object board/meta.json data/check/meta.json\n" in step
+    assert "--warn-message" not in step   # the self-check fetch is strict: any failure fails the step
     assert 'python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID"' in step
     assert "--meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
     assert "continue-on-error" not in step
