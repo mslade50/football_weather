@@ -76,6 +76,8 @@ def test_concurrency_queues_rather_than_cancels(text: str):
 def test_cloudflare_env_and_state_file_list(text: str):
     assert "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}" in text
     assert "CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}" in text
+    assert "R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}" in text
+    assert "R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}" in text
     assert "R2_BUCKET: football-board" in text
     assert "D1_DATABASE: football-odds" in text
     assert "STATE_FILES: " + " ".join(STATE_FILES) in text

@@ -116,6 +116,11 @@ env:
   D1_DATABASE: football-odds
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+  # Optional. When both are set, scripts/publish_r2.py uploads via the S3 API instead of a
+  # Wrangler process per object. Unset secrets render as empty strings, so
+  # r2.config_from_env() returns None and the Wrangler path is used.
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
   # State files that round-trip through R2 board/ (ARCH §5).
   STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations
 

@@ -98,17 +98,21 @@ def configured(env: Optional[dict[str, str]] = None) -> bool:
     return config_from_env(env) is not None
 
 
-def make_client(cfg: R2Config, *, bounded: bool = False) -> Any:
+def make_client(cfg: R2Config, *, bounded: bool = False, config: Any = None) -> Any:
+    """S3 client for R2. ``bounded`` = short timeouts for latency-critical calls;
+    ``config`` (a botocore Config) overrides both when given."""
     import boto3  # optional dependency: only needed when publishing
     from botocore.config import Config
 
+    if config is None and bounded:
+        config = Config(connect_timeout=3, read_timeout=5, retries={'total_max_attempts': 2})
     return boto3.client(
         "s3",
         endpoint_url=cfg.endpoint_url,
         aws_access_key_id=cfg.access_key_id,
         aws_secret_access_key=cfg.secret_access_key,
         region_name="auto",
-        **({'config': Config(connect_timeout=3, read_timeout=5, retries={'total_max_attempts': 2})} if bounded else {}),
+        **({'config': config} if config is not None else {}),
     )
 
 
