@@ -95,9 +95,11 @@ function weatherTable(g) {
 function backtestRows(g) {
   if (typeof backtestHover !== "function") return [];
   const rows = backtestHover(g).map(([k, v]) => [k, esc(v)]);
-  const sr = typeof stadiumResultFor === "function" ? stadiumResultFor(g) : null;
-  if (sr) rows.push(["Stadium under", `${esc(sr.record)}${isNum(sr.pct) ? ` <span class="sub">(${fmtNum(sr.pct, 3)})</span>` : ""}`]);
   return rows;
+}
+function stadiumHistoryDetails(g) {
+  if (typeof stadiumSignalEvidence !== "function") return "";
+  return `<details class="stadium-history-details"><summary>Stadium signal history · rules, periods and coverage</summary>${kv(stadiumSignalEvidence(g).map(([label,value]) => [label,esc(value)]))}</details>`;
 }
 
 function totalPriceTable(g) {
@@ -111,7 +113,7 @@ function totalPriceTable(g) {
       <td>${finiteValue(q.available_cash_stake) ? "$" + q.available_cash_stake.toFixed(2) + " reported stake" : "Stake capacity unknown"}<span class="sub">Depth: ${esc(clockLabel(q.depth_fetched_at))}</span></td></tr>`;
   }).join("");
   return `<p>${exchangeOfferHtml(g, true)}</p><p class="sub">Exchange references are not executable size recommendations. A $500 principal stake needs verified, fresh depth and settlement rules; fees are additional. Sportsbook history remains below.</p>
-    <button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>
+    ${IS_ADMIN ? '<button type="button" class="controlbtn" id="verify-exchange-stake">Check $500 exchange stake</button>' : '<p class="sub">Admin access required for a live depth check.</p>'}
     <button type="button" class="controlbtn" id="cancel-exchange-stake" hidden>Cancel exchange check</button>
     <p id="verify-exchange-result" role="status">${stakeCheckStatusHtml(g)}</p>${quotes.length ? `<div class="execution-scroll"><table class="kv"><thead><tr><th>Exchange / under</th><th>Quote clock</th><th>Fees / cost</th><th>Capacity / depth clock</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No exchange reference quotes. Weather discovery is unaffected.</p>'}`;
 }
@@ -231,15 +233,21 @@ function oddsTable(g) {
     const es = edgeAt(g, bk, "spread"), et = edgeAt(g, bk, "total");
     return `<tr><td>${esc(bookLabel(bk))}</td>`
       + `<td>${fmtLine(s.open_line)} <span class="sub">${fmtOdds(s.open_odds)}</span></td>`
-      + `<td>${fmtLine(s.home_line)} <span class="sub">${fmtOdds(s.home_odds)}/${fmtOdds(s.away_odds)}</span>${moveTag(s.open_line, s.home_line)}</td>`
-      + `<td title="${esc(totalBaselineLabel(g, t))}${t.open_ts ? ` · ${esc(fmtShortET(t.open_ts))}` : ""}">${fmtTotal(t.open_line)} <span class="sub">u${fmtOdds(t.open_under)}</span></td>`
-      + `<td>${fmtTotal(t.line)} <span class="sub">o${fmtOdds(t.over)}/u${fmtOdds(t.under)}</span>${moveTag(t.open_line, t.line)}</td>`
+      + `<td>${fmtLine(s.home_line)} <span class="sub">${fmtOdds(s.home_odds)}/${fmtOdds(s.away_odds)}</span>${moveTag(s.open_line, s.home_line)}${oddsSourceClock(s)}</td>`
+      + `<td>${fmtTotal(t.open_line)} <span class="sub">u${fmtOdds(t.open_under)}</span><span class="sub">${esc(totalBaselineLabel(g, t))}${t.open_ts ? ` · ${esc(fmtShortET(t.open_ts))}` : ""}</span></td>`
+      + `<td>${fmtTotal(t.line)} <span class="sub">o${fmtOdds(t.over)}/u${fmtOdds(t.under)}</span>${moveTag(t.open_line, t.line)}${oddsSourceClock(t)}</td>`
       + `<td>${tierChip(es)}${tierChip(et)}</td></tr>`;
   }).join("");
   const fairRow = `<tr><td class="fair">Fair</td><td></td><td class="fair">${fmtLine(f.my_spread)}${isNum(f.fair_spread_v2) ? ` <span class="sub">v2 ${fmtLine(f.fair_spread_v2)}</span>` : ""}</td>`
     + `<td></td><td class="fair">${fmtTotal(f.my_total)}${isNum(f.fair_total_v2) ? ` <span class="sub">v2 ${fmtTotal(f.fair_total_v2)}</span>` : ""}</td>`
     + `<td>${f.best_total ? `T ${esc(bookLabel(f.best_total.book || ""))} ${esc(f.best_total.side || "")}${tierChip(f.best_total)}` : ""}${f.best_spread ? ` S ${esc(bookLabel(f.best_spread.book || ""))} ${esc(f.best_spread.side || "")}${tierChip(f.best_spread)}` : ""}</td></tr>`;
   return `<table class="kv">${head}${body}${fairRow}</table>`;
+}
+
+function oddsSourceClock(quote) {
+  return `<span class="sub">Updated: ${quote.updated_at ? esc(clockLabel(quote.updated_at)) : "Unavailable"}</span>`
+    + (quote.source_updated_at ? `<span class="sub">Source: ${esc(clockLabel(quote.source_updated_at))}</span>` : "")
+    + (quote.expires_at ? `<span class="sub">${quote.expired || !(Date.parse(quote.expires_at) > Date.now()) ? "Expired" : "Expires"}: ${esc(quote.expires_at)}</span>` : "");
 }
 
 function gameInfoTable(g) {
@@ -469,7 +477,8 @@ function compassSvg(g) {
       + `<polygon points="0,${(48 - len).toFixed(1)} -4,${(48 - len + 7).toFixed(1)} 4,${(48 - len + 7).toFixed(1)}" />`
       + `<title>wind from ${Math.round(Number(wx.wind_dir_deg))}° · ${fmtNum(wx.wind_fg, 0)} mph</title></g>`);
   }
-  return `<svg viewBox="-62 -62 124 124" role="img" aria-label="stadium compass">${parts.join("")}</svg>`;
+  const label = `Stadium compass; ${isNum(st.orient_deg) ? 'field axis ' + st.orient_deg + ' degrees' : 'field axis unknown'}; ${isNum(wx.wind_dir_deg) ? 'wind from ' + wx.wind_dir_deg + ' degrees' : 'wind direction unknown'}`;
+  return `<svg viewBox="-62 -62 124 124" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${parts.join("")}</svg>`;
 }
 function compassCard(g) {
   const st = g.stadium || {}, wx = g.weather || {};
@@ -534,9 +543,10 @@ function openDrawer(gameId) {
       <div><h3>Game Info</h3>${gameInfoTable(g)}</div>
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
+    <div id="drawer-stadium-history">${stadiumHistoryDetails(g)}</div>
     <h3>Total price comparison</h3><div id="drawer-prices" style="overflow:auto">${totalPriceTable(g)}</div>
     ${typeof confirmationControls === 'function' ? confirmationControls(g) : ''}
-    <h3>Odds by book (${g.sport === "cfb" ? "totals T-6d; spreads open" : "open"} → now)</h3><div id="drawer-odds" style="overflow:auto">${oddsTable(g)}</div>
+    <h3 id="drawer-odds-heading" tabindex="-1">Odds by book (${g.sport === "cfb" ? "totals T-6d; spreads open" : "open"} → now)</h3><div id="drawer-odds" style="overflow:auto">${oddsTable(g)}</div>
     ${hourlyStrip(g)}
     <h3>Forecast drift <span class="sub">(each pipeline run, kickoff-window mean)</span></h3>
     <div class="chart small" id="drift-chart"></div><span class="chart-note" id="drift-note">loading…</span>

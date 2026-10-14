@@ -580,6 +580,13 @@ async function boot() {
   if (typeof loadBacktest === "function" && STATE.view !== "backtest") {
     loadBacktest().then(() => { if (STATE.view === "table" || STATE.view === "map") render(); }).catch(() => {});
   }
+  if (typeof loadStadiumHistory === "function") loadStadiumHistory().then(() => {
+    if (["table", "map", "signals"].includes(STATE.view)) render();
+    if (DRAWER.game) {
+      const history = document.getElementById("drawer-stadium-history");
+      if (history) history.innerHTML = stadiumHistoryDetails(DRAWER.game);
+    }
+  });
 }
 
 boot();

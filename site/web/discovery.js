@@ -94,9 +94,10 @@ function verifiedOffer(g) {
   if ((typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
     || (typeof RAW_META !== 'undefined' && (RAW_META.publication_status !== 'manifest_verified'
       || r?.board_run_id !== g.run_id || r?.publication_generation !== RAW_META.publication?.generation))
-    || !hardEligible(g) || !(Date.parse(g.kickoff_utc) > Date.now()) || !r?.ok || r.game_id !== g.game_id
+    || !hardEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id
     || r.stake_mode !== "principal" || r.settlement_verified !== true || r.side !== "under"
-    || !finiteValue(r.line) || !finiteValue(r.principal) || r.principal < 500
+    || !finiteValue(r.line) || r.line % 1 !== .5 || r.line !== (g.fresh_odds?.selected_line ?? g.consensus?.total_now)
+    || !finiteValue(r.principal) || r.principal < 500
     || !finiteValue(r.fees) || r.fees < 0 || !finiteValue(r.payout_if_win) || r.payout_if_win <= 0
     || !finiteValue(r.average_price) || r.average_price <= 0 || r.average_price >= 1
     || Math.abs(r.average_price - (r.principal + r.fees) / r.payout_if_win) > .000001
@@ -116,7 +117,10 @@ function exchangeOfferHtml(g, detailed = false) {
   if (!r) {
     if (!hardEligible(g)) return '<span class="offer-unusable">Not eligible</span>';
     const shortfall = verifiedPrincipalShortfall(g);
-    if (!shortfall) return '<span class="offer-unusable">Liquidity unverified</span><span class="sub">No usable stake quote</span>';
+    if (!shortfall) {
+      const state = exchangeUnavailableState(g);
+      return `<span class="offer-unusable">${esc(state.label)}</span><span class="sub">${esc(state.note)}</span>`;
+    }
     return `<span class="offer-unusable">Checked depth below $500</span>
       <span class="sub">U ${fmtTotal(shortfall.line)} · $${shortfall.principal.toFixed(2)} principal + $${shortfall.fees.toFixed(2)} fees</span>
       <span class="sub">${esc(shortfall.allocations.map(a => bookLabel(a.book)).join(" + "))} · limit ${(shortfall.max_price * 100).toFixed(1)}¢ all-in</span>
@@ -128,6 +132,33 @@ function exchangeOfferHtml(g, detailed = false) {
     <span class="sub">${esc(r.allocations.map(a => bookLabel(a.book)).join(" + "))}</span>
     <span class="sub">Quote ${esc(clockAge(r.fetched_at))} · depth ${esc(clockAge(r.depth_fetched_at))}</span>
     ${detailed ? `<span class="sub">Quote ${esc(clockLabel(r.fetched_at))}</span><span class="sub">Depth ${esc(clockLabel(r.depth_fetched_at))}</span>` : ""}`;
+}
+
+// Explain failed qualification without renewing source clocks or promoting references.
+function exchangeUnavailableState(g) {
+  if (!upcomingGame(g)) return {label: "Liquidity unverified", note: "Pre-game checks only"};
+  if (typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
+    return {label: "Board unavailable", note: "Reload publication before checking depth"};
+  if (typeof RAW_META !== "undefined" && RAW_META.publication_status !== "manifest_verified")
+    return {label: "Publication unverified", note: "Current generation unavailable"};
+  const preview = VERIFIED_OFFERS.get(g.game_id) || g.execution_preview;
+  if (preview) {
+    if (!(Date.parse(preview.expires_at) > Date.now()))
+      return {label: "Stake check expired", note: "Check current depth in details"};
+    if (preview.line !== (g.fresh_odds?.selected_line ?? g.consensus?.total_now))
+      return {label: "Under line changed", note: "Check depth at the current total"};
+    return {label: "Liquidity unverified", note: "Stake / fees / rules did not qualify"};
+  }
+  const quotes = (g.total_prices?.quotes || []).filter(q => EXCHANGE_BOOKS.has(q.book) && q.side === "under"
+    && (typeof STATE === "undefined" || !STATE.book || q.book === STATE.book));
+  const fresh = [...quotes].sort((a, b) => Date.parse(quoteClock(b)) - Date.parse(quoteClock(a))).find(q => {
+    const age = Date.now() - Date.parse(quoteClock(q));
+    return finiteValue(q.line) && age >= 0 && age <= 30000 && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
+  });
+  const expired = (g.expired_markets || []).some(key => EXCHANGE_BOOKS.has(key.split("/")[0]));
+  if (!fresh && (quotes.length || expired)) return {label: "Exchange quotes stale", note: "No current $500 depth check"};
+  if (fresh) return {label: "Liquidity unverified", note: `U ${fmtTotal(fresh.line)} ${fmtOdds(fresh.odds)} · ${bookLabel(fresh.book)} reference; $500 depth unchecked`};
+  return {label: "No exchange quote", note: "Current under / depth unavailable"};
 }
 
 // Display-only evidence for a partial checked stake. This never qualifies an offer.

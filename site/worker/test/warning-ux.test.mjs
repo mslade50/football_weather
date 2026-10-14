@@ -75,7 +75,7 @@ test('Unqualified rows keep an explicit unusable state with no repeated global i
   vm.runInContext('verifiedOffer = () => null;', f.ctx);
   f.ctx.game = {};
   const html = f.run('exchangeOfferHtml(game)');
-  assert.match(html, /Liquidity unverified/); assert.match(html, /No usable stake quote/);
+  assert.match(html, /Liquidity unverified/); assert.match(html, /Pre-game checks only/);
   assert.doesNotMatch(html, /Fresh depth, fees and matching rules required|Tap game/);
 });
 
