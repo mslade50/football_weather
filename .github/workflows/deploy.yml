@@ -55,6 +55,9 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           workingDirectory: site/worker
+          # v3 of the action otherwise installs Wrangler 3, which cannot bundle
+          # the JSON imports or honor the current assets configuration.
+          wranglerVersion: "4"
           command: deploy
 
       - name: Telegram on failure

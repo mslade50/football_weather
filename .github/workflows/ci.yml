@@ -49,3 +49,8 @@ jobs:
       # Worker unit tests (auth, /data sanitize, cron -> {sport, scope} map, Quartz DOW).
       - name: Worker tests
         run: node --test site/worker/test/*.test.mjs
+
+      # Build with the deployment major, without credentials or an upload.
+      - name: Worker bundle check
+        working-directory: site/worker
+        run: npx --yes wrangler@4 deploy --dry-run --outdir ../../tmp/worker-bundle
