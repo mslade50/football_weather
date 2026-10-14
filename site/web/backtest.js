@@ -309,6 +309,8 @@ function stadiumSignalHistory(g) {
   const dataset = STADIUM_HISTORY.data?.leagues?.[g.sport];
   if (!dataset) return unavailable("Audited league history unavailable");
   const canonical = g.stadium?.stadium_id, source = dataset.venues?.[canonical];
+  const held = dataset.held_sources?.[String(g.venue_provenance?.source_id)];
+  if (held) return unavailable(held);
   if (dataset.venue_valid_through?.[source] && (!Number.isInteger(g.season) || g.season > dataset.venue_valid_through[source]))
     return unavailable("Historical venue replaced; current building has no matching cohort");
   const provenance = g.venue_provenance;
@@ -321,9 +323,9 @@ function stadiumSignalHistory(g) {
   const records = (dataset.record_rows || []).map(row => Object.fromEntries(dataset.record_columns.map((key, i) => [key, row[i]])))
     .filter(row => row.source_stadium_id === source && row.rule === rule.id);
   if (!dataset.rules?.[rule.id]) return unavailable("Audited rule unavailable");
-  const periods = Object.entries(dataset.periods).map(([key, years], index) => {
+  const periods = Object.entries(dataset.periods).map(([key, years]) => {
     const row = records.find(record => record.period === key);
-    const covered = index === 0 ? coverage.full_eligible_n : coverage.recent_eligible_n;
+    const covered = coverage[dataset.coverage_by_period?.[key]];
     const valid = row && Number.isInteger(row.n) && row.n > 0 && ['opening','closing'].every(basis =>
       ['wins','losses','pushes'].every(outcome => Number.isInteger(row[`${basis}_${outcome}`]) && row[`${basis}_${outcome}`] >= 0)
       && ['wins','losses','pushes'].reduce((sum, outcome) => sum + row[`${basis}_${outcome}`], 0) === row.n);
@@ -346,7 +348,7 @@ function stadiumSignalEvidence(g) {
       ["Venue coverage", `${period.covered || 0} eligible paired games; missing seasons / games may remain`]);
     }
     rows.push(["History snapshot", `${result.dataset.research_snapshot_date}; verified venue ${result.source}`]);
-    for (const key of ['selection','weather','roof','line_basis','source_provider_eras','under_outcome','pushes','interpretation','small_sample']) {
+    for (const key of ['selection','weather','roof','line_basis','source_provider_eras','under_outcome','pushes','interpretation','small_sample','geography','mapping']) {
       if (result.dataset.methodology?.[key]) rows.push([key.replaceAll('_',' '), result.dataset.methodology[key]]);
     }
   }
@@ -360,7 +362,7 @@ function stadiumSignalCompact(g) {
     + (period.unavailable ? '<span class="sub stadium-record">Coverage unavailable</span>' : !period.n
       ? '<span class="sub stadium-record">No qualifying games in coverage</span>'
       : `<span class="sub stadium-record">Open U ${esc(period.opening)} · close U ${esc(period.closing)}</span><span class="sub stadium-record">W–L–P · N=${period.n}${period.n < 20 ? ' · small sample' : ''}</span>`)
-    + '<span class="sub stadium-record">Retrospective actual weather</span>';
+    + `<span class="sub stadium-record">${g.sport === 'cfb' ? 'Actual weather · synthetic totals' : 'Retrospective actual weather'}</span>`;
 }
 
 // ── rendering ─────────────────────────────────────────────────────────────

@@ -60,13 +60,17 @@ def main() -> None:
     source = source.replace("<head>", '<head><meta http-equiv="Content-Security-Policy" '
                             'content="connect-src \'none\'; img-src data:;">')
     games = [card(index) for index in range(3)]
-    history = json.loads(ROOT.joinpath("data/raw/nfl_stadium_signal_history.json").read_text(encoding="utf-8"))
-    history["venues"] = {"metlife-stadium": "NYC01"}
+    history_module = ROOT.joinpath("site/worker/stadium-history.js").read_text(encoding="utf-8")
+    history_module = re.sub(r"^import .*?;\s*$", "", history_module, flags=re.M).replace("export ", "")
+    for league in ["nfl", "cfb"]:
+        data = ROOT.joinpath(f"data/raw/{league}_stadium_signal_history.json").read_text(encoding="utf-8")
+        history_module = f"const {league}={data};\n" + history_module
     evidence = {"fixture": "Synthetic only; no live data or orders", "network_requests": [], "viewports": {}}
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         for label, width, height in [("desktop", 1680, 1050), ("mobile", 390, 844)]:
-            context = browser.new_context(viewport={"width": width, "height": height})
+            context = browser.new_context(viewport={"width": width, "height": height},
+                                          is_mobile=label == "mobile", has_touch=label == "mobile")
             page = context.new_page()
             page.route("**/*", lambda route: (evidence["network_requests"].append(route.request.url), route.abort()))
             errors = []
@@ -90,7 +94,8 @@ def main() -> None:
                 renderHourlyChart=()=>{}; renderDriftChart=()=>{}; loadHistory=()=>{}; renderDrawerAlerts=()=>{};
                 writeHash=()=>{}; renderTable(games); setupHover(); setupDrawer();
             }""", games)
-            page.evaluate("history => { STADIUM_HISTORY.data={leagues:{nfl:history}}; renderTable(DATA.games.nfl); }", history)
+            page.add_script_tag(content=history_module)
+            page.evaluate("STADIUM_HISTORY.data=stadiumHistoryPayload(); renderTable(DATA.games.nfl)")
             page.screenshot(path=str(OUT / f"{label}.png"), full_page=True)
             assert page.locator(".compact-compass svg").count() == 3
             assert "Exchange quotes stale" in page.locator("#table").inner_text()
@@ -102,7 +107,7 @@ def main() -> None:
             })""")
             if label == "mobile":
                 assert metrics["bodyWidth"] <= width, metrics
-            page.locator(".stadium-detail").first.click()
+            getattr(page.locator(".stadium-detail").first, "tap" if label == "mobile" else "click")()
             assert page.locator("#drawer").is_visible()
             assert "Source" in page.locator("#drawer-body").inner_text()
             assert "Updated:" in page.locator("#drawer-odds").inner_text()
@@ -111,8 +116,25 @@ def main() -> None:
             assert page.locator("#drawer").is_hidden()
             assert page.locator(".stadium-detail").first.evaluate("el => el === document.activeElement")
             # Exercise the table shortcut locally; no request is sent until explicit check click.
-            page.locator(".exchange-detail").first.click()
+            getattr(page.locator(".exchange-detail").first, "tap" if label == "mobile" else "click")()
             assert page.locator("#verify-exchange-stake").evaluate("el => el === document.activeElement")
+            page.keyboard.press("Escape")
+            page.evaluate("""() => {
+                STATE.sport='cfb'; DATA.games.cfb=DATA.games.nfl.map((game,i)=>({...game,sport:'cfb',
+                    game_id:game.game_id.replace('nfl:','cfb:'), execution_preview:null,
+                    stadium:{...game.stadium,stadium_id:i===0?'camp-randall-stadium':'dowdy-ficklen-stadium'},
+                    venue_provenance:{source_id:i===0?'347':'3699',resolved_id:i===0?'camp-randall-stadium':'dowdy-ficklen-stadium'}}));
+                renderTable(DATA.games.cfb);
+                document.getElementById('sport').value='cfb';
+            }""")
+            assert "synthetic totals" in page.locator("#table").inner_text()
+            assert "Signal history unavailable" in page.locator("#table").inner_text()
+            if label == "mobile":
+                assert page.evaluate("document.body.scrollWidth") <= width
+                assert page.locator("#hovercard").is_hidden()
+            page.screenshot(path=str(OUT / f"{label}-cfb.png"), full_page=True)
+            getattr(page.locator(".stadium-detail").first, "tap" if label == "mobile" else "click")()
+            assert "quarter-point synthetic" in page.locator("#drawer-stadium-history").inner_text()
             assert not errors, errors
             evidence["viewports"][label] = {**metrics, "errors": errors, "detail_and_keyboard_checks": "passed"}
             context.close()

@@ -34,6 +34,25 @@ reference input. It is not generated current board data. Its original SHA-256 is
 No per-game totals, scores or source odds are included. The authenticated GET-only
 `/api/stadium-history` endpoint serves this reference without R2/D1 reads or writes.
 
+The CFB reference, `data/raw/cfb_stadium_signal_history.json`, preserves the audited
+dashboard handoff bytes with SHA-256
+`d74cf5f7e6b3e1c5dd48f87da0015b43a16175c0a6a1e727dacdc36e90150334`.
+All 180 known study venues are retained, including 17 without eligible weather
+history. Full 2021–2025 / recent 2024–2025 cohorts reconcile to 102 / 37 games;
+opening W–L–P is 60–42–0 / 20–17–0 and closing W–L–P is 56–46–0 / 17–20–0.
+These cohorts overlap and are retrospective. The original same-provider-subset
+median totals include synthetic quarter-point thresholds; they are not actual
+offered lines or Asian split settlement. Historical prices were imputed at −110.
+The compact UI shows W–L–P only and identifies synthetic totals. Every CFB full
+venue sample has at most four qualifying games.
+
+CFB registry mappings use the handoff's audited unique physical-venue slug, plus
+matching source/resolved venue identity. Unresolved aliases and multiple IDs at a
+slug are not pooled. Geography-conflicted IDs 3699, 3713 and 4258 stay withheld;
+their original counts remain in the source reconciliation, not live venue records.
+The study's cached postal/airport weather locations are not silently corrected or
+substituted. Period-to-coverage fields are explicit for both leagues.
+
 The NFL source contains 2,094 eligible paired games, 2014–2025, at 29 covered
 physical venues. Full/recent moderate-wind counts reconcile to 404/143; strong-wind
 counts reconcile to 120/40. Full and recent W–L–P are paired by source opener and
@@ -60,6 +79,8 @@ Run `node --test site/worker/test/*.test.mjs`, `python -m pytest tests -q`, and
 desktop/mobile screenshots and a validation receipt under `tmp/ui-evidence/`.
 That fixture disables production boot, blocks all connections, uses synthetic
 upcoming cards and the audited aggregate reference, and sends no depth requests.
+Both NFL and CFB screenshots are produced; mobile uses touch input and suppresses
+hover-only panels while retaining the full evidence in tap-accessible details.
 It checks 390px document overflow, kickoff labels, source-clock details, drawer
 navigation and keyboard focus. Screenshot fixture cards do not represent games or
 available trading prices.

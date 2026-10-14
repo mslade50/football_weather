@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 import {handleFetch} from '../index.js';
-import {NFL_VENUES, stadiumHistoryPayload} from '../stadium-history.js';
+import {NFL_VENUES, stadiumHistoryPayload, cfbHistoryDataset} from '../stadium-history.js';
 
 test('Immutable NFL aggregate bytes, WLP, standardized ROI and league reconciliation agree', () => {
   const bytes=readFileSync(new URL('../../../data/raw/nfl_stadium_signal_history.json', import.meta.url));
@@ -58,6 +58,35 @@ test('Exact stadium and league provide full/recent paired records with explicit 
   f.ctx.game.weather.wind_fg=14;
   assert.equal(f.run('stadiumSignalHistory(game).periods[0].n'),48);
   f.ctx.game.sport='cfb'; assert.equal(f.run('stadiumSignalHistory(game).available'),false);
+});
+
+test('CFB frozen bytes and full/recent WLP reconcile without altering the geography-conflicted source cohort',()=>{
+  const bytes=readFileSync(new URL('../../../data/raw/cfb_stadium_signal_history.json',import.meta.url));
+  assert.equal(createHash('sha256').update(bytes).digest('hex'),'d74cf5f7e6b3e1c5dd48f87da0015b43a16175c0a6a1e727dacdc36e90150334');
+  const source=JSON.parse(bytes),data=cfbHistoryDataset();
+  assert.equal(Object.keys(source.by_venue_id).length,180);
+  for(const [key,expected] of [['full_2021_2025',source.full_reconciliation],['recent_2024_2025',source.recent_reconciliation]]) {
+    const rows=Object.values(source.by_venue_id).map(row=>row.periods[key]);
+    assert.equal(rows.reduce((n,row)=>n+row.n,0),expected.n);
+    for(const [basis,field] of [['opening_under','opening_wlp'],['closing_under','closing_wlp']])
+      assert.deepEqual(['wins','losses','pushes'].map(outcome=>rows.reduce((n,row)=>n+row[basis][outcome],0)),expected[field]);
+    assert.equal(data.record_rows.filter(row=>row[2]===key).reduce((n,row)=>n+row[3],0),expected.n);
+  }
+  for(const [slug,id] of Object.entries(data.venues)) {
+    const row=source.by_venue_id[id]; assert.equal(row.canonical_stadium_slug,slug);
+    assert.equal(row.production_use_status,'descriptive_label_only'); assert.deepEqual(row.geography_audit_issues,[]);
+  }
+  for(const id of ['3699','3713','4258']) assert.ok(data.held_sources[id]);
+});
+
+test('CFB exact venue records show synthetic paired threshold basis; conflicts and missing opener stay unavailable',()=>{
+  const f=ui(); f.ctx.game={sport:'cfb',season:2026,stadium:{stadium_id:'camp-randall-stadium',roof_state:'open'},
+    venue_provenance:{source_id:'347',resolved_id:'camp-randall-stadium'},weather:{wind_fg:18,temp_fg:55},consensus:{spread_open:3}};
+  const result=f.run('stadiumSignalHistory(game)'); assert.equal(result.available,true); assert.equal(result.periods[0].n,2);
+  assert.match(f.run('stadiumSignalCompact(game)'),/synthetic totals/);
+  assert.match(JSON.stringify(f.run('stadiumSignalEvidence(game)')),/quarter-point synthetic|imputed/);
+  f.ctx.game.venue_provenance.source_id='3699'; assert.match(f.run('stadiumSignalHistory(game).reason'),/conflict/);
+  f.ctx.game.consensus.spread_open=null; assert.equal(f.run('stadiumSignalHistory(game).available'),false);
 });
 test('Venue renames match only verified IDs; missing coverage never becomes a zero record',()=>{
   const f=ui(); f.ctx.game.stadium.name='Renamed building'; assert.equal(f.run('stadiumSignalHistory(game).available'),true);
