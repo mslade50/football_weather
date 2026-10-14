@@ -2,7 +2,8 @@
 
 Every external fetch is written verbatim BEFORE parsing to
 ``<base>/{sport}/{run_id}/{source}.<ext>`` with a ``manifest.json`` alongside
-(``{source: {sha256, bytes, fetched_at, url, path}}``).
+(``{source: {sha256, bytes, fetched_at, url, path}}``); JSON captures additionally
+carry ``shape`` (sorted ``path:type`` list) and ``shape_sha256`` (payload-shape fingerprint).
 
 Phase 1 base dir is local ``data/raw_runs/`` (gitignored); Phase 3 mirrors the
 same layout under the R2 ``raw/`` prefix: set ``store.mirror`` to a callback
@@ -32,6 +33,9 @@ DEFAULT_BASE = REPO_ROOT / "data" / "raw_runs"
 MANIFEST = "manifest.json"
 R2_RAW_PREFIX = "raw"
 
+SHAPE_MAX_DEPTH = 40
+SHAPE_MAX_PATHS = 5000
+
 PathLike = Union[str, Path]
 Mirror = Callable[[str, bytes, str], None]
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -51,6 +55,54 @@ def _to_bytes(payload: Any) -> tuple[bytes, str]:
     if isinstance(payload, str):
         return payload.encode("utf-8"), "txt"
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8"), "json"
+
+
+def _type_name(v: Any) -> str:
+    if v is None:
+        return "null"
+    if isinstance(v, bool):
+        return "boolean"
+    if isinstance(v, (int, float)):
+        return "number"
+    if isinstance(v, str):
+        return "string"
+    if isinstance(v, dict):
+        return "object"
+    if isinstance(v, list):
+        return "array"
+    return type(v).__name__
+
+
+def payload_shape(payload: Any) -> list[str] | None:
+    """Sorted ``path:type`` key-paths of a JSON payload, e.g.
+    ``events[].markets[].outcomes[].price:number`` (``$`` is the root; list items
+    collapse into ``[]`` so array length never changes the shape). ``str``/``bytes``
+    payloads are parsed as JSON; non-JSON captures return ``None``. Never raises."""
+    try:
+        if isinstance(payload, (bytes, str)):
+            payload = json.loads(payload)
+        if not isinstance(payload, (dict, list)):
+            return None
+        out: set[str] = set()
+        stack: list[tuple[Any, str, int]] = [(payload, "$", 0)]
+        while stack and len(out) < SHAPE_MAX_PATHS:
+            node, path, depth = stack.pop()
+            out.add(f"{path}:{_type_name(node)}")
+            if depth >= SHAPE_MAX_DEPTH:
+                continue
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    stack.append((v, f"{path}.{k}" if path != "$" else str(k), depth + 1))
+            elif isinstance(node, list):
+                for v in node:
+                    stack.append((v, f"{path}[]", depth + 1))
+        return sorted(out)
+    except Exception:  # noqa: BLE001 - fingerprinting must never break a capture
+        return None
+
+
+def shape_hash(shape: list[str]) -> str:
+    return hashlib.sha256(chr(10).join(shape).encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -98,6 +150,10 @@ class RawStore:
             "url": url,
             "path": name,
         }
+        shape = payload_shape(payload)   # additive manifest fields; existing keys untouched
+        if shape is not None:
+            entry["shape"] = shape
+            entry["shape_sha256"] = shape_hash(shape)
         self.manifest[source] = entry
         if not self.enabled:
             return None
@@ -136,4 +192,4 @@ class NullRawStore(RawStore):
         super().__init__(sport=sport, run_id=run_id, enabled=False)
 
 
-__all__ = ["DEFAULT_BASE", "MANIFEST", "R2_RAW_PREFIX", "Mirror", "RawStore", "NullRawStore", "safe_name"]
+__all__ = ["DEFAULT_BASE", "MANIFEST", "R2_RAW_PREFIX", "Mirror", "RawStore", "NullRawStore", "safe_name", "payload_shape", "shape_hash"]

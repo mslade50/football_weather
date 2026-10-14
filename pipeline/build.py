@@ -79,6 +79,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline import alerts as alerts_mod
+from pipeline import payload_health as health
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
 from pipeline.current_quotes import expired
@@ -705,6 +706,40 @@ def check_scrape_volume(
     return drops
 
 
+def check_payload_health(
+    ctx: RunContext, sport: str, raw: RawStore, books: Sequence[str], all_lines: Sequence[GameLine],
+    per_book_n: dict[str, int], state_dir: Path, games: Sequence[Game], season: int | None,
+    dry_run: bool = False,
+) -> None:
+    """Payload-shape diff (vs the last N runs' manifests) + per-book null rates.
+
+    Alerts ride the existing degrade -> ``alerts.ops_candidates`` -> Telegram path (components
+    ``odds.shape`` / ``odds.nulls``; delivery is the opt-in SYSTEM channel and dedup is owned by
+    alerts.json). Added key-paths are logged only. FAIL-OPEN: nothing here may stop the run."""
+    try:
+        n = health.history_runs()
+        scope = baseline_scope(sport, [g for g in games if in_window(g.kickoff_utc, ctx.now_utc)], games, season)
+        baseline = pstate.load_baseline(state_dir, scope)
+        current = health.shapes_by_book(raw.manifest, books)
+        disk = health.load_manifest_history(raw.base_dir, sport, raw.run_id, books, n)
+        hist = health.merge_history(disk, health.persisted_shape_history(baseline, sport), n)
+        dark = [b for b in books if per_book_n.get(b, 0) == 0]
+        alerts, infos = health.shape_issues(current, hist, skip_books=dark)
+        for text in alerts:
+            ctx.degrade("odds.shape", f"{sport}: {text}", "warn")
+        for text in infos:
+            logger.info("odds.shape %s: %s", sport, text)
+        rates = health.null_rates(all_lines)
+        for text in health.null_issues(rates, health.persisted_null_history(baseline, sport)):
+            ctx.degrade("odds.nulls", f"{sport}: {text}", "warn")
+        if not dry_run:
+            health.record_shape_history(baseline, sport, current, n)
+            health.record_null_history(baseline, sport, rates, n)
+            pstate.save_baseline(state_dir, baseline)
+    except Exception as exc:  # noqa: BLE001 - fail-open by design
+        logger.warning("odds payload-health check failed (non-fatal): %s: %s", type(exc).__name__, exc)
+
+
 def format_volume_alert(drops: Sequence[tuple[str, int, int | None]], label: str) -> str:
     lines = []
     for k, c, p in sorted(drops, key=lambda x: x[0]):
@@ -1251,6 +1286,9 @@ def stage_odds(
                 ctx.degrade("odds.volume", f"{scope}: {detail}", "warn")
         except Exception as exc:  # noqa: BLE001
             ctx.degrade("odds.volume", f"{sport}: volume check failed (non-fatal): {exc}", "warn")
+
+    with ctx.stage(f"{sport}.payload_health"):
+        check_payload_health(ctx, sport, raw, books, all_lines, per_book_n, state_dir, games, season, dry_run=dry_run)
 
     # provisional ids -> schedule game_id
     openers = pstate.load_openers(state_dir)
