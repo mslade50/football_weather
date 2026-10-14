@@ -61,6 +61,15 @@ def test_deploy_uses_wrangler_action(wf: dict):
     dep = next(s for s in _steps(wf) if "wrangler-action" in s.get("uses", ""))
     assert dep["with"]["workingDirectory"] == "site/worker"
     assert dep["with"]["command"] == "deploy"
+    assert dep["with"]["wranglerVersion"] == "4"
+
+
+def test_ci_bundles_with_the_deployment_major_without_upload():
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    bundle = next(s for s in ci["jobs"]["test"]["steps"] if s.get("name") == "Worker bundle check")
+    assert bundle["working-directory"] == "site/worker"
+    assert "wrangler@4 deploy --dry-run" in bundle["run"]
+    assert "CLOUDFLARE_API_TOKEN" not in str(bundle)
 
 
 def test_no_continue_on_error(text: str):
