@@ -1,5 +1,5 @@
 "use strict";
-// Table view: one row per GameCard. Columns: GAME (kickoff ET), LAT/LON, TEMP, WIND, GUST, RAIN,
+// Table view: one row per GameCard. Columns: GAME (kickoff ET/local), STADIUM/WIND, TEMP, WIND, GUST, RAIN,
 // GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
 // TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (baseline → now, under price
 // + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
@@ -208,7 +208,10 @@ function bookTotalCell(g, bk) {
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket
     ],
   };
-  return `<td class="book" data-hk="${hk}">${openNow(t.open_line, t.line, fmtTotal)}${moveTag(t.open_line, t.line)}${tierChip(e)}</td>`;
+  const evidence = HOVER[hk].lines.map(([label, value]) => `${label}: ${value}`).join("; ");
+  return `<td class="book compact-total" data-hk="${hk}"><button type="button" class="book-total-detail" data-game="${esc(g.game_id)}"
+    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${isNum(t.line) && !t.expired ? 'U ' + fmtTotal(t.line) : 'Unavailable'}</b>
+    <span class="sub">${isNum(t.line) && !t.expired ? fmtOdds(t.under) : 'Baseline ' + fmtTotal(t.open_line)}</span></button></td>`;
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
@@ -223,8 +226,20 @@ function roiLabel(value) { return `${value > 0 ? "+" : ""}${(value * 100).toFixe
 function totalPriceLabel(quote) {
   return `${quote.side === "under" ? "U" : "O"} ${fmtTotal(quote.line)} · ${fmtOdds(quote.odds)}`;
 }
-function bestPriceCell(g) { return `<td class="book best-price">${exchangeOfferHtml(g)}</td>`; }
+function bestPriceCell(g) {
+  return `<td class="book best-price">${exchangeOfferHtml(g)}<button type="button" class="exchange-detail controlbtn" data-game="${esc(g.game_id)}">${typeof IS_ADMIN !== "undefined" && IS_ADMIN ? "Check / details" : "Quote details"}</button></td>`;
+}
 function coordinateLabel(g) { return stadiumCoordinates(g); }
+function tableStadiumHtml(g) {
+  const evidence = typeof stadiumSignalEvidence === "function" ? stadiumSignalEvidence(g) : [];
+  const hk = ++HK;
+  HOVER[hk] = {label: `Stadium history · ${gameLabel(g)}`, lines: evidence};
+  return `<td class="left stadium-cell" data-hk="${hk}"><button type="button" class="stadium-detail" data-game="${esc(g.game_id)}" aria-label="Stadium orientation, wind and historical signal details">
+    <span class="compass compact-compass">${typeof compassSvg === "function" ? compassSvg(g) : 'Diagram unavailable'}</span><span class="stadium-summary">${esc(g.stadium?.name || "Stadium unavailable")}
+    <span class="sub">${isNum(g.weather?.wind_fg) ? fmtNum(g.weather.wind_fg, 1) + ' mph' : 'Wind unavailable'} ${esc(g.weather?.wind_dir_fg || '')}</span>
+    ${!isNum(g.stadium?.orient_deg) ? '<span class="sub">Axis unknown</span>' : ''}${!isNum(g.weather?.wind_dir_deg) ? '<span class="sub">Direction unknown</span>' : ''}</span></button>
+    ${typeof stadiumSignalCompact === "function" ? stadiumSignalCompact(g) : ''}${coordinateControl(g)}</td>`;
+}
 
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
@@ -233,7 +248,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
     ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
     ["Exchange under", "Verified $500 principal stake; fees additional, fresh matching depth and settlement rules", g => verifiedOffer(g)?.average_price ?? Infinity],
-    ["Lat, Lon", "Exact supplied stadium coordinates; copy into Windy", coordinateLabel],
+    ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
     ["Gust", "Forecast gust mph", w("gust_fg")],
@@ -250,7 +265,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
         (g) => bookSpreadCell(g, bk)]);
     }
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total baseline → now; CFB targets kickoff minus 6 days with first-observed fallback; hover = baseline time and under price; edge chip = pts vs fair`,
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} current under total / price; baseline, movement, source time and edge in hover or details`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
       (g) => bookTotalCell(g, bk)]);
   }
@@ -295,15 +310,13 @@ function renderTable(rows, opts = {}) {
   }
   tbody.innerHTML = rows.map((g) => {
     const wx = g.weather || {};
-    const st = g.stadium || {};
     const dome = isDome(g);
     const v1 = (g.impact && g.impact.v1) || {};
-    const coordinates = coordinateLabel(g);
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${tableKickoffHtml(g)}</td>`,
       `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       bestPriceCell(g),
-      `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinateControl(g)}</td>`,
+      tableStadiumHtml(g),
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
       `<td>${fmtNum(wx.gust_fg, 0)}</td>`,
@@ -318,4 +331,13 @@ function renderTable(rows, opts = {}) {
     return `<tr class="${dome ? "dome" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
   }).join("");
   tbody.querySelectorAll(".game-detail").forEach((button) => button.addEventListener("click", () => openDrawer(button.dataset.game)));
+  tbody.querySelectorAll(".exchange-detail, .stadium-detail, .book-total-detail").forEach(button => button.addEventListener("click", () => {
+    openDrawer(button.dataset.game);
+    if (button.classList.contains("exchange-detail")) document.getElementById("verify-exchange-stake")?.focus();
+    if (button.classList.contains("stadium-detail")) {
+      const history = document.querySelector("#drawer-stadium-history details");
+      if (history) { history.open = true; history.querySelector("summary").focus(); }
+    }
+    if (button.classList.contains("book-total-detail")) document.getElementById("drawer-odds-heading")?.focus();
+  }));
 }

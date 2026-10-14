@@ -48,7 +48,7 @@ def _spec_keys() -> set[str]:
     keys |= {"home_id", "away_id", "roof_state"}
     keys |= STADIUM_EXTRA_KEYS
     # Optional backend contracts are documented in site/web/INTEGRATION.md.
-    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery"}
+    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery", "expired"}
     return keys
 
 
@@ -227,7 +227,7 @@ def test_backtest_hover_record_roi_lookup_wired() -> None:
         src = (WEB / js).read_text(encoding="utf-8")
         assert "backtestHover(g)" in src, js
     drawer = (WEB / "drawer.js").read_text(encoding="utf-8")
-    assert "function backtestRows" in drawer and "stadiumResultFor" in drawer
+    assert "function backtestRows" in drawer and "stadiumSignalEvidence" in drawer
     bt = (WEB / "backtest.js").read_text(encoding="utf-8")
     assert '"Record (under)"' in bt and '"ROI"' in bt and "function stadiumResultFor" in bt
 

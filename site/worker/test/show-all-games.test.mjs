@@ -96,13 +96,13 @@ test('Fresh compatible partial principal is scoped to checked depth and never qu
   assert.match(h.run('exchangeOfferHtml(game)'),/\$100\.00 principal/);assert.equal(h.run('verifiedOffer(game)'),null);
 });
 test('Missing, stale, mismatched and failed evidence says liquidity unverified rather than insufficient capacity',()=>{
-  const h=harness();h.ctx.game=h.ctx.cfb[0];assert.match(h.run('exchangeOfferHtml(game)'),/Liquidity unverified/);
+  const h=harness();h.ctx.game=h.ctx.cfb[0];assert.match(h.run('exchangeOfferHtml(game)'),/Publication unverified/);
   for(const [key,value] of [['fetched_at','2026-10-10T17:59:00Z'],['depth_fetched_at',null],['fees',null],['settlement_verified',false],
     ['line',47.5],['principal',null],['cash_liquidity_verified',null],['venues',[]],['allocations',{}],['publication_generation','old'],['max_price',.5]]){
-    const r=partial(h);r[key]=value;assert.match(h.run('exchangeOfferHtml(game)'),/Liquidity unverified/,key);
+    const r=partial(h);r[key]=value;assert.match(h.run('exchangeOfferHtml(game)'),/Liquidity unverified|Under line changed/,key);
     assert.doesNotMatch(h.run('exchangeOfferHtml(game)'),/below \$500/,key);
   }
-  partial(h);h.run("LOAD_ERRORS.cfb='Interrupted read'");assert.match(h.run('exchangeOfferHtml(game)'),/Liquidity unverified/);
+  partial(h);h.run("LOAD_ERRORS.cfb='Interrupted read'");assert.match(h.run('exchangeOfferHtml(game)'),/Board unavailable/);
 });
 
 

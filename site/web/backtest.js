@@ -280,6 +280,89 @@ function stadiumResultFor(g) {
   return stadiumRows().find((row) => (name && row.stadium.toLowerCase() === name) || (home && row.team.toLowerCase() === home)) || null;
 }
 
+// Frozen audited aggregate cohorts. Legacy summaries and generic game rows never qualify.
+const STADIUM_HISTORY = {data: null, loading: null};
+async function loadStadiumHistory() {
+  if (STADIUM_HISTORY.loading) return STADIUM_HISTORY.loading;
+  STADIUM_HISTORY.loading = fetchJson('/api/stadium-history').then(payload => {
+    if (payload?.schema_version !== 1 || payload.kind !== 'frozen_aggregate_research') throw new Error('Invalid history schema');
+    STADIUM_HISTORY.data = payload;
+  }).catch(() => { STADIUM_HISTORY.data = null; });
+  return STADIUM_HISTORY.loading;
+}
+function stadiumSignalRule(g) {
+  const wx = g.weather || {}, wind = wx.wind_fg, temp = wx.temp_fg;
+  if (!hardEligible(g) || !finiteValue(temp)) return null;
+  const spread = g.sport === "cfb" ? "; |opening spread| ≤10" : "";
+  if (g.sport === "cfb" && !finiteValue(g.consensus?.spread_open)) return null;
+  if (finiteValue(wind) && temp < (g.sport === "cfb" ? 70 : 60)) {
+    if (g.sport === "cfb" && wind > 14) return {id: "cfb_wind", label: "CFB wind", definition: "Wind >14 mph; temp <70°F" + spread};
+    if (g.sport === "nfl" && wind > 15) return {id: "highwind_gt15_cool60", label: "NFL strong wind", definition: "Wind >15 mph; temp <60°F"};
+    if (g.sport === "nfl" && wind > 8 && wind < 15) return {id: "moderate8to15_cool60", label: "NFL moderate wind", definition: "8<wind<15 mph; temp <60°F"};
+  }
+  return null;
+}
+function stadiumSignalHistory(g) {
+  const rule = stadiumSignalRule(g);
+  const unavailable = reason => ({available: false, reason, rule});
+  if (!rule) return unavailable("No supported current wind screen; rain / heat / altitude history unavailable");
+  const dataset = STADIUM_HISTORY.data?.leagues?.[g.sport];
+  if (!dataset) return unavailable("Audited league history unavailable");
+  const canonical = g.stadium?.stadium_id, source = dataset.venues?.[canonical];
+  if (dataset.venue_valid_through?.[source] && (!Number.isInteger(g.season) || g.season > dataset.venue_valid_through[source]))
+    return unavailable("Historical venue replaced; current building has no matching cohort");
+  const provenance = g.venue_provenance;
+  if (!source || !provenance?.source_id || String(provenance.source_id) !== source
+      || provenance.resolved_id !== canonical)
+    return unavailable("Verified physical-venue crosswalk unavailable");
+  const coverage = (dataset.coverage_rows || []).map(row => Object.fromEntries(dataset.coverage_columns.map((key, i) => [key, row[i]])))
+    .find(row => row.source_stadium_id === source);
+  if (!coverage?.full_eligible_n) return unavailable("No primary-cohort venue coverage");
+  const records = (dataset.record_rows || []).map(row => Object.fromEntries(dataset.record_columns.map((key, i) => [key, row[i]])))
+    .filter(row => row.source_stadium_id === source && row.rule === rule.id);
+  if (!dataset.rules?.[rule.id]) return unavailable("Audited rule unavailable");
+  const periods = Object.entries(dataset.periods).map(([key, years], index) => {
+    const row = records.find(record => record.period === key);
+    const covered = index === 0 ? coverage.full_eligible_n : coverage.recent_eligible_n;
+    const valid = row && Number.isInteger(row.n) && row.n > 0 && ['opening','closing'].every(basis =>
+      ['wins','losses','pushes'].every(outcome => Number.isInteger(row[`${basis}_${outcome}`]) && row[`${basis}_${outcome}`] >= 0)
+      && ['wins','losses','pushes'].reduce((sum, outcome) => sum + row[`${basis}_${outcome}`], 0) === row.n);
+    const label = years.join('–');
+    const record = basis => valid ? `${row[`${basis}_wins`]}–${row[`${basis}_losses`]}–${row[`${basis}_pushes`]}` : null;
+    return {label, n:valid ? row.n : 0, covered, opening:record('opening'), closing:record('closing'),
+      unavailable:!!row && !valid || !covered};
+  });
+  return {available:true, rule, league:dataset.league, periods, dataset, source};
+}
+function stadiumSignalEvidence(g) {
+  const result = stadiumSignalHistory(g);
+  const rows = [["Stadium signal", result.available ? result.rule.label : `Unavailable: ${result.reason}`]];
+  if (result.rule) rows.push(["Rule", result.rule.definition]);
+  if (result.available) {
+    for (const period of result.periods) {
+      rows.push([`${result.league} ${period.label}`, period.unavailable ? "Coverage unavailable" : period.n
+        ? `Open U ${period.opening}; close U ${period.closing}; W–L–P, N=${period.n}${period.n < 20 ? '; small sample' : ''}`
+        : "No qualifying games in available coverage"],
+      ["Venue coverage", `${period.covered || 0} eligible paired games; missing seasons / games may remain`]);
+    }
+    rows.push(["History snapshot", `${result.dataset.research_snapshot_date}; verified venue ${result.source}`]);
+    for (const key of ['selection','weather','roof','line_basis','source_provider_eras','under_outcome','pushes','interpretation','small_sample']) {
+      if (result.dataset.methodology?.[key]) rows.push([key.replaceAll('_',' '), result.dataset.methodology[key]]);
+    }
+  }
+  return rows;
+}
+function stadiumSignalCompact(g) {
+  const result = stadiumSignalHistory(g);
+  if (!result.available) return '<span class="sub stadium-record">Signal history unavailable</span>';
+  const period = result.periods[0];
+  return `<span class="sub stadium-record">${esc(result.rule.label)} · ${esc(result.league)} ${esc(period.label)}</span>`
+    + (period.unavailable ? '<span class="sub stadium-record">Coverage unavailable</span>' : !period.n
+      ? '<span class="sub stadium-record">No qualifying games in coverage</span>'
+      : `<span class="sub stadium-record">Open U ${esc(period.opening)} · close U ${esc(period.closing)}</span><span class="sub stadium-record">W–L–P · N=${period.n}${period.n < 20 ? ' · small sample' : ''}</span>`)
+    + '<span class="sub stadium-record">Retrospective actual weather</span>';
+}
+
 // ── rendering ─────────────────────────────────────────────────────────────
 const band = (lo, hi, unit = "") => {
   if (lo === null && hi === null) return "any";

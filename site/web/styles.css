@@ -405,3 +405,27 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
 .discovery.ineligible { color: #ffd79a; }
 .show-all { min-height: 44px; cursor: pointer; }
 .show-all[hidden] { display: none; }
+
+/* Shared drawer compass, reduced without changing bearings or missing-data rules. */
+.stadium-cell { min-width: 190px; max-width: 220px; white-space: normal; }
+.stadium-detail { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0;
+  border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.compact-compass { display: block; flex: 0 0 66px; }
+.compact-compass svg { width: 66px; height: 66px; }
+.stadium-summary { font-size: 11px; }
+.stadium-cell .sub { display: block; font-size: 11px; }
+.stadium-cell .coordinates { display: block; font-size: 10px; margin-top: 4px; }
+.stadium-cell .copy-coordinates { font-size: 10px; padding: 3px 6px; margin-top: 2px; }
+.exchange-detail { margin-top: 6px; }
+#table td.compact-total { padding: 4px 5px; }
+.book-total-detail { min-width: 58px; min-height: 44px; border: 0; padding: 4px;
+  background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.book-total-detail .sub { display: block; font-size: 11px; }
+.book-total-detail:hover, .stadium-detail:hover { color: var(--accent); }
+.drawer-body table.kv td { white-space: normal; overflow-wrap: anywhere; }
+.drawer-body table.kv td:first-child { width: 34%; }
+.stadium-history-details > summary { cursor: pointer; padding: 12px 0; color: var(--accent); }
+@media (max-width: 600px) {
+  #table tbody td.stadium-cell { min-width: 0; max-width: none; }
+  .stadium-cell .copy-coordinates { min-height: 44px; }
+}
