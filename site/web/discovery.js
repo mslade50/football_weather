@@ -151,13 +151,29 @@ function exchangeUnavailableState(g) {
   }
   const quotes = (g.total_prices?.quotes || []).filter(q => EXCHANGE_BOOKS.has(q.book) && q.side === "under"
     && (typeof STATE === "undefined" || !STATE.book || q.book === STATE.book));
+  const evidence = (g.total_prices?.quote_evidence || []).filter(q => EXCHANGE_BOOKS.has(q.book) && q.side === 'under'
+    && (typeof STATE === 'undefined' || !STATE.book || q.book === STATE.book));
+  const selected = g.fresh_odds?.selected_line ?? g.consensus?.total_now;
   const fresh = [...quotes].sort((a, b) => Date.parse(quoteClock(b)) - Date.parse(quoteClock(a))).find(q => {
     const age = Date.now() - Date.parse(quoteClock(q));
-    return finiteValue(q.line) && age >= 0 && age <= 30000 && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
+    return finiteValue(q.line) && (!finiteValue(selected) || q.line === selected) && !q.expired
+      && age >= 0 && age <= 30000 && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
   });
-  const expired = (g.expired_markets || []).some(key => EXCHANGE_BOOKS.has(key.split("/")[0]));
-  if (!fresh && (quotes.length || expired)) return {label: "Exchange quotes stale", note: "No current $500 depth check"};
+  const expired = (g.expired_markets || []).some(key => key.endsWith('/total') && EXCHANGE_BOOKS.has(key.split('/')[0])
+    && (typeof STATE === 'undefined' || !STATE.book || key.split('/')[0] === STATE.book));
+  const stale = [...quotes, ...evidence].some(q => {
+    const age = Date.now() - Date.parse(quoteClock(q));
+    return q.expired || !(age >= 0 && age <= 30000) || (q.expires_at && !(Date.parse(q.expires_at) > Date.now()));
+  });
+  if (!fresh && finiteValue(selected) && quotes.some(q => {
+    const age = Date.now() - Date.parse(quoteClock(q));
+    return finiteValue(q.line) && q.line !== selected && !q.expired && age >= 0 && age <= 30000
+      && (!q.expires_at || Date.parse(q.expires_at) > Date.now());
+  })) return {label: 'No exchange quote at selected total', note: 'Other totals observed; matching under / depth unavailable'};
+  if (!fresh && (stale || expired)) return {label: "Exchange quotes stale", note: expired
+    ? "Provider total expired; no current $500 depth check" : "No current $500 depth check"};
   if (fresh) return {label: "Liquidity unverified", note: `U ${fmtTotal(fresh.line)} ${fmtOdds(fresh.odds)} · ${bookLabel(fresh.book)} reference; $500 depth unchecked`};
+  if (evidence.length) return {label: 'Liquidity unverified', note: 'Exchange source observed; price / matching rules / $500 depth unverified'};
   return {label: "No exchange quote", note: "Current under / depth unavailable"};
 }
 

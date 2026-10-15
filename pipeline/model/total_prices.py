@@ -52,11 +52,18 @@ def expected_roi(win: float, push: float, cost: float) -> float:
 
 def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
+    lines = list(lines)
     result: dict[str, Any] = {"method": "discrete_logistic_estimate", "quotes": [], "best_under": None,
                               "best_over": None, "model_version": None, "reference_quotes": [],
                               "probability_status": "empirically_unvalidated",
                               "fair_adjustment_status": "full_weather_adjustment_on_current_market",
                               "recommendation_status": "weather_watch"}
+    # Presence and original clocks survive model/coverage failure and expiry.
+    # This evidence carries no prices, probabilities, depth or executable status.
+    result["quote_evidence"] = [{"book": row.book, "side": row.side, "line": row.line,
+        "updated_at": row.scraped_at.isoformat() if row.scraped_at else None,
+        "expires_at": row.expires_at.isoformat() if row.expires_at else None}
+        for row in lines if row.market == "total" and row.book in EXECUTION_BOOKS]
     consensus = getattr(fair, "total", None)
     if fair is None or fair.fair_total is None or consensus is None or consensus.thin:
         return result

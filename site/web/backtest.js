@@ -281,13 +281,24 @@ function stadiumResultFor(g) {
 }
 
 // Frozen audited aggregate cohorts. Legacy summaries and generic game rows never qualify.
-const STADIUM_HISTORY = {data: null, loading: null};
-async function loadStadiumHistory() {
+const STADIUM_HISTORY = {data: null, loading: null, error: null};
+async function loadStadiumHistory(force = false) {
   if (STADIUM_HISTORY.loading) return STADIUM_HISTORY.loading;
-  STADIUM_HISTORY.loading = fetchJson('/api/stadium-history').then(payload => {
+  if (STADIUM_HISTORY.data && !force) return STADIUM_HISTORY.data;
+  STADIUM_HISTORY.error = null;
+  STADIUM_HISTORY.loading = fetchJson('/api/stadium-history', {cache: 'no-store'}).then(payload => {
     if (payload?.schema_version !== 1 || payload.kind !== 'frozen_aggregate_research') throw new Error('Invalid history schema');
+    for (const sport of ['nfl', 'cfb']) {
+      const league = payload.leagues?.[sport];
+      if (!league?.rules || !league.periods || !league.venues || !Array.isArray(league.record_columns)
+        || !Array.isArray(league.record_rows) || !Array.isArray(league.coverage_columns)
+        || !Array.isArray(league.coverage_rows)) throw new Error(`Invalid ${sport.toUpperCase()} history schema`);
+    }
     STADIUM_HISTORY.data = payload;
-  }).catch(() => { STADIUM_HISTORY.data = null; });
+  }).catch(error => {
+    STADIUM_HISTORY.data = null;
+    STADIUM_HISTORY.error = error.message || 'History request failed';
+  }).finally(() => { STADIUM_HISTORY.loading = null; });
   return STADIUM_HISTORY.loading;
 }
 function stadiumSignalRule(g) {
@@ -302,11 +313,15 @@ function stadiumSignalRule(g) {
   }
   return null;
 }
-function stadiumSignalHistory(g) {
-  const rule = stadiumSignalRule(g);
-  const unavailable = reason => ({available: false, reason, rule});
-  if (!rule) return unavailable("No supported current wind screen; rain / heat / altitude history unavailable");
+function stadiumSignalHistory(g, ruleId = null) {
+  const currentRule = stadiumSignalRule(g);
+  const id = ruleId || currentRule?.id || (g.sport === 'cfb' ? 'cfb_wind' : 'highwind_gt15_cool60');
+  const labels = {cfb_wind:'CFB wind', highwind_gt15_cool60:'NFL strong wind', moderate8to15_cool60:'NFL moderate wind'};
   const dataset = STADIUM_HISTORY.data?.leagues?.[g.sport];
+  const rule = {id, label:labels[id] || id, definition:dataset?.rules?.[id] || ''};
+  const unavailable = reason => ({available: false, reason, rule});
+  if (STADIUM_HISTORY.error) return unavailable(`History loading failed: ${STADIUM_HISTORY.error}; retry available in details`);
+  if (!STADIUM_HISTORY.data) return unavailable(STADIUM_HISTORY.loading ? 'History loading' : 'History not loaded');
   if (!dataset) return unavailable("Audited league history unavailable");
   const canonical = g.stadium?.stadium_id, source = dataset.venues?.[canonical];
   const held = dataset.held_sources?.[String(g.venue_provenance?.source_id)];
@@ -315,7 +330,9 @@ function stadiumSignalHistory(g) {
     return unavailable("Historical venue replaced; current building has no matching cohort");
   const provenance = g.venue_provenance;
   if (!source || !provenance?.source_id || String(provenance.source_id) !== source
-      || provenance.resolved_id !== canonical)
+      || provenance.resolved_id !== canonical
+      || !provenance.source?.startsWith(g.sport === 'cfb' ? 'cfbd:' : 'nflverse:')
+      || provenance.resolution?.startsWith('unresolved_'))
     return unavailable("Verified physical-venue crosswalk unavailable");
   const coverage = (dataset.coverage_rows || []).map(row => Object.fromEntries(dataset.coverage_columns.map((key, i) => [key, row[i]])))
     .find(row => row.source_stadium_id === source);
@@ -334,35 +351,53 @@ function stadiumSignalHistory(g) {
     return {label, n:valid ? row.n : 0, covered, opening:record('opening'), closing:record('closing'),
       unavailable:!!row && !valid || !covered};
   });
-  return {available:true, rule, league:dataset.league, periods, dataset, source};
+  return {available:true, rule, league:dataset.league, periods, dataset, source, currentRule};
+}
+function stadiumHistoricalRules(g) {
+  return g.sport === 'cfb' ? ['cfb_wind'] : ['highwind_gt15_cool60', 'moderate8to15_cool60'];
+}
+function stadiumCurrentEligibility(g) {
+  const current = stadiumSignalRule(g);
+  return current ? `Qualifies for ${current.label} historical screen; execution eligibility checked separately`
+    : !hardEligible(g) ? `Not eligible: ${ineligibleReason(g)}`
+    : !finiteValue(g.weather?.wind_fg) || !finiteValue(g.weather?.temp_fg)
+      || (g.sport === 'cfb' && !finiteValue(g.consensus?.spread_open)) ? 'Unknown: forecast / opening spread incomplete'
+    : 'Forecast does not qualify for a supported historical wind rule; rain / heat / altitude history unavailable';
 }
 function stadiumSignalEvidence(g) {
-  const result = stadiumSignalHistory(g);
-  const rows = [["Stadium signal", result.available ? result.rule.label : `Unavailable: ${result.reason}`]];
-  if (result.rule) rows.push(["Rule", result.rule.definition]);
-  if (result.available) {
+  const rows = [["Current eligibility", stadiumCurrentEligibility(g)]];
+  for (const id of stadiumHistoricalRules(g)) {
+    const result = stadiumSignalHistory(g, id);
+    rows.push(["Stadium signal", result.available ? result.rule.label : `Unavailable: ${result.reason}`]);
+    if (result.rule.definition) rows.push(["Historical rule", result.rule.definition]);
+    if (!result.available) break;
     for (const period of result.periods) {
       rows.push([`${result.league} ${period.label}`, period.unavailable ? "Coverage unavailable" : period.n
-        ? `Open U ${period.opening}; close U ${period.closing}; W–L–P, N=${period.n}${period.n < 20 ? '; small sample' : ''}`
+        ? `Open U ${period.opening}; close U ${period.closing}; W-L-P, N=${period.n}${period.n < 20 ? '; small sample' : ''}`
         : "No qualifying games in available coverage"],
-      ["Venue coverage", `${period.covered || 0} eligible paired games; missing seasons / games may remain`]);
+        ["Venue coverage", `${period.covered || 0} eligible paired games; missing seasons / games may remain`]);
     }
     rows.push(["History snapshot", `${result.dataset.research_snapshot_date}; verified venue ${result.source}`]);
-    for (const key of ['selection','weather','roof','line_basis','source_provider_eras','under_outcome','pushes','interpretation','small_sample','geography','mapping']) {
-      if (result.dataset.methodology?.[key]) rows.push([key.replaceAll('_',' '), result.dataset.methodology[key]]);
+    if (id === stadiumHistoricalRules(g).at(-1)) {
+      for (const key of ['selection','weather','roof','line_basis','source_provider_eras','under_outcome','pushes','interpretation','small_sample','geography','mapping']) {
+        if (result.dataset.methodology?.[key]) rows.push([key.replaceAll('_',' '), result.dataset.methodology[key]]);
+      }
     }
   }
   return rows;
 }
 function stadiumSignalCompact(g) {
-  const result = stadiumSignalHistory(g);
-  if (!result.available) return '<span class="sub stadium-record">Signal history unavailable</span>';
-  const period = result.periods[0];
-  return `<span class="sub stadium-record">${esc(result.rule.label)} · ${esc(result.league)} ${esc(period.label)}</span>`
-    + (period.unavailable ? '<span class="sub stadium-record">Coverage unavailable</span>' : !period.n
-      ? '<span class="sub stadium-record">No qualifying games in coverage</span>'
-      : `<span class="sub stadium-record">Open U ${esc(period.opening)} · close U ${esc(period.closing)}</span><span class="sub stadium-record">W–L–P · N=${period.n}${period.n < 20 ? ' · small sample' : ''}</span>`)
-    + `<span class="sub stadium-record">${g.sport === 'cfb' ? 'Actual weather · synthetic totals' : 'Retrospective actual weather'}</span>`;
+  const history = stadiumHistoricalRules(g).map(id => {
+    const result = stadiumSignalHistory(g, id);
+    if (!result.available) return `<span class="sub stadium-record">Signal history unavailable: ${esc(result.reason)}</span>`;
+    const period = result.periods[0];
+    return `<span class="sub stadium-record">${esc(result.rule.label)} · ${esc(result.league)} ${esc(period.label)}</span>`
+      + (period.unavailable ? '<span class="sub stadium-record">Coverage unavailable</span>' : !period.n
+        ? '<span class="sub stadium-record">No qualifying games in coverage</span>'
+        : `<span class="sub stadium-record">Open U ${esc(period.opening)} · close U ${esc(period.closing)}</span><span class="sub stadium-record">W–L–P · N=${period.n}${period.n < 20 ? ' · small sample' : ''}</span>`)
+      + `<span class="sub stadium-record">${g.sport === 'cfb' ? 'Actual weather · synthetic totals' : 'Retrospective actual weather'}</span>`;
+  });
+  return [...new Set(history)].join('') + `<span class="sub stadium-record">Current: ${esc(stadiumCurrentEligibility(g))}</span>`;
 }
 
 // ── rendering ─────────────────────────────────────────────────────────────

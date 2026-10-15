@@ -79,10 +79,15 @@ def parse_espn_scoreboard(payload: dict[str, Any], sport: str, season: Optional[
         venue = comp.get("venue") or {}
         vid = str(venue.get("id")) if venue.get("id") is not None else None
         stadium_id, tz_name = vid, None
+        venue_resolution = "raw_source_id"
         if book is not None:
             st = book.find_stadium(vid) or book.find_stadium(venue.get("fullName"))
             if st is not None:
                 stadium_id, tz_name = st.stadium_id, st.timezone
+                venue_resolution = "explicit_name" if not book.find_stadium(vid) else "source_id"
+            else:
+                stadium_id = None
+                venue_resolution = "unresolved_explicit_venue"
         state = ((comp.get("status") or {}).get("type") or {}).get("state") or "pre"
         status = {"pre": "scheduled", "in": "live", "post": "final"}.get(state, "scheduled")
         if comp.get("timeValid") is False:
@@ -103,6 +108,7 @@ def parse_espn_scoreboard(payload: dict[str, Any], sport: str, season: Optional[
                 roof_state=None,
                 status=status,
                 source=f"espn:{ev.get('id', '')}",
+                venue_source_id=vid, venue_name=venue.get("fullName"), venue_resolution=venue_resolution,
             )
         )
     return games

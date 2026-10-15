@@ -1596,10 +1596,13 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
             records[gid].odds = current
         card = cards.get(gid)
         if card is not None:
+            evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
             card["odds"] = json_out.odds_block(gid, lines, res.odds.openers)
             card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
             card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
             card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
+            card["total_prices"]["quote_evidence"] = list({json.dumps(q, sort_keys=True): q for q in
+                evidence + card["total_prices"].get("quote_evidence", [])}.values())
 
 
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],

@@ -15,6 +15,15 @@ function destroyWxPlots() {
 }
 
 function setupDrawer() {
+  document.addEventListener('click', async event => {
+    const button = event.target.closest?.('.retry-stadium-history');
+    if (!button) return;
+    button.disabled = true;
+    await loadStadiumHistory(true);
+    if (['table', 'map', 'signals'].includes(STATE.view)) render();
+    const host = document.getElementById('drawer-stadium-history');
+    if (host && DRAWER.game) host.innerHTML = stadiumHistoryDetails(DRAWER.game);
+  });
   document.getElementById("drawer-close").addEventListener("click", closeDrawer);
   document.addEventListener("keydown", (e) => {
     const drawer = document.getElementById("drawer");
@@ -99,7 +108,7 @@ function backtestRows(g) {
 }
 function stadiumHistoryDetails(g) {
   if (typeof stadiumSignalEvidence !== "function") return "";
-  return `<details class="stadium-history-details"><summary>Stadium signal history · rules, periods and coverage</summary>${kv(stadiumSignalEvidence(g).map(([label,value]) => [label,esc(value)]))}</details>`;
+  return `<details class="stadium-history-details"><summary>Stadium signal history · rules, periods and coverage</summary>${kv(stadiumSignalEvidence(g).map(([label,value]) => [label,esc(value)]))}${STADIUM_HISTORY.error ? '<button type="button" class="controlbtn retry-stadium-history">Retry history</button>' : ''}</details>`;
 }
 
 function totalPriceTable(g) {
