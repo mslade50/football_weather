@@ -88,7 +88,6 @@ input { width: 200px; }
   border-radius: 6px; padding: 6px 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .controlbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .sub { color: var(--muted); font-size: 12px; }
-.best-price .sub { display: block; margin-top: 3px; }
 
 .statusbar { display: flex; align-items: center; gap: 12px; padding: 6px 18px;
   border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted);
@@ -339,9 +338,6 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .game-detail { background: transparent; color: inherit; border: 0; padding: 8px 0; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
 .copy-coordinates { display: block; margin-top: 6px; }
 .coordinates { user-select: all; white-space: normal; overflow-wrap: anywhere; }
-.best-price { min-width: 180px; max-width: 260px; white-space: normal; }
-.best-price .sub { white-space: normal; }
-.best-price .muted { color: #a9b5c7; }
 .marker-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #0b0f16ed; color: #e6edf3; border-radius: 4px; padding: 3px 5px; font-size: 11px; white-space: nowrap; }
 .popup .hc-li { flex-wrap: wrap; gap: 5px; }
 .popup .hc-li > span:last-child { overflow-wrap: anywhere; }
@@ -360,7 +356,6 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   .wrap { max-height: none; }
   #table td.game { min-width: 112px; max-width: 140px; white-space: normal; }
   #table td.left { min-width: 130px; max-width: 160px; white-space: normal; }
-  #table .best-price { min-width: 175px; }
   #map { height: max(320px, 55dvh); }
   .maplegend { position: relative; left: auto; bottom: auto; margin: 8px 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
   .maplegend .lg-ctl { width: 100%; }
@@ -370,13 +365,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   #table thead { display: none; }
   #table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); padding: 10px; gap: 6px; border-bottom: 1px solid var(--line); }
   #table tbody td { display: none; }
-  #table tbody td:nth-child(-n+4) { display: block; border: 0; padding: 4px; min-width: 0; max-width: none; text-align: left; }
+  #table tbody td:nth-child(-n+3) { display: block; border: 0; padding: 4px; min-width: 0; max-width: none; text-align: left; }
   #table tbody td.game { grid-column: 1 / -1; position: static; background: transparent; }
   #table tbody td.game .sub { display: inline; margin-left: 6px; }
     #table tbody td.game .kickoff-eastern, #table tbody td.game .kickoff-local { display: block; margin-left: 0; }
-  #table tbody td:nth-child(4) { grid-column: 1 / -1; }
+  #table tbody td.stadium-cell { grid-column: 1 / -1; }
   #table tbody td.empty { display: block; grid-column: 1 / -1; }
-  #table .best-price { color: #d0d7de; }
   .wrap { overflow-x: hidden; }
 }
 .coverage-note { display: block; color: #ffd79a; font-size: 11px; margin-top: 4px; white-space: normal; }
@@ -416,7 +410,6 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
 .stadium-cell .sub { display: block; font-size: 11px; }
 .stadium-cell .coordinates { display: block; font-size: 10px; margin-top: 4px; }
 .stadium-cell .copy-coordinates { font-size: 10px; padding: 3px 6px; margin-top: 2px; }
-.exchange-detail { margin-top: 6px; }
 #table td.compact-total { padding: 4px 5px; }
 .book-total-detail { min-width: 58px; min-height: 44px; border: 0; padding: 4px;
   background: transparent; color: var(--text); font: inherit; cursor: pointer; }

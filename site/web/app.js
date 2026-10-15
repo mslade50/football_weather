@@ -257,7 +257,7 @@ function render() {
   if (showAll) { showAll.checked = STATE.showAllGames; if (showAll.parentElement) showAll.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table"; }
   document.getElementById("signal").value = STATE.signal;
   const mobileSort = document.getElementById("mobile-sort");
-  if (mobileSort) mobileSort.value = [1, 2].includes(STATE.sort) ? String(STATE.sort) : "";
+  if (mobileSort) mobileSort.value = STATE.sort === 1 ? "1" : "";
   const search = document.getElementById("search");
   if (document.activeElement !== search && search.value !== STATE.q) search.value = STATE.q;
   const view = STATE.view;

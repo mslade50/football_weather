@@ -1201,6 +1201,7 @@ class OddsResult:
     new_opener_keys: list[str] = dataclasses.field(default_factory=list)
     pseudo: list[GameLine] = dataclasses.field(default_factory=list)    # consensus spread as book='consensus' rows
     opener_update_keys: list[str] = dataclasses.field(default_factory=list)  # rebased existing rows -> D1 upsert
+    last_observed: dict[str, dict] = dataclasses.field(default_factory=dict)  # descriptive only; never current lines
 
 
 def stage_odds(
@@ -1352,7 +1353,35 @@ def stage_odds(
     ctx.count("odds", sport, len(lines))
     return OddsResult(board_lines, consensus, openers, by_game, unresolved, per_book_n,
                       scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo,
-                      opener_update_keys=opener_update_keys)
+                      opener_update_keys=opener_update_keys,
+                      last_observed=last_observed_totals(archive, sport, active_ids, ctx.now_utc))
+
+
+def last_observed_totals(archive: dict, sport: str, active_ids: set[str], now: datetime) -> dict[str, dict]:
+    """Retain observed under references when partial runs cannot carry current prices.
+
+    This display-only block never enters GameLine, consensus, model or execution.
+    Preserve original book clocks, including failed-source availability evidence.
+    """
+    out: dict[str, dict] = {}
+    for key, value in (archive.get("last") or {}).items():
+        parts = key.split("|")
+        if len(parts) != 4 or not isinstance(value, dict):
+            continue
+        gid, market, side, book = parts
+        if gid not in active_ids or not gid.startswith(f"{sport}:") or market != "total" or side != "under" or book == CONSENSUS_BOOK:
+            continue
+        if value.get("line") is None or value.get("odds") is None:
+            continue
+        stamp = pstate.parse_utc(value.get("ts"))
+        expiry = pstate.parse_utc(value.get("expires_at"))
+        status = "unavailable" if value.get("available") is False else "unknown"
+        if value.get("available") is True and stamp is not None and stamp <= now:
+            status = "expired" if expiry and expiry < now else "stale" if now - stamp > ODDS_CARRY_MAX_AGE else "current"
+        out.setdefault(gid, {})[book] = {"line": value.get("line"), "under": value.get("odds"),
+            "updated_at": value.get("ts"), "source_updated_at": value.get("source_updated_at"),
+            "expires_at": value.get("expires_at"), "status": status}
+    return out
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1597,7 +1626,7 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
         card = cards.get(gid)
         if card is not None:
             evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
-            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers)
+            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers, res.odds.last_observed.get(gid))
             card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
             card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
             card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
@@ -1853,7 +1882,8 @@ def run_sport(
                 sport, g, rg.stadium if rg else None, rg.home_team if rg else None, rg.away_team if rg else None,
                 fc, impact, sig, flags, lines=game_lines, openers=odds.openers, consensus=odds.consensus, fair=gf_alert,
                 legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=rec.avg_wind,
-                run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model, **card_kwargs,
+                run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model,
+                last_observed=odds.last_observed.get(g.game_id), **card_kwargs,
             ))
             rows.append({
                 "game_id": g.game_id,
@@ -2028,8 +2058,9 @@ def write_outputs(
                                   previous=(prev_meta or {}).get("books"))
     seasons = [r.season_week for r in results if r.season_week[0] is not None]
     season, week = min(seasons) if seasons else (None, None)
-    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(line.expires_at))
-                            for result in results for line in result.odds.lines if line.expires_at is not None)
+    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
+        line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
+        for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
                                extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}

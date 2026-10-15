@@ -1,5 +1,26 @@
 # Stadium and exchange display changes
 
+October 15 follow-up: the Exchange under column and its price sort were removed
+from the main board at the owner's request. Exchange data and checks remain in
+the existing details and map surfaces. The original column notes below describe
+the preceding release.
+
+The exchange-only publication 38726714052 replaced the preceding full publication
+38653059311, whose final `-pw` generation contained sportsbook totals. The partial
+refresh did not request BetOnline, Pinnacle or FanDuel; their roughly twelve-hour-old
+observations correctly failed the existing one-hour carry limit. Polymarket was
+requested but returned zero lines. Missing current sportsbook fields were caused
+by that refresh scope, rather than PR26 erasing fresh book fields. Recovery uses a
+regular full refresh with notifications disabled, without restoring old prices.
+
+Partial builds now retain an optional `odds.<book>.total.last_observed` reference
+with its original clocks and a distinct stale, expired, unavailable or unknown
+status. This evidence never becomes a current GameLine, consensus input or
+execution price. Serialized quotes without a provider TTL expire after the same
+one-hour ceiling already used by carrying and comparisons; shorter explicit
+provider expiry is preserved. The producer-to-Worker-route regression also
+checks default NFL/CFB table alignment and current/stale/missing book cells.
+
 The Exchange under column requires a fresh, verified principal allocation before
 showing a $500 stake. The former fallback said “Liquidity unverified” for missing
 quotes, expired previews, stale quotes, changed totals and invalid evidence alike.
