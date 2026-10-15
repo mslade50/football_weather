@@ -185,9 +185,15 @@ def expire_card(card: dict, now: datetime) -> dict:
             if quote.get("expired") or not expired(quote.get("expires_at"), now):
                 continue
             removed.append(f"{book}/{market}")
+            reference = quote.get("last_observed")
+            if market == "total" and quote.get("line") is not None:
+                reference = {k: quote.get(k) for k in ("line", "under", "updated_at", "source_updated_at", "expires_at")}
+                reference["status"] = "expired"
             markets[market] = {k: v for k, v in quote.items()
                                if k.startswith("open") or k in ("expires_at", "updated_at", "source_updated_at")}
             markets[market]["expired"] = True
+            if reference:
+                markets[market]["last_observed"] = reference
     if removed:
         card["expired_markets"] = sorted(set(card.get("expired_markets", []) + removed))
         # Fresh book lines remain useful. Rebuild consensus/fair/edges from the

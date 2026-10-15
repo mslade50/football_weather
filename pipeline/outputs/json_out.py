@@ -327,7 +327,8 @@ def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
     return [markets[k] for k in sorted(markets)]
 
 
-def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[str, dict[str, Any]]:
+def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict,
+               last_observed: Optional[dict] = None) -> dict[str, dict[str, Any]]:
     """``{book: {spread, total, ml}}`` from this game's MAIN lines + the openers store."""
     per_book: dict[str, dict[str, dict[str, GameLine]]] = {}
     for ln in lines:
@@ -390,6 +391,10 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                     values["source_updated_at"] = ref.source_updated_at
                 if ref.expires_at is not None:
                     values["expires_at"] = ref.expires_at
+                elif ref.scraped_at is not None:
+                    # Match the existing one-hour carry/comparison ceiling.
+                    # A provider without its own TTL cannot stay current forever.
+                    values["expires_at"] = ref.scraped_at + timedelta(hours=1)
             out[book] = entry
 
     # Preserve historical openers when a book/market has no current quote. This
@@ -428,6 +433,8 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
             quote = {"home": None, "away": None, "open_home": op_home.get("odds"),
                      "open_away": op_away.get("odds"), "updated_at": None}
         entry[market] = quote
+    for book, reference in (last_observed or {}).items():
+        out.setdefault(book, {}).setdefault("total", {})["last_observed"] = reference
     return out
 
 
@@ -577,6 +584,7 @@ def build_card(
     impact_v2: Any = None,
     fair_v2: Any = None,
     model_version: Optional[str] = None,
+    last_observed: Optional[dict] = None,
 ) -> dict[str, Any]:
     """One GameCard (ARCH §5). Pure: everything comes from the arguments.
     ``impact_v2``/``fair_v2`` fill the side-by-side v2 blocks; ``model_version`` stamps
@@ -613,7 +621,7 @@ def build_card(
         "weather": _weather_block(fc, avg_wind if avg_wind is not None else (stadium.avg_wind_static if stadium else None)),
         "impact": _impact_block(impact, impact_v2, model_version),
         "signal": _signal_block(signal, flags),
-        "odds": odds_block(game.game_id, lines, openers),
+        "odds": odds_block(game.game_id, lines, openers, last_observed),
         "weekly_total_open": (openers.get("weekly_totals") or {}).get(game.game_id),
         'odds_baselines': {
             'first_observed': {k: v for k, v in (openers.get('openers') or {}).items() if k.startswith(game.game_id + '|')},

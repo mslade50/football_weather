@@ -29,9 +29,13 @@ export function expireCardQuotes(original, now = Date.now()) {
       if (quote.expired) continue;
       if (!quoteExpired(quote.expires_at, now)) continue;
       removed.push(`${book}/${market}`);
+      const reference = market === 'total' && quote.line != null ? {...Object.fromEntries(
+        ['line', 'under', 'updated_at', 'source_updated_at', 'expires_at'].map(k => [k, quote[k]])), status:'expired'}
+        : quote.last_observed;
       markets[market] = Object.fromEntries(Object.entries(quote).filter(([k]) => k.startsWith("open")
         || ["expires_at", "updated_at", "source_updated_at"].includes(k)));
       markets[market].expired = true;
+      if (reference) markets[market].last_observed = reference;
     }
   }
   if (removed.length) {

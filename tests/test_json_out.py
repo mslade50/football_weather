@@ -215,9 +215,10 @@ def test_card_odds_block_uses_openers_and_derives_home_line():
     bo = card["odds"]["betonline"]
     assert bo["spread"] == {"home_line": -3.0, "home_odds": -108, "away_odds": -112, "open_line": -2.5, "open_odds": -110,
                               "updated_at": "2026-09-26T12:00:00Z", 'open_ts': '2026-09-26T12:00:00Z',
-                              'open_source': 'betonline', 'open_basis': 'first_seen'}
+                              'open_source': 'betonline', 'open_basis': 'first_seen', 'expires_at': '2026-09-26T13:00:00Z'}
     assert bo["total"]["line"] == 38.0 and bo["total"]["open_line"] == 39.0 and bo["total"]["under"] == -110
-    assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None, "updated_at": "2026-09-26T12:00:00Z"}
+    assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None,
+                        "updated_at": "2026-09-26T12:00:00Z", "expires_at": "2026-09-26T13:00:00Z"}
     pin = card["odds"]["pinnacle"]
     assert pin["spread"]["home_line"] == -3.5 and pin["spread"]["home_odds"] is None and pin["spread"]["open_line"] is None
     assert "ml" not in pin
