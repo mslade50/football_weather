@@ -97,12 +97,23 @@ def parse_cfbd_games(
         if not home_id or not away_id:
             continue
         vid = g.get("venueId") if g.get("venueId") is not None else g.get("venue_id")
-        stadium_id = str(vid) if vid is not None else None
+        venue_source_id = str(vid) if vid is not None else None
+        venue_name = g.get("venue") or None
+        stadium_id = venue_source_id
+        venue_resolution = "raw_source_id"
         tz_name = None
         if book is not None:
-            st = book.find_stadium(stadium_id) or book.find_stadium(g.get("venue"))
+            by_id = book.find_stadium(venue_source_id)
+            by_name = book.find_stadium(venue_name)
+            # Preserve the explicit CFBD venue-ID precedence used for neutral
+            # games such as Texas/Oklahoma; never substitute a team-home venue.
+            st = by_id or by_name
             if st is not None:
                 stadium_id, tz_name = st.stadium_id, st.timezone
+                venue_resolution = "source_id" if by_id else "explicit_name"
+            else:
+                stadium_id = None
+                venue_resolution = "unresolved_explicit_venue"
         tbd = bool(g.get("startTimeTBD") or g.get("start_time_tbd"))
         games.append(
             Game(
@@ -120,6 +131,7 @@ def parse_cfbd_games(
                 roof_state=None,
                 status="final" if final else ("tbd" if tbd else "scheduled"),
                 source=f"cfbd:{g.get('id', '')}",
+                venue_source_id=venue_source_id, venue_name=venue_name, venue_resolution=venue_resolution,
             )
         )
     return games

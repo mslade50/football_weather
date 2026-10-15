@@ -7,6 +7,20 @@ export function quoteExpired(value, now = Date.now()) {
 
 export function expireCardQuotes(original, now = Date.now()) {
   const card = structuredClone(original), removed = [];
+  if (card.total_prices) {
+    const prices = card.total_prices;
+    const evidence = [...(prices.quote_evidence || []), ...(prices.quotes || []).map(q =>
+      Object.fromEntries(['book', 'side', 'line', 'updated_at', 'fetched_at', 'expires_at'].map(k => [k, q[k]])))];
+    prices.quote_evidence = [...new Map(evidence.map(q => [JSON.stringify(q), q])).values()];
+    for (const key of ['quotes', 'reference_quotes']) {
+      prices[key] = (prices[key] || []).filter(q => !q.expired && !quoteExpired(q.expires_at, now)
+        && !card.odds?.[q.book]?.total?.expired && !quoteExpired(card.odds?.[q.book]?.total?.expires_at, now));
+    }
+    for (const side of ['under', 'over']) {
+      if (prices[`best_${side}`] && !prices.quotes.some(q => q.book === prices[`best_${side}`].book
+        && q.side === side && q.line === prices[`best_${side}`].line)) prices[`best_${side}`] = null;
+    }
+  }
   for (const [book, markets] of Object.entries(card.odds || {})) {
     for (const [market, quote] of Object.entries(markets)) {
       // The server publication guard already removed this quote and recomputed
@@ -27,13 +41,20 @@ export function expireCardQuotes(original, now = Date.now()) {
       return !quote?.expired && line != null && Number.isFinite(Number(line));
     }).length;
     const spreadBooks = currentBooks("spread"), totalBooks = currentBooks("total");
-    card.expired_markets = removed;
+    card.expired_markets = [...new Set([...(card.expired_markets || []), ...removed])];
     card.consensus = { ...(card.consensus || {}), spread_now: null, total_now: null, move_s: null, move_t: null,
       spread_src: null, ref_book: null, n_books: 0, thin: true,
       spread_n_books: spreadBooks, spread_thin: spreadBooks < 2,
       total_n_books: totalBooks, total_thin: totalBooks < 2 };
     card.fair = Object.fromEntries(Object.keys(card.fair || {}).map(k => [k, k === "edges" ? [] : null]));
-    card.total_prices = null;
+    // Raw surviving references remain useful, but their model comparisons may
+    // include the removed provider. Fail closed only for those derived fields.
+    if (card.total_prices) {
+      card.total_prices.fair_total = null;
+      card.total_prices.best_under = card.total_prices.best_over = null;
+      for (const q of [...card.total_prices.quotes, ...card.total_prices.reference_quotes])
+        for (const key of ['ev_roi', 'fair_cost', 'win_prob', 'push_prob', 'loss_prob']) q[key] = null;
+    }
   }
   return card;
 }

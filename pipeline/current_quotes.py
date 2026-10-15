@@ -176,17 +176,20 @@ def _recompute_card(card: dict, now: datetime) -> bool:
 
 def expire_card(card: dict, now: datetime) -> dict:
     card = deepcopy(card)
+    evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
+    evidence = evidence + [{k: q.get(k) for k in ("book", "side", "line", "updated_at", "expires_at")}
+                           for q in (card.get("total_prices") or {}).get("quotes", [])]
     removed = []
     for book, markets in card.get("odds", {}).items():
         for market, quote in markets.items():
-            if not expired(quote.get("expires_at"), now):
+            if quote.get("expired") or not expired(quote.get("expires_at"), now):
                 continue
             removed.append(f"{book}/{market}")
             markets[market] = {k: v for k, v in quote.items()
                                if k.startswith("open") or k in ("expires_at", "updated_at", "source_updated_at")}
             markets[market]["expired"] = True
     if removed:
-        card["expired_markets"] = removed
+        card["expired_markets"] = sorted(set(card.get("expired_markets", []) + removed))
         # Fresh book lines remain useful. Rebuild consensus/fair/edges from the
         # surviving main quotes using the same model functions as the full build.
         # Older/incomplete cards fail closed, while preserving historical openers.
@@ -203,6 +206,13 @@ def expire_card(card: dict, now: datetime) -> dict:
                 "total_n_books": None, "total_thin": None}
             card["fair"] = {k: [] if k == "edges" else None for k in card.get("fair", {})}
             card["total_prices"] = None
+        # Do not lose stale source presence when a separate provider expires or
+        # the model cannot be reconstructed. Evidence cannot qualify a price.
+        if evidence:
+            prices = card.get("total_prices") or {"quotes": [], "reference_quotes": [], "best_under": None, "best_over": None}
+            prices["quote_evidence"] = list({json.dumps(q, sort_keys=True): q
+                for q in evidence + prices.get("quote_evidence", [])}.values())
+            card["total_prices"] = prices
     return card
 
 

@@ -44,7 +44,7 @@ function ui() {
   ctx.data=stadiumHistoryPayload();
   vm.runInContext('STADIUM_HISTORY.data=data',ctx);
   ctx.game={sport:'nfl',season:2026,stadium:{stadium_id:'metlife-stadium',roof_state:'open'},
-    venue_provenance:{source_id:'NYC01',resolved_id:'metlife-stadium'},weather:{wind_fg:18,temp_fg:55}};
+    venue_provenance:{source:'nflverse:fixture',source_id:'NYC01',resolved_id:'metlife-stadium'},weather:{wind_fg:18,temp_fg:55}};
   return {ctx,run:code=>vm.runInContext(code,ctx)};
 }
 test('Exact stadium and league provide full/recent paired records with explicit actual-weather caveats',()=>{
@@ -79,23 +79,25 @@ test('CFB frozen bytes and full/recent WLP reconcile without altering the geogra
   for(const id of ['3699','3713','4258']) assert.ok(data.held_sources[id]);
 });
 
-test('CFB exact venue records show synthetic paired threshold basis; conflicts and missing opener stay unavailable',()=>{
+test('CFB exact venue records show synthetic paired threshold basis independently of current opener',()=>{
   const f=ui(); f.ctx.game={sport:'cfb',season:2026,stadium:{stadium_id:'camp-randall-stadium',roof_state:'open'},
-    venue_provenance:{source_id:'347',resolved_id:'camp-randall-stadium'},weather:{wind_fg:18,temp_fg:55},consensus:{spread_open:3}};
+    venue_provenance:{source:'cfbd:fixture',source_id:'347',resolved_id:'camp-randall-stadium'},weather:{wind_fg:18,temp_fg:55},consensus:{spread_open:3}};
   const result=f.run('stadiumSignalHistory(game)'); assert.equal(result.available,true); assert.equal(result.periods[0].n,2);
   assert.match(f.run('stadiumSignalCompact(game)'),/synthetic totals/);
   assert.match(JSON.stringify(f.run('stadiumSignalEvidence(game)')),/quarter-point synthetic|imputed/);
   f.ctx.game.venue_provenance.source_id='3699'; assert.match(f.run('stadiumSignalHistory(game).reason'),/conflict/);
-  f.ctx.game.consensus.spread_open=null; assert.equal(f.run('stadiumSignalHistory(game).available'),false);
+  f.ctx.game.venue_provenance.source_id='347';
+  f.ctx.game.consensus.spread_open=null; assert.equal(f.run('stadiumSignalHistory(game).available'),true);
+  assert.match(f.run('stadiumCurrentEligibility(game)'),/Unknown/);
 });
 test('Venue renames match only verified IDs; missing coverage never becomes a zero record',()=>{
   const f=ui(); f.ctx.game.stadium.name='Renamed building'; assert.equal(f.run('stadiumSignalHistory(game).available'),true);
   f.ctx.game.venue_provenance.source_id='CLE00'; assert.equal(f.run('stadiumSignalHistory(game).available'),false);
   delete f.ctx.game.venue_provenance; assert.equal(f.run('stadiumSignalHistory(game).available'),false);
-  f.ctx.game.venue_provenance={source_id:'DAL00',resolved_id:'att-stadium'}; f.ctx.game.stadium.stadium_id='att-stadium';
+  f.ctx.game.venue_provenance={source:'nflverse:fixture',source_id:'DAL00',resolved_id:'att-stadium'}; f.ctx.game.stadium.stadium_id='att-stadium';
   const known=f.run('stadiumSignalHistory(game)'); assert.equal(known.available,true); assert.equal(known.periods[0].n,0);
   assert.match(f.run('stadiumSignalCompact(game)'),/No qualifying games in coverage/);
   f.ctx.game.stadium.stadium_id='replacement-stadium'; assert.match(f.run('stadiumSignalCompact(game)'),/unavailable/);
-  f.ctx.game.stadium.stadium_id='highmark-stadium'; f.ctx.game.venue_provenance={source_id:'BUF00',resolved_id:'highmark-stadium'};
+  f.ctx.game.stadium.stadium_id='highmark-stadium'; f.ctx.game.venue_provenance={source:'nflverse:fixture',source_id:'BUF00',resolved_id:'highmark-stadium'};
   assert.match(f.run('stadiumSignalHistory(game).reason'),/replaced/);
 });
