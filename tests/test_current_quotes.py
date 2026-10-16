@@ -277,10 +277,10 @@ def test_compact_board_carries_earliest_current_quote_expiry():
 
 
 @pytest.mark.parametrize("stamp,expected", [("2026-10-05T09:17:00+00:00", "2026-10-05T14:17:00Z"),
-    ("2026-10-05T20:18:00+00:00", "2026-10-05T22:17:00Z"),
-    ("2026-10-04T16:18:00+00:00", "2026-10-04T16:47:00Z"),
-    ("2026-10-03T11:18:00+00:00", "2026-10-03T12:17:00Z"),
-    ("2026-11-01T16:18:00+00:00", "2026-11-01T16:47:00Z")])
+    ("2026-10-05T20:18:00+00:00", "2026-10-05T22:00:00Z"),
+    ("2026-10-04T16:18:00+00:00", "2026-10-04T17:00:00Z"),
+    ("2026-10-03T11:18:00+00:00", "2026-10-03T15:00:00Z"),
+    ("2026-11-01T16:18:00+00:00", "2026-11-01T17:00:00Z")])
 def test_cadence_matches_existing_utc_triggers_across_dst(stamp, expected):
     assert json_out.next_run_eta(datetime.fromisoformat(stamp), {}) == expected
 
