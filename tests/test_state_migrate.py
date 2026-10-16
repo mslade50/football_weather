@@ -88,8 +88,9 @@ def test_save_rejects_nan(tmp_path: Path):
 def test_openers_first_seen_never_overwritten(tmp_path: Path):
     op = state.load_openers(tmp_path)
     key = state.odds_key(G1, "total", "over", "betcris")
-    assert state.record_openers(op, [_line(G1, "total", "over", "betcris", 44.5, -110)], "t0") == 1
-    assert state.record_openers(op, [_line(G1, "total", "over", "betcris", 46.0, -115)], "t1") == 0
+    both = lambda line, odds: [_line(G1, "total", "over", "betcris", line, odds), _line(G1, "total", "under", "betcris", line, odds)]  # noqa: E731
+    assert state.record_openers(op, both(44.5, -110), "t0") == 2
+    assert state.record_openers(op, both(46.0, -115), "t1") == 0
     assert state.get_opener(op, key) == {"line": 44.5, "odds": -110, "ts": "t0"}
     state.save_openers(tmp_path, op)
     assert state.get_opener(state.load_openers(tmp_path), key)["line"] == 44.5
@@ -242,3 +243,35 @@ def test_archive_last_roundtrip_and_prune(tmp_path: Path):
     d2 = state.load_archive_last(tmp_path)
     assert state.prune_archive_last(d2, [G1]) == 1
     assert len(d2["last"]) == 1
+
+
+def test_pair_openers_record_together_and_never_mismatch():
+    op = state.migrate(None, "openers")
+    rec = lambda *rows: state.record_openers(op, list(rows), "t0")  # noqa: E731
+    # sides on different numbers: nothing recorded
+    assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.5, -110)) == 0
+    assert op["openers"] == {}
+    # away is flipped before comparing
+    assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.0, -105)) == 2
+    assert state.get_opener(op, state.odds_key(G1, "spread", "away", "pinnacle"))["ts"] == "t0"
+    # a one-sided book still gets an opener; its other side completes only on the same number
+    assert rec(_line(G1, "spread", "away", "betonline", 3.5, -110)) == 1
+    assert rec(_line(G1, "spread", "home", "betonline", -4.0, -110)) == 0
+    assert rec(_line(G1, "spread", "home", "betonline", -3.5, -112)) == 1
+    # ml stays per side
+    assert rec(_line(G1, "ml", "home", "pinnacle", None, -150)) == 1
+
+
+def test_pair_openers_legacy_one_sided_state_only_completes_on_same_number():
+    op = state.migrate(None, "openers")
+    op["openers"][state.odds_key(G1, "total", "under", "betonline")] = {"line": 44.5, "odds": -110, "ts": "t0"}
+    assert state.record_openers(op, [_line(G1, "total", "over", "betonline", 46.0, -110)], "t1") == 0
+    assert state.odds_key(G1, "total", "over", "betonline") not in op["openers"]
+    assert state.record_openers(op, [_line(G1, "total", "over", "betonline", 44.5, -105)], "t2") == 1
+    assert state.get_opener(op, state.odds_key(G1, "total", "over", "betonline"))["odds"] == -105
+    assert state.get_opener(op, state.odds_key(G1, "total", "under", "betonline"))["ts"] == "t0"
+
+
+def test_migrate_adds_empty_consensus_spread_open():
+    assert state.migrate({"openers": {}, "schema_version": 2}, "openers")["consensus_spread_open"] == {}
+    assert state.migrate(None, "openers")["consensus_spread_open"] == {}

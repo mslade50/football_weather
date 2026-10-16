@@ -22,22 +22,28 @@ def test_legacy_overwritten_first_migrates_to_reference_without_invented_origina
     assert missing['line'] is None
 
 
+def _pair(quote):
+    """Spread/total openers are recorded per book as a pair: add the plain other side."""
+    base = {k: v for k, v in quote.items() if not k.startswith('opening_') and k != 'opened_at'}
+    return [quote, {**base, 'side': 'over'}]
+
+
 def test_true_opening_requires_original_time_and_named_evidence_and_never_overwrites():
     op = state.migrate(None, 'openers')
     quote = {'game_id': GID, 'market': 'total', 'side': 'under', 'book': 'pinnacle',
              'line': 48, 'odds': -110, 'scraped_at': '2026-09-02T12:01:00Z',
              'opening_line': 55, 'opening_odds': -105, 'opened_at': '2026-09-01T12:00:00Z'}
-    state.record_openers(op, [quote], '2026-09-02T12:00:00Z')
+    state.record_openers(op, _pair(quote), '2026-09-02T12:00:00Z')
     assert op['true_openers'] == {}  # Typed values without provenance are insufficient.
     assert op['openers'][KEY]['ts'] == quote['scraped_at']  # Receipt may follow run start.
     quote['opening_source'] = 'fixture:original-market-event'
-    state.record_openers(op, [quote], '2026-09-02T13:00:00Z')
+    state.record_openers(op, _pair(quote), '2026-09-02T13:00:00Z')
     assert op['true_openers'][KEY]['line'] == 55
     assert state.get_baseline(op, KEY)['basis'] == 'true_opener'
     quote.update(opening_line=54, scraped_at='2026-09-02T14:00:00Z')
-    state.record_openers(op, [quote], '2026-09-02T15:00:00Z')
+    state.record_openers(op, _pair(quote), '2026-09-02T15:00:00Z')
     quote['scraped_at'] = '2026-09-02T16:00:00Z'
-    state.record_openers(op, [quote], '2026-09-02T17:00:00Z')
+    state.record_openers(op, _pair(quote), '2026-09-02T17:00:00Z')
     assert op['true_openers'][KEY]['line'] == 55
     assert len(op['true_opener_conflicts'][KEY]) == 1
     assert op['openers'][KEY]['line'] == 48

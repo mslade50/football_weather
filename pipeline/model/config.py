@@ -132,6 +132,7 @@ BOOK_WEIGHTS: dict[str, float] = {
     "novig": 1.0,
     "prophetx": 0.75,
 }
+DEFAULT_BOOK_WEIGHT = 0.5   # books absent from BOOK_WEIGHTS (e.g. polymarket_us)
 # Consensus SPREAD = simple average of these books' home main lines (whichever are
 # posted); none posted -> the weighted-median fallback. ``consensus.spread_src`` labels
 # the members actually used ("cris+bol+pin", "bol+pin", ...) or "fallback".
