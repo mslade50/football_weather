@@ -39,7 +39,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "novig"
 
@@ -137,7 +137,7 @@ def parse_event(
             if line == 0:
                 line = 0.0
             out.append(
-                GameLine(
+                game_line(
                     sport=sport,
                     game_id=game_id,
                     book=BOOK,
@@ -155,6 +155,7 @@ def parse_event(
                     run_id=run_id,
                 )
             )
+    out = [x for x in out if x is not None]
     return out
 
 

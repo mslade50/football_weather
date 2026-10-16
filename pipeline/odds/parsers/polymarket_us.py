@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 from pipeline.model.fair import prob_to_american
 
 BOOK = "polymarket_us"
@@ -96,9 +96,11 @@ def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None
                 if not 0 < cost < 1:
                     continue
                 mid = (bid + ask) / 2
-                rows.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=kind, side=outcome,
+                ln_ = (game_line(sport=sport, game_id=gid, book=BOOK, market=kind, side=outcome,
                                      line=points, odds=prob_to_american(cost), prob_raw=mid if long else 1-mid,
                                      is_main=False, source_id=market.get("slug"), scraped_at=scraped_at, run_id=run_id))
+                if ln_ is not None:
+                    rows.append(ln_)
         # Main rung = balanced midpoint, with both sides on that same contract.
         for kind in ("total", "spread", "ml"):
             group = [r for r in rows if r.market == kind]

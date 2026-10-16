@@ -68,7 +68,25 @@ def _key_game_id(key: str) -> str:
 
 # ── io ─────────────────────────────────────────────────────────────────────────
 
+def _load_strict(path: PathLike) -> dict:
+    """Missing file -> {}; present but unreadable/corrupt/non-object -> StateSchemaError.
+
+    Never let a corrupt state file read as empty: the caller would save over it.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        raise StateSchemaError(f"state file {Path(path).name} cannot be read safely") from exc
+    if not isinstance(data, dict):
+        raise StateSchemaError(f"state file {Path(path).name} must be a JSON object")
+    return data
+
+
 def _load(path: PathLike) -> dict:
+    """Lenient load for advisory/derived files (heartbeat, prev status): {} on any problem."""
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -180,7 +198,7 @@ def _load_kind(data_dir: PathLike, filename: str, kind: str) -> dict:
         if not isinstance(data, dict):
             raise StateSchemaError(f'{kind} state must be an object')
         return migrate(data, kind)
-    return migrate(_load(Path(data_dir) / filename), kind)
+    return migrate(_load_strict(Path(data_dir) / filename), kind)
 
 
 # ── openers (first-seen book line per game/market/side/book) ───────────────────
@@ -625,7 +643,7 @@ def update_history(history: dict, lines: Iterable[Any], now: str, cap: int = HIS
     appended = 0
     for ln in lines:
         game_id, market, side, book, line, odds = _line_tuple(ln)
-        if not game_id or not book or odds is None:
+        if not game_id or not book or (odds is None and book != 'consensus'):
             continue
         key = odds_key(game_id, market, side, book)
         seq = store.setdefault(key, [])
