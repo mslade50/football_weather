@@ -225,6 +225,28 @@ function runsTableHtml(runs) {
   return `<div class="wrap"><table class="runs"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 
+// meta.book_health = {book: {sport: {rows, last_ok_utc, consecutive_empty, last_error}}}; absent -> null.
+function bookHealthFor(meta, book, sport) {
+  const bh = meta && meta.book_health;
+  const e = bh && typeof bh === "object" && bh[book] && typeof bh[book] === "object" ? bh[book][sport] : null;
+  return e && typeof e === "object" ? e : null;
+}
+function bookHealthHtml(meta) {
+  const bh = meta && meta.book_health;
+  if (!bh || typeof bh !== "object" || !Object.keys(bh).length) return `<span class="muted">No per-book health reported yet.</span>`;
+  const rows = [];
+  for (const book of Object.keys(bh).sort()) for (const sport of Object.keys(bh[book] || {}).sort()) {
+    const h = bh[book][sport] || {};
+    const bad = h.consecutive_empty > 0;
+    rows.push(`<tr><td>${esc(bookLabel(book))}</td><td>${esc(String(sport).toUpperCase())}</td><td>${h.rows != null ? esc(h.rows) : "—"}</td>`
+      + `<td>${h.last_ok_utc ? esc(fmtShortET(h.last_ok_utc)) : "never"}</td>`
+      + `<td>${bad ? `<span class="chip red">${esc(h.consecutive_empty)}</span>` : esc(h.consecutive_empty ?? 0)}</td>`
+      + `<td>${h.last_error ? `<span class="sub">${esc(h.last_error)}</span>` : "—"}</td></tr>`);
+  }
+  if (!rows.length) return `<span class="muted">No per-book health reported yet.</span>`;
+  return `<table class="kv"><tr><th>Book</th><th>Sport</th><th>Rows</th><th>Last OK (ET)</th><th>Empty runs</th><th>Last error</th></tr>${rows.join("")}</table>`;
+}
+
 async function renderStatus() {
   const host = document.getElementById("statuswrap");
   if (!host) return;
@@ -289,6 +311,7 @@ async function renderStatus() {
     <div class="banners static">${degradationsHtml(degs)}</div>
     <div class="status-grid">
       <div class="card"><h3>Books vs baseline</h3>${bookCountsHtml(books, latest.counts_json ?? latest.counts ?? sd.counts)}</div>
+      <div class="card"><h3>Book health by sport</h3>${bookHealthHtml(meta)}</div>
       <div class="card"><h3>Unresolved names <span class="sub">(${unresolvedList.length})</span></h3>
         ${unresolvedList.length ? `<div class="names">${unresolvedList.map((n) => `<span class="name">${esc(n)}</span>`).join("")}</div>` : `<span class="muted">none</span>`}
       </div>

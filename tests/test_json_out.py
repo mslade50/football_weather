@@ -394,6 +394,23 @@ def test_build_meta_and_slim_meta():
     json.dumps(meta, allow_nan=False)
 
 
+def test_current_weeks_per_sport_shape():
+    def g(week, hours, status="scheduled"):
+        return SimpleNamespace(week=week, kickoff_utc=KICK + timedelta(hours=hours), status=status)
+    now = KICK
+    weeks = json_out.current_weeks({
+        "nfl": [g(6, -50, "final"), g(7, 20), g(7, 30), g(8, 200)],
+        "cfb": [g(8, -5, "final"), g(8, -1, "in_progress"), g(9, 100)],
+        "none": [],
+    }, now)
+    assert weeks == {"nfl": 7, "cfb": 9, "none": None}
+    assert json_out.current_week([g(5, -9, "final"), g(6, -2, "final")], now) == 6   # season over -> last week
+    meta = json_out.build_meta(RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK),
+                               {"nfl": 1}, {}, season=2026, week=7, finished_at=KICK, extra={"weeks": weeks})
+    json.dumps(meta, allow_nan=False)
+    assert meta["weeks"]["nfl"] == 7
+
+
 # ---- wx history --------------------------------------------------------------------------
 
 def test_wx_history_is_change_only_and_capped(tmp_path: Path):

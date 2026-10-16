@@ -2061,8 +2061,9 @@ def write_outputs(
     expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
         line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
         for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
+    weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+                               extra={"weeks": weeks, "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
                                                          for (b, s, m, e), n in expiry_groups.items()]})
     hist = pstate.load_history(state_dir)

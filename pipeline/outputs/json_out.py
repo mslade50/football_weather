@@ -806,6 +806,22 @@ def build_meta(
     return sanitize(meta)
 
 
+def current_week(games: Any, now: datetime) -> Optional[int]:
+    """Week of the earliest game not yet kicked off / final; else the latest week; else None."""
+    live = [g for g in games if getattr(g, "week", None) is not None]
+    if not live:
+        return None
+    open_ = [g for g in live if g.kickoff_utc > now and str(getattr(g, "status", "") or "").lower() not in ("final", "cancelled", "canceled", "postponed")]
+    if open_:
+        return int(min(open_, key=lambda g: g.kickoff_utc).week)
+    return int(max(g.week for g in live))
+
+
+def current_weeks(games_by_sport: dict[str, Any], now: datetime) -> dict[str, Optional[int]]:
+    """``meta.weeks`` = ``{sport: current week}`` so the board defaults each sport to its own week."""
+    return {sport: current_week(games, now) for sport, games in games_by_sport.items()}
+
+
 def slim_meta(meta: dict[str, Any]) -> dict[str, Any]:
     keys = ("run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations")
     return {k: meta.get(k) for k in keys}
@@ -992,7 +1008,7 @@ __all__ = [
     "REQUIRED_CARD_KEYS", "build_alerts_feed", "build_status", "status_run_row", "load_previous_status",
     "sanitize", "dump_json", "next_backstop", "next_run_eta",
     "build_card", "odds_block", "consensus_spread_opener", "consensus_block", "fair_block", "table_row",
-    "books_status", "build_meta", "slim_meta",
+    "books_status", "build_meta", "current_week", "current_weeks", "slim_meta",
     "load_wx_history", "wx_point", "update_wx_history", "prune_wx_history", "save_wx_history",
     "snapshot_key", "season_week", "write_board",
 ]
