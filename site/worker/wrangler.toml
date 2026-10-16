@@ -63,8 +63,10 @@ TELEGRAM_SYSTEM_ALERTS = "0"
 # change plus `npx wrangler deploy`.
 [triggers]
 crons = [
-  # Heartbeat every 30 min. Never dispatches; pipeline.build alerts when
-  # board/cf_heartbeat.json goes >20h stale (the only signal that CF crons died).
+  # Heartbeat every 30 min; pipeline.build alerts when board/cf_heartbeat.json
+  # goes >20h stale (the only signal that CF crons died). The :00 ticks ALSO
+  # dispatch pipeline.yml hourly inside the game-day windows (shouldDispatch in
+  # index.js); :30 ticks never dispatch. No extra trigger is needed.
   "*/30 * * * *",
   # Mid-day dispatch: 17:15 UTC = 13:15 EDT / 12:15 EST. sport=all scope=full
   # in season (Aug-Feb, NFL-only in Feb); trimmed to nothing off-season.
