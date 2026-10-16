@@ -87,8 +87,10 @@ from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
 from pipeline.model import signals
+from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
 from pipeline.odds import handoff
+from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
 from pipeline.outputs import r2 as r2_out
@@ -144,10 +146,6 @@ BOOK_ORDER = HTTPX_BOOKS + PLAYWRIGHT_BOOKS
 # Golf's SIM_BOOKS: a book at 0 rows while >=2 of these report is "dark", not "no market".
 CRITICAL_BOOKS = frozenset({"pinnacle", "betonline", "betcris", "fanduel"})
 # ARCH §7.3 consensus weights.
-BOOK_WEIGHTS: dict[str, float] = {
-    "pinnacle": 3.0, "betonline": 2.0, "betcris": 1.5, "fanduel": 1.0, "draftkings": 1.0,
-    "kalshi": 1.0, "novig": 1.0, "prophetx": 0.75,
-}
 CONSENSUS_BOOK = "consensus"
 # Legacy "now" columns: CFB = FanDuel (as before), NFL = BetOnline; fallback = consensus.
 LEGACY_NOW_BOOK = {"nfl": "betonline", "cfb": "fanduel"}
@@ -1043,15 +1041,15 @@ def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, fl
         if key[1] == "spread":
             med, src = _average_spread({b: float(ln.line) for b, ln in per_book.items() if ln.line is not None})
         if med is None:
-            med = weighted_median([(ln.line, w.get(b, 0.5)) for b, ln in per_book.items()])
+            med = weighted_median([(ln.line, w.get(b, DEFAULT_BOOK_WEIGHT)) for b, ln in per_book.items()])
         if med is None:
             continue
-        on_line = [(w.get(b, 0.5), b, ln) for b, ln in per_book.items() if ln.line == med]
+        on_line = [(w.get(b, DEFAULT_BOOK_WEIGHT), b, ln) for b, ln in per_book.items() if ln.line == med]
         on_line.sort(key=lambda t: -t[0])
         ref = on_line[0] if on_line else None
         if ref is None and src not in (None, model_config.SPREAD_SRC_FALLBACK):
             # averaged spread sits between the books: heaviest member is the reference
-            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, 0.5))
+            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, DEFAULT_BOOK_WEIGHT))
             ref = (w.get(heavy, 0.5), heavy, per_book[heavy])
         out[key] = ConsensusLine(
             line=med, odds=ref[2].odds if ref else None, n_books=len(per_book),
@@ -1173,14 +1171,14 @@ def retarget_cfb_total_openers(
         before = [row for row in rows if row[1][2] <= target]
         if before:
             rows = before
-        weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], 0.5)) for row in rows]
+        weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], DEFAULT_BOOK_WEIGHT)) for row in rows]
         line = weighted_median(weighted)
         if line is None:
             continue
         refs = [row for row in rows if float(row[1][1]["line"]) == line]
         ref_book, (ref_side, ref_val, _ref_ts) = max(
             refs,
-            key=lambda row: BOOK_WEIGHTS.get(row[0], 0.5),
+            key=lambda row: BOOK_WEIGHTS.get(row[0], DEFAULT_BOOK_WEIGHT),
         )
         source_ts = max(row[1][2] for row in rows)
         key = pstate.odds_key(game_id, "total", "under", CONSENSUS_BOOK)
@@ -1420,6 +1418,10 @@ def stage_odds(
     if carried:
         n_books = len({ln.book for ln in carried})
         print(f"  carried {sport}: {len(carried)} lines from {n_books} unscraped book(s) (archive_last)")
+    # One main pair per (game, book, market): every consumer below (consensus, openers,
+    # history/D1, per-game fair + odds_block) sees the same normalized rows.
+    lines = select_main_lines(lines)
+    carried = select_main_lines(carried)
     board_lines = list(lines) + carried
 
     # consensus / fair
@@ -1442,6 +1444,7 @@ def stage_odds(
         added = pstate.record_openers(openers, main_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
         record_weekly_totals(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+        json_out.freeze_consensus_spread_openers(openers, sorted(active_ids), now)
         opener_update_keys = (
             retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
             if sport == "cfb" else []
@@ -1741,7 +1744,7 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
     removed = [line for line in res.odds.lines if expired(line.expires_at, now)]
     if not removed:
         return
-    res.odds.lines = [line for line in res.odds.lines if not expired(line.expires_at, now)]
+    res.odds.lines = select_main_lines([line for line in res.odds.lines if not expired(line.expires_at, now)])
     res.odds.by_game = {}
     for line in res.odds.lines:
         res.odds.by_game.setdefault(line.game_id, []).append(line)

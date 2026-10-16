@@ -465,10 +465,8 @@ def _add_open_metadata(quote: dict[str, Any], opener: dict[str, Any], *, prefix:
             quote[target] = opener[source]
 
 
-def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
-    """Consensus spread OPENER = simple average of the Betcris / BetOnline / Pinnacle
-    home-spread openers on record (an away-only opener is flipped); none on record ->
-    the stored ``book='consensus'`` opener with src ``'fallback'``. Returns ``(line, src)``."""
+def _member_spread_openers(game_id: str, openers: dict) -> dict[str, float]:
+    """Home-spread opener per SPREAD_CONSENSUS_BOOKS member on record (away-only flipped)."""
     found: dict[str, float] = {}
     for book in SPREAD_CONSENSUS_BOOKS:
         op_home = _opener(openers, pstate.odds_key(game_id, "spread", "home", book))
@@ -478,9 +476,47 @@ def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float
             line = -op_away["line"] if op_away.get("line") is not None else None
         if line is not None:
             found[book] = float(line)
+    return found
+
+
+def _spread_src(members: Iterable[str]) -> str:
+    used = set(members)
+    return "+".join(SPREAD_SRC_LABELS[b] for b in SPREAD_CONSENSUS_BOOKS if b in used)
+
+
+def freeze_consensus_spread_openers(openers: dict, game_ids: Iterable[str], now: str) -> int:
+    """Set-once ``consensus_spread_open[game_id] = {line, members, ts}`` from the member
+    openers on record, so a member posting later cannot move the opener. Games with no
+    member opener yet stay unfrozen. Returns the number frozen."""
+    store = openers.setdefault("consensus_spread_open", {})
+    added = 0
+    for gid in game_ids:
+        if gid in store:
+            continue
+        found = _member_spread_openers(gid, openers)
+        if found:
+            store[gid] = {"line": round(sum(found.values()) / len(found), SPREAD_AVG_DP),
+                          "members": [b for b in SPREAD_CONSENSUS_BOOKS if b in found], "ts": now}
+            added += 1
+    return added
+
+
+def _frozen_spread_opener(game_id: str, openers: dict) -> Optional[dict[str, Any]]:
+    rec = (openers.get("consensus_spread_open") or {}).get(game_id)
+    return rec if isinstance(rec, dict) and rec.get("line") is not None else None
+
+
+def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
+    """Consensus spread OPENER = the frozen ``consensus_spread_open`` entry, else the simple
+    average of the Betcris / BetOnline / Pinnacle home-spread openers on record (an
+    away-only opener is flipped); none on record -> the stored ``book='consensus'`` opener
+    with src ``'fallback'``. Returns ``(line, src)``."""
+    frozen = _frozen_spread_opener(game_id, openers)
+    if frozen is not None:
+        return float(frozen["line"]), _spread_src(frozen.get("members") or ())
+    found = _member_spread_openers(game_id, openers)
     if found:
-        avg = round(sum(found.values()) / len(found), SPREAD_AVG_DP)
-        return avg, "+".join(SPREAD_SRC_LABELS[b] for b in SPREAD_CONSENSUS_BOOKS if b in found)
+        return round(sum(found.values()) / len(found), SPREAD_AVG_DP), _spread_src(found)
     op_sp = _opener(openers, pstate.odds_key(game_id, "spread", "home", "consensus"))
     return op_sp.get("line"), SPREAD_SRC_FALLBACK
 
@@ -517,7 +553,9 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
     }
     _add_open_metadata(result, op_to, prefix="total_open")
     spread_rows = []
-    for book in SPREAD_CONSENSUS_BOOKS:
+    frozen = _frozen_spread_opener(game_id, openers)
+    members = list(frozen.get("members") or []) if frozen else []
+    for book in (members if frozen else SPREAD_CONSENSUS_BOOKS):
         home = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', book))
         away = _opener(openers, pstate.odds_key(game_id, 'spread', 'away', book))
         row = home if home.get('line') is not None else away
@@ -527,6 +565,7 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
         fallback = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', 'consensus'))
         spread_rows = [fallback] if fallback else []
     result['spread_open_source'] = _open_src
+    result['spread_open_members'] = members if frozen else sorted(_member_spread_openers(game_id, openers), key=SPREAD_CONSENSUS_BOOKS.index)
     result['spread_open_basis'] = spread_rows[0].get('basis') if spread_rows and all(r.get('basis') == spread_rows[0].get('basis') for r in spread_rows) else 'mixed_reference' if spread_rows else 'unknown'
     result['spread_open_observations'] = [{'source': r.get('source'), 'ts': r.get('ts'), 'basis': r.get('basis')} for r in spread_rows]
     true_store = openers.get('true_openers') or {}
@@ -1026,7 +1065,7 @@ __all__ = [
     "BACKTEST_FILE",
     "REQUIRED_CARD_KEYS", "build_alerts_feed", "build_status", "status_run_row", "load_previous_status",
     "sanitize", "dump_json", "next_backstop", "next_run_eta",
-    "build_card", "odds_block", "consensus_spread_opener", "consensus_block", "fair_block", "table_row",
+    "build_card", "odds_block", "consensus_spread_opener", "freeze_consensus_spread_openers", "consensus_block", "fair_block", "table_row",
     "books_status", "build_meta", "current_week", "current_weeks", "slim_meta",
     "load_wx_history", "wx_point", "update_wx_history", "prune_wx_history", "save_wx_history",
     "snapshot_key", "season_week", "write_board",
