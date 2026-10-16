@@ -31,21 +31,19 @@ name: pipeline
 #   BOOK_PROPHETX_ENABLED=0 (repo variable) skips ProphetX (sandbox-only creds).
 
 on:
-  # UTC backstop ~= old 05:15 / 10:00 / 16:20 ET cadence, off-the-minute (GitHub
-  # drops on-the-hour schedules).
+  # GitHub schedule is only a SPARSE BACKSTOP (~every 3-4h on game days, off-the-
+  # minute UTC). The Cloudflare Worker dispatches the hourly game-day cadence
+  # (shouldDispatch in site/worker/index.js); GitHub drops scheduled ticks, so
+  # the Worker is primary. The gate job skips a backstop tick when a Worker/manual
+  # dispatch started within the last 50 minutes, and the concurrency group below
+  # queues any remaining overlap, so the two never double-run.
   schedule:
     - cron: '17 9 * * *'
-    - cron: '17 14,20 * * 1'       # other days already covered below
-    # In-season cadence (ARCH §9.1, mirrored in site/worker/SETUP.md §7). UTC, EDT-based,
-    # GitHub DOW 0=Sun. Every schedule run is sport=all scope=full; pipeline.gate_check
-    # trims off-season / no-game windows so idle fires cost ~1 minute.
     - cron: '17 14,20 * * 2,3'     # Tue/Wed 10:17, 16:17 ET (openers)
-    - cron: '17 12-23/2 * * 4,5'   # Thu/Fri every 2h 08:17-19:17 ET
-    - cron: '17 10-23 * * 6'       # Sat hourly 06:17-19:17 ET (CFB)
-    - cron: '17 10-21 * * 0'       # Sun hourly 06:17-17:17 ET (NFL)
-    - cron: '47 16,19,23 * * 0'    # Sun pre-kickoff 12:47/15:47/19:47 ET
-    - cron: '17 22,23 * * 1'       # Mon night 18:17, 19:17 ET
-    - cron: '17 23 * * 4'          # Thu 22:17 already covered above
+    - cron: '17 12,16,20 * * 4,5'  # Thu/Fri every 4h
+    - cron: '17 15,18,21 * * 6'    # Sat CFB afternoon/evening
+    - cron: '17 0,3,15,18,21 * * 0'  # Sat night UTC + Sun NFL
+    - cron: '17 0,14,20,23 * * 1'  # Sun night UTC + Mon
   workflow_dispatch:
     inputs:
       sport:
@@ -140,8 +138,21 @@ jobs:
           python-version: '3.11'
       - name: Install gate deps
         run: pip install httpx
+      - name: Skip backstop tick after a recent dispatch
+        id: recent
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fail-open: any error leaves skip empty and the gate runs normally.
+          SINCE="$(date -u -d '50 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20"             | jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled")] | length')" || N=0
+          echo "Recent dispatch runs: ${N:-0}"
+          if [ "${N:-0}" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - name: Kickoff-horizon gate
         id: gate
+        if: steps.recent.outputs.skip != 'true'
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           PIPELINE_FORCE: ${{ inputs.force == true && '1' || '' }}

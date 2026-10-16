@@ -164,7 +164,17 @@ def test_next_backstop_off_the_minute():
     nxt2 = json_out.next_backstop(late)
     assert (nxt2.hour, nxt2.minute) == (21, 17) and nxt2.date() == late.date()
     assert json_out.next_run_eta(now, {"NEXT_RUN_ETA": "2026-09-27T15:00:00Z"}) == "2026-09-27T15:00:00Z"
-    assert json_out.next_run_eta(now, {}) == "2026-09-27T15:17:00Z"
+    assert json_out.next_run_eta(now, {}) == "2026-09-27T15:00:00Z"  # Worker hourly tick beats the 15:17 backstop
+
+
+def test_worker_windows_mirror_index_js():
+    import re
+    from pathlib import Path
+    js = (Path(__file__).parents[1] / "site/worker/index.js").read_text(encoding="utf-8")
+    found = re.findall(r"\{ day: (\d), from: (\d+), to: (\d+)", js)
+    # JS getUTCDay (0=Sun) -> Python weekday (Mon=0)
+    mirrored = tuple(((int(d) - 1) % 7, int(a), int(b)) for d, a, b in found)
+    assert mirrored == json_out.WORKER_WINDOWS
 
 
 # ---- GameCard ----------------------------------------------------------------------------

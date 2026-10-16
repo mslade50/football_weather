@@ -109,26 +109,42 @@ def next_backstop(now: datetime) -> datetime:
     for day in (0, 1):
         base = (n + timedelta(days=day)).replace(minute=BACKSTOP_MINUTE, second=0, microsecond=0)
         weekday = base.weekday()
+        # Mirrors the sparse GitHub backstop in .github/workflows/pipeline.yml
+        # (pinned by test_next_backstop_is_pinned_to_workflow_schedule).
         hours = {9}
-        if weekday <= 2:
+        if weekday == 0:
+            hours.update((0, 14, 20, 23))
+        if weekday in (1, 2):
             hours.update((14, 20))
         if weekday in (3, 4):
-            hours.update(range(12, 24, 2))
-        if weekday == 3:
-            hours.add(23)
+            hours.update((12, 16, 20))
         if weekday == 5:
-            hours.update(range(10, 24))
+            hours.update((15, 18, 21))
         if weekday == 6:
-            hours.update(range(10, 22))
-        if weekday == 0:
-            hours.update((22, 23))
+            hours.update((0, 3, 15, 18, 21))
         candidates = [base.replace(hour=h) for h in hours]
-        if weekday == 6:
-            candidates.extend(base.replace(hour=h, minute=47) for h in (16, 19, 23))
         for cand in sorted(candidates):
             if cand > n:
                 return cand
     return n  # unreachable
+
+
+# Worker game-day windows (python weekday Mon=0): mirrors GAME_WINDOWS in
+# site/worker/index.js (pinned by test_worker_windows_mirror_index_js).
+WORKER_WINDOWS = ((5, 15, 4), (6, 15, 1), (3, 22, 2), (0, 22, 2))
+
+
+def next_worker_tick(now: datetime) -> Optional[datetime]:
+    """Next hourly game-day Worker dispatch (UTC :00) strictly after ``now``."""
+    n = now.astimezone(timezone.utc)
+    cand = n.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    for _ in range(72):
+        in_season = cand.month >= 8 or cand.month <= 2
+        wd, hr = cand.weekday(), cand.hour
+        if in_season and any((wd == d and hr >= a) or (wd == (d + 1) % 7 and hr <= b) for d, a, b in WORKER_WINDOWS):
+            return cand
+        cand += timedelta(hours=1)
+    return None
 
 
 def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
@@ -143,6 +159,9 @@ def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
         if midday <= now:
             midday += timedelta(days=1)
         next_time = min(next_time, midday)
+    worker = next_worker_tick(now)
+    if worker is not None:
+        next_time = min(next_time, worker)
     return utc_iso(next_time)
 
 

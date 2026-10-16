@@ -137,8 +137,8 @@ worker unit tests → `wrangler d1 migrations apply football-odds --remote` →
 
 | Cron (UTC) | Purpose | scheduled() behaviour |
 |---|---|---|
-| `*/30 * * * *` | heartbeat | writes `board/cf_heartbeat.json` `{ts, cron}`; never dispatches. `pipeline.build` alerts when it is >20 h stale |
-| `15 17 * * *` | mid-day dispatch (13:15 EDT / 12:15 EST) | `sport=all scope=full` Aug–Jan, `nfl` in Feb, trimmed Mar–Jul |
+| `*/30 * * * *` | heartbeat | writes `board/cf_heartbeat.json` `{ts, cron}`; `:30` ticks never dispatch, `:00` ticks dispatch `scope=full` hourly in the game-day windows (`shouldDispatch`: CFB Sat 15Z-Sun 04Z, NFL Sun 15Z-Mon 01Z, Thu/Mon night 22Z-02Z). `pipeline.build` alerts when it is >20 h stale |
+| `15 17 * * *` | mid-day dispatch (13:15 EDT / 12:15 EST) | `sport=all scope=full` Aug–Jan, `nfl` in Feb, trimmed Mar–Jul; skipped when the 17:00Z game-day tick already dispatched |
 
 Every fire writes the heartbeat first, then `resolveCron(cron, time)` maps the
 expression to `{sport, scope}` using **ET** parts (`Intl`

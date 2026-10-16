@@ -45,11 +45,22 @@ def test_schedule_in_season_cadence(text: str):
     # ARCH §9.1 mirrored as GitHub crons (site/worker/SETUP.md §7); all off-the-hour.
     import re
     crons = re.findall(r"- cron: '([^']+)'", text)
-    assert len(crons) >= 7
+    assert len(crons) >= 5
     for c in crons:
         assert c.split()[0] in ("17", "47"), c
-    assert "'17 10-23 * * 6'" in text   # Sat CFB hourly
-    assert "'17 10-21 * * 0'" in text   # Sun NFL hourly (GitHub DOW 0=Sun)
+    # Sparse backstop only: the Worker owns the hourly game-day cadence.
+    assert "'17 15,18,21 * * 6'" in text      # Sat CFB every 3h
+    assert "'17 0,3,15,18,21 * * 0'" in text  # Sun NFL every 3h (GitHub DOW 0=Sun)
+
+
+def test_backstop_defers_to_recent_worker_dispatch(text: str):
+    gate = _job(text, "gate")
+    step = _step(gate, "Skip backstop tick after a recent dispatch")
+    assert "github.event_name == 'schedule'" in step
+    assert "event=workflow_dispatch" in step and "50 minutes ago" in step
+    assert "continue-on-error: true" in step     # fail-open
+    assert "steps.recent.outputs.skip != 'true'" in _step(gate, "Kickoff-horizon gate")
+    assert "cancel-in-progress: false" in text   # overlap queues, never cancels
 
 
 def test_dispatch_inputs(text: str):
@@ -251,7 +262,7 @@ def test_same_workflow_raw_weather_handoff(text: str):
     assert "continue-on-error: true" in download
 
 
-def test_cron_union_preserved_without_duplicate_ticks(text: str):
+def test_cron_backstop_has_no_duplicate_ticks_and_is_thinner(text: str):
     import re
     from collections import Counter
 
@@ -263,20 +274,19 @@ def test_cron_union_preserved_without_duplicate_ticks(text: str):
             values.update(range(bounds[0], bounds[1] + 1, int(step or "1")))
         return values
 
-    def ticks(crons):
-        result = Counter()
-        for cron in crons:
-            minute, hour, _, _, day = cron.split()
-            for d in numbers(day, 6):
-                for h in numbers(hour, 23):
-                    for m in numbers(minute, 59):
-                        result[d, h, m] += 1
-        return result
-
-    old = ticks(["17 9,14,20 * * *", "17 14,20 * * 2,3", "17 12-23/2 * * 4,5", "17 10-23 * * 6", "17 10-21 * * 0", "47 16,19,23 * * 0", "17 22,23 * * 1,4"])
-    new = ticks(re.findall(r"- cron: '([^']+)'", text))
-    assert set(new) == set(old)
-    assert max(new.values()) == 1
+    result = Counter()
+    for cron in re.findall(r"- cron: '([^']+)'", text):
+        minute, hour, _, _, day = cron.split()
+        for d in numbers(day, 6):
+            for h in numbers(hour, 23):
+                for m in numbers(minute, 59):
+                    result[d, h, m] += 1
+    assert max(result.values()) == 1
+    # Never hourly: no two scheduled ticks closer than 2h apart on game days (Sat/Sun).
+    for d in (6, 0):
+        hours = sorted(h for (dd, h, _m) in result if dd == d)
+        assert all(b - a >= 2 or b - a == 0 for a, b in zip(hours, hours[1:])), (d, hours)
+    assert len(result) <= 45  # was 100+ ticks/week before the Worker became primary
 
 
 def test_telegram_on_failure(text: str):

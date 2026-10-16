@@ -44,13 +44,55 @@ export function sportForMonth(month) {
   return null;
 }
 
+// Game-day dispatch windows, UTC (day = getUTCDay, 0=Sun). Hourly on the :00
+// tick; each window starts at `from` on `day` and runs to `to` on the next UTC
+// day. pipeline.gate_check still trims no-kickoff windows and the workflow's
+// `concurrency` group queues overlaps.
+//   CFB Sat 15:00Z..Sun 04:00Z | NFL Sun 15:00Z..Mon 01:00Z
+//   Thu night 22:00Z..Fri 02:00Z | Mon night 22:00Z..Tue 02:00Z
+const GAME_WINDOWS = [
+  { day: 6, from: 15, to: 4, kind: "sat" },
+  { day: 0, from: 15, to: 1, kind: "nfl" },
+  { day: 4, from: 22, to: 2, kind: "nfl" },
+  { day: 1, from: 22, to: 2, kind: "nfl" },
+];
+
+// Pure: Date -> {sport, scope:"full"} | null. Only exact :00 ticks qualify.
+export function shouldDispatch(date) {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime()) || d.getUTCMinutes() !== 0) return null;
+  const day = d.getUTCDay();
+  const hour = d.getUTCHours();
+  for (const w of GAME_WINDOWS) {
+    const inFirst = day === w.day && hour >= w.from;
+    const inSecond = day === (w.day + 1) % 7 && hour <= w.to;
+    if (!inFirst && !inSecond) continue;
+    const month = etParts(d).month; // season decided on the ET calendar month
+    if (!sportForMonth(month)) return null;
+    if (w.kind === "sat") {
+      if (month === 2) return null; // no CFB in February
+      // NFL also plays some Saturdays in Dec/Jan; otherwise CFB only.
+      return { sport: month === 12 || month === 1 ? "all" : "cfb", scope: "full" };
+    }
+    return { sport: "nfl", scope: "full" };
+  }
+  return null;
+}
+
 // Paid-plan expressions (ARCH §9.1) with in-handler ET trimming. Free-plan
 // entries first; expand wrangler.toml with PAID_CRONS on Workers Paid.
 export const CRON_PLAN = {
-  [HEARTBEAT_CRON]: () => null,
-  [MIDDAY_CRON]: (p) => {
+  // The 30-min heartbeat doubles as the hourly game-day dispatcher (the free
+  // plan has no spare trigger): only the :00 tick can dispatch.
+  [HEARTBEAT_CRON]: (_p, date) => shouldDispatch(date),
+  [MIDDAY_CRON]: (p, date) => {
     const sport = sportForMonth(p.month);
-    return sport ? { sport, scope: "full" } : null;
+    if (!sport) return null;
+    // Game-day windows already dispatch at 17:00 UTC; skip the 17:15 duplicate.
+    const top = new Date(date);
+    top.setUTCMinutes(0, 0, 0);
+    if (shouldDispatch(top)) return null;
+    return { sport, scope: "full" };
   },
   // Tue/Wed 10:00 + 16:00 ET-ish (openers) -> light
   "0 14,20 * * 3,4": (p) => {
@@ -111,7 +153,7 @@ export function etParts(date) {
 export function resolveCron(cron, date) {
   const plan = CRON_PLAN[cron];
   if (!plan) return null;
-  return plan(etParts(date)) || null;
+  return plan(etParts(date), date) || null;
 }
 
 // ── request helpers ──────────────────────────────────────────────────────────

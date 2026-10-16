@@ -13,6 +13,7 @@ import worker, {
   PAID_CRONS,
   HEARTBEAT_CRON,
   MIDDAY_CRON,
+  shouldDispatch,
   dispatchBoard,
   handleFetch,
   handleScheduled,
@@ -227,13 +228,13 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
       return new Response(null, { status: 200 });
     };
     const silentEnv = fakeEnv({ TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat" });
-    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, silentEnv);
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, silentEnv);
     assert.equal(sent.length, 0);
 
     const blockedEnv = fakeEnv({
       TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
-    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, blockedEnv);
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, blockedEnv);
     assert.equal(sent.length, 1);
     assert.equal(sent[0].body.chat_id, "chat");
     assert.match(sent[0].body.text,
@@ -249,7 +250,7 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
       GH_DISPATCH_TOKEN: "tok", TELEGRAM_SYSTEM_ALERTS: "1",
       TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
-    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, failedEnv);
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, failedEnv);
     assert.equal(sent.length, 1);
     assert.match(sent[0].body.text,
       /^🚨 SYSTEM · Scheduled refresh failed\nRequest: all\/full\nResult: 500 · denied$/);
@@ -279,9 +280,9 @@ test("etParts handles EDT and EST", () => {
   assert.equal(etParts(new Date("2026-10-04T01:00:00Z")).weekday, "Sat");
 });
 
-test("heartbeat cron never dispatches; mid-day cron dispatches in season only", () => {
-  assert.equal(resolveCron(HEARTBEAT_CRON, new Date("2026-10-10T15:00:00Z")), null);
-  assert.deepEqual(resolveCron(MIDDAY_CRON, new Date("2026-10-10T17:15:00Z")), { sport: "all", scope: "full" });
+test("heartbeat cron dispatches via shouldDispatch only; mid-day cron dispatches in season only", () => {
+  assert.equal(resolveCron(HEARTBEAT_CRON, new Date("2026-10-10T15:30:00Z")), null);
+  assert.deepEqual(resolveCron(MIDDAY_CRON, new Date("2026-10-14T17:15:00Z")), { sport: "all", scope: "full" });
   assert.deepEqual(resolveCron(MIDDAY_CRON, new Date("2027-02-03T17:15:00Z")), { sport: "nfl", scope: "full" });
   assert.equal(resolveCron(MIDDAY_CRON, new Date("2026-06-03T17:15:00Z")), null);
   assert.equal(resolveCron("unknown cron", new Date()), null);
@@ -340,11 +341,11 @@ test("paid-plan trimming: Tue/Wed openers, Thu/Fri cadence, Sunday NFL", () => {
 // ── scheduled() ──────────────────────────────────────────────────────────────
 test("scheduled: heartbeat written first, then trimmed or dispatched", async () => {
   const env = fakeEnv({ GH_DISPATCH_TOKEN: "tok" });
-  const trimmed = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-10T15:00:00Z") }, env);
+  const trimmed = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-10T15:30:00Z") }, env);
   assert.equal(trimmed.trimmed, true);
   const hb = JSON.parse(env.ODDS._store.get("board/cf_heartbeat.json"));
   assert.equal(hb.cron, HEARTBEAT_CRON);
-  assert.equal(hb.ts, "2026-10-10 15:00:00 UTC");
+  assert.equal(hb.ts, "2026-10-10 15:30:00 UTC");
   assert.equal(hb.schema_version, 1);
 
   // Off-season mid-day fire: heartbeat updated, no dispatch.
@@ -353,7 +354,7 @@ test("scheduled: heartbeat written first, then trimmed or dispatched", async () 
   assert.equal(JSON.parse(env.ODDS._store.get("board/cf_heartbeat.json")).cron, MIDDAY_CRON);
 
   // In-season without a token: no dispatch, plan reported.
-  const noTok = await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-10T17:15:00Z") }, fakeEnv());
+  const noTok = await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, fakeEnv());
   assert.equal(noTok.dispatched, false);
   assert.deepEqual(noTok.plan, { sport: "all", scope: "full" });
 });
