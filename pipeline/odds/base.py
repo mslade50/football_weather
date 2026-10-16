@@ -7,9 +7,11 @@ single ``GameLine`` contract (ARCH §4.2), imported from ``pipeline.contracts``.
 import asyncio
 import logging
 import os
+import random
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -193,6 +195,83 @@ async def fetch_json_with_fallback(
     )
     log.info(f"[{label}] {method} {_short(url)} -> {status} via curl_cffi ({impersonate})")
     return FetchResult(payload, TRANSPORT_CURL, status)
+
+# --- shared retrying request + season gate -------------------------------------------
+
+RETRYABLE_4XX = frozenset({408, 429})
+REQUEST_ATTEMPTS = 3
+REQUEST_BACKOFF_S = 1.0
+
+
+def retryable_status(status: int) -> bool:
+    """5xx and 408/429 are transient; every other 4xx (403, 401, 404...) is final."""
+    return status >= 500 or status in RETRYABLE_4XX
+
+
+def is_retryable_error(exc: BaseException) -> bool:
+    """Timeouts / connection errors / 5xx / 408 / 429 retry; other HTTP statuses do not."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return retryable_status(exc.response.status_code)
+    if isinstance(exc, TransportError):
+        return retryable_status(exc.status)
+    return isinstance(exc, httpx.TransportError)  # timeouts, connect/read/protocol errors
+
+
+def backoff_delay(attempt: int, base: float = REQUEST_BACKOFF_S) -> float:
+    """Linear backoff with +-50% jitter so concurrent books do not retry in lockstep."""
+    return base * attempt * (0.5 + random.random())
+
+
+async def request_with_retry(
+    client: Any,
+    method: str,
+    url: str,
+    *,
+    label: str = "",
+    attempts: int = REQUEST_ATTEMPTS,
+    backoff: float = REQUEST_BACKOFF_S,
+    raise_status: bool = True,
+    **kwargs: Any,
+) -> httpx.Response:
+    """``client.request`` with retry on 5xx/408/429/timeouts/connection errors.
+
+    Headers, auth and timeouts stay whatever the caller configured on ``client`` /
+    ``kwargs``; raw capture stays with the caller (the response is returned verbatim).
+    With ``raise_status=False`` a final non-2xx response is returned instead of raised
+    (for callers that map 401 to their own error).
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = await client.request(method, url, **kwargs)
+            if attempt < attempts and retryable_status(resp.status_code):
+                _MODULE_LOGGER.warning(f"[{label}] {method} {_short(url)} -> HTTP {resp.status_code}; retry {attempt}/{attempts}")
+                await asyncio.sleep(backoff_delay(attempt, backoff))
+                continue
+            if raise_status:
+                resp.raise_for_status()
+            return resp
+        except Exception as e:  # noqa: BLE001
+            if attempt >= attempts or not is_retryable_error(e):
+                raise
+            _MODULE_LOGGER.warning(f"[{label}] {method} {_short(url)} {type(e).__name__}; retry {attempt}/{attempts}")
+            await asyncio.sleep(backoff_delay(attempt, backoff))
+    raise RuntimeError("unreachable")  # pragma: no cover
+
+
+async def get_with_retry(client: Any, url: str, **kwargs: Any) -> httpx.Response:
+    return await request_with_retry(client, "GET", url, **kwargs)
+
+
+# (month, day) windows incl. preseason / bowls / playoffs; outside them zero events is normal.
+_SEASON_WINDOWS = {"nfl": ((8, 10), (2, 20)), "cfb": ((8, 20), (1, 25))}
+
+
+def in_season(sport: str, now: datetime | None = None) -> bool:
+    start, end = _SEASON_WINDOWS[sport]
+    d = now or datetime.now(timezone.utc)
+    md = (d.month, d.day)
+    return md >= start or md <= end
+
 
 
 def _line_to_dict(line: Any) -> dict:
