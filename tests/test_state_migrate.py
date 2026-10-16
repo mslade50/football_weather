@@ -245,16 +245,19 @@ def test_archive_last_roundtrip_and_prune(tmp_path: Path):
     assert len(d2["last"]) == 1
 
 
-def test_pair_openers_require_both_sides_at_one_number():
+def test_pair_openers_record_together_and_never_mismatch():
     op = state.migrate(None, "openers")
     rec = lambda *rows: state.record_openers(op, list(rows), "t0")  # noqa: E731
-    # one side only, or sides on different numbers: nothing recorded
-    assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110)) == 0
+    # sides on different numbers: nothing recorded
     assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.5, -110)) == 0
     assert op["openers"] == {}
     # away is flipped before comparing
     assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.0, -105)) == 2
     assert state.get_opener(op, state.odds_key(G1, "spread", "away", "pinnacle"))["ts"] == "t0"
+    # a one-sided book still gets an opener; its other side completes only on the same number
+    assert rec(_line(G1, "spread", "away", "betonline", 3.5, -110)) == 1
+    assert rec(_line(G1, "spread", "home", "betonline", -4.0, -110)) == 0
+    assert rec(_line(G1, "spread", "home", "betonline", -3.5, -112)) == 1
     # ml stays per side
     assert rec(_line(G1, "ml", "home", "pinnacle", None, -150)) == 1
 

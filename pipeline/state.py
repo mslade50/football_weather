@@ -270,10 +270,11 @@ def _home_rel(market: str, side: str, line: float) -> float:
 def _record_pair_openers(store: dict, game_id: str, market: str, book: str, got: dict) -> int:
     """Per-book atomic spread/total openers: both sides at one home-relative number.
 
-    * neither side on record -> record both, only when both are present at the
-      same number (same ts); a one-sided / mismatched book records nothing;
-    * exactly one side on record (legacy state) -> record the missing side only
-      when it sits on the recorded side's number;
+    * neither side on record -> record both when both are present at the same
+      number (same ts); a lone side is recorded on its own so one-sided books
+      keep an opener; a mismatched pair records nothing;
+    * exactly one side on record -> record the missing side only when it sits
+      on the recorded side's number;
     * both on record -> nothing (openers are set-once)."""
     sides = _PAIRED_MARKETS[market]
     have = {s: store.get(odds_key(game_id, market, s, book)) for s in sides}
@@ -281,8 +282,10 @@ def _record_pair_openers(store: dict, game_id: str, market: str, book: str, got:
     if len(known) == 2:
         return 0
     if not known:
-        if len(got) < 2:
-            return 0
+        if len(got) == 1:
+            key, line, odds, ts = next(iter(got.values()))
+            store[key] = {"line": line, "odds": odds, "ts": ts}
+            return 1
         a, b = (got[s] for s in sides)
         if _home_rel(market, sides[0], a[1]) != _home_rel(market, sides[1], b[1]):
             return 0
