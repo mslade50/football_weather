@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, get_with_retry, in_season
 from pipeline.odds.parsers import pinnacle as parser
 
 logger = logging.getLogger(__name__)
@@ -50,17 +50,16 @@ async def fetch_feed(client: httpx.AsyncClient | None = None) -> dict[str, list[
     client = client or httpx.AsyncClient(headers=HEADERS, timeout=15.0)
     try:
         matchups_resp, markets_resp = await asyncio.gather(
-            client.get(f"{BASE_URL}/sports/{SPORT_ID}/matchups", params={"withSpecials": "false"}),
-            client.get(
-                f"{BASE_URL}/sports/{SPORT_ID}/markets/straight",
+            get_with_retry(client, f"{BASE_URL}/sports/{SPORT_ID}/matchups",
+                           label="pinnacle", params={"withSpecials": "false"}),
+            get_with_retry(
+                client, f"{BASE_URL}/sports/{SPORT_ID}/markets/straight", label="pinnacle",
                 params={"primaryOnly": "false", "withSpecials": "false"},
             ),
         )
     finally:
         if own:
             await client.aclose()
-    matchups_resp.raise_for_status()
-    markets_resp.raise_for_status()
     matchups = matchups_resp.json()
     markets = markets_resp.json()
     if not isinstance(matchups, list) or not isinstance(markets, list):
@@ -75,6 +74,7 @@ class PinnacleScraper(BaseScraper):
         # No browser needed - pure API calls. ``headless`` accepted for main.py parity.
         self.raw_store = raw_store
         self.run_id = run_id
+        self.fetch_errors: dict[str, str] = {}
 
     async def scrape(
         self,
@@ -90,6 +90,12 @@ class PinnacleScraper(BaseScraper):
             return []
         payload = await fetch_feed()
         scraped_at = datetime.now(timezone.utc)
+        self.fetch_errors.pop(sport, None)
+        n_events = len(parser.parse_events(payload["matchups"], sport))
+        if n_events == 0 and in_season(sport, scraped_at):
+            # Valid list payload, zero events for this league in season: schema drift, not a quiet day.
+            self.fetch_errors[sport] = f"schema drift? 0 {sport.upper()} events in {len(payload['matchups'])} total"
+            logger.warning(f"[pinnacle] {self.fetch_errors[sport]}")
         if self.raw_store is not None:
             try:
                 self.raw_store.put(f"pinnacle_{sport}", payload, url=f"{BASE_URL}/sports/{SPORT_ID}")
