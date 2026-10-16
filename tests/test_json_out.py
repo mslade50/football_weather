@@ -91,7 +91,8 @@ def test_novig_typed_outcomes_survive_schedule_mapping_and_board_export():
 
 def _openers() -> dict:
     op = pstate.migrate({}, "openers")
-    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "total", "under", 39.0, -110),
+    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "spread", "away", 2.5, -110),
+                               _ln("betonline", "total", "under", 39.0, -110), _ln("betonline", "total", "over", 39.0, -110),
                                _ln("betonline", "ml", "home", None, -150),
                                {"game_id": GID, "market": "total", "side": "under", "book": "consensus", "line": 39.0, "odds": -110},
                                {"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -2.5, "odds": -110}],
@@ -260,11 +261,15 @@ def test_consensus_spread_opener_averages_member_openers_with_fallback():
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [{"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -4.0, "odds": -110}], "t0")
     assert json_out.consensus_spread_opener(GID, op) == (-4.0, "fallback")       # no member opener -> stored consensus
-    pstate.record_openers(op, [_ln("pinnacle", "spread", "away", 3.0, -110),          # away-only opener flips to -3.0
-                               _ln("betcris", "spread", "home", -2.0, -110),
-                               _ln("fanduel", "spread", "home", -9.0, -110)], "t1")   # non-member ignored
+    # a pair opener is recorded per book (pinnacle's away side is flipped to -3.0 when it is the only one kept)
+    pstate.record_openers(op, [_ln("pinnacle", "spread", "away", 3.0, -110), _ln("pinnacle", "spread", "home", -3.0, -110),
+                               _ln("betcris", "spread", "home", -2.0, -110), _ln("betcris", "spread", "away", 2.0, -110),
+                               _ln("fanduel", "spread", "home", -9.0, -110),    # non-member ignored
+                               _ln("fanduel", "spread", "away", 9.0, -110)], "t1")
     assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
-    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110)], "t2")
+    del op["openers"][pstate.odds_key(GID, "spread", "home", "pinnacle")]       # away-only opener flips
+    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
+    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "spread", "away", 2.5, -110)], "t2")
     assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+bol+pin")
     assert json_out.consensus_spread_opener("nfl:2026:3:x@y", op) == (None, "fallback")
 
@@ -293,7 +298,8 @@ def test_total_open_provenance_is_exported_only_when_available():
     assert row["total_open_basis"] == "t_minus_6d"
 
     first_seen = pstate.migrate({}, "openers")
-    pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0)], "2026-09-21T16:45:00Z")
+    pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0), _ln("betonline", "total", "over", 39.0)],
+                          "2026-09-21T16:45:00Z")
     first_seen_card = _card(openers=first_seen, lines=[])
     first_seen_total = first_seen_card["odds"]["betonline"]["total"]
     assert first_seen_total["open_ts"] == "2026-09-26T12:00:00Z"
@@ -581,3 +587,4 @@ def test_raw_store_mirror_uploads_captures_and_manifest(tmp_path: Path):
     store2 = RawStore("nfl", "r2", tmp_path, mirror=boom)
     assert store2.put("x", "text") is not None  # mirror failure never fails the capture
     assert store2.mirror_errors == 1
+

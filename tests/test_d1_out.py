@@ -144,7 +144,8 @@ def test_consensus_spread_history_row_is_change_only():
 
 def test_opener_rows_only_for_requested_keys():
     op = pstate.migrate({}, "openers")
-    pstate.record_openers(op, [_ln("betonline", "total", "under", 39.0), _ln("pinnacle", "total", "under", 38.5)], NOW)
+    pstate.record_openers(op, [_ln("betonline", "total", "under", 39.0), _ln("betonline", "total", "over", 39.0),
+                               _ln("pinnacle", "total", "under", 38.5), _ln("pinnacle", "total", "over", 38.5)], NOW)
     rows = d1_out.opener_rows(op, [pstate.odds_key(GID, "total", "under", "betonline"), "bogus"], "r1")
     assert len(rows) == 1 and rows[0]["line"] == 39.0 and rows[0]["seen_at"] == NOW and set(rows[0]) == set(d1_out.OPENER_COLS)
 

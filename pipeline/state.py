@@ -215,6 +215,7 @@ def record_openers(openers: dict, lines: Iterable[Any], now: str) -> int:
     Returns the number of new openers recorded."""
     store = openers.setdefault("openers", {})
     added = 0
+    pending: dict[tuple[str, str, str], dict[str, tuple[str, float, Any, str]]] = {}
     for ln in lines:
         game_id, market, side, book, line, odds = _line_tuple(ln)
         if not game_id or not book or odds is None:
@@ -243,10 +244,61 @@ def record_openers(openers: dict, lines: Iterable[Any], now: str) -> int:
                 conflicts = openers.setdefault('true_opener_conflicts', {}).setdefault(key, [])
                 if not any(all(prior.get(field) == row[field] for field in ('line', 'odds', 'ts', 'source')) for prior in conflicts):
                     conflicts.append(row)
-        if key not in store:
-            store[key] = {"line": line, "odds": odds, "ts": _utc_text(observed) if observed else now}
-            added += 1
+        if key in store:
+            continue
+        ts = _utc_text(observed) if observed else now
+        if (market in _PAIRED_MARKETS and book != "consensus" and isinstance(line, (int, float))
+                and not isinstance(line, bool)):
+            pending.setdefault((game_id, market, book), {}).setdefault(side, (key, float(line), odds, ts))
+            continue
+        store[key] = {"line": line, "odds": odds, "ts": ts}
+        added += 1
+    for (game_id, market, book), got in pending.items():
+        added += _record_pair_openers(store, game_id, market, book, got)
     return added
+
+
+_PAIRED_MARKETS = {"spread": ("home", "away"), "total": ("over", "under")}
+
+
+def _home_rel(market: str, side: str, line: float) -> float:
+    """Home-relative spread / over-relative total number (away spread flipped)."""
+    return round(-line if market == "spread" and side == "away" else line, 2)
+
+
+def _record_pair_openers(store: dict, game_id: str, market: str, book: str, got: dict) -> int:
+    """Per-book atomic spread/total openers: both sides at one home-relative number.
+
+    * neither side on record -> record both, only when both are present at the
+      same number (same ts); a one-sided / mismatched book records nothing;
+    * exactly one side on record (legacy state) -> record the missing side only
+      when it sits on the recorded side's number;
+    * both on record -> nothing (openers are set-once)."""
+    sides = _PAIRED_MARKETS[market]
+    have = {s: store.get(odds_key(game_id, market, s, book)) for s in sides}
+    known = [s for s in sides if have[s]]
+    if len(known) == 2:
+        return 0
+    if not known:
+        if len(got) < 2:
+            return 0
+        a, b = (got[s] for s in sides)
+        if _home_rel(market, sides[0], a[1]) != _home_rel(market, sides[1], b[1]):
+            return 0
+        ts = a[3]
+        for s in sides:
+            key, line, odds, _ = got[s]
+            store[key] = {"line": line, "odds": odds, "ts": ts}
+        return 2
+    s_known = known[0]
+    s_miss = sides[1] if s_known == sides[0] else sides[0]
+    if s_miss not in got or have[s_known].get("line") is None:
+        return 0
+    key, line, odds, ts = got[s_miss]
+    if _home_rel(market, s_miss, line) != _home_rel(market, s_known, float(have[s_known]["line"])):
+        return 0
+    store[key] = {"line": line, "odds": odds, "ts": ts}
+    return 1
 
 
 def retarget_openers(
