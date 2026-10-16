@@ -10,7 +10,8 @@
  *   { run_id, last_updated, season, week, sport_counts {nfl, cfb}, git_sha, model_version,
  *     next_run_eta, degradations [{component, reason, severity, run_id, ts}],
  *     books { <book>: { count, baseline, status: "green"|"amber"|"red", last_ok } },
- *     weeks? { nfl: [..], cfb: [..] } }
+ *     weeks? { nfl: <current week>, cfb: <current week> } (array tolerated: first entry),
+ *     book_health? { <book>: { <sport>: { rows, last_ok_utc, consecutive_empty, last_error } } } }
  *
  * /data/games_nfl.json, /data/games_cfb.json  → [GameCard] (or {meta, games:[GameCard]})
  *   GameCard = {
@@ -257,7 +258,7 @@ function render() {
   if (showAll) { showAll.checked = STATE.showAllGames; if (showAll.parentElement) showAll.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table"; }
   document.getElementById("signal").value = STATE.signal;
   const mobileSort = document.getElementById("mobile-sort");
-  if (mobileSort) mobileSort.value = STATE.sort === 1 ? "1" : "";
+  if (mobileSort) mobileSort.value = STATE.sort === "discovery" ? "discovery" : "";
   const search = document.getElementById("search");
   if (document.activeElement !== search && search.value !== STATE.q) search.value = STATE.q;
   const view = STATE.view;
@@ -319,17 +320,30 @@ function setSport(sport) {
   populateWeeks();
   render();
 }
+// Default week for a sport: meta.weeks[sport] (number, or array -> first entry) if that week has games,
+// else the week of the earliest game not yet kicked off, else the last week. Pure; weeksList is sorted.
+function pickDefaultWeek(weeksList, games, meta, sport, now = Date.now()) {
+  if (!weeksList.length) return null;
+  let mw = meta && meta.weeks ? meta.weeks[sport] : null;
+  if (Array.isArray(mw)) mw = mw[0];
+  if (mw != null && weeksList.map(String).includes(String(mw))) return String(mw);
+  let best = null;
+  for (const g of games || []) {
+    const t = Date.parse(g.kickoff_utc);
+    if (g.week == null || Number.isNaN(t) || t <= now || /final|cancel|postpon/i.test(g.status || "")) continue;
+    if (!best || t < best.t) best = {t, week: g.week};
+  }
+  return String(best ? best.week : weeksList[weeksList.length - 1]);
+}
 function populateWeeks() {
   const sel = document.getElementById("week");
   const weeks = [...new Set((DATA.games[STATE.sport] || []).map((g) => g.week).filter((w) => w != null))].sort((a, b) => a - b);
-  const metaWeek = (DATA.meta.weeks && DATA.meta.weeks[STATE.sport]) || null;
   if (STATE.week == null || !weeks.map(String).includes(String(STATE.week))) {
-    STATE.week = weeks.length ? String(weeks.includes(DATA.meta.week) ? DATA.meta.week : weeks[0]) : null;
+    STATE.week = pickDefaultWeek(weeks, DATA.games[STATE.sport], DATA.meta, STATE.sport);
   }
   sel.innerHTML = weeks.map((w) => `<option value="${w}">Week ${w}</option>`).join("") || `<option value="">—</option>`;
   if (STATE.week != null) sel.value = String(STATE.week);
   sel.style.display = weeks.length > 1 ? "" : "none";
-  void metaWeek;
 }
 function populateBooks() {
   const sel = document.getElementById("book");
@@ -519,7 +533,8 @@ async function boot() {
   for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), meta.resident));
   // No sport in the URL and the default sport has no games on the board (NFL before its
   // 10-day window opens, CFB in January): open on the sport that does.
-  if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length) {
+  // A failed load is not "no games": never switch sport away from it (the table shows the error).
+  if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length && !LOAD_ERRORS[STATE.sport]) {
     const alt = STATE.sport === "nfl" ? "cfb" : "nfl";
     if ((DATA.games[alt] || []).length) STATE.sport = alt;
   }
@@ -562,7 +577,7 @@ async function boot() {
     render();
   });
 
-  document.getElementById("mobile-sort").addEventListener("change", e => { STATE.sort = e.target.value ? Number(e.target.value) : null; STATE.dir = 1; render(); });
+  document.getElementById("mobile-sort").addEventListener("change", e => { STATE.sort = e.target.value || null; STATE.dir = 1; render(); });
   setupHover();
   document.addEventListener("click", e => {
     const button = e.target.closest(".copy-coordinates");

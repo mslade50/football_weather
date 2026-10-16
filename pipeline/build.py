@@ -2080,8 +2080,9 @@ def write_outputs(
         book_health = pstate.book_health_export(pstate.load_book_health(state_dir))
     except Exception:  # noqa: BLE001
         book_health = {}
+    weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"book_health": book_health,
+                               extra={"book_health": book_health, "weeks": weeks,
                                       "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
                                                          for (b, s, m, e), n in expiry_groups.items()]})
