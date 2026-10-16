@@ -2,7 +2,8 @@
 
 Pins (ARCH §9.2 / §13): R2 state get loop fails on anything but NoSuchKey, put loop
 pushes meta.json LAST, d1 execute gated by hashFiles, self-check after publish,
-playwright job builds with --merge-into-r2, NO git commit/push step remains (Phase 4:
+playwright_scrape runs parallel to light and hands lines to the playwright publish
+job (--ingest-lines --merge-into-r2), NO git commit/push step remains (Phase 4:
 legacy csv/xlsx go to R2 legacy/), no continue-on-error on state steps."""
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ def _step(text: str, name: str) -> str:
 
 def _job(text: str, name: str) -> str:
     start = text.index(f"\n  {name}:\n")
-    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright", "notify_failure")]
+    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright_scrape", "playwright", "notify_failure")]
     ends = [i for i in nxt if i > start]
     return text[start:min(ends)] if ends else text[start:]
 
@@ -210,24 +211,60 @@ def test_light_step_order(text: str):
     assert idx == sorted(idx)
 
 
-def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
+def test_playwright_scrape_runs_parallel_to_light_without_state_or_r2(text: str):
+    job = _job(text, "playwright_scrape")
+    assert "    needs: gate\n" in job          # NOT light: the scrape overlaps the light job
+    assert "needs.gate.outputs.need_playwright == 'true'" in job
+    assert "python -m playwright install --with-deps chromium" in job
+    assert "path: ~/.cache/ms-playwright" in job
+    assert "key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}" in job
+    assert "python -m playwright install-deps chromium" in job
+    assert "steps.pw-cache.outputs.cache-hit != 'true'" in job
+    scrape = _step(job, "Scrape BetOnline (scrape-only)")
+    assert 'python -m pipeline.build --sport "$SPORT" --scrape-only data/pw-lines --books betonline --run-id "$SCRAPE_RUN_ID"' in scrape
+    assert "-pwscrape" in scrape   # raw dir distinct from the publish job's -pw run
+    upload = _step(job, "Upload BetOnline handoff")
+    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in upload
+    assert "data/pw-lines/" in upload and "data/raw_runs/" in upload   # raw-first: captures travel too
+    assert "retention-days: 1" in upload
+    # Scrape-only: never touches state, R2, D1 or Telegram, and holds no secrets.
+    for token in ("fetch_r2.py", "publish_r2.py", "wrangler", "--merge-into-r2", "secrets.", "TELEGRAM", "contents: write"):
+        assert token not in job, token
+
+
+def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     pw = _job(text, "playwright")
-    assert "needs: [gate, light]" in pw
+    assert "needs: [gate, light, playwright_scrape]" in pw
     assert "needs.gate.outputs.need_playwright == 'true'" in pw
-    assert "ref: main" not in pw   # no light-job commit to pick up any more
-    assert "python -m playwright install --with-deps chromium" in pw
-    assert "path: ~/.cache/ms-playwright" in pw
-    assert "key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}" in pw
-    assert "python -m playwright install-deps chromium" in pw
-    assert "steps.pw-cache.outputs.cache-hit != 'true'" in pw
+    assert "needs.light.result == 'success'" in pw
+    # A failed scrape still publishes (BetOnline 0 lines + degradation); a skipped/cancelled one does not.
+    assert "needs.playwright_scrape.result == 'success' || needs.playwright_scrape.result == 'failure'" in pw
+    assert "always()" in pw
+    assert "ref: main" not in pw
+    # No Chromium in the publish job any more.
+    assert "playwright install" not in pw
+    assert "ms-playwright" not in pw
+    assert "grep -viE '^(playwright|playwright-stealth" in pw
+    download = _step(pw, "Download BetOnline handoff")
+    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    assert "path: data/" in download
+    assert "continue-on-error: true" in download
     build = _step(pw, "Build board (BetOnline)")
-    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2' in build
+    assert ('python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts '
+            '--run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines') in build
     assert "contents: write" not in pw
-    order = ["Fetch board state from R2 (playwright)", "Build board (BetOnline)",
+    order = ["Download BetOnline handoff", "Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]
     idx = [pw.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
     assert "Telegram on failure" not in pw
+
+
+def test_publish_job_pushes_handoff_raw_captures_before_meta(text: str):
+    push = _step(_job(text, "playwright"), "Push to R2 (playwright)")
+    # The downloaded data/raw_runs/ (scrape job captures) ride the raw phase; meta stays last.
+    assert push.index("python scripts/publish_r2.py raw") < push.index("python scripts/publish_r2.py meta")
+    assert push.rstrip().endswith("python scripts/publish_r2.py meta")
 
 
 def test_no_git_commit_step_remains(text: str):
@@ -292,14 +329,15 @@ def test_cron_backstop_has_no_duplicate_ticks_and_is_thinner(text: str):
 def test_telegram_on_failure(text: str):
     job = _job(text, "notify_failure")
     step = _step(job, "Telegram on failure")
-    assert "needs: [gate, light, playwright]" in job
+    assert "needs: [gate, light, playwright_scrape, playwright]" in job
+    assert "needs.playwright_scrape.result == 'failure'" in job
     assert "always() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in job
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
     assert "--max-time 15" in step
 
 
 def test_read_only_contents_permission(text: str):
-    for job in ("light", "playwright"):
+    for job in ("light", "playwright_scrape", "playwright"):
         assert "contents: read" in _job(text, job), job
     assert "contents: write" not in text
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in text
