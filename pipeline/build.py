@@ -1240,6 +1240,21 @@ def stage_odds(
         if not lines:
             ctx.degrade("odds", f"{sport}: {name} returned 0 lines", "warn")
 
+    # Cross-run per-book health (only books scraped this run; carried books are untouched).
+    if not dry_run:
+        try:
+            errs: dict[str, str] = {}
+            for name in books:
+                fe = getattr(scrapers.get(name), "fetch_errors", None)
+                if fe:
+                    errs[name] = "; ".join(f"{k}: {v}" if k != sport else str(v) for k, v in fe.items())
+            health = pstate.load_book_health(state_dir)
+            pstate.update_book_health(health, sport, {n: per_book_n[n] for n in books if n in scrapers}, errs,
+                                      now=utc_iso(ctx.now_utc), horizon_games=len(games))
+            pstate.save_book_health(state_dir, health)
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("odds.health", f"{sport}: book health update failed (non-fatal): {exc}", "warn")
+
     # Active volume health incident; alerts.json owns successful-delivery dedup
     # so transport failures retry without NFL/CFB scope switches re-arming it.
     with ctx.stage(f"{sport}.volume"):
@@ -2061,8 +2076,13 @@ def write_outputs(
     expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
         line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
         for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
+    try:
+        book_health = pstate.book_health_export(pstate.load_book_health(state_dir))
+    except Exception:  # noqa: BLE001
+        book_health = {}
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+                               extra={"book_health": book_health,
+                                      "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
                                                          for (b, s, m, e), n in expiry_groups.items()]})
     hist = pstate.load_history(state_dir)

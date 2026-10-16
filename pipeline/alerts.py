@@ -170,6 +170,7 @@ class Config:
     min_tier: str = DEFAULT_MIN_TIER
     include_openers: bool = DEFAULT_INCLUDE_OPENERS
     system_alerts: bool = False
+    book_health: bool = False  # Direct callers opt in; production from_env defaults it on.
     open_signal_snapshots: bool = False
     interview_policy: bool = False  # Direct legacy callers; production from_env opts into the interview policy.
 
@@ -204,6 +205,7 @@ class Config:
             min_tier=min_tier,
             include_openers=include_openers,
             system_alerts=system_alerts,
+            book_health=str(e.get("BOOK_HEALTH_ALERTS") or "1").strip().lower() in ("1", "true", "yes", "on"),
             open_signal_snapshots=str(e.get("TELEGRAM_OPEN_SIGNAL_SNAPSHOTS") or "0").strip().lower() in ("1", "true", "yes", "on"),
             interview_policy=True,
         )
@@ -1610,6 +1612,53 @@ def collect_candidates(
     return out
 
 
+# ---- book health (independent of TELEGRAM_SYSTEM_ALERTS) ------------------------------------
+
+BOOK_HEALTH_MIN_EMPTY = 3
+BOOK_HEALTH_MARKERS = "book_health"   # alerts["book_health"]["{sport}|{book}"] = ISO ts of the down message
+
+
+def book_health_messages(health: dict, alerts: dict) -> list[tuple[str, str, str, str]]:
+    """``[(kind, sport, book, text)]`` for books newly down (>= 3 consecutive empty scrapes while the
+    odds horizon has games) and for previously-alerted books that returned rows. Pure: markers are
+    recorded by the caller only after a successful send."""
+    markers = alerts.get(BOOK_HEALTH_MARKERS) or {}
+    out: list[tuple[str, str, str, str]] = []
+    for book, sports in sorted((health.get("books") or {}).items()):
+        for sport, e in sorted((sports or {}).items()):
+            mk = f"{sport}|{book}"
+            empty = int(e.get("consecutive_empty") or 0)
+            if empty >= BOOK_HEALTH_MIN_EMPTY and int((health.get("horizon") or {}).get(sport) or 0) > 0 and mk not in markers:
+                last_ok = e.get("last_ok_utc") or "never"
+                err = e.get("last_error") or "returned 0 lines"
+                out.append(("down", sport, book, format_ops(
+                    f"{book} {sport.upper()} down",
+                    f"{empty} empty scrapes in a row; last rows {last_ok}. Last error: {err}")))
+            elif int(e.get("rows") or 0) > 0 and mk in markers:
+                out.append(("up", sport, book, format_ops(f"{book} {sport.upper()} recovered", f"Back with {int(e['rows'])} rows.")))
+    return out
+
+
+def send_book_health(health: dict, alerts: dict, sender: Sender, cfg: Config, now: datetime) -> int:
+    """Send book-health messages; record/clear dedup markers only after a successful send."""
+    sent = 0
+    for kind, sport, book, text in book_health_messages(health, alerts):
+        try:
+            ok = bool(sender(text, cfg.chat_default))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("book-health alert failed: %s", exc)
+            ok = False
+        if not ok:
+            continue
+        markers = alerts.setdefault(BOOK_HEALTH_MARKERS, {})
+        if kind == "down":
+            markers[f"{sport}|{book}"] = utc_iso(now)
+        else:
+            markers.pop(f"{sport}|{book}", None)
+        sent += 1
+    return sent
+
+
 # ---- planning: dedup, quiet hours, cap ---------------------------------------------------------
 
 def _priority(c: Candidate, now: datetime) -> tuple:
@@ -1969,6 +2018,11 @@ def run_alerts(
             outcome.n_messages += 1
         else:
             outcome.failed.append(snapshot)
+    if cfg.book_health:
+        try:
+            outcome.n_messages += send_book_health(pstate.load_book_health(state_dir), alerts, send, cfg, now)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("book-health alerts skipped: %s", exc)
     pstate.save_alerts(state_dir, alerts)
     pstate.save_telegram_state(state_dir, tg)
     if checkpoint is not None:

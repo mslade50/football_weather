@@ -33,6 +33,7 @@ ALERTS_FILE = "alerts.json"
 ALERTS_EXPORT_FILE = "alerts_export.json"   # optional `wrangler d1 export --table alerts` / /api/alerts dump
 TELEGRAM_STATE_FILE = "telegram_state.json"
 HISTORY_FILE = "history.json"
+BOOK_HEALTH_FILE = "book_health.json"
 
 ALERTS_CAP = 500   # dedup markers kept (oldest pruned)
 FEED_CAP = 200     # sent alerts kept for board/alerts_feed.json
@@ -48,6 +49,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
     "alerts": {"sent": {}},   # + "records" / "feed" added lazily by the alert helpers below
     "telegram_state": {"queue": []},
     "history": {"series": {}, "fair_series": {}},
+    "book_health": {"books": {}, "horizon": {}},
 }
 
 PathLike = Union[str, Path]
@@ -705,3 +707,57 @@ def parse_utc(value: Any) -> Optional[datetime]:
 
 def _utc_text(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# ── per-book health across runs (rows / last_ok_utc / consecutive_empty / last_error) ──
+
+BOOK_HEALTH_FIELDS = ("rows", "last_ok_utc", "consecutive_empty", "last_error")
+BOOK_HEALTH_ERROR_MAX = 200
+
+
+def load_book_health(data_dir: PathLike) -> dict:
+    return _load_kind(data_dir, BOOK_HEALTH_FILE, "book_health")
+
+
+def save_book_health(data_dir: PathLike, health: dict) -> None:
+    _save(Path(data_dir) / BOOK_HEALTH_FILE, health)
+
+
+def update_book_health(
+    health: dict,
+    sport: str,
+    rows_by_book: Mapping[str, int],
+    errors: Optional[Mapping[str, str]] = None,
+    *,
+    now: str,
+    horizon_games: Optional[int] = None,
+) -> dict:
+    """Fold one run's scrape results into ``health`` (in place). Only books in
+    ``rows_by_book`` (actually scraped this run) are touched; carried-forward
+    books keep their counters. ``horizon_games`` = schedule games in the odds
+    horizon for ``sport`` (None leaves the previous value)."""
+    books = health.setdefault("books", {})
+    for book, rows in rows_by_book.items():
+        entry = books.setdefault(book, {}).setdefault(sport, {})
+        n = int(rows or 0)
+        entry["rows"] = n
+        if n > 0:
+            entry["last_ok_utc"] = now
+            entry["consecutive_empty"] = 0
+            entry["last_error"] = None
+        else:
+            entry["consecutive_empty"] = int(entry.get("consecutive_empty") or 0) + 1
+            entry.setdefault("last_ok_utc", None)
+            err = str((errors or {}).get(book) or "returned 0 lines")
+            entry["last_error"] = err[:BOOK_HEALTH_ERROR_MAX]
+    if horizon_games is not None:
+        health.setdefault("horizon", {})[sport] = int(horizon_games)
+    return health
+
+
+def book_health_export(health: Mapping[str, Any]) -> dict:
+    """``{book: {sport: {rows, last_ok_utc, consecutive_empty, last_error}}}`` for meta.json."""
+    out: dict[str, dict] = {}
+    for book, sports in (health.get("books") or {}).items():
+        out[book] = {sp: {k: e.get(k) for k in BOOK_HEALTH_FIELDS} for sp, e in (sports or {}).items()}
+    return out

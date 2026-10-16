@@ -204,6 +204,16 @@ def _line_to_dict(line: Any) -> dict:
     return asdict(line)
 
 
+def _describe_failure(exc: BaseException, limit: int = 200) -> str:
+    """``Type: message`` (with the HTTP status for httpx status errors), truncated."""
+    text = f"{type(exc).__name__}: {exc}".rstrip(": ")
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is not None and str(status) not in text:
+        text = f"{text} (HTTP {status})"
+    return text[:limit]
+
+
 class BaseScraper(ABC):
     """Base class all sportsbook scrapers inherit from."""
 
@@ -223,6 +233,7 @@ class BaseScraper(ABC):
 
     async def scrape_with_retry(self, sport: str, market: Optional[str] = None, **kwargs: Any) -> list[GameLine]:
         """Scrape with retry logic. Wraps scrape() with retries and error handling."""
+        last_exc: Optional[BaseException] = None
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 logger.info(f"[{self.BOOK_NAME}] {sport} attempt {attempt}/{self.MAX_RETRIES}")
@@ -230,10 +241,15 @@ class BaseScraper(ABC):
                 logger.info(f"[{self.BOOK_NAME}] {sport}: got {len(lines)} lines")
                 return lines
             except Exception as e:
+                last_exc = e
                 logger.error(f"[{self.BOOK_NAME}] {sport} attempt {attempt} failed: {e}")
                 if attempt < self.MAX_RETRIES:
                     await asyncio.sleep(self.RETRY_DELAY * attempt)
         logger.error(f"[{self.BOOK_NAME}] All {self.MAX_RETRIES} attempts failed")
+        if last_exc is not None:
+            if not isinstance(getattr(self, "fetch_errors", None), dict):
+                self.fetch_errors = {}
+            self.fetch_errors[sport] = _describe_failure(last_exc)
         return []
 
     @staticmethod
