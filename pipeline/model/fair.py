@@ -33,7 +33,7 @@ from pipeline.contracts import Edge, GameLine
 from pipeline.model import config as C
 
 EXCHANGE_BOOKS = {"kalshi", "novig", "prophetx", "polymarket_us"}
-DEFAULT_BOOK_WEIGHT = 0.5
+DEFAULT_BOOK_WEIGHT = C.DEFAULT_BOOK_WEIGHT
 LEGACY_NOW_BOOK: dict[str, str] = {"nfl": "betonline", "cfb": "fanduel"}
 CALIBRATION_PATH = Path(__file__).resolve().parents[2] / "data" / "calibration.json"
 
@@ -226,25 +226,19 @@ _OPPOSITE = {"home": "away", "away": "home", "over": "under", "under": "over"}
 def main_lines(lines: Iterable[GameLine], market: str) -> dict[str, dict[str, GameLine]]:
     """{book: {side: GameLine}} for the main line of ``market`` per book.
 
-    Rows with ``is_main`` win; otherwise the first line seen per book. Two
-    sides only pair when they refer to the same number."""
+    Only ``is_main`` rows count (a book with no main contributes nothing).
+    ``pipeline.odds.main_select.select_main_lines`` leaves one pair per book;
+    a defensive guard keeps only rows on the first main number seen so two
+    sides never pair across different numbers."""
     by_book: dict[str, dict[str, GameLine]] = {}
     chosen_num: dict[str, float] = {}
     for gl in lines:
-        if gl.market != market:
+        if gl.market != market or not gl.is_main:
             continue
         num = _home_line(gl) if market != "ml" else 0.0
-        cur = by_book.setdefault(gl.book, {})
-        if gl.book in chosen_num:
-            if num != chosen_num[gl.book]:
-                if gl.is_main and not any(x.is_main for x in cur.values()):
-                    by_book[gl.book] = {gl.side: gl}
-                    chosen_num[gl.book] = num
-                continue
-            cur.setdefault(gl.side, gl)
-        else:
-            chosen_num[gl.book] = num
-            cur[gl.side] = gl
+        if chosen_num.setdefault(gl.book, num) != num:
+            continue
+        by_book.setdefault(gl.book, {}).setdefault(gl.side, gl)
     return by_book
 
 

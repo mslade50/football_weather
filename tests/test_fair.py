@@ -282,3 +282,8 @@ def test_apply_calibration_overrides(tmp_path):
     finally:
         C.PTS_PROB_TOTAL["nfl"] = orig_tot
         F.SPREAD_KEY_PROB["nfl"] = orig_tbl
+
+
+def test_main_lines_ignores_books_without_a_main():
+    alt = [_gl("kalshi", "total", "over", -110, 60.5, is_main=False), _gl("kalshi", "total", "under", -110, 60.5, is_main=False)]
+    assert F.main_lines(alt, "total") == {}

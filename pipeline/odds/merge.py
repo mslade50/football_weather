@@ -35,15 +35,13 @@ from typing import Any
 
 from pipeline import state as state_mod
 from pipeline.contracts import Game, GameLine
+from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.odds import teams as teams_mod
+from pipeline.odds.main_select import pair_key, select_main_lines
 
 logger = logging.getLogger(__name__)
 
 WINDOW_H = 36.0
-BOOK_WEIGHTS: dict[str, float] = {
-    "pinnacle": 3.0, "betonline": 2.0, "betcris": 1.5, "fanduel": 1.0, "draftkings": 1.0,
-    "kalshi": 1.0, "novig": 1.0, "prophetx": 0.75,
-}
 _PROV_RE = re.compile(
     r"^(?P<sport>nfl|cfb):raw:(?P<stamp>\d{8}|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?|unknown):(?P<away>[^@]*)@(?P<home>.*)$"
 )
@@ -343,60 +341,10 @@ def canonicalize(
 
 # ---- main-line selection + pivot ------------------------------------------------
 
-def _home_line(ln: GameLine) -> float | None:
-    """Home-relative (spread) / over (total) line key for pairing the two sides."""
-    if ln.line is None:
-        return None
-    if ln.market == "spread" and ln.side == "away":
-        return -ln.line
-    return ln.line
-
-
-def _prob(ln: GameLine) -> float:
-    if ln.prob_raw is not None:
-        return ln.prob_raw
-    o = ln.odds
-    return 100.0 / (o + 100.0) if o > 0 else -o / (-o + 100.0)
-
-
-def _pair_lines(rows: Sequence[GameLine]) -> dict[float | None, dict[str, GameLine]]:
-    """``{home_line: {side: row}}`` — one candidate pair per distinct line."""
-    pairs: dict[float | None, dict[str, GameLine]] = {}
-    for ln in rows:
-        key = _home_line(ln) if ln.market != "ml" else None
-        key = round(key, 2) if key is not None else None
-        pairs.setdefault(key, {}).setdefault(ln.side, ln)
-    return pairs
-
-
-def select_main(rows: Sequence[GameLine], consensus: float | None = None) -> dict[str, GameLine]:
-    """One main pair of sides for a (game, book, market) row group."""
-    if not rows:
-        return {}
-    main_rows = [ln for ln in rows if ln.is_main]
-    pairs = _pair_lines(main_rows or rows)
-    if len(pairs) == 1:
-        return next(iter(pairs.values()))
-    # Ladder: nearest consensus, else the most balanced two-way price.
-    if consensus is not None:
-        keyed = [(k, v) for k, v in pairs.items() if k is not None]
-        if keyed:
-            k, v = min(keyed, key=lambda kv: (abs(kv[0] - consensus), abs(_balance(kv[1]))))
-            return v
-
-    def score(item: tuple[float | None, dict[str, GameLine]]) -> tuple[float, float]:
-        return (abs(_balance(item[1])), abs(item[0] or 0.0))
-
-    return min(pairs.items(), key=score)[1]
-
-
-def _balance(sides: dict[str, GameLine]) -> float:
-    """Distance of the pair from a coin-flip (0 = perfectly balanced). Single-sided
-    pairs are penalised so a complete pair always wins."""
-    vals = list(sides.values())
-    if len(vals) < 2:
-        return 10.0
-    return _prob(vals[0]) - _prob(vals[1])
+def select_main(rows: Sequence[GameLine]) -> dict[str, GameLine]:
+    """``{side: row}`` of the one main pair for a (game, book, market) row group
+    (``{}`` when the book flagged no main -- alternates are never promoted)."""
+    return {ln.side: ln for ln in select_main_lines(rows) if ln.is_main}
 
 
 def _weighted_median(values: list[tuple[float, float]]) -> float | None:
@@ -422,10 +370,10 @@ def consensus_lines(lines: Iterable[GameLine], weights: dict[str, float] = BOOK_
     per_game: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for (gid, book, market), rows in groups.items():
         sides = select_main(rows)
-        key = next((k for k in map(_home_line, sides.values()) if k is not None), None)
+        key = next((k for k in map(pair_key, sides.values()) if k is not None), None)
         if key is None:
             continue
-        per_game.setdefault((gid, market), []).append((float(key), weights.get(book, 1.0)))
+        per_game.setdefault((gid, market), []).append((float(key), weights.get(book, DEFAULT_BOOK_WEIGHT)))
     return {k: v for k, v in ((k, _weighted_median(v)) for k, v in per_game.items()) if v is not None}
 
 
@@ -437,19 +385,17 @@ def _side_cell(ln: GameLine) -> dict[str, Any]:
 def pivot(lines: Iterable[GameLine]) -> dict[str, dict[str, dict[str, dict[str, Any]]]]:
     """``board[game_id][book][market] = {"line": home/over line, "home"/"away" |
     "over"/"under": {line, odds, prob_raw, ...}, "n_alt": alternates dropped}``."""
-    lines = list(lines)
-    cons = consensus_lines(lines)
     groups: dict[tuple[str, str, str], list[GameLine]] = {}
     for ln in lines:
         groups.setdefault((ln.game_id, ln.book, ln.market), []).append(ln)
     board: dict[str, dict[str, dict[str, dict[str, Any]]]] = {}
     for (gid, book, market), rows in sorted(groups.items()):
-        sides = select_main(rows, cons.get((gid, market)))
+        sides = select_main(rows)
         if not sides:
             continue
         cell: dict[str, Any] = {s: _side_cell(ln) for s, ln in sides.items()}
-        cell["line"] = next((k for k in map(_home_line, sides.values()) if k is not None), None)
-        cell["n_alt"] = len(_pair_lines(rows)) - 1
+        cell["line"] = next((k for k in map(pair_key, sides.values()) if k is not None), None)
+        cell["n_alt"] = len({pair_key(ln) for ln in rows}) - 1
         board.setdefault(gid, {}).setdefault(book, {})[market] = cell
     return board
 
@@ -506,6 +452,7 @@ def merge_odds(
     res = canonicalize(sport, lines, games, raw_games, window_h=window_h, now=now, data_dir=aliases_dir)
     if openers is None:
         openers = state_mod.load_openers(data_dir) if data_dir is not None else state_mod.migrate({}, "openers")
+    res.lines = select_main_lines(res.lines)
     res.openers = openers
     res.new_openers = update_openers(openers, res.lines, now.isoformat())
     res.board = pivot(res.lines)
@@ -527,7 +474,7 @@ def board_summary(res: MergeResult) -> dict[str, Any]:
 
 
 __all__ = [
-    "BOOK_WEIGHTS", "WINDOW_H", "RawGame", "Match", "MergeResult", "GameMatcher", "candidate_team_ids",
+    "BOOK_WEIGHTS", "DEFAULT_BOOK_WEIGHT", "WINDOW_H", "RawGame", "Match", "MergeResult", "GameMatcher", "candidate_team_ids",
     "parse_provisional", "parse_stamp", "is_provisional", "raw_games_from_lines",
     "raw_games_from_scraper", "canonicalize", "select_main", "consensus_lines", "pivot",
     "update_openers", "opener_for", "merge_odds", "board_summary",
