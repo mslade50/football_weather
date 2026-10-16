@@ -12,7 +12,6 @@ remaining books work in any environment.
 import argparse
 import asyncio
 import importlib
-import importlib.util
 import logging
 import sys
 from datetime import datetime, timezone
@@ -44,7 +43,6 @@ BOOK_REGISTRY: dict[str, tuple[str, str]] = {
     "prophetx": ("pipeline.odds.prophetx", "ProphetXScraper"),
     "polymarket_us": ("pipeline.odds.polymarket_us", "PolymarketUSScraper"),
     "betonline": ("pipeline.odds.betonline", "BetOnlineScraper"),
-    "draftkings": ("pipeline.odds.draftkings", "DraftKingsScraper"),
 }
 
 OUTPUT_DIR = Path("output")
@@ -186,8 +184,7 @@ def cli() -> None:
     args = parser.parse_args()
 
     if args.book == "all":
-        # Optional books (draftkings) whose module is not implemented are skipped silently.
-        books = [b for b, (mod, _) in BOOK_REGISTRY.items() if importlib.util.find_spec(mod) is not None]
+        books = list(BOOK_REGISTRY)
     else:
         books = [args.book]
     asyncio.run(main(books, args.sport, args.market, args.output, not args.headed))
