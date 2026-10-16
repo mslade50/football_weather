@@ -1377,6 +1377,7 @@ def stage_odds(
         added = pstate.record_openers(openers, main_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
         record_weekly_totals(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+        json_out.freeze_consensus_spread_openers(openers, sorted(active_ids), now)
         opener_update_keys = (
             retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
             if sport == "cfb" else []

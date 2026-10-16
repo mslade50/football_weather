@@ -268,3 +268,7 @@ def test_pair_openers_legacy_one_sided_state_only_completes_on_same_number():
     assert state.get_opener(op, state.odds_key(G1, "total", "over", "betonline"))["odds"] == -105
     assert state.get_opener(op, state.odds_key(G1, "total", "under", "betonline"))["ts"] == "t0"
 
+
+def test_migrate_adds_empty_consensus_spread_open():
+    assert state.migrate({"openers": {}, "schema_version": 2}, "openers")["consensus_spread_open"] == {}
+    assert state.migrate(None, "openers")["consensus_spread_open"] == {}

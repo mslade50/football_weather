@@ -43,7 +43,8 @@ _KEY_SEP = "|"
 
 # Default shape per state kind; ``migrate()`` fills these in for any version.
 _DEFAULTS: dict[str, dict[str, Any]] = {
-    "openers": {"openers": {}, "true_openers": {}, "references": {}, "true_opener_conflicts": {}},
+    "openers": {"openers": {}, "true_openers": {}, "references": {}, "true_opener_conflicts": {},
+                "consensus_spread_open": {}},
     "archive_last": {"last": {}},
     "baseline": {"scope": None, "peaks": {}, "alerted": [], "seen_books": {}, "scopes": {}},
     "alerts": {"sent": {}},   # + "records" / "feed" added lazily by the alert helpers below

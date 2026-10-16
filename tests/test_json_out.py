@@ -588,3 +588,16 @@ def test_raw_store_mirror_uploads_captures_and_manifest(tmp_path: Path):
     assert store2.put("x", "text") is not None  # mirror failure never fails the capture
     assert store2.mirror_errors == 1
 
+
+def test_frozen_consensus_spread_opener_ignores_members_posting_later():
+    op = pstate.migrate({}, "openers")
+    pstate.record_openers(op, [_ln("pinnacle", "spread", "home", -3.0), _ln("pinnacle", "spread", "away", 3.0)], "t0")
+    assert json_out.freeze_consensus_spread_openers(op, [GID, "nfl:2026:3:x@y"], "t0") == 1
+    assert op["consensus_spread_open"][GID] == {"line": -3.0, "members": ["pinnacle"], "ts": "t0"}
+    pstate.record_openers(op, [_ln("betcris", "spread", "home", -5.0), _ln("betcris", "spread", "away", 5.0)], "t1")
+    assert json_out.freeze_consensus_spread_openers(op, [GID], "t1") == 0          # set-once
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")              # no phantom move
+    block = json_out.consensus_block(GID, {}, op)
+    assert block["spread_open"] == -3.0 and block["spread_open_members"] == ["pinnacle"]
+    del op["consensus_spread_open"]                                                # unfrozen -> computed
+    assert json_out.consensus_spread_opener(GID, op) == (-4.0, "cris+pin")
