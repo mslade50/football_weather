@@ -25,7 +25,7 @@ from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, in_season
 from pipeline.odds.parsers import betonline as parser
 from pipeline.odds.parsers.betonline import LEAGUES, BetOnlineGame
 
@@ -96,6 +96,7 @@ class BetOnlineScraper(BaseScraper):
         self.raw_store = raw_store
         self.run_id = run_id
         self.last_games: list[BetOnlineGame] = []
+        self.fetch_errors: dict[str, str] = {}
 
     async def _fetch_api(self, page: Any, endpoint: str, payload: dict) -> dict | None:
         """Call a BetOnline API endpoint from the browser context (has CF cookies)."""
@@ -110,6 +111,8 @@ class BetOnlineScraper(BaseScraper):
         """{league_slug: offering-by-league payload} for every league feeding ``sport``."""
         out: dict[str, dict] = {}
         failed = 0
+        dark = 0
+        self.fetch_errors.pop(sport, None)
         for slug in LEAGUES[sport]:
             body = {"Sport": "football", "League": slug, "filterTime": 0}
             try:
@@ -125,8 +128,13 @@ class BetOnlineScraper(BaseScraper):
                                    url=f"{API_BASE}/offering-by-league?League={slug}", ext="json")
             if not data.get("GameOffering"):
                 logger.info(f"[{self.BOOK_NAME}] {slug}: no GameOffering (league dark), skipping")
+                dark += 1
                 continue
             out[slug] = data
+        if not out and dark and in_season(sport):
+            # Valid responses but no league has a GameOffering in season: likely schema drift.
+            self.fetch_errors[sport] = f"schema drift? no GameOffering in {dark} {sport.upper()} league response(s)"
+            logger.warning(f"[{self.BOOK_NAME}] {self.fetch_errors[sport]}")
         if failed and failed == len(LEAGUES[sport]):
             # Every in-page fetch failed ("TypeError: Failed to fetch" = the Cloudflare pass
             # did not take on this runner). Raise so scrape_with_retry re-launches the browser

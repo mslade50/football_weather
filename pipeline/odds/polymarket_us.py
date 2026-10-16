@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, get_with_retry
 from pipeline.odds.parsers import polymarket_us as parser
 
 BASE_URL = "https://gateway.polymarket.us"
@@ -29,8 +29,8 @@ class PolymarketUSScraper(BaseScraper):
         url = f"{BASE_URL}/v2/leagues/{sport}/events"
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for page in range(MAX_PAGES):
-                response = await client.get(url, params={"limit": PAGE_SIZE, "offset": page * PAGE_SIZE})
-                response.raise_for_status()
+                response = await get_with_retry(
+                    client, url, label="polymarket_us", params={"limit": PAGE_SIZE, "offset": page * PAGE_SIZE})
                 if capture:
                     capture(f"polymarket_us_{sport}_{page}", response.text, str(response.url))
                 payload = response.json()

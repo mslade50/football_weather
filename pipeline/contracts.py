@@ -8,11 +8,14 @@ lives in ``__post_init__`` for the few invariants that matter downstream
 
 from __future__ import annotations
 
+import logging
+import math
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Optional
 
 SPORTS = ("nfl", "cfb")
+CONSENSUS_BOOK = "consensus"
 MARKETS = ("ml", "spread", "total")
 SIDES = ("home", "away", "over", "under")
 ROOF_STATES = ("outdoors", "dome", "closed", "open")
@@ -211,7 +214,7 @@ class GameLine(_AsDict):
     book: str
     market: str
     side: str
-    odds: int
+    odds: Optional[int]  # None only for book='consensus' pseudo-rows (no price)
     line: Optional[float] = None
     prob_raw: Optional[float] = None
     is_main: bool = True
@@ -233,6 +236,18 @@ class GameLine(_AsDict):
         _check_in(self.sport, SPORTS, "sport")
         _check_in(self.market, MARKETS, "market")
         _check_in(self.side, SIDES, "side")
+        allowed = ("over", "under") if self.market == "total" else ("home", "away")
+        if self.side not in allowed:
+            raise ValueError(f"side={self.side!r} invalid for market {self.market}")
+        if self.odds is None:
+            if self.book != CONSENSUS_BOOK:
+                raise ValueError("odds required (None only for consensus pseudo-rows)")
+        elif (isinstance(self.odds, bool) or not isinstance(self.odds, (int, float))
+              or not math.isfinite(self.odds) or abs(self.odds) < 100):
+            raise ValueError(f"odds must be finite with |odds|>=100, got {self.odds!r}")
+        if self.line is not None and (isinstance(self.line, bool) or not isinstance(self.line, (int, float))
+                                      or not math.isfinite(self.line)):
+            raise ValueError(f"line must be finite, got {self.line!r}")
         if self.market == "ml" and self.line is not None:
             raise ValueError("moneyline has no line")
         if self.market != "ml" and self.line is None:
@@ -243,6 +258,25 @@ class GameLine(_AsDict):
     @property
     def key(self) -> str:
         return odds_key(self.game_id, self.market, self.side, self.book)
+
+
+_log = logging.getLogger(__name__)
+LINE_DROPS: dict[str, int] = {}
+
+
+def game_line(**kwargs: Any) -> Optional[GameLine]:
+    """Build a GameLine, returning None (and counting the drop) when invalid.
+
+    Parsers use this so one malformed row never crashes a whole book.
+    """
+    try:
+        return GameLine(**kwargs)
+    except (ValueError, TypeError) as exc:
+        book = str(kwargs.get("book"))
+        LINE_DROPS[book] = LINE_DROPS.get(book, 0) + 1
+        _log.warning("dropped invalid %s line %s/%s/%s: %s", book, kwargs.get("game_id"),
+                     kwargs.get("market"), kwargs.get("side"), exc)
+        return None
 
 
 @dataclass(frozen=True)

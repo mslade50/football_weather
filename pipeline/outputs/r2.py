@@ -51,7 +51,7 @@ RETRY_SLEEP_S = 5.0
 STATE_FILES: tuple[str, ...] = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
-    'bet_confirmations',
+    'bet_confirmations', "book_health",
 )
 
 _CONTENT_TYPES = {

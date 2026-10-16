@@ -56,7 +56,7 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 from pipeline.odds.kalshi_fees import effective_price as rounded_effective_price
 
 BOOK = "kalshi"
@@ -230,13 +230,14 @@ def _pair(
     no_odds = dollar_to_american(effective_price(1.0 - bid, coefficient))
     rows: list[GameLine] = []
     if yes_odds:
-        rows.append(GameLine(sport=sport, game_id=game_id, book=BOOK, market=market, side=yes_side, odds=yes_odds,
+        rows.append(game_line(sport=sport, game_id=game_id, book=BOOK, market=market, side=yes_side, odds=yes_odds,
                              line=yes_line, prob_raw=mid, is_main=is_main, source_id=ticker,
                              scraped_at=scraped_at, run_id=run_id))
     if no_odds:
-        rows.append(GameLine(sport=sport, game_id=game_id, book=BOOK, market=market, side=no_side, odds=no_odds,
+        rows.append(game_line(sport=sport, game_id=game_id, book=BOOK, market=market, side=no_side, odds=no_odds,
                              line=no_line, prob_raw=1.0 - mid, is_main=is_main, source_id=ticker,
                              scraped_at=scraped_at, run_id=run_id))
+    rows = [x for x in rows if x is not None]
     return rows
 
 
@@ -270,9 +271,10 @@ def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime |
         odds = dollar_to_american(effective_price(ask, coefficient))
         if not odds:
             continue
-        out.append(GameLine(sport=sport, game_id=game_id, book=BOOK, market="ml", side=side, odds=odds,
+        out.append(game_line(sport=sport, game_id=game_id, book=BOOK, market="ml", side=side, odds=odds,
                             line=None, prob_raw=(bid + ask) / 2.0, is_main=True, source_id=ticker,
                             scraped_at=scraped_at, run_id=run_id))
+    out = [x for x in out if x is not None]
     return out
 
 

@@ -57,6 +57,9 @@ RETRIES = 3
 # request cost ~125 s per run (two silent timeouts + backoff before a fast third
 # try, runs 38339837077 and 38402388816). Ensemble pulls keep their longer limit.
 FORECAST_TIMEOUT_S = 20.0
+# New TLS handshakes from GitHub runners sometimes stall for minutes; fail the
+# connect phase fast and let the normal retries open a fresh connection.
+CONNECT_TIMEOUT_S = 5.0
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +79,7 @@ def _client(timeout: float) -> httpx.Client:
         client = _CLIENTS.get(timeout)
         if client is None or client.is_closed:
             client = httpx.Client(
-                timeout=timeout, headers={"User-Agent": USER_AGENT},
+                timeout=httpx.Timeout(timeout, connect=min(timeout, CONNECT_TIMEOUT_S)), headers={"User-Agent": USER_AGENT},
                 limits=httpx.Limits(keepalive_expiry=KEEPALIVE_EXPIRY_S),
             )
             _CLIENTS[timeout] = client

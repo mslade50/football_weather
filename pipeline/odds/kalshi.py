@@ -13,7 +13,6 @@ top-of-book + taker fee is what the board publishes.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from collections.abc import Callable
@@ -23,7 +22,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, get_with_retry
 from pipeline.odds.parsers import kalshi as kalshi_parser
 
 logger = logging.getLogger(__name__)
@@ -65,15 +64,7 @@ class KalshiScraper(BaseScraper):
             }
             if cursor:
                 params["cursor"] = cursor
-            resp = None
-            for attempt in range(3):
-                resp = await client.get(f"{API_BASE}/events", params=params)
-                if resp.status_code == 429:
-                    await asyncio.sleep(1.5 * (attempt + 1))
-                    continue
-                break
-            assert resp is not None
-            resp.raise_for_status()
+            resp = await get_with_retry(client, f"{API_BASE}/events", label="kalshi", params=params, backoff=1.5)
             data = resp.json()
             events = data.get("events", [])
             all_events.extend(events)
@@ -93,8 +84,7 @@ class KalshiScraper(BaseScraper):
         async with httpx.AsyncClient(headers=HEADERS, timeout=self.timeout) as client:
             for m, tk in wanted.items():
                 try:
-                    response = await client.get(f"{API_BASE}/series/{tk}")
-                    response.raise_for_status()
+                    response = await get_with_retry(client, f"{API_BASE}/series/{tk}", label="kalshi")
                     fee_metadata = response.json()
                 except (httpx.HTTPError, ValueError) as exc:
                     logger.warning("[kalshi] %s %s current fee metadata unavailable: %s", sport, m, type(exc).__name__)

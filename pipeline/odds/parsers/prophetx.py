@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "prophetx"
 
@@ -242,10 +242,12 @@ def _line_value(sel: dict, fallback: Any) -> float | None:
 
 
 def _make(ev: RawEvent, mkt: str, side: str, odds: int, line: float | None, is_main: bool,
-          sel: dict, scraped_at: datetime | None) -> GameLine:
+          sel: dict, scraped_at: datetime | None) -> GameLine | None:
+    if not isinstance(odds, (int, float)) or abs(odds) < 100:
+        return None
     if line == 0:
         line = 0.0
-    return GameLine(
+    return game_line(
         sport=ev.sport,
         game_id=ev.game_id,
         book=BOOK,
@@ -304,6 +306,7 @@ def parse_event_markets(
                 if line is None:
                     continue
                 out.append(_make(ev, mkt, side, best[0], line, is_main, sel, scraped_at))
+    out = [x for x in out if x is not None]
     return out
 
 

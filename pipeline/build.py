@@ -71,8 +71,10 @@ import os
 import re
 import shutil
 import sys
+import threading
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -280,6 +282,14 @@ def _is_conus(st: Stadium) -> bool:
     return 24.0 <= st.lat <= 50.0 and -125.0 <= st.lon <= -66.0
 
 
+def weather_workers() -> int:
+    """Concurrent Open-Meteo batches; FOOTBALL_WEATHER_WORKERS=1 restores sequential."""
+    try:
+        return max(1, min(8, int(os.environ.get("FOOTBALL_WEATHER_WORKERS", "3"))))
+    except ValueError:
+        return 3
+
+
 def _fetch_point_batches(
     points: Sequence[tuple[float, float]],
     fetcher: Callable[..., Sequence[Any]],
@@ -298,6 +308,41 @@ def _fetch_point_batches(
     """
     fetched: dict[tuple[float, float], Any] = {}
     failures: list[tuple[int, int, Exception]] = []
+    workers = weather_workers()
+    # A callable batch_size packs against live budget headroom, so planning must
+    # stay sequential; fixed sizes can be planned up front and fetched in a pool.
+    if workers > 1 and not callable(batch_size) and len(points) > batch_size >= 1:
+        plan = [list(points[i:i + batch_size]) for i in range(0, len(points), batch_size)]
+        capture = kwargs.get("capture")
+        if capture is not None:
+            lock = threading.Lock()
+
+            def locked_capture(*args: Any, **kw: Any) -> Any:
+                with lock:  # RawStore.put mutates a shared manifest
+                    return capture(*args, **kw)
+
+            kwargs = {**kwargs, "capture": locked_capture}
+
+        def run(index: int, batch: list[tuple[float, float]]) -> list[Any]:
+            batch_kwargs = dict(kwargs)
+            if point_windows is not None:
+                batch_kwargs["start"] = min(point_windows[point][0] for point in batch)
+                batch_kwargs["end"] = max(point_windows[point][1] for point in batch)
+            parsed = list(fetcher(batch, source_prefix=f"{source_prefix}_batch{index:02d}", **batch_kwargs))
+            if len(parsed) != len(batch):
+                raise RuntimeError(f"provider returned {len(parsed)} locations for {len(batch)} points")
+            return parsed
+
+        with ThreadPoolExecutor(max_workers=min(workers, len(plan))) as pool:
+            futures = [pool.submit(run, index, batch) for index, batch in enumerate(plan)]
+        for index, (batch, future) in enumerate(zip(plan, futures, strict=True)):
+            try:
+                fetched.update(zip(batch, future.result(), strict=True))
+                if received is not None:
+                    received(batch)
+            except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
+                failures.append((index, len(batch), exc))
+        return fetched, failures
     offset, batch_index = 0, 0
     while offset < len(points):
         remaining = list(points[offset:])
@@ -1107,7 +1152,7 @@ def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
         if market != "spread" or c.line is None:
             continue
         out.append(GameLine(sport=sport, game_id=game_id, book=CONSENSUS_BOOK, market="spread", side="home",
-                            odds=int(c.odds) if c.odds is not None else 0, line=float(c.line), is_main=True,
+                            odds=None, line=float(c.line), is_main=True,
                             source_id=c.src, scraped_at=now, run_id=run_id))
     return out
 
@@ -1240,6 +1285,21 @@ def stage_odds(
         if not lines:
             ctx.degrade("odds", f"{sport}: {name} returned 0 lines", "warn")
 
+    # Cross-run per-book health (only books scraped this run; carried books are untouched).
+    if not dry_run:
+        try:
+            errs: dict[str, str] = {}
+            for name in books:
+                fe = getattr(scrapers.get(name), "fetch_errors", None)
+                if fe:
+                    errs[name] = "; ".join(f"{k}: {v}" if k != sport else str(v) for k, v in fe.items())
+            health = pstate.load_book_health(state_dir)
+            pstate.update_book_health(health, sport, {n: per_book_n[n] for n in books if n in scrapers}, errs,
+                                      now=utc_iso(ctx.now_utc), horizon_games=len(games))
+            pstate.save_book_health(state_dir, health)
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("odds.health", f"{sport}: book health update failed (non-fatal): {exc}", "warn")
+
     # Active volume health incident; alerts.json owns successful-delivery dedup
     # so transport failures retry without NFL/CFB scope switches re-arming it.
     with ctx.stage(f"{sport}.volume"):
@@ -1339,7 +1399,8 @@ def stage_odds(
                 last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
             if ln.expires_at is not None:
                 last[ln.key]["expires_at"] = utc_iso(ln.expires_at)
-        pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
+        if _prune_allowed(archive, sport, len(active_ids), ctx, "archive_last"):
+            pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
             pstate.save_archive_last(state_dir, archive)
@@ -1382,6 +1443,30 @@ def last_observed_totals(archive: dict, sport: str, active_ids: set[str], now: d
             "updated_at": value.get("ts"), "source_updated_at": value.get("source_updated_at"),
             "expires_at": value.get("expires_at"), "status": status}
     return out
+
+
+PRUNE_SHRINK_MIN = 0.7
+
+
+def _prune_allowed(store: dict, sport: str, n_active: int, ctx: Any, label: str) -> bool:
+    """False when the schedule is empty or shrank >30% vs the last pruned run.
+
+    A failed/partial schedule fetch (e.g. ESPN current-week fallback) must not
+    delete state for games that merely dropped out of the slate. The reference
+    count resets when pruning proceeds and decays 15% per skipped run, so a
+    one-off bad fetch is guarded while a genuine slate shrink (bye weeks, CFB
+    championship week) resumes pruning after a few runs.
+    """
+    guard = store.setdefault("prune_guard", {})
+    prev = guard.get(sport)
+    prev_n = int(prev) if isinstance(prev, (int, float)) and not isinstance(prev, bool) else 0
+    if n_active <= 0 or (prev_n and n_active < prev_n * PRUNE_SHRINK_MIN):
+        ctx.degrade(f"{sport}.state", f"{sport}: {label} prune skipped (schedule {n_active} games vs {prev_n} last pruned run)", "warn")
+        if n_active > 0:
+            guard[sport] = max(n_active, int(prev_n * 0.85))
+        return False
+    guard[sport] = n_active
+    return True
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1756,7 +1841,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
                 if isinstance(val, (int, float)):
                     fairs[f"{gid}|{market}|{side}"] = float(val)
         n_fair = pstate.update_fair_history(hist, fairs, now)
-        pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
+        if _prune_allowed(hist, sport, len(active), ctx, "history"):
+            pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
         res.board_new_opener_keys = board_new_opener_keys(res, previous_run_finished(state_dir, sport), ctx.now_utc)
         wx_hist = json_out.load_wx_history(state_dir)
         wx_last = d1_out.load_wx_last(state_dir)
@@ -2061,8 +2147,14 @@ def write_outputs(
     expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
         line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
         for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
+    try:
+        book_health = pstate.book_health_export(pstate.load_book_health(state_dir))
+    except Exception:  # noqa: BLE001
+        book_health = {}
+    weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+                               extra={"book_health": book_health, "weeks": weeks,
+                                      "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
                                                          for (b, s, m, e), n in expiry_groups.items()]})
     hist = pstate.load_history(state_dir)

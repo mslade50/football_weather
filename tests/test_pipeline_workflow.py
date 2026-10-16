@@ -103,6 +103,7 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
     assert "if: needs.gate.outputs.run == 'scrape'" in light
     assert "python-version: '3.11'" in light
     assert "cache: 'pip'" in light
+    assert "path: ~/.npm" in light and "npm-wrangler-4" in light
     assert "actions/setup-node@v4" in light and "node-version: '20'" in light
     assert "playwright install" not in light
     assert "grep -viE '^(playwright|playwright-stealth" in light
@@ -204,6 +205,10 @@ def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
     assert "needs.gate.outputs.need_playwright == 'true'" in pw
     assert "ref: main" not in pw   # no light-job commit to pick up any more
     assert "python -m playwright install --with-deps chromium" in pw
+    assert "path: ~/.cache/ms-playwright" in pw
+    assert "key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}" in pw
+    assert "python -m playwright install-deps chromium" in pw
+    assert "steps.pw-cache.outputs.cache-hit != 'true'" in pw
     build = _step(pw, "Build board (BetOnline)")
     assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2' in build
     assert "contents: write" not in pw

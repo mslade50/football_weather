@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, backoff_delay, retryable_status
 from pipeline.odds.parsers import betcris as parser
 from pipeline.odds.parsers.betcris import PAGES, BetcrisGame
 
@@ -94,10 +94,10 @@ class BetcrisScraper(BaseScraper):
                 logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
                                f"{type(e).__name__}: {e}")
                 self.fetch_errors[slug] = f"{type(e).__name__}: {e}".rstrip(": ")
-                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code in (401, 403):
-                    break  # An access denial is not a transient transport failure.
+                if isinstance(e, httpx.HTTPStatusError) and not retryable_status(e.response.status_code):
+                    break  # 401/403 (access denial) and other 4xx are not transient (only 408/429/5xx retry).
                 if attempt < FETCH_ATTEMPTS:
-                    await asyncio.sleep(FETCH_BACKOFF_S * attempt)
+                    await asyncio.sleep(backoff_delay(attempt, FETCH_BACKOFF_S))
         return None
 
     async def _revalidate_public(self, client: httpx.AsyncClient, slug: str, url: str) -> str | None:
@@ -110,6 +110,34 @@ class BetcrisScraper(BaseScraper):
             logger.warning("[betcris] %s: %s", slug, self.fetch_errors[slug])
             return None
         return response.text
+
+    @staticmethod
+    def _feed_age(raw: str) -> tuple[datetime, float, float | None] | None:
+        """(observed, age_seconds vs wall clock, provider ttl) from the raw feed; None if unreadable."""
+        try:
+            payload = json.loads(raw)
+            observed = parser._public_timestamp(payload.get("feed_fetched_at"))
+            if observed is None:
+                return None
+            ttl = parser._public_number(payload.get("stale_after_seconds"))
+            return observed, (datetime.now(timezone.utc) - observed).total_seconds(), ttl
+        except Exception:  # noqa: BLE001 - diagnostics must never break the scrape
+            return None
+
+    def _log_feed_age(self, sport: str, raw: str) -> None:
+        info = self._feed_age(raw)
+        if info is None:
+            logger.info("[betcris] %s: feed observation time unreadable", sport)
+            return
+        observed, age, ttl = info
+        logger.info("[betcris] %s: feed observed %s, age %.0fs vs wall clock (ttl %s)",
+                    sport, observed.isoformat(), age, f"{ttl:g}s" if ttl else "n/a")
+
+    def _stale_prefix(self, raw: str) -> str:
+        info = self._feed_age(raw)
+        if info is None:
+            return "stale feed: "
+        return f"stale upstream feed, age {info[1]:.0f}s: "
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
         if sport not in PAGES:
@@ -128,17 +156,18 @@ class BetcrisScraper(BaseScraper):
                 return []
             if self.raw_store is not None:
                 self.raw_store.put(f"betcris_public_{sport}", raw, url=url, ext="json")
+            self._log_feed_age(sport, raw)
             try:
                 lines = parser.parse_public(json.loads(raw), sport, now=datetime.now(timezone.utc),
                                             market=market, run_id=self.run_id)
             except parser.StaleObservationError as original:
                 if sport != "cfb":
-                    self.fetch_errors[slug] = str(original)
+                    self.fetch_errors[slug] = f"{self._stale_prefix(raw)}{original}"
                     return []
                 logger.warning("[betcris] cfb: %s; revalidating once", original)
                 refreshed = await self._revalidate_public(client, slug, url)
                 if refreshed is None:
-                    self.fetch_errors[slug] = f"{original}; {self.fetch_errors[slug]}"
+                    self.fetch_errors[slug] = f"{self._stale_prefix(raw)}{original}; {self.fetch_errors[slug]}"
                     return []
                 if self.raw_store is not None:
                     self.raw_store.put("betcris_public_cfb_revalidation", refreshed, url=url, ext="json")
@@ -146,7 +175,8 @@ class BetcrisScraper(BaseScraper):
                     lines = parser.parse_public(json.loads(refreshed), sport, now=datetime.now(timezone.utc),
                                                 market=market, run_id=self.run_id)
                 except ValueError as exc:
-                    self.fetch_errors[slug] = f"revalidation did not recover fresh CFB observations: {exc}"
+                    self.fetch_errors[slug] = (f"{self._stale_prefix(refreshed)}revalidation did not recover "
+                                               f"fresh CFB observations: {exc}")
                     return []
                 self.fetch_errors.pop(slug, None)
                 logger.info("[betcris] cfb: same-URL revalidation recovered a fresh league observation")

@@ -67,7 +67,7 @@ function setupTableControls() {
   el.addEventListener("change", (e) => {
     BOOK_SPREADS = !!e.target.checked;
     saveBookSpreads(BOOK_SPREADS);
-    STATE.sort = null;   // column indexes shift when the spread columns appear
+    STATE.sort = null;   // ids are stable; reset anyway for a predictable order
     render();
   });
 }
@@ -173,10 +173,14 @@ function consensusTotalCell(g) {
   };
   return `<td data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
 }
+function blankOddsCell(g, bk, market, text) {
+  const expired = Array.isArray(g.expired_markets) && g.expired_markets.includes(`${bk}/${market}`);
+  return expired ? `<td class="muted" title="quote expired">${text}</td>` : `<td class="muted">${text}</td>`;
+}
 function bookSpreadCell(g, bk) {
   const o = (g.odds || {})[bk];
   const s = o && o.spread;
-  if (!s || (!isNum(s.home_line) && !isNum(s.open_line))) return `<td class="muted">—</td>`;
+  if (!s || (!isNum(s.home_line) && !isNum(s.open_line))) return blankOddsCell(g, bk, "spread", "—");
   const e = edgeAt(g, bk, "spread");
   const hk = ++HK;
   HOVER[hk] = {
@@ -193,7 +197,7 @@ function bookSpreadCell(g, bk) {
 function bookTotalCell(g, bk) {
   const o = (g.odds || {})[bk];
   const t = o && o.total;
-  if (!t || (!isNum(t.line) && !isNum(t.open_line) && !t.last_observed)) return `<td class="muted">No quote</td>`;
+  if (!t || (!isNum(t.line) && !isNum(t.open_line) && !t.last_observed)) return blankOddsCell(g, bk, "total", "No quote");
   const e = edgeAt(g, bk, "total");
   const hk = ++HK;
   const baseline = totalBaselineLabel(g, t);
@@ -242,6 +246,51 @@ function tableStadiumHtml(g) {
     ${typeof stadiumSignalCompact === "function" ? stadiumSignalCompact(g) : ''}${coordinateControl(g)}</td>`;
 }
 
+// ── sorting (pure; unit-tested in site/worker/test/table-sort.test.mjs) ──────
+// Missing = null/undefined/NaN/+-Infinity/"" (sort keys use -Infinity for "no value"). Missing always
+// sorts last in either direction; ties break on kickoff then game_id so the order is deterministic.
+function sortMissing(v) {
+  return v == null || v === "" || v === -Infinity || v === Infinity || (typeof v === "number" && Number.isNaN(v));
+}
+function compareSortValues(x, y, dir) {
+  const mx = sortMissing(x), my = sortMissing(y);
+  if (mx || my) return mx && my ? 0 : mx ? 1 : -1;
+  let c;
+  if (typeof x === "string" || typeof y === "string") c = String(x).localeCompare(String(y));
+  else c = x === y ? 0 : x < y ? -1 : 1;
+  return c * (dir < 0 ? -1 : 1);
+}
+function sortGames(rows, key, dir) {
+  const kick = (g) => { const t = Date.parse(g.kickoff_utc); return Number.isNaN(t) ? Infinity : t; };
+  return rows.sort((a, b) => compareSortValues(key(a), key(b), dir)
+    || (kick(a) === kick(b) ? 0 : kick(a) < kick(b) ? -1 : 1)
+    || String(a.game_id).localeCompare(String(b.game_id)));
+}
+// column spec: [label, title, sortKey, cell, id]; STATE.sort holds the id string so the sort survives
+// the Book filter / spread-column toggle changing the column set.
+const FIXED_COLUMN_IDS = ["game", "discovery", "stadium", "temp", "wind", "gust", "rain", "gs", "away", "signal", "spread", "total"];
+function sortColumnId(cols, id) { return cols.find((c) => c[4] === id) || null; }
+function warnBookHeader(label, bk, sport) {
+  const h = typeof bookHealthFor === "function" ? bookHealthFor(DATA.meta, bk, sport) : null;
+  if (!h || !(h.consecutive_empty > 0)) return {label, tip: ""};
+  const ok = h.last_ok_utc && typeof fmtShortET === "function" ? fmtShortET(h.last_ok_utc) : "never";
+  const tip = `${bookLabel(bk)}: 0 lines for ${h.consecutive_empty} run${h.consecutive_empty === 1 ? "" : "s"}, last OK ${ok}`
+    + (h.last_error ? ` — ${h.last_error}` : "");
+  return {label: `${label} ⚠`, tip};
+}
+function gameStarted(g) {
+  const st = String(g.status || "").toLowerCase();
+  if (/final/.test(st)) return "Final";
+  if (/live|progress|in_play|half/.test(st)) return "Live";
+  if (/cancel|postpon|suspend|tbd|unknown/.test(st)) return "";
+  const t = Date.parse(g.kickoff_utc);
+  return !Number.isNaN(t) && t < Date.now() ? "Live" : "";
+}
+function gameStateBadge(g) {
+  const s = gameStarted(g);
+  return s ? ` <span class="pill ${s === "Final" ? "ok" : "warn"} game-state" title="Game ${s === "Final" ? "finished" : "started"}">${s}</span>` : "";
+}
+
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
@@ -259,15 +308,16 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus baseline → now. CFB targets kickoff minus 6 days, falling back to first observed if collected later; NFL uses first seen. Pinnacle-weighted.", cons("total_now")],
   ];
+  cols.forEach((c, i) => { c[4] = FIXED_COLUMN_IDS[i]; });
   for (const bk of books) {
     if (withSpreads) {
       cols.push([`${bookLabel(bk)} S`, `${bookLabel(bk)} spread open → now; chip = edge pts vs fair`,
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
-        (g) => bookSpreadCell(g, bk)]);
+        (g) => bookSpreadCell(g, bk), `${bk}:s`]);
     }
     cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} current under total / price; baseline, movement, source time and edge in hover or details`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
-      (g) => bookTotalCell(g, bk)]);
+      (g) => bookTotalCell(g, bk), `${bk}:t`]);
   }
   return cols;
 }
@@ -282,27 +332,29 @@ function renderTable(rows, opts = {}) {
   const tbody = document.querySelector("#table tbody");
   const books = STATE.book ? [STATE.book] : BOOKS;
   const cols = tableColumns(books, BOOK_SPREADS);
-  thead.innerHTML = "<tr>" + cols.map(([label, title], i) => {
-    const arrow = STATE.sort === i ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
-    return `<th data-col="${i}" tabindex="0" role="button" aria-sort="${STATE.sort === i ? (STATE.dir < 0 ? "descending" : "ascending") : "none"}" class="sortable" title="${esc(title)}">${esc(label)}${arrow}</th>`;
+  const active = sortColumnId(cols, STATE.sort);
+  thead.innerHTML = "<tr>" + cols.map(([label, title, , , id]) => {
+    const on = !!active && active[4] === id;
+    const arrow = on ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
+    const bk = /:[st]$/.test(id) ? id.replace(/:[st]$/, "") : null;
+    const warn = bk ? warnBookHeader(label, bk, STATE.sport) : {label, tip: ""};
+    return `<th data-col="${esc(id)}" tabindex="0" role="button" aria-sort="${on ? (STATE.dir < 0 ? "descending" : "ascending") : "none"}" class="sortable${warn.tip ? " book-warn" : ""}" title="${esc(warn.tip ? warn.tip + "\n" + title : title)}">${esc(warn.label)}${arrow}</th>`;
   }).join("") + "</tr>";
   thead.querySelectorAll("th.sortable").forEach((th) => th.addEventListener("click", () => {
-    const c = +th.dataset.col; STATE.dir = STATE.sort === c ? -STATE.dir : -1; STATE.sort = c; render();
+    const c = th.dataset.col; STATE.dir = STATE.sort === c ? -STATE.dir : -1; STATE.sort = c; render();
   }));
 
   thead.querySelectorAll("th.sortable").forEach(th => th.addEventListener("keydown", e => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
   }));
   rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || hardEligible(g)));
-  if (STATE.sort != null && cols[STATE.sort]) {
-    const key = cols[STATE.sort][2];
-    rows.sort((a, b) => {
-      const x = key(a), y = key(b);
-      if (typeof x === "string" || typeof y === "string") return String(x).localeCompare(String(y)) * -STATE.dir;
-      return (x - y) * STATE.dir;
-    });
+  const sortCol = STATE.sort != null ? sortColumnId(cols, STATE.sort) : null;
+  if (sortCol) {
+    sortGames(rows, sortCol[2], STATE.dir);
+    // started/final games sink below upcoming ones regardless of the chosen column
+    if (rows.some(gameStarted)) rows = rows.filter((g) => !gameStarted(g)).concat(rows.filter(gameStarted));
   } else if (!opts.keepOrder) {
-    rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0));
+    rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0) || String(a.game_id).localeCompare(String(b.game_id)));
   }
   if (!rows.length) {
     tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">${typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[STATE.sport]) ? "Game data unavailable; reload to retry." : "No eligible candidates for these filters. Inspect low likelihood / unknown to review other open-air games."}</td></tr>`;
@@ -313,7 +365,7 @@ function renderTable(rows, opts = {}) {
     const dome = isDome(g);
     const v1 = (g.impact && g.impact.v1) || {};
     const tds = [
-      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${tableKickoffHtml(g)}</td>`,
+      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${gameStateBadge(g)}${tableKickoffHtml(g)}</td>`,
       `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       tableStadiumHtml(g),
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
@@ -327,7 +379,7 @@ function renderTable(rows, opts = {}) {
       consensusTotalCell(g),
     ];
     for (const col of cols) { if (typeof col[3] === "function") tds.push(col[3](g)); }
-    return `<tr class="${dome ? "dome" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
+    return `<tr class="${dome ? "dome" : ""}${gameStarted(g) ? " started" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
   }).join("");
   tbody.querySelectorAll(".game-detail").forEach((button) => button.addEventListener("click", () => openDrawer(button.dataset.game)));
   tbody.querySelectorAll(".stadium-detail, .book-total-detail").forEach(button => button.addEventListener("click", () => {

@@ -30,7 +30,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper
+from pipeline.odds.base import BaseScraper, get_with_retry, request_with_retry
 from pipeline.odds.parsers import prophetx as parser
 
 logger = logging.getLogger(__name__)
@@ -88,8 +88,8 @@ class ProphetXScraper(BaseScraper):
 
     async def _auth_headers(self, client: httpx.AsyncClient) -> dict[str, str]:
         if self.access_key and self.secret_key:
-            response = await client.post(
-                f"{self.base_url}/auth/login",
+            response = await request_with_retry(
+                client, "POST", f"{self.base_url}/auth/login", label="prophetx", raise_status=False,
                 json={"access_key": self.access_key, "secret_key": self.secret_key},
             )
             if response.status_code == 401:
@@ -119,7 +119,9 @@ class ProphetXScraper(BaseScraper):
         headers: dict[str, str],
         params: Any = None,
     ) -> dict:
-        response = await client.get(f"{self.base_url}/{path.lstrip('/')}", headers=headers, params=params)
+        response = await get_with_retry(
+            client, f"{self.base_url}/{path.lstrip('/')}", label="prophetx", raise_status=False,
+            headers=headers, params=params)
         if response.status_code == 401:
             raise ProphetXConfigError("ProphetX Market Data API authorization failed")
         response.raise_for_status()

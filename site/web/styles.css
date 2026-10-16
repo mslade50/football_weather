@@ -424,3 +424,6 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
   #table tbody td.stadium-cell { min-width: 0; max-width: none; }
   .stadium-cell .copy-coordinates { min-height: 44px; }
 }
+
+#table tr.started { opacity: .55; }
+#table th.book-warn { color: #b45309; }

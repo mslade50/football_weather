@@ -308,19 +308,19 @@ def test_history_carries_consensus_spread_series(tmp_path: Path):
     cons = {(GID, "spread"): ConsensusLine(-2.75, -108, 3, "pinnacle", "home", src="bol+pin"),
             (GID, "total"): ConsensusLine(38.0, -110, 3, "betonline", "under")}
     pseudo = build.consensus_spread_lines(cons, "nfl", KICK - timedelta(days=1), "r1")
-    assert [(p.book, p.market, p.side, p.line, p.odds, p.source_id) for p in pseudo] == [("consensus", "spread", "home", -2.75, -108, "bol+pin")]
+    assert [(p.book, p.market, p.side, p.line, p.odds, p.source_id) for p in pseudo] == [("consensus", "spread", "home", -2.75, None, "bol+pin")]
     hist = pstate.load_history(tmp_path)
     key = pstate.odds_key(GID, "spread", "home", "consensus")
     assert pstate.update_history(hist, [_ln("betonline", "spread", "home", -3.0)] + pseudo, "t1") == 2
     assert pstate.update_history(hist, pseudo, "t2") == 0                      # change-only
     moved = build.consensus_spread_lines({(GID, "spread"): ConsensusLine(-3.0, -108, 3, "pinnacle", "home", src="bol+pin")}, "nfl", KICK, "r2")
     assert pstate.update_history(hist, moved, "t3") == 1
-    assert hist["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
+    assert hist["series"][key] == [["t1", -2.75, None], ["t3", -3.0, None]]
     ctx = RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK)
     meta = json_out.build_meta(ctx, {"nfl": 1, "cfb": 0}, {}, season=2026, week=3, finished_at=KICK)
     files = json_out.write_board(tmp_path / "board", {"nfl": [_card()], "cfb": []}, meta, history=hist, wx_history={"series": {}})
     hp = json.loads(files["board/history.json"].read_text(encoding="utf-8"))
-    assert hp["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
+    assert hp["series"][key] == [["t1", -2.75, None], ["t3", -3.0, None]]
 
 
 def test_card_fair_block_from_gamefair_and_legacy_derived():
@@ -392,6 +392,23 @@ def test_build_meta_and_slim_meta():
     slim = json_out.slim_meta(meta)
     assert set(slim) == {"run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations"}
     json.dumps(meta, allow_nan=False)
+
+
+def test_current_weeks_per_sport_shape():
+    def g(week, hours, status="scheduled"):
+        return SimpleNamespace(week=week, kickoff_utc=KICK + timedelta(hours=hours), status=status)
+    now = KICK
+    weeks = json_out.current_weeks({
+        "nfl": [g(6, -50, "final"), g(7, 20), g(7, 30), g(8, 200)],
+        "cfb": [g(8, -5, "final"), g(8, -1, "in_progress"), g(9, 100)],
+        "none": [],
+    }, now)
+    assert weeks == {"nfl": 7, "cfb": 9, "none": None}
+    assert json_out.current_week([g(5, -9, "final"), g(6, -2, "final")], now) == 6   # season over -> last week
+    meta = json_out.build_meta(RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK),
+                               {"nfl": 1}, {}, season=2026, week=7, finished_at=KICK, extra={"weeks": weeks})
+    json.dumps(meta, allow_nan=False)
+    assert meta["weeks"]["nfl"] == 7
 
 
 # ---- wx history --------------------------------------------------------------------------

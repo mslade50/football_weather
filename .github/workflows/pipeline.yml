@@ -122,7 +122,7 @@ env:
   R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
   # State files that round-trip through R2 board/ (ARCH §5).
-  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations
+  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations book_health
 
 jobs:
   gate:
@@ -183,7 +183,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Warm Wrangler CLI cache
+      - name: Restore npm cache (Wrangler 4)
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-wrangler-4
+      - name: Warm Wrangler CLI cache (cache miss only)
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npx --yes wrangler@4 --version
       - name: Install deps (no Playwright / Streamlit in the light job)
         run: |
@@ -303,13 +310,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Warm Wrangler CLI cache
+      - name: Restore npm cache (Wrangler 4)
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-wrangler-4
+      - name: Warm Wrangler CLI cache (cache miss only)
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npx --yes wrangler@4 --version
-      - name: Install deps + Chromium
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          python -m playwright install --with-deps chromium
+      - name: Playwright version
+        id: pw-version
+        run: echo "version=$(python -m playwright --version | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}
+      - name: Install Chromium (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: python -m playwright install --with-deps chromium
+      - name: Install Chromium system deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: python -m playwright install-deps chromium
       - name: Run id (playwright)
         run: echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}-${{ github.run_attempt }}-pw" >> "$GITHUB_ENV"
       - name: Fetch board state from R2 (playwright)

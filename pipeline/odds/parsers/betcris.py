@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "betcris"
 DEFAULT_JUICE = -110
@@ -245,14 +245,15 @@ def game_lines(
         if away_sp is None and home_sp is not None:
             away_sp = -home_sp
         if away_sp is not None and home_sp is not None:
-            out.append(GameLine(market="spread", side="away", line=away_sp, odds=DEFAULT_JUICE, **common))
-            out.append(GameLine(market="spread", side="home", line=home_sp, odds=DEFAULT_JUICE, **common))
+            out.append(game_line(market="spread", side="away", line=away_sp, odds=DEFAULT_JUICE, **common))
+            out.append(game_line(market="spread", side="home", line=home_sp, odds=DEFAULT_JUICE, **common))
     if want("total") and g.total is not None:
-        out.append(GameLine(market="total", side="over", line=g.total, odds=DEFAULT_JUICE, **common))
-        out.append(GameLine(market="total", side="under", line=g.total, odds=DEFAULT_JUICE, **common))
+        out.append(game_line(market="total", side="over", line=g.total, odds=DEFAULT_JUICE, **common))
+        out.append(game_line(market="total", side="under", line=g.total, odds=DEFAULT_JUICE, **common))
     if want("ml") and g.away_ml is not None and g.home_ml is not None:
-        out.append(GameLine(market="ml", side="away", odds=g.away_ml, **common))
-        out.append(GameLine(market="ml", side="home", odds=g.home_ml, **common))
+        out.append(game_line(market="ml", side="away", odds=g.away_ml, **common))
+        out.append(game_line(market="ml", side="home", odds=g.home_ml, **common))
+    out = [x for x in out if x is not None]
     return out
 
 
@@ -384,9 +385,10 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                     continue
                 if target_market != "ml" and line is None:
                     continue
-                out.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=target_market,
+                out.append(game_line(sport=sport, game_id=gid, book=BOOK, market=target_market,
                                     side=side, line=line, odds=int(price), scraped_at=observed,
                                     source_id=f"public:{game.get('id')}", run_id=run_id,
                                     source_updated_at=observed,
                                     expires_at=observed + timedelta(seconds=min(ttl, 3600))))
+    out = [x for x in out if x is not None]
     return out
