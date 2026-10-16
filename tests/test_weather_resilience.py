@@ -70,7 +70,7 @@ def test_point_forecast_client_uses_short_timeout_and_is_reused(monkeypatch):
     OM.fetch_forecast([(41.0, -76.0)], forecast_days=2)
     OM.fetch_forecast_raw([(42.0, -77.0)], forecast_days=2)
     # One keep-alive client serves every point-forecast call: no new TLS handshake per call.
-    assert len(built) == 1 and built[0]["timeout"] == OM.FORECAST_TIMEOUT_S <= 30.0
+    assert len(built) == 1 and built[0]["timeout"].read == OM.FORECAST_TIMEOUT_S <= 30.0 and built[0]["timeout"].connect == OM.CONNECT_TIMEOUT_S
     assert built[0]["limits"].keepalive_expiry == OM.KEEPALIVE_EXPIRY_S > 5.0
     assert len(used) == 3 and used[0] is used[1] is used[2] and not used[0].is_closed
     # A different timeout (ensemble) gets its own client; closing all clears the cache.
