@@ -1408,13 +1408,17 @@ def _prune_allowed(store: dict, sport: str, n_active: int, ctx: Any, label: str)
 
     A failed/partial schedule fetch (e.g. ESPN current-week fallback) must not
     delete state for games that merely dropped out of the slate. The reference
-    count only advances when pruning proceeds.
+    count resets when pruning proceeds and decays 15% per skipped run, so a
+    one-off bad fetch is guarded while a genuine slate shrink (bye weeks, CFB
+    championship week) resumes pruning after a few runs.
     """
     guard = store.setdefault("prune_guard", {})
     prev = guard.get(sport)
     prev_n = int(prev) if isinstance(prev, (int, float)) and not isinstance(prev, bool) else 0
     if n_active <= 0 or (prev_n and n_active < prev_n * PRUNE_SHRINK_MIN):
         ctx.degrade(f"{sport}.state", f"{sport}: {label} prune skipped (schedule {n_active} games vs {prev_n} last pruned run)", "warn")
+        if n_active > 0:
+            guard[sport] = max(n_active, int(prev_n * 0.85))
         return False
     guard[sport] = n_active
     return True

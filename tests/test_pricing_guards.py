@@ -44,10 +44,20 @@ def test_prune_guard_skips_empty_and_shrunk_schedule():
     assert build._prune_allowed(store, "nfl", 16, ctx, "archive_last")
     assert not build._prune_allowed(store, "nfl", 0, ctx, "archive_last")
     assert not build._prune_allowed(store, "nfl", 5, ctx, "archive_last")  # >30% shrink
-    assert store["prune_guard"]["nfl"] == 16
+    assert store["prune_guard"]["nfl"] == 13  # reference decays 15% per skipped run
     assert len(ctx.degradations) == 2
     assert build._prune_allowed(store, "nfl", 14, ctx, "archive_last")
     assert build._prune_allowed(store, "cfb", 3, ctx, "archive_last")  # per-sport reference
+
+
+def test_prune_guard_resumes_after_genuine_shrink():
+    ctx, store = _Ctx(), {}
+    assert build._prune_allowed(store, "cfb", 60, ctx, "history")
+    skipped = 0
+    while not build._prune_allowed(store, "cfb", 12, ctx, "history"):
+        skipped += 1
+        assert skipped < 15
+    assert store["prune_guard"]["cfb"] == 12
 
 
 def test_corrupt_state_raises_and_is_not_overwritten(tmp_path):
