@@ -285,7 +285,7 @@ def test_cron_backstop_has_no_duplicate_ticks_and_is_thinner(text: str):
     # Never hourly: no two scheduled ticks closer than 2h apart on game days (Sat/Sun).
     for d in (6, 0):
         hours = sorted(h for (dd, h, _m) in result if dd == d)
-        assert all(b - a >= 2 or b - a == 0 for a, b in zip(hours, hours[1:])), (d, hours)
+        assert all(b - a >= 2 or b - a == 0 for a, b in zip(hours, hours[1:], strict=False)), (d, hours)
     assert len(result) <= 45  # was 100+ ticks/week before the Worker became primary
 
 
