@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "betonline"
 
@@ -112,8 +112,16 @@ def _odds(value: Any) -> int | None:
     return n or None
 
 
-def _point(value: Any) -> float:
-    p = _num(value)
+def _point(value: Any) -> float | None:
+    """Spread point; None when absent/unparseable (never a fake pick'em 0.0)."""
+    if value is None or value == "":
+        return None
+    try:
+        p = float(value)
+    except (TypeError, ValueError):
+        return None
+    if p != p or p in (float("inf"), float("-inf")):
+        return None
     return 0.0 if p == 0 else p  # -0.0 -> 0.0
 
 
@@ -132,9 +140,12 @@ def parse_game(entry: dict, sport: str, league: str = "") -> BetOnlineGame | Non
 
     a_sp_odds = _odds(a_sp.get("Line"))
     h_sp_odds = _odds(h_sp.get("Line"))
-    spread_on = a_sp_odds is not None and h_sp_odds is not None
-    away_spread = _point(a_sp.get("Point")) if spread_on else None
-    home_spread = _point(h_sp.get("Point")) if spread_on else None
+    away_spread = _point(a_sp.get("Point"))
+    home_spread = _point(h_sp.get("Point"))
+    spread_on = (a_sp_odds is not None and h_sp_odds is not None
+                 and away_spread is not None and home_spread is not None)
+    if not spread_on:
+        away_spread = home_spread = None
     if spread_on and away_spread is not None and home_spread is not None and away_spread != -home_spread:
         # Book always mirrors the points; trust the away side if they ever disagree.
         home_spread = -away_spread
@@ -193,14 +204,15 @@ def game_lines(
     want = lambda m: market is None or market == m  # noqa: E731
 
     if want("spread") and g.away_spread is not None and g.home_spread is not None:
-        out.append(GameLine(market="spread", side="away", line=g.away_spread, odds=g.away_spread_odds, **common))
-        out.append(GameLine(market="spread", side="home", line=g.home_spread, odds=g.home_spread_odds, **common))
+        out.append(game_line(market="spread", side="away", line=g.away_spread, odds=g.away_spread_odds, **common))
+        out.append(game_line(market="spread", side="home", line=g.home_spread, odds=g.home_spread_odds, **common))
     if want("total") and g.total is not None:
-        out.append(GameLine(market="total", side="over", line=g.total, odds=g.over_odds, **common))
-        out.append(GameLine(market="total", side="under", line=g.total, odds=g.under_odds, **common))
+        out.append(game_line(market="total", side="over", line=g.total, odds=g.over_odds, **common))
+        out.append(game_line(market="total", side="under", line=g.total, odds=g.under_odds, **common))
     if want("ml") and g.away_ml is not None and g.home_ml is not None:
-        out.append(GameLine(market="ml", side="away", odds=g.away_ml, **common))
-        out.append(GameLine(market="ml", side="home", odds=g.home_ml, **common))
+        out.append(game_line(market="ml", side="away", odds=g.away_ml, **common))
+        out.append(game_line(market="ml", side="home", odds=g.home_ml, **common))
+    out = [x for x in out if x is not None]
     return out
 
 

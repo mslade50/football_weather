@@ -61,8 +61,10 @@ def test_rank_by_roi_not_points_and_keep_negative_best_honest():
 
 def test_skip_stale_unknown_price_and_thin_model_but_keep_executable_alternate_quotes():
     lines = [offer("old", 46.5, 200, scraped_at=NOW-timedelta(hours=2)),
-             offer("kalshi", 46.5, 0), offer("kalshi", 46.5, -110),
+             offer("kalshi", 46.5, -110),
              offer("kalshi", 70.5, 200, is_main=False)]
+    with pytest.raises(ValueError):  # unknown price (odds=0) is rejected at construction
+        offer("kalshi", 46.5, 0)
     assert len(compare_totals("nfl", lines, fair(), now=NOW)["quotes"]) == 2
     assert compare_totals("nfl", lines, fair(thin=True), now=NOW)["best_under"] is None
     with pytest.raises(ValueError):

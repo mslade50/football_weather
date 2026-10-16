@@ -1107,7 +1107,7 @@ def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
         if market != "spread" or c.line is None:
             continue
         out.append(GameLine(sport=sport, game_id=game_id, book=CONSENSUS_BOOK, market="spread", side="home",
-                            odds=int(c.odds) if c.odds is not None else 0, line=float(c.line), is_main=True,
+                            odds=None, line=float(c.line), is_main=True,
                             source_id=c.src, scraped_at=now, run_id=run_id))
     return out
 
@@ -1354,7 +1354,8 @@ def stage_odds(
                 last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
             if ln.expires_at is not None:
                 last[ln.key]["expires_at"] = utc_iso(ln.expires_at)
-        pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
+        if _prune_allowed(archive, sport, len(active_ids), ctx, "archive_last"):
+            pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
             pstate.save_archive_last(state_dir, archive)
@@ -1397,6 +1398,26 @@ def last_observed_totals(archive: dict, sport: str, active_ids: set[str], now: d
             "updated_at": value.get("ts"), "source_updated_at": value.get("source_updated_at"),
             "expires_at": value.get("expires_at"), "status": status}
     return out
+
+
+PRUNE_SHRINK_MIN = 0.7
+
+
+def _prune_allowed(store: dict, sport: str, n_active: int, ctx: Any, label: str) -> bool:
+    """False when the schedule is empty or shrank >30% vs the last pruned run.
+
+    A failed/partial schedule fetch (e.g. ESPN current-week fallback) must not
+    delete state for games that merely dropped out of the slate. The reference
+    count only advances when pruning proceeds.
+    """
+    guard = store.setdefault("prune_guard", {})
+    prev = guard.get(sport)
+    prev_n = int(prev) if isinstance(prev, (int, float)) and not isinstance(prev, bool) else 0
+    if n_active <= 0 or (prev_n and n_active < prev_n * PRUNE_SHRINK_MIN):
+        ctx.degrade(f"{sport}.state", f"{sport}: {label} prune skipped (schedule {n_active} games vs {prev_n} last pruned run)", "warn")
+        return False
+    guard[sport] = n_active
+    return True
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1771,7 +1792,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
                 if isinstance(val, (int, float)):
                     fairs[f"{gid}|{market}|{side}"] = float(val)
         n_fair = pstate.update_fair_history(hist, fairs, now)
-        pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
+        if _prune_allowed(hist, sport, len(active), ctx, "history"):
+            pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
         res.board_new_opener_keys = board_new_opener_keys(res, previous_run_finished(state_dir, sport), ctx.now_utc)
         wx_hist = json_out.load_wx_history(state_dir)
         wx_last = d1_out.load_wx_last(state_dir)

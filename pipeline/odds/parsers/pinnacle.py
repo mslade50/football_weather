@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "pinnacle"
 
@@ -113,7 +113,7 @@ def _price_line(market: dict, price: dict, event: RawEvent, mkt: str, scraped_at
         if pts is None:
             return None
         line = float(pts)
-    return GameLine(
+    return game_line(
         sport=event.sport,
         game_id=event.game_id,
         book=BOOK,
