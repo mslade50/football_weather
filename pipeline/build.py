@@ -71,6 +71,8 @@ import os
 import re
 import shutil
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -280,6 +282,14 @@ def _is_conus(st: Stadium) -> bool:
     return 24.0 <= st.lat <= 50.0 and -125.0 <= st.lon <= -66.0
 
 
+def weather_workers() -> int:
+    """Concurrent Open-Meteo batches; FOOTBALL_WEATHER_WORKERS=1 restores sequential."""
+    try:
+        return max(1, min(8, int(os.environ.get("FOOTBALL_WEATHER_WORKERS", "3"))))
+    except ValueError:
+        return 3
+
+
 def _fetch_point_batches(
     points: Sequence[tuple[float, float]],
     fetcher: Callable[..., Sequence[Any]],
@@ -298,6 +308,41 @@ def _fetch_point_batches(
     """
     fetched: dict[tuple[float, float], Any] = {}
     failures: list[tuple[int, int, Exception]] = []
+    workers = weather_workers()
+    # A callable batch_size packs against live budget headroom, so planning must
+    # stay sequential; fixed sizes can be planned up front and fetched in a pool.
+    if workers > 1 and not callable(batch_size) and len(points) > batch_size >= 1:
+        plan = [list(points[i:i + batch_size]) for i in range(0, len(points), batch_size)]
+        capture = kwargs.get("capture")
+        if capture is not None:
+            lock = threading.Lock()
+
+            def locked_capture(*args: Any, **kw: Any) -> Any:
+                with lock:  # RawStore.put mutates a shared manifest
+                    return capture(*args, **kw)
+
+            kwargs = {**kwargs, "capture": locked_capture}
+
+        def run(index: int, batch: list[tuple[float, float]]) -> list[Any]:
+            batch_kwargs = dict(kwargs)
+            if point_windows is not None:
+                batch_kwargs["start"] = min(point_windows[point][0] for point in batch)
+                batch_kwargs["end"] = max(point_windows[point][1] for point in batch)
+            parsed = list(fetcher(batch, source_prefix=f"{source_prefix}_batch{index:02d}", **batch_kwargs))
+            if len(parsed) != len(batch):
+                raise RuntimeError(f"provider returned {len(parsed)} locations for {len(batch)} points")
+            return parsed
+
+        with ThreadPoolExecutor(max_workers=min(workers, len(plan))) as pool:
+            futures = [pool.submit(run, index, batch) for index, batch in enumerate(plan)]
+        for index, (batch, future) in enumerate(zip(plan, futures)):
+            try:
+                fetched.update(zip(batch, future.result(), strict=True))
+                if received is not None:
+                    received(batch)
+            except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
+                failures.append((index, len(batch), exc))
+        return fetched, failures
     offset, batch_index = 0, 0
     while offset < len(points):
         remaining = list(points[offset:])

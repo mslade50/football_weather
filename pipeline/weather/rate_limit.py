@@ -8,6 +8,7 @@ provider's ForecastApiResult.calculateQueryWeight and ForecastapiController.
 from __future__ import annotations
 
 import math
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -65,6 +66,8 @@ class RequestBudget:
         self.requests: list[tuple[float, float]] = []
         self.blocked_until = 0.0
         self.block_reason = ""
+        # Batches may be fetched by a small thread pool; guard all shared state.
+        self._lock = threading.RLock()
 
     def batch_size(self, url: str, one_point_params: dict[str, str], maximum: int) -> int:
         """Pack remaining minute headroom; never wait or reserve quota here.
@@ -72,6 +75,10 @@ class RequestBudget:
         If even one location cannot fit, plan a safe fresh-minute batch and let
         acquire() perform the bounded wait. Counts and model fields are unchanged.
         """
+        with self._lock:
+            return self._batch_size(url, one_point_params, maximum)
+
+    def _batch_size(self, url: str, one_point_params: dict[str, str], maximum: int) -> int:
         per_point = query_weight(url, one_point_params)
         safe_maximum = min(maximum, int(MINUTE_BUDGET // per_point))
         if safe_maximum < 1:
@@ -86,19 +93,21 @@ class RequestBudget:
         if cost > MINUTE_BUDGET:
             raise RuntimeError(f"open-meteo batch exceeds local minute budget ({cost:.1f} calls)")
         while True:
-            now = self.clock()
-            self.requests = [(sent, weight) for sent, weight in self.requests if sent > now - 3600.0]
-            delay = self.blocked_until - now
-            if delay > 60.0:
-                raise RuntimeError(f"open-meteo cooldown active: {self.block_reason}")
-            if sum(weight for _, weight in self.requests) + cost > HOUR_BUDGET:
-                raise RuntimeError("open-meteo local hourly budget exhausted; preserving available weather")
-            recent = [(sent, weight) for sent, weight in self.requests if sent > now - 60.0]
-            if sum(weight for _, weight in recent) + cost > MINUTE_BUDGET:
-                delay = max(delay, recent[0][0] + 60.0 - now)
-            if delay <= 0.0:
-                self.requests.append((now, cost))
-                return
+            with self._lock:
+                now = self.clock()
+                self.requests = [(sent, weight) for sent, weight in self.requests if sent > now - 3600.0]
+                delay = self.blocked_until - now
+                if delay > 60.0:
+                    raise RuntimeError(f"open-meteo cooldown active: {self.block_reason}")
+                if sum(weight for _, weight in self.requests) + cost > HOUR_BUDGET:
+                    raise RuntimeError("open-meteo local hourly budget exhausted; preserving available weather")
+                recent = [(sent, weight) for sent, weight in self.requests if sent > now - 60.0]
+                if sum(weight for _, weight in recent) + cost > MINUTE_BUDGET:
+                    delay = max(delay, recent[0][0] + 60.0 - now)
+                if delay <= 0.0:
+                    self.requests.append((now, cost))
+                    return
+            # Sleep outside the lock so other workers are not blocked from re-checking.
             self.sleep(delay)
 
     def rate_limited(self, response: Any, capture: Callable[[Any, str], None] | None = None) -> str:
@@ -133,6 +142,7 @@ class RequestBudget:
             seconds = max(seconds or 0.0, 3600.0)
         elif "minutely" in lower or "one minute" in lower:
             seconds = max(seconds or 0.0, 60.0)
-        self.blocked_until = max(self.blocked_until, self.clock() + (seconds if seconds is not None else float("inf")))
-        self.block_reason = reason
+        with self._lock:
+            self.blocked_until = max(self.blocked_until, self.clock() + (seconds if seconds is not None else float("inf")))
+            self.block_reason = reason
         return reason
