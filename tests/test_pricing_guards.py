@@ -9,7 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pipeline import build, state as pstate
+from pipeline import build
+from pipeline import state as pstate
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.parsers import betonline as bo
 

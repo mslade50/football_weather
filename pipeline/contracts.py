@@ -8,9 +8,9 @@ lives in ``__post_init__`` for the few invariants that matter downstream
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
 import logging
 import math
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Optional
 

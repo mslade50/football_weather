@@ -72,9 +72,9 @@ import re
 import shutil
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -335,7 +335,7 @@ def _fetch_point_batches(
 
         with ThreadPoolExecutor(max_workers=min(workers, len(plan))) as pool:
             futures = [pool.submit(run, index, batch) for index, batch in enumerate(plan)]
-        for index, (batch, future) in enumerate(zip(plan, futures)):
+        for index, (batch, future) in enumerate(zip(plan, futures, strict=True)):
             try:
                 fetched.update(zip(batch, future.result(), strict=True))
                 if received is not None:
