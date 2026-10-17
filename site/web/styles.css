@@ -274,6 +274,7 @@ tr.alert-row.st-closed td, tr.alert-row.st-settled td { opacity: .75; }
 .banners.static .banner { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; }
 .banners .banner.ok { color: #7ee2a8; background: rgba(46,150,90,.10); }
 .banners .banner.info { color: var(--muted); }
+.banners .banner.carried { color: var(--text); background: rgba(88,166,255,.10); }
 .names { display: flex; flex-wrap: wrap; gap: 4px; max-height: 220px; overflow: auto; }
 .names .name { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(139,148,158,.14); border: 1px solid var(--line); }
 .seg.bad { color: var(--bad); }
