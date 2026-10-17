@@ -293,7 +293,14 @@ def test_telegram_on_failure(text: str):
     job = _job(text, "notify_failure")
     step = _step(job, "Telegram on failure")
     assert "needs: [gate, light, playwright]" in job
-    assert "always() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in job
+    # Unconditional at the job: a skipped Playwright job must not skip the page.
+    assert "\n    if: always()\n" in job
+    assert "vars.TELEGRAM_SYSTEM_ALERTS" not in job
+    assert "!cancelled()" in step
+    assert "inputs.safe_refresh != true" in step
+    assert "needs.gate.result == 'failure'" in step
+    assert "needs.light.result == 'failure'" in step
+    assert "needs.playwright.result == 'failure'" in step
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
     assert "--max-time 15" in step
 

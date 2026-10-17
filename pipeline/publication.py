@@ -28,6 +28,142 @@ PUBLIC_NAMES = {
     "backtest.json",
 }
 
+SPORTS = ("nfl", "cfb")
+
+
+def rebuilt_sports(meta: dict | None) -> frozenset[str]:
+    """Sports this run rebuilt.
+
+    ``nfl`` or ``cfb`` is a partial refresh: only that sport is checked, and the
+    other sport's last published games are kept. ``all`` (and a meta that does
+    not say) keeps the full two-sport check.
+    """
+    sport = meta.get("sport") if isinstance(meta, dict) else None
+    if sport in SPORTS:
+        return frozenset((sport,))
+    return frozenset(SPORTS)
+
+
+def previous_games_keys(prev_meta: dict | None, sport: str) -> list[str]:
+    """Where the live board stored ``sport`` before this run."""
+    keys: list[str] = []
+    publication = (prev_meta or {}).get("publication") if isinstance(prev_meta, dict) else None
+    generation = publication.get("generation") if isinstance(publication, dict) else None
+    if (
+        isinstance(generation, str)
+        and len(generation) == 64
+        and all(c in "0123456789abcdef" for c in generation)
+    ):
+        keys.append(f"board/generations/{generation}/games_{sport}.json")
+    keys.append(f"board/games_{sport}.json")
+    return keys
+
+
+def _previous_games(prev_meta: dict | None, sport: str, reader: Callable[[str], bytes | None]) -> dict:
+    saw_key = False
+    for key in previous_games_keys(prev_meta, sport):
+        saw_key = True
+        try:
+            raw = reader(key)
+        except Exception as exc:  # noqa: BLE001 - a read error must not become an empty sport
+            raise RuntimeError(f"Refusing to publish: could not read the previous {sport} board") from exc
+        if raw is None:
+            continue
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, ValueError) as exc:
+            raise RuntimeError(f"Refusing to publish: previous {sport} board is unreadable") from exc
+        if isinstance(payload, list):
+            payload = {"games": payload, "meta": {}}
+        if not isinstance(payload, dict) or not isinstance(payload.get("games"), list):
+            raise RuntimeError(f"Refusing to publish: previous {sport} board is unreadable")
+        return payload
+    if not saw_key:
+        raise RuntimeError(f"Refusing to publish: previous {sport} board is unavailable")
+    raise RuntimeError(f"Refusing to publish: {sport} was not rebuilt and its previous board is missing")
+
+
+def retain_unrebuilt_sports(
+    files: dict[str, Path],
+    prev_meta: dict | None,
+    reader: Callable[[str], bytes | None],
+    dest: Path,
+    *,
+    floor: float = 0.5,
+) -> dict[str, Path]:
+    """Copy sports this run did not rebuild into the files about to be sealed.
+
+    A college-only hour must not replace the NFL board with an empty file. The
+    copied cards keep their prices and weather; only ``run_id`` is updated so
+    the new publication still verifies as one generation. The original meta
+    file is left untouched.
+    """
+    meta_path = files.get("board/meta.json")
+    if meta_path is None:
+        return files
+    try:
+        meta = json.loads(Path(meta_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return files
+    if not isinstance(meta, dict) or not isinstance(meta.get("sport_counts"), dict):
+        return files
+    prev_counts = (prev_meta or {}).get("sport_counts") if isinstance(prev_meta, dict) else None
+    if not isinstance(prev_counts, dict):
+        prev_counts = {}
+    rebuilt = rebuilt_sports(meta)
+    retained: dict[str, dict] = {}
+    updated = dict(files)
+    dest.mkdir(parents=True, exist_ok=True)
+    for sport in SPORTS:
+        name = f"games_{sport}.json"
+        if sport in rebuilt or f"board/{name}" in files:
+            continue
+        try:
+            before = int(prev_counts.get(sport) or 0)
+        except (TypeError, ValueError):
+            before = 0
+        if before <= 0:
+            continue
+        payload = _previous_games(prev_meta, sport, reader)
+        games = payload["games"]
+        if len(games) < floor * before:
+            raise RuntimeError(
+                f"Refusing to publish: previous {sport} board has {len(games)} games, "
+                f"below {floor:.0%} of the previous count {before}"
+            )
+        run_id = meta.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            raise RuntimeError("Refusing to publish: run_id missing")
+        stamped_games = []
+        for row in games:
+            if not isinstance(row, dict) or not isinstance(row.get("game_id"), str):
+                raise RuntimeError(f"Refusing to publish: previous {sport} board has an unusable game card")
+            stamped_games.append({**row, "run_id": run_id})
+        envelope = dict(payload.get("meta") or {})
+        from_run = envelope.get("run_id")
+        envelope["run_id"] = run_id
+        path = dest / name
+        try:
+            path.write_text(
+                json.dumps({"meta": envelope, "games": stamped_games}, allow_nan=False),
+                encoding="utf-8",
+            )
+        except ValueError as exc:
+            raise RuntimeError(f"Refusing to publish: previous {sport} board is unreadable") from exc
+        updated[f"board/{name}"] = path
+        retained[sport] = {"from_run_id": from_run, "games": len(stamped_games)}
+        print(f"Retaining {sport}: {len(stamped_games)} games from previous run {from_run}")
+    if not retained:
+        return files
+    counts = dict(meta["sport_counts"])
+    for sport, info in retained.items():
+        counts[sport] = info["games"]
+    sealed_meta = {**meta, "sport_counts": counts, "retained_sports": retained}
+    meta_out = dest / "meta.json"
+    meta_out.write_text(json.dumps(sealed_meta, allow_nan=False), encoding="utf-8")
+    updated["board/meta.json"] = meta_out
+    return updated
+
 
 def encoded(value: dict) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()

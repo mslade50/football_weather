@@ -14,7 +14,9 @@ name: pipeline
 #   * D1 (football-odds) gets data/d1_inserts.sql (change-only) via
 #     `wrangler d1 execute --file`, gated by hashFiles so an empty run is a no-op.
 #   * Self-check re-fetches board/meta.json and asserts run_id + a 50 % content
-#     floor against the previous meta (bypassed by the `force` input).
+#     floor for each sport this run rebuilt (bypassed by the `force` input).
+#     A CFB-only hour does not fail because NFL was not rebuilt. An empty
+#     rebuild of a sport that was rebuilt is still rejected.
 #   * Nothing is committed back to git (Phase 4): the legacy nfl_weather.csv /
 #     cfb_weather.xlsx are written to data/ and uploaded to R2 legacy/ in the put
 #     loop; data/state/ rides R2 board/.
@@ -257,7 +259,8 @@ jobs:
           # Raw uploads can outlast feed TTLs. Revalidate current board/legacy
           # prices immediately before their put loop; consumers enforce expiry too.
           python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
-          # Reject a bad content floor before replacing any current board objects.
+          # Reject a bad or empty rebuild before replacing any current board objects.
+          # The floor counts only sports this run rebuilt (meta.sport).
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
@@ -381,6 +384,7 @@ jobs:
           python scripts/publish_r2.py snapshots
           PUBLISH_GUARD_STARTED="$(date +%s)"
           python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
+          # Same floor as the light job: only sports this run rebuilt.
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
@@ -423,14 +427,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   notify_failure:
-    # One optional page for the whole run. Disabled by default so provider
-    # fallbacks and CI failures stay on the dashboard / Actions run, not Telegram.
+    # Page whenever a publish is rejected or a job fails. The job condition is
+    # only always(): a skipped Playwright job must not skip this page (GitHub
+    # skips a dependent job when one need was skipped unless the condition is
+    # unconditional). The step decides whether there is anything to send.
+    # safe_refresh stays quiet. Cancelled runs do not page.
     needs: [gate, light, playwright]
-    if: ${{ always() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Telegram on failure
+        if: ${{ !cancelled() && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

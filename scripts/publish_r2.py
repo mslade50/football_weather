@@ -30,7 +30,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.outputs import r2  # noqa: E402
-from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, verify_generation  # noqa: E402
+from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, retain_unrebuilt_sports, verify_generation  # noqa: E402
 
 ROOT = Path("data")
 MAX_WORKERS = 8
@@ -191,8 +191,37 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
     raise ValueError(f"unknown publishing phase: {phase}")
 
 
+def _previous_meta() -> dict | None:
+    path = ROOT / "state" / "prev_meta.json"
+    if not path.is_file():
+        return None
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Previous board meta is unreadable; refusing to publish ({exc})") from exc
+    if not isinstance(loaded, dict):
+        raise RuntimeError("Previous board meta is unreadable; refusing to publish")
+    return loaded
+
+
+def _live_reader(bucket: str):
+    """Return object bytes, or None when the key is absent. Other errors fail the publish."""
+    from scripts.fetch_r2 import FetchError, fetch_bytes_boto3, fetch_bytes_wrangler
+
+    def reader(key: str) -> bytes | None:
+        cfg = s3_config()
+        try:
+            if cfg is not None:
+                return fetch_bytes_boto3(get_client(cfg, bounded=True), bucket, key)
+            return fetch_bytes_wrangler(bucket, key)
+        except FetchError as exc:
+            raise RuntimeError(f"Could not read previous {key}: {exc}") from exc
+
+    return reader
+
+
 def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
-                  upload_fn=upload_one, read_fn=None) -> list[str]:
+                  upload_fn=upload_one, read_fn=None, retain_reader=None) -> list[str]:
     """Upload one phase with bounded concurrency; preserve errors and report keys."""
     items = files_for_phase(phase)
     print(f"R2 transport: {transport_name()} (phase {phase})")
@@ -200,6 +229,14 @@ def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
         raise RuntimeError("board/meta.json is missing; refusing to report a completed publish")
     if phase in ('board', 'meta'):
         board_files = {f'board/{path.name}': path for path in (ROOT / 'board').glob('*.json')}
+        if (ROOT / "board" / "meta.json").is_file():
+            board_files = retain_unrebuilt_sports(
+                board_files,
+                _previous_meta(),
+                retain_reader or _live_reader(bucket),
+                ROOT / "publication-retain",
+                floor=r2.CONTENT_FLOOR,
+            )
         immutable, pointer = prepare_generation(board_files, ROOT / 'publication')
         if phase == 'board':
             items.extend((key, path, 'application/json') for key, path in immutable.items())
