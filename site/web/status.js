@@ -15,8 +15,10 @@ function renderHeader(meta) {
   if (meta.last_updated) {
     const et = fmtET(meta.last_updated);
     upd.textContent = `Updated ${et}`;
+    const carried = carriedSportNotices(meta).map((notice) => notice.text).join(" ");
     upd.title = `run_id ${meta.run_id || "?"}` + (meta.git_sha ? ` · ${String(meta.git_sha).slice(0, 7)}` : "")
-      + (meta.model_version ? ` · model ${meta.model_version}` : "");
+      + (meta.model_version ? ` · model ${meta.model_version}` : "")
+      + (carried ? ` · ${carried}` : "");
   } else {
     upd.textContent = "";
   }
@@ -44,10 +46,38 @@ function renderBookChips(books) {
   }).join("");
 }
 
+// Run ids start with YYYYMMDDTHHMMSSZ. That clock is the earlier build when a
+// sport was copied forward and the games file did not keep its own timestamp.
+function retainedRunTime(runId) {
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/.exec(String(runId || ""));
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`;
+}
+function carriedSportNotices(meta) {
+  const retained = meta && meta.retained_sports;
+  if (!retained || typeof retained !== "object") return [];
+  return ["nfl", "cfb"].filter((sport) => retained[sport] && typeof retained[sport] === "object").map((sport) => {
+    const info = retained[sport];
+    const raw = info.refreshed_at || retainedRunTime(info.from_run_id);
+    const when = raw && typeof fmtET === "function" ? (fmtET(raw) || raw) : (raw || "an earlier run");
+    return {
+      sport,
+      from_run_id: info.from_run_id || "",
+      text: `${sport.toUpperCase()} carried forward from the earlier run. Weather and prices were last refreshed ${when}.`,
+    };
+  });
+}
 // Shared warnings have one home; the Status tab still carries the full run history.
+// Carried sports stay visible here: their cards keep the new run id, so the
+// header clock is this run, not when that sport's weather and prices were built.
 function renderBanners(meta) {
   const el = document.getElementById("banners");
-  if (el) { el.innerHTML = ""; el.hidden = true; }
+  if (!el) return;
+  const notices = carriedSportNotices(meta || {});
+  if (!notices.length) { el.innerHTML = ""; el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = notices.map((notice) =>
+    `<div class="banner carried" title="${esc(notice.from_run_id)}">${esc(notice.text)}</div>`).join("");
 }
 const HEALTH_RENDER = new WeakMap();
 function boardDiagnostics(meta) {
