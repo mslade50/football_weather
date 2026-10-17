@@ -602,6 +602,10 @@ async function boot() {
       if (history) history.innerHTML = stadiumHistoryDetails(DRAWER.game);
     }
   });
+  if (typeof loadStadiumClimate === "function") loadStadiumClimate().then(() => {
+    if (["table", "map", "signals"].includes(STATE.view)) render();
+    if (typeof paintStadiumClimate === "function") paintStadiumClimate();
+  });
 }
 
 boot();

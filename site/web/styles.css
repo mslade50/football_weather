@@ -417,7 +417,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
 .book-total-detail:hover, .stadium-detail:hover { color: var(--accent); }
 .drawer-body table.kv td { white-space: normal; overflow-wrap: anywhere; }
 .drawer-body table.kv td:first-child { width: 34%; }
-.stadium-history-details > summary { cursor: pointer; padding: 12px 0; color: var(--accent); }
+.stadium-history-details > summary, .stadium-climate-details > summary { cursor: pointer; padding: 12px 0; color: var(--accent); }
 #hovercard { max-height: 70vh; overflow: hidden; }
 @media (hover: none) { #hovercard { display: none !important; } }
 @media (max-width: 600px) {

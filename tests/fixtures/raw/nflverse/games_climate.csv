@@ -1,0 +1,7 @@
+game_id,season,game_type,week,gameday,weekday,gametime,away_team,home_team,home_score,location,roof,stadium_id,stadium
+2024_05_CHI_GB,2024,REG,5,2024-10-13,Sunday,12:00,CHI,GB,24,Home,outdoors,GNB00,
+2024_05_DAL_ARI,2024,REG,5,2024-10-13,Sunday,16:05,DAL,ARI,20,Home,open,PHO00,
+2024_06_DAL_ARI,2024,REG,6,2024-10-20,Sunday,16:25,DAL,ARI,17,Home,closed,PHO00,
+2024_01_GB_DET,2024,REG,1,2024-09-08,Sunday,13:00,GB,DET,14,Home,dome,DET00,
+2024_02_CHI_GB,2024,REG,2,2024-09-15,Sunday,,CHI,GB,10,Home,outdoors,GNB00,
+2017_01_CHI_GB,2017,REG,1,2017-09-10,Sunday,12:00,CHI,GB,17,Home,outdoors,GNB00,
