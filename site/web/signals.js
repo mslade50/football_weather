@@ -9,9 +9,9 @@
 
 const PRESETS = {
   cfb_wind: { id: "cfb_wind", label: "CFB Wind", flag: "CFB Wind", sports: ["cfb"],
-    desc: "CFB wind filter (board + Telegram): spread open within ±10 · temp < 70 °F · wind > 14 mph", sort: (g) => wxNum(g, "wind_fg") },
+    desc: "CFB wind filter (board + Telegram): spread open within ±10 · temp < 65 °F · sustained wind > 10 mph (ideal > 12)", sort: (g) => wxNum(g, "wind_fg") },
   nfl_wind: { id: "nfl_wind", label: "NFL Wind", flag: "NFL Wind", sports: ["nfl"],
-    desc: "wind > 15 mph · temp < 60 °F", sort: (g) => wxNum(g, "wind_fg") },
+    desc: "sustained wind > 10 mph · temp < 65 °F (ideal > 12). Gusts are not the gate.", sort: (g) => wxNum(g, "wind_fg") },
   heat: { id: "heat", label: "Heat", flag: "Heat", sports: ["nfl", "cfb"],
     desc: "temp > 80 °F · both teams' home avg temp < 57 °F · CFB spread within ±10", sort: (g) => wxNum(g, "temp_fg") },
   alt_heat: { id: "alt_heat", label: "Alt+Heat", flag: "Alt+Heat", sports: ["cfb"],
@@ -37,8 +37,8 @@ function computeFlags(g) {
   const out = [];
   if (isDome(g) || wind == null || temp == null) return out;
   if (g.sport === "cfb" && (open == null || Math.abs(open) > CFB_OPEN_SPREAD_MAX)) return out;
-  if (g.sport === "cfb" && temp < 70 && wind > 14) out.push("CFB Wind");
-  if (g.sport === "nfl" && wind > 15 && temp < 60) out.push("NFL Wind");
+  if (g.sport === "cfb" && temp < 65 && wind > 10) out.push("CFB Wind");
+  if (g.sport === "nfl" && wind > 10 && temp < 65) out.push("NFL Wind");
   if (ht != null && at != null && ht < 57 && at < 57 && temp > 80) out.push("Heat");
   if (g.sport === "cfb" && alt != null && alt > 800 && temp > 75) out.push("Alt+Heat");
   return out;
@@ -86,7 +86,7 @@ function renderPresetBar(host) {
   const counts = {};
   for (const id of PRESET_ORDER) counts[id] = presetGames(PRESETS[id]).length;
   host.innerHTML = `<div class="presetbar">
-      <span class="sub" title="Signal severity tiers are additional context">CFB Wind eligibility: opening spread within ±10, temp &lt; 70 °F, wind &gt; 14 mph. Severity tiers are extra.</span>
+      <span class="sub" title="Signal severity tiers are additional context">CFB Wind eligibility: opening spread within ±10, temp &lt; 65 °F, wind &gt; 10 mph. Severity tiers are extra.</span>
       ${PRESET_ORDER.map((id) => presetChip(PRESETS[id], counts[id], preset && preset.id === id)).join("")}
       ${preset ? `<button type="button" class="controlbtn" id="preset-clear" title="Clear preset">✕ clear</button>
         <span class="sub">${esc(preset.desc)} · sorted by ${preset.id === "heat" ? "temp" : preset.id === "alt_heat" ? "travel altitude" : "wind"}</span>

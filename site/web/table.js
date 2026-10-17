@@ -296,7 +296,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
+    ["Discovery", "Process screen: cold + sustained wind or heavy rain. Likelihood is separate from impact severity", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
     ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],

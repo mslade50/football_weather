@@ -1554,8 +1554,18 @@ def build_record(
     temp_fg = fc.temp_fg if fc else None
     wind_fg = fc.wind_fg if fc else None
     rain_fg = fc.rain_fg_mm if fc else None
+    # v1 impact stays on the stitch. The published tier follows the process
+    # forecast (ECMWF beyond 48 h) when that forecast is present.
+    if fc is not None and getattr(fc, "signal_source", None):
+        drive_temp = fc.signal_temp_f
+        drive_wind = fc.signal_wind_mph
+        drive_rain = fc.signal_rain_mm
+    else:
+        drive_temp, drive_wind, drive_rain = temp_fg, wind_fg, rain_fg
     # Keep the outside forecast for display; it cannot drive covered-field signals.
     signal_temp, signal_wind, signal_rain = (temp_fg, wind_fg, rain_fg) if exposed else (None, None, None)
+    if not exposed:
+        drive_temp = drive_wind = drive_rain = None
 
     impact = compute_impact_v1(
         sport=sport,
@@ -1577,13 +1587,13 @@ def build_record(
 
     odds = dict(odds or {})
     if sport == "nfl":
-        sig = signals.nfl_signal(signal_wind, signal_temp, signal_rain)
+        sig = signals.nfl_signal(drive_wind, drive_temp, drive_rain)
     else:
         sig = signals.cfb_signal(
-            signal_wind, signal_temp, signal_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
+            drive_wind, drive_temp, drive_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
         )
     flags = signals.combined_flags(
-        sport, signal_wind, signal_temp, signal_open_spread, travel_alt, home_temp, away_temp
+        sport, drive_wind, drive_temp, signal_open_spread, travel_alt, home_temp, away_temp
     )
 
     rec = LegacyRecord(

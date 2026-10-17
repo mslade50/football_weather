@@ -1,5 +1,15 @@
 "use strict";
 // UI discovery is independent of prices and liquidity. Unknown is never zero.
+// Process screen (docs/PROCESS_SPEC.md). Keep in lockstep with pipeline/model/config.py.
+const PROCESS_TEMP_MAX_F = 65;
+const PROCESS_WIND_CONSIDER_MPH = 10;
+const PROCESS_WIND_IDEAL_MPH = 12;
+const PROCESS_RAIN_IGNORE_MM = 5;
+const PROCESS_RAIN_WATCH_MM = 15;
+const PROCESS_RAIN_SIGNAL_MM = 23;
+const PROCESS_RAIN_AGREE_TOL_MM = 10;
+const PROCESS_UNDER_PROB_MOVE_MAX = 0.04;
+const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
 const EXCHANGE_BOOKS = new Set(["kalshi", "novig", "prophetx", "polymarket_us", "4cx"]);
 const VERIFIED_OFFERS = new Map();
 const finiteValue = v => typeof v === "number" && Number.isFinite(v);
@@ -22,31 +32,85 @@ function ineligibleReason(g) {
     reasons.push("Opening spread outside ±10");
   return reasons.join(" · ");
 }
+function crosswindFactor(dir, orient) {
+  if (!finiteValue(dir) || !finiteValue(orient)) return null;
+  return Math.abs(Math.sin((Number(dir) - Number(orient)) * Math.PI / 180));
+}
+function drivingForecast(g) {
+  const w = g.weather || {};
+  const source = String(w.signal_source || "");
+  if (source.startsWith("ecmwf")) {
+    return {temp: w.signal_temp_f, wind: w.signal_wind_mph, rain: w.signal_rain_mm, dir: w.signal_wind_dir_deg, source};
+  }
+  return {temp: w.temp_fg, wind: w.wind_fg, rain: w.rain_fg, dir: w.wind_dir_deg, source: source || "stitched"};
+}
+function modelRain(row) {
+  const rain = row && (row.rain_mm ?? row.rain_fg);
+  return finiteValue(rain) ? Number(rain) : null;
+}
+function rainAgreement(models, ecmwfMm) {
+  if (!Array.isArray(models) || !models.length || !finiteValue(ecmwfMm)) return "unverified";
+  let best = null;
+  for (const row of models) {
+    if (!row || ECMWF_MODELS.has(row.id)) continue;
+    const rain = modelRain(row);
+    if (rain == null) continue;
+    const gap = Math.abs(rain - Number(ecmwfMm));
+    if (!best || gap < best.gap) best = {gap, rain};
+  }
+  if (!best) return "unverified";
+  return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.rain >= PROCESS_RAIN_SIGNAL_MM
+    && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
+}
 function discoveryState(g) {
   if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};
   if (!upcomingGame(g))
     return {kind: "ineligible", label: "Not an upcoming scheduled game"};
   const w = g.weather || {}, cfb = g.sport === "cfb";
   if (cfb && !finiteValue(g.consensus?.spread_open)) return {kind: "unknown", label: "Opening spread unknown"};
-  const wind = w.wind_fg, temp = w.temp_fg, rain = w.rain_fg;
+  const drive = drivingForecast(g);
+  const wind = drive.wind, temp = drive.temp, rain = drive.rain;
   if (!finiteValue(wind) || !finiteValue(temp)) return {kind: "unknown", label: "Forecast incomplete"};
-  const windCut = cfb ? 14 : 8, tempCut = cfb ? 70 : 60;
-  const heat = finiteValue(g.home_temp) && finiteValue(g.away_temp) && g.home_temp < 57 && g.away_temp < 57;
-  const altitude = cfb && finiteValue(g.travel_alt) && g.travel_alt > 800;
-  const signal = (wind > windCut && temp < tempCut) || (finiteValue(rain) && rain > 2 && temp < 50)
-    || (heat && temp > 80) || (altitude && temp > 75);
-  const near = (wind >= windCut - 3 && temp <= tempCut + 2)
-    || (finiteValue(w.wind_p90) && w.wind_p90 > windCut && temp <= tempCut + 2)
-    || (finiteValue(rain) && rain >= 1.5 && temp <= 52)
-    || (heat && temp >= 78) || (altitude && temp >= 73);
+  const proc = g.process || {};
+  const tempOk = Number(temp) < PROCESS_TEMP_MAX_F;
+  const windBand = tempOk && Number(wind) > PROCESS_WIND_IDEAL_MPH ? "ideal"
+    : tempOk && Number(wind) > PROCESS_WIND_CONSIDER_MPH ? "consider" : "none";
+  let rainTier = "ignore";
+  if (tempOk && finiteValue(rain)) {
+    const mm = Number(rain);
+    rainTier = mm < PROCESS_RAIN_IGNORE_MM ? "ignore" : mm < PROCESS_RAIN_WATCH_MM ? "watch"
+      : mm < PROCESS_RAIN_SIGNAL_MM ? "elevated" : "signal_amount";
+  }
+  const agree = rainAgreement(w.models, finiteValue(rain) ? Number(rain) : null);
+  const rainSignal = rainTier === "signal_amount" && agree === "agree";
+  if (rainTier === "signal_amount" && !rainSignal) rainTier = agree === "disagree" ? "disagree" : "unverified";
+  const weatherHit = tempOk && (windBand !== "none" || rainSignal);
+  const watch = tempOk && !weatherHit && ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
+  const move = finiteValue(proc.under_prob_move) ? Math.abs(Number(proc.under_prob_move)) : null;
+  const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
+  const priceBlocked = proc.price_blocked === true || (weatherHit && move != null && move > moveMax
+    && ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis));
   // Probability is optional explicit backend evidence, never inferred from impact/confidence/PoP.
   const probability = finiteValue(g.discovery?.signal_probability) && g.discovery.signal_probability >= 0
     && g.discovery.signal_probability <= 1 ? g.discovery.signal_probability : null;
-  const kind = probability !== null && probability < .05 ? "quiet" : signal ? "signal" : near ? "near" : "quiet";
-  const label = kind === "signal" ? "Signal" : kind === "near" ? "Near signal" : probability !== null && probability < .05
-    ? "Very low signal likelihood" : "Below screening margin";
-  return {kind, label, probability, note: probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
-    : `Signal likelihood ${(probability * 100).toFixed(1)}%`};
+  let kind = "quiet", label = "Below screening margin";
+  if (probability !== null && probability < .05) {
+    kind = "quiet"; label = "Very low signal likelihood";
+  } else if (priceBlocked && weatherHit) {
+    kind = "moved"; label = "Under price moved vs opener";
+  } else if (weatherHit) {
+    kind = "signal";
+    label = rainSignal && windBand === "none" ? "Signal · heavy rain"
+      : windBand === "ideal" ? "Signal · ideal wind" : "Signal · wind";
+  } else if (watch) {
+    kind = "near";
+    label = rainTier === "watch" ? "Watch · rain 5–15 mm" : rainTier === "elevated" ? "Watch · rain 15–23 mm"
+      : "Heavy rain, model agreement unverified";
+  }
+  if (w.ecmwf_apart && (kind === "signal" || kind === "near")) label += " · ECMWF stands apart";
+  const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
+    : `Signal likelihood ${(probability * 100).toFixed(1)}%`;
+  return {kind, label, probability, note, windBand, rainTier};
 }
 function discoveryHtml(g) {
   const s = discoveryState(g);

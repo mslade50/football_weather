@@ -9,13 +9,20 @@
 Telegram reports qualifying weather signals; prices provide context:
 
 * SIGNAL: one stable ``edge|...|total|under|best|model`` identity per game (book
-  churn and model promotion do not mint another notification). The
-  default gate includes every Low-or-higher signal, including CFB Low Wind.
-  Missing prices, missing fairs, and negative edges never suppress a signal.
+  churn and model promotion do not mint another notification). The weather
+  gate is the process screen (docs/PROCESS_SPEC.md): temp < 65°F and either
+  sustained wind > 10 mph or heavy rain with model agreement. A consensus
+  no-vig under move past ``PROCESS_UNDER_PROB_MOVE_MAX`` (default 4%) blocks
+  the send. ``TELEGRAM_MIN_TIER`` can still raise the tier floor. Missing
+  prices, missing fairs, and negative edges never suppress a signal.
+  Delivery itself is unchanged here; open PR #13's ``FOOTBALL_TELEGRAM_ENABLED``
+  switch, if merged, sits in front of these sends.
 * UPDATE: at most one per game/run, prioritised tier change → price availability → line
   move → forecast move. Best-book changes update the same parent and are labeled
   as play-price changes. Betting notifications stop at kickoff.
-* Cleared signals close silently in state; prices never close them.
+* Cleared signals close silently in state. A forecast that leaves the process
+  screen, or an under price that moves past the opener gate, closes the same way.
+  A missing price does not.
 * OPEN SIGNALS: automatic snapshots are off by default. Operators may restore
   the full per-run snapshots with ``TELEGRAM_OPEN_SIGNAL_SNAPSHOTS=1``.
 * SYSTEM: disabled by default so Telegram remains an action channel for bets.
@@ -60,6 +67,7 @@ from typing import Any, Optional
 from pipeline import state as pstate
 from pipeline.alert_liquidity import enrich_liquidity
 from pipeline.model import config as model_config
+from pipeline.model import process as process_screen
 from pipeline.model import signals as model_signals
 from pipeline.model.wind_history import stadium_wind_history
 from pipeline.stadiums.roofs import weather_exposed
@@ -573,27 +581,49 @@ def _opener_for(card: dict[str, Any], edge: dict[str, Any]) -> Optional[float]:
 
 
 def _signal_label(card: dict[str, Any]) -> Optional[str]:
-    lbl = (card.get("signal") or {}).get("label")
+    """Published tier when the process screen qualifies; otherwise No Impact.
+
+    A stored Low/Mid/High label is kept so a qualifying card does not get
+    relabeled. Stale "No Impact" text is recomputed from the signal-driving
+    weather when the screen says the game qualifies. Heat and altitude labels
+    do not survive on their own: warm games fail the process screen.
+    """
+    proc = process_screen.evaluate_card(card)
+    if not proc.get("alert"):
+        return model_signals.NO
+    weather = card.get("weather") or {}
+    wind = proc.get("wind_mph") if proc.get("wind_mph") is not None else weather.get("wind_fg")
+    temp = proc.get("temp_f") if proc.get("temp_f") is not None else weather.get("temp_fg")
+    rain = proc.get("rain_mm") if proc.get("rain_mm") is not None else weather.get("rain_fg")
+    # CFB is recomputed so a stale "No Impact" label cannot hide a qualifying wind game.
+    # NFL keeps an explicit No Impact label; the build stamps the tier from the same screen.
     if card.get("sport") == "cfb":
-        weather = card.get("weather") or {}
-        spread_open = (card.get("consensus") or {}).get("spread_open")
-        # Recompute from published inputs so stale tier labels or CFB Wind flags
-        # cannot bypass the canonical filter. This preserves valid rain, heat and
-        # altitude signals even when an older card's wind tier is no longer valid.
         return model_signals.cfb_signal(
-            weather.get("wind_fg"), weather.get("temp_fg"), weather.get("rain_fg"), spread_open,
+            wind, temp, rain, (card.get("consensus") or {}).get("spread_open"),
             card.get("travel_alt"), card.get("home_temp"), card.get("away_temp"), weekday=0,
         ).label
-    return str(lbl).strip() if lbl else None
+    lbl = (card.get("signal") or {}).get("label")
+    text = str(lbl).strip() if lbl else ""
+    if text and text.lower() != model_signals.NO.lower():
+        return text
+    return model_signals.NO
+
+
+def _driving_numbers(card: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """Signal-screen weather. Falls back to the stitch when no signal forecast is stored."""
+    weather = card.get("weather") or {}
+    if weather.get("signal_source"):
+        return weather.get("signal_wind_mph"), weather.get("signal_temp_f"), weather.get("signal_rain_mm")
+    return weather.get("wind_fg"), weather.get("temp_fg"), weather.get("rain_fg")
 
 
 def _signal_flags(card: dict[str, Any]) -> list[str]:
     signal = card.get("signal") or {}
     if card.get("sport") != "cfb":
         return [str(flag) for flag in (signal.get("flags") or []) if flag]
-    weather = card.get("weather") or {}
+    wind, temp, _rain = _driving_numbers(card)
     return model_signals.combined_flags(
-        "cfb", weather.get("wind_fg"), weather.get("temp_fg"),
+        "cfb", wind, temp,
         (card.get("consensus") or {}).get("spread_open"), card.get("travel_alt"),
         card.get("home_temp"), card.get("away_temp"),
     )
@@ -619,9 +649,18 @@ def signal_slug(label: Optional[str]) -> Optional[str]:
 def _wx_numbers(card: dict[str, Any]) -> str:
     """The game-window forecast values used by the signal rules, including zeros."""
     wx = card.get("weather") or {}
+    if wx.get("signal_source"):
+        shown = {"wind_fg": wx.get("signal_wind_mph"), "temp_fg": wx.get("signal_temp_f"),
+                 "rain_fg": wx.get("signal_rain_mm")}
+    else:
+        shown = wx
     def value(key: str, unit: str) -> str:
-        return f"{_fmt_line(wx[key])} {unit}" if _num(wx.get(key)) is not None else "unavailable"
-    return f"wind {value('wind_fg', 'mph')} · temp {value('temp_fg', '°F')} · rain {value('rain_fg', 'mm')}"
+        return f"{_fmt_line(shown[key])} {unit}" if _num(shown.get(key)) is not None else "unavailable"
+    line = f"wind {value('wind_fg', 'mph')} · temp {value('temp_fg', '°F')} · rain {value('rain_fg', 'mm')}"
+    source = str(wx.get("signal_source") or "")
+    if source.startswith("ecmwf"):
+        line += " · ECMWF"
+    return line
 
 
 def _signal_line(card: dict[str, Any]) -> str:
@@ -1131,20 +1170,20 @@ def _tier_at_least(label: Optional[str], minimum: str) -> bool:
 
 
 def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
-    """Exposed-field weather controls notifications. Price/model value is context."""
+    """Process screen plus the tier floor. v1 impact is not this gate.
+
+    Covered roofs, warm games, light rain, wind at or below 10 mph, heavy rain
+    without ECMWF agreement, and a consensus under-price move past the
+    configured opener limit do not qualify. ``TELEGRAM_MIN_TIER`` can still
+    require a higher published tier.
+    """
     stadium = card.get("stadium") or {}
     if not weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state")):
         return False
-    label = _signal_label(card)
-    signal = card.get("signal") or {}
-    rain_driver = "rain" in (label or "").lower()
-    if card.get("sport") != "cfb":
-        rain_driver = rain_driver or "rain" in (signal.get("drivers") or [])
-    if signal_slug(label) == "low" and rain_driver:
-        temp = _num((card.get("weather") or {}).get("temp_fg"))
-        if temp is None or temp >= model_config.LOW_RAIN_TEMP_MAX_F:
-            return False
-    return _tier_at_least(label, cfg.min_tier)
+    proc = process_screen.evaluate_card(card)
+    if not proc.get("alert"):
+        return False
+    return _tier_at_least(_signal_label(card), cfg.min_tier)
 
 
 BETTING_GAME_FAMILIES = {"edge", "wx", "move", "gone", "openers"}

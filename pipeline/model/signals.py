@@ -45,6 +45,10 @@ def _gt(a: Optional[float], b: float) -> bool:
     return a is not None and a > b
 
 
+def _ge(a: Optional[float], b: float) -> bool:
+    return a is not None and a >= b
+
+
 def _lt(a: Optional[float], b: float) -> bool:
     return a is not None and a < b
 
@@ -60,10 +64,12 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     if _gt(w, 15) and _between(t, 32, 45):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
-    if _gt(w, 15) and _lt(t, 60):
+    if _gt(w, 15) and _lt(t, C.PROCESS_TEMP_MAX_F):
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("wind",))
-    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
-    if rain_cond or (w is not None and 8 < w < 15 and _lt(t, 60)):
+    rain_cond = _ge(r, C.PROCESS_RAIN_SIGNAL_MM) and _lt(t, C.PROCESS_TEMP_MAX_F)
+    # Sustained wind only. The 8–15 mph / <60°F band was looser than the process.
+    if rain_cond or (w is not None and w > C.PROCESS_WIND_CONSIDER_MPH and _lt(t, C.PROCESS_TEMP_MAX_F)
+                     and not (w > 15 and _lt(t, C.PROCESS_TEMP_MAX_F))):
         driver = "rain" if rain_cond else "wind"
         return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
@@ -91,7 +97,7 @@ def _cfb_spread_eligible(open_spread: Optional[float]) -> bool:
 
 
 def cfb_wind_eligible(wind_fg: Optional[float], temp_fg: Optional[float], open_spread: Optional[float]) -> bool:
-    """Canonical CFB Wind filter: |opening spread|≤10, temp<70°F, wind>14 mph."""
+    """CFB wind filter: |opening spread|≤10, temp<65°F, sustained wind>10 mph."""
     w, t = _f(wind_fg), _f(temp_fg)
     return _cfb_spread_eligible(open_spread) and _lt(t, C.CFB_WIND_MAX_TEMP_F) and _gt(w, C.CFB_WIND_MIN_MPH)
 
@@ -124,11 +130,11 @@ def cfb_signal(
         return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
     wind_eligible = cfb_wind_eligible(w, t, sp)
-    # The 21.5 mph threshold is a severity boundary (14 + the former 7.5 mph
-    # offset), never an eligibility gate. Weekday no longer changes the wind rule.
-    hi = C.CFB_WIND_MIN_MPH + C.CFB_HIGH_OFFSET
+    # 21.5 mph is the historical severity boundary, not the consider floor.
+    # Weekday no longer changes the wind rule.
+    hi = C.CFB_HIGH_WIND_MPH
 
-    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
+    rain_cond = _ge(r, C.PROCESS_RAIN_SIGNAL_MM) and _lt(t, C.PROCESS_TEMP_MAX_F)
     heat_cond = _gt(t, 80) and _lt(ht, 57) and _lt(at, 57)
     altitude_mid = cfb_altitude_mid_trigger(t, sp, alt)
 
@@ -168,7 +174,7 @@ def combined_flags(
         if cfb_wind_eligible(w, t, sp):
             flags.append("CFB Wind")
     elif sport == "nfl":
-        if _gt(w, 15) and _lt(t, 60):
+        if _gt(w, C.PROCESS_WIND_CONSIDER_MPH) and _lt(t, C.PROCESS_TEMP_MAX_F):
             flags.append("NFL Wind")
     if _lt(ht, 57) and _lt(at, 57) and _gt(t, 80):
         flags.append("Heat")

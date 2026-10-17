@@ -92,16 +92,37 @@ AMBIGUOUS_BANDS = {
     "cfb_alt2_home_elev_m": (976.0, 1184.0),
 }
 
+# ---- betting-process screen (docs/PROCESS_SPEC.md) ---------------------------
+# These gates drive discovery, Telegram eligibility and the Signals wind flags.
+# They do not enter compute_impact_v1. v1 rain tiers and the stitched forecast
+# that v1 consumes stay on the legacy contract.
+PROCESS_TEMP_MAX_F = 65.0                 # strict < ; warm games are out
+PROCESS_WIND_CONSIDER_MPH = 10.0          # strict > sustained wind (not gust)
+PROCESS_WIND_IDEAL_MPH = 12.0             # strict > ; more sustained wind is better
+PROCESS_RAIN_IGNORE_MM = 5.0              # game-window total below this is ignored
+PROCESS_RAIN_WATCH_MM = 15.0              # [5, 15) watch; [15, 23) elevated watch
+PROCESS_RAIN_SIGNAL_MM = 23.0             # ~0.30 in/hr * 3 h (22.86 mm), rounded
+PROCESS_RAIN_AGREE_TOL_MM = 10.0          # ECMWF vs another model, both at/above the signal
+PROCESS_UNDER_PROB_MOVE_MAX = 0.04        # |no-vig under prob − consensus opener|; env override
+PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond this lead
+PROCESS_ECMWF_WIND_APART_MPH = 5.0
+PROCESS_ECMWF_TEMP_APART_F = 5.0
+PROCESS_ECMWF_RAIN_APART_MM = 5.0
+PROCESS_VERSION = "process-v1"
+
 # ---- signals (§7.4) ----------------------------------------------------------
-LOW_RAIN_TEMP_MAX_F = 50.0  # Low rain signals/notifications require strictly colder weather.
+# Retained name: the old Low-rain path required temp < 50°F and rain > 2 mm.
+# The process screen replaced that gate; nothing in the alert path reads this.
+LOW_RAIN_TEMP_MAX_F = 50.0
 NFL_WIND_VOL_LOW_BELOW = 11.99
 CFB_HIGH_OFFSET = 7.5
-# CFB Wind is the user-facing eligibility rule shared by the Signals view and
-# Telegram: opening spread within ±10, temperature below 70°F, sustained wind
-# above 14 mph. Signal tiers describe severity after this gate; they cannot
-# suppress an otherwise qualifying wind game.
-CFB_WIND_MIN_MPH = 14.0
-CFB_WIND_MAX_TEMP_F = 70.0
+# Shared wind eligibility (NFL and CFB): sustained wind above the consider floor
+# and temperature under PROCESS_TEMP_MAX_F. CFB still also requires the opening
+# spread within ±10. Severity (High / Very High) stays at the historical 21.5 mph
+# boundary so lowering the floor does not relabel those tiers.
+CFB_WIND_MIN_MPH = PROCESS_WIND_CONSIDER_MPH
+CFB_WIND_MAX_TEMP_F = PROCESS_TEMP_MAX_F
+CFB_HIGH_WIND_MPH = 21.5
 # Every CFB weather signal and combined-page flag is disqualified when the
 # absolute opening spread exceeds this value.
 CFB_OPEN_SPREAD_MAX = 10.0

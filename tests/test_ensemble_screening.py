@@ -42,6 +42,8 @@ def test_no_heat_cold_gust_or_probability_only_selection(fields):
 
 
 def test_rain_uses_three_hour_total_without_widening_long_lead_buffer():
+    # Sampler stays at 1.5 mm so light NWS rain still requests members.
+    # The betting ignore floor (5 mm) is a separate gate.
     assert decide(*case(precip=0.5)).reasons == ("game_window_rain",)
     assert decide(*case(precip=0.4)).reasons == ("rain_tail_risk",)
     assert not decide(*case(precip=0.05)).eligible
@@ -78,11 +80,11 @@ def test_climatology_weight_applied_to_raw_pair():
 
 
 def test_long_lead_does_not_widen_buffer_and_cfb_uses_canonical_wind_rule():
-    assert not decide(*case(wind=4.9, temp=60)).eligible
-    assert not decide(*case(lead=144, wind=4.9, temp=60)).eligible
+    assert not decide(*case(wind=6.9, temp=60)).eligible
+    assert not decide(*case(lead=144, wind=6.9, temp=60)).eligible
     assert not decide(*case(wind=10.9, temp=72), sport="cfb").eligible
-    assert decide(*case(wind=11, temp=72), sport="cfb").eligible
-    assert decide(*case(lead=144, wind=11, temp=72), sport="cfb").eligible
+    assert decide(*case(wind=11, temp=64), sport="cfb").eligible
+    assert decide(*case(lead=144, wind=11, temp=64), sport="cfb").eligible
 
 
 def test_no_percentile_or_confidence_in_screen():
@@ -135,12 +137,12 @@ def test_cfb_boundary_or_unknown_opener_retains_near_signal_coverage(spread):
 
 
 def test_nws_purdue_tail_is_sent_to_detail_without_broadening_final_member_buffer():
-    fc, loc = case(wind=10, temp=75)
+    fc, loc = case(wind=10, temp=69)
     assert decide(fc, loc, sport="cfb", for_refinement=True).eligible
     assert not decide(fc, loc, sport="cfb").eligible
-    assert decide(*case(wind=11, temp=72), sport="cfb").eligible
+    assert decide(*case(wind=11, temp=64), sport="cfb").eligible
 
 
 def test_cfb_combined_wind_flag_uses_its_joint_temperature_boundary():
-    assert "joint_cfb_wind_flag" in decide(*case(wind=14, temp=69), sport="cfb").reasons
-    assert not decide(*case(wind=14, temp=75), sport="cfb").eligible
+    assert "joint_cfb_wind_flag" in decide(*case(wind=11, temp=64), sport="cfb").reasons
+    assert not decide(*case(wind=14, temp=69), sport="cfb").eligible

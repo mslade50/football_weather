@@ -201,27 +201,29 @@ def test_no_impact_never_alerts():
 def test_cfb_wind_filter_overrides_stale_no_impact_for_alerts_and_snapshots():
     alerts, _ = _fresh()
     duke = card(sport="cfb", signal="No Impact", wind=23.66)
-    duke["weather"]["temp_fg"] = 66.16
+    duke["weather"]["temp_fg"] = 64.0
     duke["consensus"]["spread_open"] = 7.17
-    duke["signal"]["drivers"] = ["rain"]  # stale driver metadata cannot veto canonical wind.
-    # The dedicated CFB Wind filter is authoritative even if an old card's tier
-    # still says No Impact; 14 mph/70°F/±10 are strict/inclusive as documented.
+    duke["signal"]["drivers"] = ["rain"]  # stale driver metadata cannot veto the process screen.
+    # Process screen: sustained wind > 10 mph, temp < 65°F, CFB opener within ±10.
     assert len(A.edge_candidates(duke, alerts, CFG, now=NOW)) == 1
-    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "wind_fg": 14.0}}, alerts, CFG, now=NOW) == []
-    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "temp_fg": 70.0}}, alerts, CFG, now=NOW) == []
+    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "wind_fg": 10.0}}, alerts, CFG, now=NOW) == []
+    assert A.edge_candidates({**duke, "weather": {**duke["weather"], "temp_fg": 65.0}}, alerts, CFG, now=NOW) == []
     assert A.edge_candidates({**duke, "consensus": {**duke["consensus"], "spread_open": 10.01}}, alerts, CFG, now=NOW) == []
     pages = A.open_signal_summaries({"cfb": [duke]}, CFG, NOW)
     assert any("No open weather signals" not in page.text for page in pages)
 
 
 @pytest.mark.parametrize("sport,label", [("nfl", "Low Impact"), ("cfb", "Low (Rain)")])
-@pytest.mark.parametrize("temp,qualifies", [(49.9, True), (50.0, False), (75.0, False),
+@pytest.mark.parametrize("temp,qualifies", [(64.9, True), (65.0, False), (75.0, False),
                                            (None, False), (float("nan"), False)])
 def test_low_rain_temperature_gate_applies_to_alerts_and_summaries(sport, label, temp, qualifies):
     alerts, _ = _fresh()
-    c = card(sport=sport, signal=label, wind=3, rain=3)
-    c["signal"]["drivers"] = ["rain"]
+    # Light rain is not a signal. Cold sustained wind is.
+    c = card(sport=sport, signal=label, wind=11.0, rain=3)
+    c["signal"]["drivers"] = ["wind"]
     c["weather"]["temp_fg"] = temp
+    if sport == "cfb":
+        c["consensus"]["spread_open"] = -3.0
     assert bool(A.edge_candidates(c, alerts, CFG, now=NOW)) == qualifies
     pages = A.open_signal_summaries({sport: [c]}, CFG, NOW)
     assert any("No open weather signals" in page.text for page in pages) == (not qualifies)
@@ -230,8 +232,8 @@ def test_low_rain_temperature_gate_applies_to_alerts_and_summaries(sport, label,
 def test_warming_low_rain_closes_silently_and_stops_updates():
     alerts = _with_open_edge(signal="Low (Rain)")
     _, tg = _fresh()
-    warm = card([_edge(line=42, fair_line=37)], signal="Low (Rain)", wind=3, rain=3)
-    warm["weather"]["temp_fg"] = 50
+    warm = card([_edge(line=42, fair_line=37)], signal="Low (Rain)", wind=12, rain=0)
+    warm["weather"]["temp_fg"] = 65
     changes = A.followup_candidates(warm, alerts, CFG, NOW)
     assert [c.family for c in changes] == ["gone"]
     _, sender, _ = _live(changes, alerts, tg)
@@ -241,23 +243,23 @@ def test_warming_low_rain_closes_silently_and_stops_updates():
 
 def test_warm_low_rain_drops_queued_alert():
     alerts, tg = _fresh()
-    cold = card(signal="Low (Rain)", wind=3, rain=3)
+    cold = card(signal="Low (Rain)", wind=12, rain=0)
     edge = A.edge_candidates(cold, alerts, CFG, now=QUIET)[0]
     _live([edge], alerts, tg, now=QUIET)
     assert tg["queue"]
-    cold["weather"]["temp_fg"] = 50
+    cold["weather"]["temp_fg"] = 65
     current = A.collect_candidates(_ctx(), {"nfl": [cold]}, alerts, CFG, MORNING, include_ops=False)
     out, sender, plan = _live(current, alerts, tg, now=MORNING)
     assert plan.flush == [] and out.n_sent == 0 and sender.sent == [] and tg["queue"] == []
 
 
 @pytest.mark.parametrize("label", ["Mid Impact", "High Impact", "Very High Impact", "Low (Wind)", "Low (Temp)"])
-def test_temperature_gate_only_suppresses_low_rain(label):
+def test_warm_temperature_suppresses_the_under_screen(label):
     c = card(signal=label, rain=3)
     c["weather"]["temp_fg"] = 75
     c["signal"]["drivers"] = ["rain"] if label in ("Mid Impact", "High Impact", "Very High Impact") else []
     alerts, _ = _fresh()
-    assert len(A.edge_candidates(c, alerts, CFG, now=NOW)) == 1
+    assert A.edge_candidates(c, alerts, CFG, now=NOW) == []
 
 
 def test_weather_signal_alerts_without_a_price_or_positive_model_edge():
@@ -1134,7 +1136,7 @@ def test_rerun_closes_silently_without_empty_snapshot(tmp_path):
 def test_open_snapshot_paginates_all_games_with_weather_and_excludes_inactive():
     games = []
     for i in range(55):
-        c = card(game_id=f"game-{i}", wind=0, rain=0)
+        c = card(game_id=f"game-{i}", wind=11, rain=0)
         c["away"]["short"] = f"TEAM-{i:02d}"
         games.append(c)
     games += [card(game_id="past", kickoff=NOW), card(game_id="resolved", signal="No Impact"),
@@ -1145,7 +1147,7 @@ def test_open_snapshot_paginates_all_games_with_weather_and_excludes_inactive():
     text = "\n".join(nfl)
     for i in range(55):
         assert text.count(f"TEAM-{i:02d} @") == 1
-    assert text.count("wind 0 mph · temp 41.2 °F · rain 0 mm") == 55
+    assert text.count("wind 11 mph · temp 41.2 °F · rain 0 mm") == 55
     assert "see board" not in text and "· 55</b>" in text
     assert "No open weather signals" in pages[-1].text
 

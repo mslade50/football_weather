@@ -35,7 +35,13 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   const ctx = ui();
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
   ctx.game.weather.wind_fg = 12;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  ctx.game.weather.wind_fg = 3;
+  ctx.game.weather.rain_fg = 8;
+  ctx.game.weather.temp_fg = 50;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  ctx.game.weather.rain_fg = 0;
+  ctx.game.weather.temp_fg = 58;
   ctx.game.weather.wind_fg = 3;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'quiet');
   run(ctx, 'STATE.sport = "cfb"; DATA.games.cfb = [game];');

@@ -68,6 +68,47 @@ function uncertaintyLabel(wx) {
   return esc(labels[wx.ensemble_status] || "-") + ((wx.ensemble_aged_sources || []).length ? `; older ${esc(wx.ensemble_aged_sources.join("/"))}` : "");
 }
 
+function crossHeadText(g) {
+  const wx = g.weather || {}, st = g.stadium || {}, proc = g.process || {};
+  const cross = isNum(proc.cross_mph) ? proc.cross_mph : wx.cross_mph;
+  const head = isNum(proc.head_mph) ? proc.head_mph : wx.head_mph;
+  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor
+    : (typeof crosswindFactor === "function" ? crosswindFactor(proc.wind_dir_deg ?? wx.wind_dir_deg, st.orient_deg) : null);
+  if (!isNum(cross) && !isNum(head)) return "—";
+  return `${fmtNum(cross, 1)} / ${fmtNum(head, 1)} mph${isNum(factor) ? ` · |sin| ${fmtNum(factor, 2)}` : ""}`;
+}
+function signalForecastText(g) {
+  const wx = g.weather || {};
+  if (!wx.signal_source) return "Stitched forecast (v1 inputs)";
+  const bits = [esc(wx.signal_source)];
+  if (isNum(wx.signal_wind_mph)) bits.push(`${fmtNum(wx.signal_wind_mph, 1)} mph`);
+  if (isNum(wx.signal_temp_f)) bits.push(`${fmtNum(wx.signal_temp_f, 0)}°F`);
+  if (isNum(wx.signal_rain_mm)) bits.push(`${fmtNum(wx.signal_rain_mm, 1)} mm`);
+  return bits.join(" · ");
+}
+function modelWindowHtml(wx) {
+  const rows = wx.models || [];
+  if (!rows.length) return "Per-model window not on this card";
+  return rows.map(m => `${esc(m.label || m.id)}: ${fmtNum(m.wind_mph, 1)} mph · ${fmtNum(m.temp_f, 0)}°F · ${fmtNum(m.rain_mm, 1)} mm`).join("<br>");
+}
+function ecmwfApartText(wx) {
+  if (!wx.ecmwf_apart) return "ECMWF is not standing apart";
+  const fields = (wx.ecmwf_apart_fields || []).join(", ");
+  return `ECMWF stands apart${fields ? ` (${esc(fields)})` : ""} — shown, not a hard gate`;
+}
+function underMoveText(g) {
+  const proc = g.process || {};
+  if (!isNum(proc.under_prob_move)) {
+    const basis = proc.under_prob_basis;
+    if (basis === "under_only_implied") return "Under-only implied probability (approximation); move unavailable";
+    if (basis === "single_book") return "One book only — not a consensus move";
+    return "Consensus opener comparison unavailable";
+  }
+  const pp = (Number(proc.under_prob_move) * 100).toFixed(1);
+  const basis = proc.under_prob_basis === "under_only_implied" ? "under-only implied (approximation)"
+    : proc.under_prob_basis === "novig_consensus" ? "no-vig consensus" : esc(proc.under_prob_basis || "");
+  return `${pp} pp vs opener · ${basis}${proc.price_blocked ? " · past the move gate" : ""}`;
+}
 function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};
   const v2 = g.impact && g.impact.v2;
@@ -91,7 +132,11 @@ function weatherTable(g) {
       return times.length ? `${esc(source.toUpperCase())}: ${esc(fmtShortET(new Date(Math.min(...times) * 1000).toISOString()))}` : "";
     }).filter(Boolean).join("; ") || "-"],
     ["Relative Wind", isNum(wx.wind_diff) ? `${Number(wx.wind_diff) >= 0 ? "+" : ""}${fmtNum(wx.wind_diff, 1)} vs avg ${fmtNum(st.avg_wind_month ?? st.avg_wind, 1)}` : "-"],
-    ["Cross / Head", isNum(wx.cross_mph) || isNum(wx.head_mph) ? `${fmtNum(wx.cross_mph, 1)} / ${fmtNum(wx.head_mph, 1)} mph` : "—"],
+    ["Cross / Head", crossHeadText(g)],
+    ["Signal forecast", signalForecastText(g)],
+    ["Models", modelWindowHtml(wx)],
+    ["ECMWF vs others", ecmwfApartText(wx)],
+    ["Under prob vs opener", underMoveText(g)],
     ["Home_t", fmtNum(g.home_temp, 0)],
     ["Away_t", fmtNum(g.away_temp, 0)],
     ["Year", yesno(st.year_built)],
@@ -499,7 +544,7 @@ function compassCard(g) {
   const rows = [
     ["Orientation", isNum(st.orient_deg) ? `${Math.round(Number(st.orient_deg))}° ${esc(st.orient || "")}${st.orient_src ? ` <span class="sub">(${esc(st.orient_src)})</span>` : ""}` : esc(st.orient || "—")],
     ["Weak wind", esc(st.weakest_wind_effect || "—")],
-    ["Cross / Head", isNum(wx.cross_mph) || isNum(wx.head_mph) ? `${fmtNum(wx.cross_mph, 1)} / ${fmtNum(wx.head_mph, 1)} mph` : "—"],
+    ["Cross / Head", crossHeadText(g)],
     ["Roof", `${esc(st.roof_type || "—")}${st.roof_state ? ` · ${esc(st.roof_state)}` : ""}`],
     ["Surface", esc(st.surface || "—")],
     ["Elevation", isNum(st.elevation_m) ? `${Math.round(Number(st.elevation_m))} m${isNum(g.travel_alt) ? ` · travel Δ ${Math.round(Number(g.travel_alt))} m` : ""}` : "—"],

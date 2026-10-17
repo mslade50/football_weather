@@ -139,7 +139,7 @@ def test_signals_view_wiring() -> None:
     assert "Math.abs(open) > CFB_OPEN_SPREAD_MAX" in sig
     assert f"temp < {int(model_config.CFB_WIND_MAX_TEMP_F)} && wind > {int(model_config.CFB_WIND_MIN_MPH)}" in sig
     assert (model_config.CFB_OPEN_SPREAD_MAX, model_config.CFB_WIND_MAX_TEMP_F,
-            model_config.CFB_WIND_MIN_MPH) == (10, 70, 14)
+            model_config.CFB_WIND_MIN_MPH) == (10, 65, 10)
     assert "CFB Wind eligibility:" in sig and "Severity tiers are extra." in sig
     assert "title=\"Weather signal severity filter" in html and ">No signal</option>" in html
     app = (WEB / "app.js").read_text(encoding="utf-8")
