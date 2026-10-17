@@ -420,9 +420,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; out
 .stadium-history-details > summary, .stadium-climate-details > summary { cursor: pointer; padding: 12px 0; color: var(--accent); }
 #hovercard { max-height: 70vh; overflow: hidden; }
 @media (hover: none) { #hovercard { display: none !important; } }
+.stadium-climate-short { display: none; }
 @media (max-width: 600px) {
   #table tbody td.stadium-cell { min-width: 0; max-width: none; }
   .stadium-cell .copy-coordinates { min-height: 44px; }
+  .stadium-cell .stadium-climate-full { display: none; }
+  .stadium-cell .stadium-climate-short { display: inline; }
 }
 
 #table tr.started { opacity: .55; }

@@ -80,10 +80,11 @@ jobs:
           body: |
             Automated stadium-climate run (${{ github.run_id }}).
 
-            This replaces the committed game-window climate file. It does not
-            change the frozen stadium signal history. Check the venue count,
-            the season span, and the byte size before merging.
-          labels: data
+            This replaces the committed game-window climate file. Merging it
+            deploys the Worker, because that file is on the deploy path. It
+            does not change the frozen stadium signal history. Check the venue
+            count, the season span, the unmatched list, and the byte size
+            before merging. Reverting this pull request deploys the previous file.
 
       - name: Telegram on failure
         if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}

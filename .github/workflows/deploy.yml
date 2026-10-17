@@ -3,7 +3,13 @@ name: deploy
 # Deploys the Cloudflare Worker + static frontend (site/worker, site/web) and
 # applies pending D1 migrations first, so index.js never queries a table that
 # does not exist yet. Adapted from golf_scraping/.github/workflows/board.yml
-# (deploy job). Data refreshes live in pipeline.yml, not here.
+# (deploy job). Pipeline data refreshes live in pipeline.yml.
+#
+# The game-window climate JSON is bundled into the Worker. A refresh pull
+# request that changes only that file must match a path below, or merging it
+# would leave the site on the previous file. Reverting that commit changes the
+# same path, so the revert deploys the restored JSON. The frozen W-L history
+# files are not listed: this workflow does not republish them on their own.
 #
 # Requires GitHub secrets: CLOUDFLARE_API_TOKEN (Workers Scripts: Edit, Workers
 # R2 Storage: Edit, D1: Edit), CF_ACCOUNT_ID. Optional: TELEGRAM_BOT_TOKEN,
@@ -15,6 +21,7 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/deploy.yml'
+      - 'data/raw/stadium_game_climate.json'
   workflow_dispatch:
 
 permissions:

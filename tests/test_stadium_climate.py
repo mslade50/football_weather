@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from pipeline.schedule.espn import parse_espn_scoreboard
+from pipeline.stadiums.loader import load_stadium_book
 from scripts.export_stadium_climate import (
     CELL_COLUMNS,
     MAX_BYTES,
@@ -136,7 +137,8 @@ def test_nfl_and_cfb_fixtures_keep_outdoor_finals_only() -> None:
         "3985": _Stadium("warren-mcguirk-alumni-stadium", "America/New_York"),
     })
     text = (FIXTURES / "nflverse" / "games_climate.csv").read_text(encoding="utf-8")
-    games, stats = select_nfl_games(text, book, [2024], _candidates())
+    games, stats, unmatched = select_nfl_games(text, book, [2024], _candidates())
+    assert unmatched == {}
     assert sorted(game.game_id for game in games) == [
         "nfl:2024:5:chi@gb",
         "nfl:2024:5:dal@ari",
@@ -151,11 +153,41 @@ def test_nfl_and_cfb_fixtures_keep_outdoor_finals_only() -> None:
     candidates["warren-mcguirk-alumni-stadium"] = {
         "stadium_id": "warren-mcguirk-alumni-stadium", "roof_type": "open", "timezone": "America/New_York",
     }
-    cfb, cfb_stats = select_cfb_games(parsed, candidates)
+    cfb, cfb_stats, cfb_unmatched = select_cfb_games(parsed, candidates)
+    assert cfb_unmatched == {}
     assert cfb_stats["kept"] == 1
     assert cfb[0].kickoff_utc.hour == 21
     local = cfb[0].kickoff_utc.astimezone(ZoneInfo("America/New_York"))
     assert (local.month, local.hour, window_index(local.hour)) == (8, 17, 1)
+
+
+def test_renamed_college_venues_follow_the_source_id_or_alias() -> None:
+    book = load_stadium_book(ROOT / "data")
+
+    def one(venue_id: str, name: str) -> str | None:
+        payload = {
+            "season": {"type": 2, "year": 2024},
+            "week": {"number": 1},
+            "events": [{
+                "id": "1",
+                "competitions": [{
+                    "date": "2024-09-07T23:00Z",
+                    "neutralSite": False,
+                    "venue": {"id": venue_id, "fullName": name},
+                    "competitors": [
+                        {"homeAway": "home", "team": {"location": "Home", "displayName": "Home Team"}},
+                        {"homeAway": "away", "team": {"location": "Away", "displayName": "Away Team"}},
+                    ],
+                    "status": {"type": {"state": "post"}},
+                }],
+            }],
+        }
+        return parse_espn_scoreboard(payload, "cfb", season=2024, book=book)[0].stadium_id
+
+    assert one("2031", "Pitbull Stadium") == "fiu-stadium"
+    assert one("999999", "Pitbull Stadium") == "fiu-stadium"
+    assert one("3754", "HighPoint.com Stadium") == "shi-stadium"
+    assert one("6577", "SHI Stadium") == "shi-stadium"
 
 
 def test_payload_validation_rejects_thin_ranking_fields_and_oversized_output() -> None:
@@ -190,6 +222,13 @@ def test_workflow_is_manual_and_does_not_add_a_cron() -> None:
     assert "python -m scripts.export_stadium_climate" in runs
     assert "git commit" not in runs and "git push" not in runs
     assert workflow["permissions"]["contents"] == "write"
+    opened = next(step for step in workflow["jobs"]["export"]["steps"] if "create-pull-request" in step.get("uses", ""))
+    assert "labels" not in opened.get("with", {})
+    deploy = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+    assert "data/raw/stadium_game_climate.json" in deploy
+    path_block = deploy.split("paths:", 1)[1].split("workflow_dispatch", 1)[0]
+    assert "nfl_stadium_signal_history.json" not in path_block
+    assert "cfb_stadium_signal_history.json" not in path_block
     wrangler = (ROOT / "site" / "worker" / "wrangler.toml").read_text(encoding="utf-8")
     assert wrangler.count('crons = [') == 1
 

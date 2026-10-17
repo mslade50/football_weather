@@ -414,13 +414,14 @@ def _nfl_rows(csv_text: str) -> dict[str, dict[str, str]]:
     return {row["game_id"]: row for row in csv.DictReader(csv_text.splitlines()) if row.get("game_id")}
 
 
-def select_nfl_games(csv_text: str, book: Any, seasons: Sequence[int], candidates: dict[str, dict[str, Any]]) -> tuple[list[ClimateGame], Counter]:
+def select_nfl_games(csv_text: str, book: Any, seasons: Sequence[int], candidates: dict[str, dict[str, Any]]) -> tuple[list[ClimateGame], Counter, Counter]:
     rows = _nfl_rows(csv_text)
     parsed = []
     for season in seasons:
         parsed.extend(parse_nflverse_games(csv_text, season, book=book, include_final=True))
     kept: list[ClimateGame] = []
     stats: Counter = Counter()
+    unmatched: Counter = Counter()
     seen: set[tuple[str, datetime]] = set()
     for game in parsed:
         source_id = game.source.split(":", 1)[1] if ":" in game.source else ""
@@ -437,7 +438,11 @@ def select_nfl_games(csv_text: str, book: Any, seasons: Sequence[int], candidate
         if game.status != "final":
             stats["not_final"] += 1
             continue
-        candidate = candidates.get(game.stadium_id or "")
+        if not game.stadium_id:
+            stats["unresolved"] += 1
+            unmatched[(game.venue_name or "", game.venue_source_id or "")] += 1
+            continue
+        candidate = candidates.get(game.stadium_id)
         if candidate is None:
             stats["not_outdoor_candidate"] += 1
             continue
@@ -454,12 +459,13 @@ def select_nfl_games(csv_text: str, book: Any, seasons: Sequence[int], candidate
             candidate["timezone"], candidate["roof_type"],
         ))
     stats["kept"] = len(kept)
-    return kept, stats
+    return kept, stats, unmatched
 
 
-def select_cfb_games(games: Iterable[Any], candidates: dict[str, dict[str, Any]]) -> tuple[list[ClimateGame], Counter]:
+def select_cfb_games(games: Iterable[Any], candidates: dict[str, dict[str, Any]]) -> tuple[list[ClimateGame], Counter, Counter]:
     kept: list[ClimateGame] = []
     stats: Counter = Counter()
+    unmatched: Counter = Counter()
     seen: set[tuple[str, datetime]] = set()
     seen_source: set[str] = set()
     for game in games:
@@ -471,6 +477,7 @@ def select_cfb_games(games: Iterable[Any], candidates: dict[str, dict[str, Any]]
             continue
         if not game.stadium_id:
             stats["unresolved"] += 1
+            unmatched[(game.venue_name or "", game.venue_source_id or "")] += 1
             continue
         if game.source and game.source in seen_source:
             stats["duplicate"] += 1
@@ -494,7 +501,14 @@ def select_cfb_games(games: Iterable[Any], candidates: dict[str, dict[str, Any]]
             candidate["timezone"], candidate["roof_type"],
         ))
     stats["kept"] = len(kept)
-    return kept, stats
+    return kept, stats, unmatched
+
+
+def _unmatched_rows(sport: str, unmatched: Counter) -> list[dict[str, Any]]:
+    return [
+        {"sport": sport, "name": name, "source_id": source_id, "games": count}
+        for (name, source_id), count in unmatched.most_common()
+    ]
 
 
 def _client(user_agent: str = USER_AGENT) -> Any:
@@ -642,9 +656,9 @@ def export_climate(data_dir: Path, output: Path, cache_dir: Optional[Path], offl
     with _client() as client:
         nfl_bytes = _cached_bytes(cache_dir, "nflverse_games", client, NFLVERSE_GAMES_URL, offline=offline)
     nfl_text = nfl_bytes.decode("utf-8")
-    nfl_games, nfl_stats = select_nfl_games(nfl_text, book, seasons, candidates)
+    nfl_games, nfl_stats, nfl_unmatched = select_nfl_games(nfl_text, book, seasons, candidates)
     cfb_parsed, cfb_meta = fetch_cfb_games(seasons, book, cache_dir, offline, log)
-    cfb_games, cfb_stats = select_cfb_games(cfb_parsed, candidates)
+    cfb_games, cfb_stats, cfb_unmatched = select_cfb_games(cfb_parsed, candidates)
     games = nfl_games + cfb_games
     if not games:
         raise RuntimeError("no outdoor games selected")
@@ -667,6 +681,7 @@ def export_climate(data_dir: Path, output: Path, cache_dir: Optional[Path], offl
         "nfl_skipped": {key: value for key, value in sorted(nfl_stats.items()) if key != "kept"},
         "cfb_skipped": {key: value for key, value in sorted(cfb_stats.items()) if key != "kept"},
         "cfb_provider": cfb_meta["provider"],
+        "unmatched": _unmatched_rows("nfl", nfl_unmatched) + _unmatched_rows("cfb", cfb_unmatched),
     }
     sources = {
         "nfl": {"url": NFLVERSE_GAMES_URL, "sha256": hashlib.sha256(nfl_bytes).hexdigest(), "games": len(nfl_games)},

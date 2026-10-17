@@ -111,7 +111,10 @@ test('the current window shows N=0 instead of borrowing another cell, and domes 
   assert.match(view.rows[0].value, /N=0/);
   assert.match(view.rows[0].label, /October/);
   const compact = run('stadiumClimateCompact(game)');
+  assert.match(compact, /stadium-climate-full/);
+  assert.match(compact, /stadium-climate-short/);
   assert.match(compact, /N=0/);
+  assert.match(compact, /stadium-climate-short">[^<]*N=0/);
   run("game = {stadium: {stadium_id: 'ford-field', roof_type: 'dome', timezone: 'America/Detroit'}}");
   const dome = run('stadiumClimateView(game)');
   assert.equal(dome.status, 'dome');

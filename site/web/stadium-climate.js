@@ -120,6 +120,7 @@ function stadiumClimateView(g) {
       label: current ? `This kickoff · ${name}` : name,
       value: text,
       compact: `Climate · ${name} · ${text}`,
+      compactShort: `${name} · N=${cell.n}`,
       n: cell.n,
       current,
       thin: cell.n < (data.small_sample_n || 8),
@@ -133,6 +134,7 @@ function stadiumClimateView(g) {
       label: `This kickoff · ${name}`,
       value: "N=0; no sampled games in this month and window; not for ranking venues",
       compact: `Climate · ${name} · N=0; no sampled games in this window`,
+      compactShort: `${name} · N=0`,
       n: 0,
       current: true,
       thin: true,
@@ -157,13 +159,21 @@ function stadiumClimateDetails(g) {
   return `<details class="stadium-climate-details"><summary>Stadium game-window climate · wind, temperature, rain</summary><p class="sub">${esc(view.intro)}</p>${rows ? `<table class="kv">${rows}</table>` : ""}${retry}</details>`;
 }
 
+function stadiumClimateShort(view) {
+  if (view.status === "ok") return "";
+  if (view.status === "dome") return "Dome";
+  if (view.status === "error") return "Climate unavailable";
+  if (view.status === "loading" || view.status === "missing") return "Climate loading";
+  return "N=0";
+}
+
 function stadiumClimateCompact(g) {
   const view = stadiumClimateView(g);
   if (view.status === "ok") {
     const current = view.rows.find(row => row.current) || view.rows[0];
-    return `<span class="sub stadium-climate">${esc(current.compact)}</span>`;
+    return `<span class="sub stadium-climate"><span class="stadium-climate-full">${esc(current.compact)}</span><span class="stadium-climate-short">${esc(current.compactShort)}</span></span>`;
   }
-  return `<span class="sub stadium-climate">${esc(view.intro)}</span>`;
+  return `<span class="sub stadium-climate"><span class="stadium-climate-full">${esc(view.intro)}</span><span class="stadium-climate-short">${esc(stadiumClimateShort(view))}</span></span>`;
 }
 
 function paintStadiumClimate() {
