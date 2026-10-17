@@ -427,10 +427,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   notify_failure:
-    # Page whenever a publish is rejected or a job fails. The job condition is
-    # only always(): a skipped Playwright job must not skip this page (GitHub
-    # skips a dependent job when one need was skipped unless the condition is
-    # unconditional). The step decides whether there is anything to send.
+    # Page when the publish is rejected or the gate or main (light) build fails.
+    # A Playwright/BetOnline failure alone pages only when TELEGRAM_SYSTEM_ALERTS=1.
+    # The job condition is only always(): a skipped Playwright job must not skip
+    # this page (GitHub skips a dependent job when one need was skipped unless
+    # the condition is unconditional). The step decides whether to send.
     # safe_refresh stays quiet. Cancelled runs do not page.
     needs: [gate, light, playwright]
     if: always()
@@ -438,7 +439,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Telegram on failure
-        if: ${{ !cancelled() && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
+        if: ${{ !cancelled() && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || (needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1')) }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

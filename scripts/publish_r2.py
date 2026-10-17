@@ -239,7 +239,16 @@ def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
             )
         immutable, pointer = prepare_generation(board_files, ROOT / 'publication')
         if phase == 'board':
-            items.extend((key, path, 'application/json') for key, path in immutable.items())
+            # The sealed generation and the plain board/games_*.json (and board.json)
+            # keys must be the same bytes. A direct read of the mutable key then
+            # cannot disagree with the generation the site header points at.
+            plain = {key: (path, content_type) for key, path, content_type in items}
+            for key, path in board_files.items():
+                name = Path(key).name
+                if name in {"board.json", "games_nfl.json", "games_cfb.json"}:
+                    plain[f"board/{name}"] = (Path(path), "application/json")
+            items = [(key, path, content_type) for key, (path, content_type) in plain.items()]
+            items.extend((key, path, "application/json") for key, path in immutable.items())
         else:
             reader = read_fn or (lambda key: download_one(bucket, key, ROOT / 'publication-check'))
             verify_generation(json.loads(pointer.read_bytes()), reader)

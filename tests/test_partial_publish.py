@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -131,8 +132,10 @@ def test_cfb_publish_keeps_the_previous_nfl_games(tmp_path: Path, monkeypatch: p
     publish_r2.publish_phase("meta", "bucket", upload_fn=upload, read_fn=read_back, retain_reader=reader)
 
     nfl_keys = [key for key in uploaded if key.endswith("/games_nfl.json")]
-    assert len(nfl_keys) == 1
-    payload = json.loads(uploaded[nfl_keys[0]])
+    assert "board/games_nfl.json" in nfl_keys
+    generation_key = next(key for key in nfl_keys if "/generations/" in key)
+    assert uploaded["board/games_nfl.json"] == uploaded[generation_key]
+    payload = json.loads(uploaded[generation_key])
     assert len(payload["games"]) == 27
     assert {row["game_id"] for row in payload["games"]} == {
         f"nfl:2026:7:away-{i}@home-{i}" for i in range(27)
@@ -142,7 +145,9 @@ def test_cfb_publish_keeps_the_previous_nfl_games(tmp_path: Path, monkeypatch: p
     pointer = json.loads(uploaded["board/meta.json"])
     assert pointer["sport"] == "cfb"
     assert pointer["sport_counts"] == {"cfb": 108, "nfl": 27}
-    assert pointer["retained_sports"]["nfl"] == {"from_run_id": PREVIOUS_RUN, "games": 27}
+    assert pointer["retained_sports"]["nfl"] == {
+        "from_run_id": PREVIOUS_RUN, "games": 27, "refreshed_at": "2026-10-17T12:59:48Z",
+    }
     assert pointer["run_id"] == FAILED_RUN
     verify_generation(pointer, read_back)
     # Alert delivery reads the local board. Carried NFL must not land there.
@@ -168,6 +173,107 @@ def test_missing_previous_sport_refuses_before_any_upload(tmp_path: Path, monkey
     with pytest.raises(RuntimeError, match="previous board is missing"):
         publish_r2.publish_phase("board", "bucket", upload_fn=upload, retain_reader=lambda key: None)
     assert calls == []
+
+
+def _projectable_game(run: str) -> dict:
+    return {
+        "game_id": "nfl:2026:7:A@H",
+        "sport": "nfl",
+        "season": 2026,
+        "week": 7,
+        "kickoff_utc": "2026-10-18T17:00:00Z",
+        "date_label": "10/18",
+        "time_label": "1:00 PM",
+        "home": {"short": "H", "name": "Home"},
+        "away": {"short": "A", "name": "Away"},
+        "neutral": False,
+        "run_id": run,
+        "weather": {"wind_fg": 12, "temp_fg": 55},
+    }
+
+
+class _Store:
+    def __init__(self, objects: dict[str, bytes]):
+        self.objects = dict(objects)
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, ContentType: str) -> None:  # noqa: N803
+        self.objects[Key] = Body
+
+    def get_object(self, Bucket: str, Key: str) -> dict:  # noqa: N803
+        if Key not in self.objects:
+            class NoSuchKey(Exception):
+                response = {"Error": {"Code": "NoSuchKey"}}
+            raise NoSuchKey(Key)
+        data = self.objects[Key]
+        return {"Body": SimpleNamespace(read=lambda: data)}
+
+
+def test_plain_games_and_board_match_the_sealed_carried_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Both uploaders must publish the carried sport at the plain key and in the generation."""
+    monkeypatch.chdir(tmp_path)
+    board = Path("data/board")
+    board.mkdir(parents=True)
+    _meta(board / "meta.json", FAILED_RUN, "cfb", {"cfb": 1})
+    (board / "games_cfb.json").write_text(json.dumps({
+        "meta": {"run_id": FAILED_RUN},
+        "games": [{"game_id": "cfb:2026:8:a@b", "run_id": FAILED_RUN, "sport": "cfb"}],
+    }), encoding="utf-8")
+    (board / "board.json").write_text(json.dumps({
+        "meta": {"run_id": FAILED_RUN, "sport_counts": {"cfb": 1}},
+        "rows": [{"game_id": "cfb:2026:8:a@b", "sport": "cfb", "game": "A @ B"}],
+    }), encoding="utf-8")
+    generation = "ab" * 32
+    earlier = "2026-10-17T12:57:09Z"
+    prev = {
+        "run_id": PREVIOUS_RUN, "sport": "all", "last_updated": "2026-10-17T12:59:48Z",
+        "sport_counts": {"nfl": 1, "cfb": 1},
+        "publication": {"generation": generation},
+    }
+    (Path("data/state")).mkdir(parents=True)
+    (Path("data/state/prev_meta.json")).write_text(json.dumps(prev), encoding="utf-8")
+    nfl = json.dumps({
+        "meta": {"run_id": PREVIOUS_RUN, "last_updated": earlier},
+        "games": [_projectable_game(PREVIOUS_RUN)],
+    }).encode()
+    stored = {f"board/generations/{generation}/games_nfl.json": nfl, "board/meta.json": json.dumps(prev).encode()}
+    uploaded: dict[str, bytes] = {}
+
+    def upload(bucket, key, path, content_type):
+        uploaded[key] = Path(path).read_bytes()
+
+    publish_r2.publish_phase("board", "bucket", upload_fn=upload, retain_reader=lambda key: stored.get(key))
+    publish_r2.publish_phase(
+        "meta", "bucket", upload_fn=upload, read_fn=uploaded.get, retain_reader=lambda key: stored.get(key),
+    )
+
+    assert uploaded["board/games_nfl.json"] == uploaded[
+        next(key for key in uploaded if "/generations/" in key and key.endswith("/games_nfl.json"))
+    ]
+    carried = json.loads(uploaded["board/games_nfl.json"])
+    assert carried["meta"]["run_id"] == FAILED_RUN
+    assert carried["meta"]["last_updated"] == earlier
+    assert carried["games"][0]["run_id"] == FAILED_RUN and carried["games"][0]["weather"]["wind_fg"] == 12
+    assert uploaded["board/board.json"] == uploaded[
+        next(key for key in uploaded if "/generations/" in key and key.endswith("/board.json"))
+    ]
+    table = json.loads(uploaded["board/board.json"])
+    assert [row["sport"] for row in table["rows"]] == ["cfb", "nfl"]
+    assert table["rows"][1]["wind_fg"] == 12 and table["rows"][1]["game_id"] == "nfl:2026:7:A@H"
+    assert table["meta"]["run_id"] == FAILED_RUN
+    assert table["meta"]["sport_counts"]["nfl"] == 1
+    pointer = json.loads(uploaded["board/meta.json"])
+    assert pointer["retained_sports"]["nfl"]["refreshed_at"] == earlier
+    local = json.loads((board / "board.json").read_text(encoding="utf-8"))
+    assert [row["sport"] for row in local["rows"]] == ["cfb"]
+    assert not (board / "games_nfl.json").exists()
+
+    client = _Store(stored)
+    r2.publish(client, "bucket", {f"board/{path.name}": path for path in board.glob("*.json")}, sleep=lambda _s: None)
+    assert client.objects["board/games_nfl.json"] == uploaded["board/games_nfl.json"]
+    assert client.objects["board/board.json"] == uploaded["board/board.json"]
+    sealed = json.loads(client.objects["board/meta.json"])["publication"]["generation"]
+    assert client.objects[f"board/generations/{sealed}/games_nfl.json"] == client.objects["board/games_nfl.json"]
+    assert client.objects[f"board/generations/{sealed}/board.json"] == client.objects["board/board.json"]
 
 
 def test_retain_then_seal_uses_the_generation_copy(tmp_path: Path):

@@ -8,6 +8,7 @@
  *
  * /data/meta.json
  *   { run_id, last_updated, season, week, sport_counts {nfl, cfb}, git_sha, model_version,
+ *     retained_sports? { <sport>: { from_run_id, games, refreshed_at } },
  *     next_run_eta, degradations [{component, reason, severity, run_id, ts}],
  *     books { <book>: { count, baseline, status: "green"|"amber"|"red", last_ok } },
  *     weeks? { nfl: <current week>, cfb: <current week> } (array tolerated: first entry),

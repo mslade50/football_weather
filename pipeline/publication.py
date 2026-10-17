@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,6 +30,7 @@ PUBLIC_NAMES = {
 }
 
 SPORTS = ("nfl", "cfb")
+_RUN_STAMP = re.compile(r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z")
 
 
 def rebuilt_sports(meta: dict | None) -> frozenset[str]:
@@ -83,6 +85,103 @@ def _previous_games(prev_meta: dict | None, sport: str, reader: Callable[[str], 
     raise RuntimeError(f"Refusing to publish: {sport} was not rebuilt and its previous board is missing")
 
 
+def _refreshed_at(prev_meta: dict | None, sport: str, envelope: dict, from_run: object) -> str | None:
+    """When the carried sport's weather and prices were last built.
+
+    The games file's own ``last_updated`` wins, then a timestamp already recorded
+    for this sport, then the previous board's clock, then the time embedded in
+    ``from_run``. A later partial run must not make the copied sport look new.
+    """
+    stamp = envelope.get("last_updated")
+    if isinstance(stamp, str) and stamp.strip():
+        return stamp
+    previous = (prev_meta or {}).get("retained_sports") if isinstance(prev_meta, dict) else None
+    carried = previous.get(sport) if isinstance(previous, dict) else None
+    if isinstance(carried, dict):
+        stamp = carried.get("refreshed_at")
+        if isinstance(stamp, str) and stamp.strip():
+            return stamp
+    if isinstance(prev_meta, dict):
+        for key in ("last_updated", "finished_at"):
+            stamp = prev_meta.get(key)
+            if isinstance(stamp, str) and stamp.strip():
+                return stamp
+    if isinstance(from_run, str):
+        match = _RUN_STAMP.match(from_run)
+        if match:
+            year, month, day, hour, minute, second = match.groups()
+            return f"{year}-{month}-{day}T{hour}:{minute}:{second}Z"
+    return None
+
+
+def _project_rows(games: list) -> list | None:
+    from pipeline.outputs.json_out import table_row
+
+    rows = []
+    for card in games:
+        if not isinstance(card, dict):
+            return None
+        try:
+            rows.append(table_row(card))
+        except (KeyError, TypeError, AttributeError):
+            return None
+    return rows
+
+
+def _merge_carried_board(
+    files: dict[str, Path],
+    dest: Path,
+    carried: dict[str, list],
+    run_id: str,
+) -> dict[str, Path]:
+    """Put carried games into ``board.json`` so the plain table matches the games files.
+
+    Rows are the same projection a full rebuild would write. A card that cannot
+    be projected leaves the rebuilt-sport file in place rather than publishing a
+    half-updated table. The original board file is not modified.
+    """
+    source = files.get("board/board.json")
+    if source is None or not carried:
+        return files
+    try:
+        board = json.loads(Path(source).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return files
+    if not isinstance(board, dict) or not isinstance(board.get("rows"), list):
+        return files
+    extra: list = []
+    for sport in SPORTS:
+        games = carried.get(sport)
+        if not games:
+            continue
+        projected = _project_rows(games)
+        if projected is None:
+            print(f"Leaving board.json unchanged: {sport} cards could not be projected into table rows")
+            return files
+        extra.extend(projected)
+    sports = set(carried)
+    kept = [row for row in board["rows"] if not (isinstance(row, dict) and row.get("sport") in sports)]
+    merged = dict(board)
+    merged["rows"] = kept + extra
+    meta = merged.get("meta")
+    if isinstance(meta, dict):
+        meta = dict(meta)
+        meta["run_id"] = run_id
+        sport_counts = dict(meta["sport_counts"]) if isinstance(meta.get("sport_counts"), dict) else {}
+        for sport, games in carried.items():
+            sport_counts[sport] = len(games)
+        meta["sport_counts"] = sport_counts
+        merged["meta"] = meta
+    path = dest / "board.json"
+    try:
+        path.write_text(json.dumps(merged, allow_nan=False), encoding="utf-8")
+    except ValueError as exc:
+        raise RuntimeError("Refusing to publish: carried board table is unreadable") from exc
+    updated = dict(files)
+    updated["board/board.json"] = path
+    return updated
+
+
 def retain_unrebuilt_sports(
     files: dict[str, Path],
     prev_meta: dict | None,
@@ -112,6 +211,7 @@ def retain_unrebuilt_sports(
         prev_counts = {}
     rebuilt = rebuilt_sports(meta)
     retained: dict[str, dict] = {}
+    carried_games: dict[str, list] = {}
     updated = dict(files)
     dest.mkdir(parents=True, exist_ok=True)
     for sport in SPORTS:
@@ -141,6 +241,9 @@ def retain_unrebuilt_sports(
             stamped_games.append({**row, "run_id": run_id})
         envelope = dict(payload.get("meta") or {})
         from_run = envelope.get("run_id")
+        refreshed_at = _refreshed_at(prev_meta, sport, envelope, from_run)
+        if refreshed_at and not (isinstance(envelope.get("last_updated"), str) and envelope["last_updated"].strip()):
+            envelope["last_updated"] = refreshed_at
         envelope["run_id"] = run_id
         path = dest / name
         try:
@@ -151,10 +254,15 @@ def retain_unrebuilt_sports(
         except ValueError as exc:
             raise RuntimeError(f"Refusing to publish: previous {sport} board is unreadable") from exc
         updated[f"board/{name}"] = path
-        retained[sport] = {"from_run_id": from_run, "games": len(stamped_games)}
+        info = {"from_run_id": from_run, "games": len(stamped_games)}
+        if refreshed_at:
+            info["refreshed_at"] = refreshed_at
+        retained[sport] = info
+        carried_games[sport] = stamped_games
         print(f"Retaining {sport}: {len(stamped_games)} games from previous run {from_run}")
     if not retained:
         return files
+    updated = _merge_carried_board(updated, dest, carried_games, run_id)
     counts = dict(meta["sport_counts"])
     for sport, info in retained.items():
         counts[sport] = info["games"]
