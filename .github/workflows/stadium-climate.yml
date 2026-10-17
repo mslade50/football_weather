@@ -1,0 +1,100 @@
+name: stadium-climate
+
+# Annual game-window climate refresh. Manual dispatch only: the two free
+# Cloudflare cron triggers are already used, and this job must not take one.
+# It rebuilds data/raw/stadium_game_climate.json and opens a pull request.
+# Review the diff before merging. A bad file is reverted by reverting that PR.
+#
+# Secrets: CFBD_API_KEY (optional; ESPN scoreboard is the fallback),
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (failure ping).
+
+on:
+  workflow_dispatch:
+    inputs:
+      through_season:
+        description: "Last season to include (blank = last full season)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: stadium-climate
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx pytest pyyaml
+
+      - name: Cache archive responses
+        uses: actions/cache@v4
+        with:
+          path: .cache/stadium_climate
+          key: stadium-climate-${{ github.run_id }}
+          restore-keys: stadium-climate-
+
+      - name: Export game-window climate
+        env:
+          THROUGH_SEASON: ${{ inputs.through_season }}
+        run: |
+          extra=()
+          if [ -n "$THROUGH_SEASON" ]; then
+            extra+=(--through-season "$THROUGH_SEASON")
+          fi
+          python -m scripts.export_stadium_climate --cache-dir .cache/stadium_climate \
+            --output data/raw/stadium_game_climate.json "${extra[@]}"
+
+      - name: Climate tests
+        run: python -m pytest tests/test_stadium_climate.py -q
+
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: data/raw/stadium_game_climate.json
+          branch: chore/stadium-climate
+          delete-branch: true
+          commit-message: "data: refresh stadium game-window climate"
+          title: "data: refresh stadium game-window climate"
+          body: |
+            Automated stadium-climate run (${{ github.run_id }}).
+
+            This replaces the committed game-window climate file. Merging it
+            deploys the Worker, because that file is on the deploy path. It
+            does not change the frozen stadium signal history. Check the venue
+            count, the season span, the unmatched list, and the byte size
+            before merging. Reverting this pull request deploys the previous file.
+
+      - name: Telegram on failure
+        if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then exit 0; fi
+          MSG=$(printf '🚨 SYSTEM · Stadium climate export failed\nOpen run: %s' \
+            '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode text="$MSG" >/dev/null || true

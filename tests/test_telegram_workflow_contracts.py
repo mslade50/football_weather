@@ -10,6 +10,7 @@ WORKFLOWS = (
     "backtest.yml",
     "calibrate.yml",
     "build-stadiums.yml",
+    "stadium-climate.yml",
     "deploy.yml",
 )
 

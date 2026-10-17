@@ -37,7 +37,11 @@ def _steps(wf: dict) -> list[dict]:
 def test_parses_and_targets_site_paths(wf: dict):
     on = wf[True]
     assert on["push"]["branches"] == ["main"]
-    assert "site/**" in on["push"]["paths"]
+    paths = on["push"]["paths"]
+    assert "site/**" in paths
+    assert "data/raw/stadium_game_climate.json" in paths
+    assert "data/raw/nfl_stadium_signal_history.json" not in paths
+    assert "data/raw/cfb_stadium_signal_history.json" not in paths
     assert "workflow_dispatch" in on
 
 

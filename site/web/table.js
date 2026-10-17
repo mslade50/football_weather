@@ -243,7 +243,7 @@ function tableStadiumHtml(g) {
     <span class="compass compact-compass">${typeof compassSvg === "function" ? compassSvg(g) : 'Diagram unavailable'}</span><span class="stadium-summary">${esc(g.stadium?.name || "Stadium unavailable")}
     <span class="sub">${isNum(g.weather?.wind_fg) ? fmtNum(g.weather.wind_fg, 1) + ' mph' : 'Wind unavailable'} ${esc(g.weather?.wind_dir_fg || '')}</span>
     ${!isNum(g.stadium?.orient_deg) ? '<span class="sub">Axis unknown</span>' : ''}${!isNum(g.weather?.wind_dir_deg) ? '<span class="sub">Direction unknown</span>' : ''}</span></button>
-    ${typeof stadiumSignalCompact === "function" ? stadiumSignalCompact(g) : ''}${coordinateControl(g)}</td>`;
+    ${typeof stadiumSignalCompact === "function" ? stadiumSignalCompact(g) : ''}${typeof stadiumClimateCompact === "function" ? stadiumClimateCompact(g) : ''}${coordinateControl(g)}</td>`;
 }
 
 // ── sorting (pure; unit-tested in site/worker/test/table-sort.test.mjs) ──────
