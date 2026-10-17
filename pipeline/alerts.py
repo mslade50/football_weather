@@ -10,9 +10,10 @@ Telegram reports qualifying weather signals; prices provide context:
 
 * SIGNAL: one stable ``edge|...|total|under|best|model`` identity per game (book
   churn and model promotion do not mint another notification). The weather
-  gate is the process screen (docs/PROCESS_SPEC.md): temp < 65°F and either
-  sustained wind > 10 mph or heavy rain with model agreement. A consensus
-  no-vig under move past ``PROCESS_UNDER_PROB_MOVE_MAX`` (default 4%) blocks
+  gate is the process screen (docs/PROCESS_SPEC.md): sustained wind >= 15 mph,
+  or heavy rain with model agreement. 12–15 mph is a display watch, not a
+  send. Temperature is informational unless the optional temperature gate is
+  on. A consensus no-vig under move past ``PROCESS_UNDER_PROB_MOVE_MAX`` (default 4%) blocks
   the send. ``TELEGRAM_MIN_TIER`` can still raise the tier floor. Missing
   prices, missing fairs, and negative edges never suppress a signal.
   Delivery itself is unchanged here; open PR #13's ``FOOTBALL_TELEGRAM_ENABLED``
@@ -586,7 +587,8 @@ def _signal_label(card: dict[str, Any]) -> Optional[str]:
     A stored Low/Mid/High label is kept so a qualifying card does not get
     relabeled. Stale "No Impact" text is recomputed from the signal-driving
     weather when the screen says the game qualifies. Heat and altitude labels
-    do not survive on their own: warm games fail the process screen.
+    do not qualify on their own. A warm game with sustained wind >= 15 mph
+    does qualify while the optional temperature gate is off.
     """
     proc = process_screen.evaluate_card(card)
     if not proc.get("alert"):
@@ -1172,9 +1174,10 @@ def _tier_at_least(label: Optional[str], minimum: str) -> bool:
 def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
     """Process screen plus the tier floor. v1 impact is not this gate.
 
-    Covered roofs, warm games, light rain, wind at or below 10 mph, heavy rain
-    without ECMWF agreement, and a consensus under-price move past the
-    configured opener limit do not qualify. ``TELEGRAM_MIN_TIER`` can still
+    Covered roofs, the 12–15 mph wind watch, wind below 12 mph, light rain,
+    heavy rain without ECMWF agreement, and a consensus under-price move past
+    the configured opener limit do not qualify. Temperature does not block
+    unless that league's optional gate is on. ``TELEGRAM_MIN_TIER`` can still
     require a higher published tier.
     """
     stadium = card.get("stadium") or {}

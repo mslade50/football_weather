@@ -2,14 +2,17 @@
 // UI discovery is independent of prices and liquidity. Unknown is never zero.
 // Process screen (docs/PROCESS_SPEC.md). Keep in lockstep with pipeline/model/config.py.
 const PROCESS_TEMP_MAX_F = 65;
-const PROCESS_WIND_CONSIDER_MPH = 10;
-const PROCESS_WIND_IDEAL_MPH = 12;
+const PROCESS_TEMP_GATE = false;
+const PROCESS_WIND_WATCH_MPH = 12;
+const PROCESS_WIND_FLAG_MPH = 15;
 const PROCESS_RAIN_IGNORE_MM = 5;
 const PROCESS_RAIN_WATCH_MM = 15;
 const PROCESS_RAIN_SIGNAL_MM = 23;
 const PROCESS_RAIN_AGREE_TOL_MM = 10;
 const PROCESS_UNDER_PROB_MOVE_MAX = 0.04;
 const WARM_WIND_TEMP_MIN_F = 65;
+const WARM_WIND_LOW_MPH = 10;
+const WARM_WIND_MID_MPH = 12;
 const WARM_WIND_HIGH_MPH = 15;
 const WARM_WIND_NOTE = "Watch: warm + wind. Exploratory list for exposed games at 65°F or warmer with sustained wind above 10 mph. Not an under signal and not an alert. 2024-25 CFB, final forecast: these games finished over the close about 61% of the time (n=124). Early forecasts were about 51-54% and unstable by year. Winds above 15 mph finished over about 38% of the time (n about 16-18). The split to keep watching is light-to-medium wind, above 10 mph through 15 mph. Counts under 30 are thin.";
 const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
@@ -79,8 +82,8 @@ function fieldExposed(g) {
 function warmWindBucket(temp, wind) {
   if (!finiteValue(temp) || !finiteValue(wind) || Number(temp) < WARM_WIND_TEMP_MIN_F) return null;
   if (Number(wind) > WARM_WIND_HIGH_MPH) return "gt_15";
-  if (Number(wind) > PROCESS_WIND_IDEAL_MPH) return "12_15";
-  if (Number(wind) > PROCESS_WIND_CONSIDER_MPH) return "10_12";
+  if (Number(wind) > WARM_WIND_MID_MPH) return "12_15";
+  if (Number(wind) > WARM_WIND_LOW_MPH) return "10_12";
   return null;
 }
 function warmWindTrack(g) {
@@ -109,6 +112,14 @@ function filterWarmWind(rows, state) {
     return !query || haystack.includes(query);
   });
 }
+function activeTempGate(g) {
+  const proc = g.process || {};
+  if (proc.temp_gate === true) {
+    const max = finiteValue(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : PROCESS_TEMP_MAX_F;
+    return {on: true, max};
+  }
+  return {on: PROCESS_TEMP_GATE, max: PROCESS_TEMP_MAX_F};
+}
 function discoveryState(g) {
   if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};
   if (!upcomingGame(g))
@@ -117,13 +128,18 @@ function discoveryState(g) {
   if (cfb && !finiteValue(g.consensus?.spread_open)) return {kind: "unknown", label: "Opening spread unknown"};
   const drive = drivingForecast(g);
   const wind = drive.wind, temp = drive.temp, rain = drive.rain;
-  if (!finiteValue(wind) || !finiteValue(temp)) return {kind: "unknown", label: "Forecast incomplete"};
+  if (!finiteValue(wind)) return {kind: "unknown", label: "Forecast incomplete"};
   const proc = g.process || {};
-  const tempOk = Number(temp) < PROCESS_TEMP_MAX_F;
-  const windBand = tempOk && Number(wind) > PROCESS_WIND_IDEAL_MPH ? "ideal"
-    : tempOk && Number(wind) > PROCESS_WIND_CONSIDER_MPH ? "consider" : "none";
+  const gate = activeTempGate(g);
+  const tempKnown = finiteValue(temp);
+  const tempPasses = !gate.on || (tempKnown && Number(temp) < gate.max);
+  let windBand = "none";
+  if (tempPasses && finiteValue(wind)) {
+    const mph = Number(wind);
+    windBand = mph >= PROCESS_WIND_FLAG_MPH ? "flag" : mph >= PROCESS_WIND_WATCH_MPH ? "watch" : "none";
+  }
   let rainTier = "ignore";
-  if (tempOk && finiteValue(rain)) {
+  if (tempPasses && finiteValue(rain)) {
     const mm = Number(rain);
     rainTier = mm < PROCESS_RAIN_IGNORE_MM ? "ignore" : mm < PROCESS_RAIN_WATCH_MM ? "watch"
       : mm < PROCESS_RAIN_SIGNAL_MM ? "elevated" : "signal_amount";
@@ -131,8 +147,9 @@ function discoveryState(g) {
   const agree = rainAgreement(w.models, finiteValue(rain) ? Number(rain) : null);
   const rainSignal = rainTier === "signal_amount" && agree === "agree";
   if (rainTier === "signal_amount" && !rainSignal) rainTier = agree === "disagree" ? "disagree" : "unverified";
-  const weatherHit = tempOk && (windBand !== "none" || rainSignal);
-  const watch = tempOk && !weatherHit && ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
+  const weatherHit = tempPasses && (windBand === "flag" || rainSignal);
+  const rainNear = ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
+  const watch = tempPasses && !weatherHit && (windBand === "watch" || rainNear);
   const move = finiteValue(proc.under_prob_move) ? Math.abs(Number(proc.under_prob_move)) : null;
   const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
   const priceBlocked = proc.price_blocked === true || (weatherHit && move != null && move > moveMax
@@ -147,12 +164,14 @@ function discoveryState(g) {
     kind = "moved"; label = "Under price moved vs opener";
   } else if (weatherHit) {
     kind = "signal";
-    label = rainSignal && windBand === "none" ? "Signal · heavy rain"
-      : windBand === "ideal" ? "Signal · ideal wind" : "Signal · wind";
+    label = rainSignal && windBand === "flag" ? "Signal · wind ≥15 mph · heavy rain"
+      : rainSignal ? "Signal · heavy rain" : "Signal · wind ≥15 mph";
   } else if (watch) {
     kind = "near";
-    label = rainTier === "watch" ? "Watch · rain 5–15 mm" : rainTier === "elevated" ? "Watch · rain 15–23 mm"
-      : "Heavy rain, model agreement unverified";
+    const windNote = windBand === "watch" ? "Watch · 12–15 mph wind · not a flag" : "";
+    const rainNote = rainTier === "watch" ? "Watch · rain 5–15 mm" : rainTier === "elevated" ? "Watch · rain 15–23 mm"
+      : rainNear ? "Heavy rain, model agreement unverified" : "";
+    label = windNote && rainNote ? `${windNote} · ${rainNote.replace(/^Watch · /, "")}` : (windNote || rainNote);
   }
   if (w.ecmwf_apart && (kind === "signal" || kind === "near")) label += " · ECMWF stands apart";
   const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"

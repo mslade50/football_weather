@@ -240,9 +240,9 @@ def test_cfb_missing_opening_spread_and_applicable_ancillary_inputs_are_unknown(
 def test_clear_recomputes_actual_weather_and_ignores_alert_threshold_changes():
     data = card(A.SIGNAL_NONE)  # Stale label says no signal; actual wind still qualifies.
     assert P.clear_reason(data, CFG, NOW) is None
-    # Wind 11 mph at 55°F is still a Low under the process screen. Raising the
-    # alert floor does not invalidate a confirmed bet that still meets the rules.
-    data['weather'].update(wind_fg=11, temp_fg=55)
+    # Wind of 15 mph is still a flag. Raising the alert floor does not
+    # invalidate a confirmed bet that still meets the rules.
+    data['weather'].update(wind_fg=15, temp_fg=70)
     assert P.clear_reason(data, A.Config(min_tier='high'), NOW) is None
     data['stadium'] = {'roof_type': 'open', 'roof_state': 'closed'}
     assert P.clear_reason(data, CFG, NOW) is None  # Fixed construction wins.

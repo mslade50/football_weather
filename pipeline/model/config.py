@@ -96,9 +96,12 @@ AMBIGUOUS_BANDS = {
 # These gates drive discovery, Telegram eligibility and the Signals wind flags.
 # They do not enter compute_impact_v1. v1 rain tiers and the stitched forecast
 # that v1 consumes stay on the legacy contract.
-PROCESS_TEMP_MAX_F = 65.0                 # strict < ; warm games are out
-PROCESS_WIND_CONSIDER_MPH = 10.0          # strict > sustained wind (not gust)
-PROCESS_WIND_IDEAL_MPH = 12.0             # strict > ; more sustained wind is better
+# Temperature is informational unless the optional gate is turned on
+# (process.temp_gate). 65°F is that gate's default threshold, strict <.
+PROCESS_TEMP_MAX_F = 65.0
+PROCESS_TEMP_GATE = False                 # default off for both leagues
+PROCESS_WIND_WATCH_MPH = 12.0             # inclusive; [12, 15) is a display watch, not a flag
+PROCESS_WIND_FLAG_MPH = 15.0              # inclusive sustained-wind flag for NFL and CFB
 PROCESS_RAIN_IGNORE_MM = 5.0              # game-window total below this is ignored
 PROCESS_RAIN_WATCH_MM = 15.0              # [5, 15) watch; [15, 23) elevated watch
 PROCESS_RAIN_SIGNAL_MM = 23.0             # ~0.30 in/hr * 3 h (22.86 mm), rounded
@@ -108,10 +111,13 @@ PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond t
 PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
-PROCESS_VERSION = "process-v1"
-# Exploratory warm-wind log. Not an under gate and not an alert.
-# Buckets are (10, 12], (12, 15], and >15 mph at temp >= PROCESS_TEMP_MAX_F.
-PROCESS_WARM_WIND_HIGH_MPH = 15.0
+PROCESS_VERSION = "process-v2"
+# Exploratory warm-wind log. Not an under gate and not an alert by itself.
+# Buckets stay (10, 12], (12, 15], and >15 mph at temp >= 65°F. These edges
+# are independent of the 15 mph under flag.
+PROCESS_WARM_WIND_LOW_MPH = 10.0          # exclusive
+PROCESS_WARM_WIND_MID_MPH = 12.0          # exclusive lower edge of the 12–15 bucket
+PROCESS_WARM_WIND_HIGH_MPH = 15.0         # exclusive; above this is gt_15
 WARM_WIND_VERSION = "warm-wind-v1"
 
 # ---- signals (§7.4) ----------------------------------------------------------
@@ -120,11 +126,11 @@ WARM_WIND_VERSION = "warm-wind-v1"
 LOW_RAIN_TEMP_MAX_F = 50.0
 NFL_WIND_VOL_LOW_BELOW = 11.99
 CFB_HIGH_OFFSET = 7.5
-# Shared wind eligibility (NFL and CFB): sustained wind above the consider floor
-# and temperature under PROCESS_TEMP_MAX_F. CFB still also requires the opening
-# spread within ±10. Severity (High / Very High) stays at the historical 21.5 mph
-# boundary so lowering the floor does not relabel those tiers.
-CFB_WIND_MIN_MPH = PROCESS_WIND_CONSIDER_MPH
+# Shared wind flag (NFL and CFB): sustained wind >= PROCESS_WIND_FLAG_MPH.
+# CFB still also requires the opening spread within ±10. Temperature is not a
+# hard gate; CFB_WIND_MAX_TEMP_F is the threshold the optional gate uses when
+# that league turns it on. Severity (High / Very High) stays at 21.5 mph.
+CFB_WIND_MIN_MPH = PROCESS_WIND_FLAG_MPH
 CFB_WIND_MAX_TEMP_F = PROCESS_TEMP_MAX_F
 CFB_HIGH_WIND_MPH = 21.5
 # Every CFB weather signal and combined-page flag is disqualified when the

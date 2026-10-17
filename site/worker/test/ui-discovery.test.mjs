@@ -35,6 +35,9 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   const ctx = ui();
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
   ctx.game.weather.wind_fg = 12;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  assert.match(run(ctx, 'discoveryState(game).label'), /not a flag/);
+  ctx.game.weather.wind_fg = 15;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
   ctx.game.weather.wind_fg = 3;
   ctx.game.weather.rain_fg = 8;
@@ -57,14 +60,19 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
 test('Warm wind is a separate list and not an under signal', () => {
   const ctx = ui();
   ctx.game.weather.temp_fg = 72;
-  ctx.game.weather.wind_fg = 14;
+  ctx.game.weather.wind_fg = 11;
   ctx.game.weather.rain_fg = 0;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'quiet');
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), '10_12');
+  ctx.game.weather.wind_fg = 14;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  assert.match(run(ctx, 'discoveryState(game).label'), /not a flag/);
   assert.equal(run(ctx, 'warmWindTrack(game).bucket'), '12_15');
   assert.match(run(ctx, 'warmWindHtml(game)'), /Watch: warm \+ wind/);
   assert.match(run(ctx, 'warmWindHtml(game)'), /not an alert/);
   assert.match(run(ctx, 'WARM_WIND_NOTE'), /n=124/);
   assert.match(run(ctx, 'WARM_WIND_NOTE'), /16-18/);
+  ctx.game.weather.wind_fg = 11;
   run(ctx, 'STATE.sport = "cfb"; STATE.warmWind = false; DATA.games.cfb = [game];');
   assert.equal(run(ctx, 'currentGames().length'), 0);
   assert.equal(run(ctx, 'filterWarmWind(DATA.games.cfb, STATE).map(g => g.game_id).join(",")'), 'game');
@@ -75,6 +83,7 @@ test('Warm wind is a separate list and not an under signal', () => {
   assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
   ctx.game.weather.wind_fg = 16;
   assert.equal(run(ctx, 'warmWindTrack(game).bucket'), 'gt_15');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
   ctx.game.warm_wind = {tracked: false, bucket: null};
   ctx.game.weather.wind_fg = 20;
   assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);

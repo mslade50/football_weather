@@ -223,11 +223,11 @@ def test_update_closed_and_forecast_messages_are_concise():
     neg = A.format_gone(gone_card, rec, dict(gone_card["fair"]["edges"][0], edge_pts=-0.2, edge_prob=None), BOARD)
     assert "Was: Under 38 · Now: 35" in neg
 
-    c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=13.0, rain=0.0)
+    c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=16.0, rain=0.0)
     wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
     wx_lines = wx.splitlines()
     assert wx_lines[0] == "🌬️ <b>UPDATE · MID · NFL W3</b>"
-    assert wx_lines[2] == "Weather: wind 18 → 13 mph · rain 0.8 → 0 mm"
+    assert wx_lines[2] == "Weather: wind 18 → 16 mph · rain 0.8 → 0 mm"
     assert wx_lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
     assert len(wx_lines) == 12
 

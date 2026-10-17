@@ -37,25 +37,45 @@ line and the signal label can disagree; the label is the process screen.
 
 ### 1. Temperature
 
-Consider a game only when the signal-driving temperature is **under 65°F**.
-65°F and warmer is out, including warm-and-windy. This replaces the old
-NFL `<60°F` and CFB `<70°F` wind gates.
+Temperature is shown on the card and is **not** a hard gate. 65°F is only
+the default threshold of an optional gate that is **off** for both NFL and
+CFB. While the gate is off, a warm game can still flag on wind or on agreed
+heavy rain.
 
-Code: `pipeline/model/config.py` `PROCESS_TEMP_MAX_F`. Applied in
-`pipeline/model/process.py` `evaluate_card`, `pipeline/model/signals.py`
-(wind and heavy-rain tiers), `site/web/discovery.js` `discoveryState`.
+Turn the gate on with `PROCESS_TEMP_GATE`:
+
+| Value | Effect |
+|---|---|
+| unset, `0`, `false`, `off` | gate off; temperature is informational |
+| `1`, `true`, `on` | gate on; signal-driving temp must be under 65°F |
+| a number, such as `60` | gate on; temp must be under that number |
+
+`PROCESS_TEMP_GATE_NFL` and `PROCESS_TEMP_GATE_CFB` override the global
+switch for that league when they are set. An unset league variable follows
+the global switch. The comparison is strict `<`. A missing temperature
+fails the gate only when the gate is on.
+
+The dashboard reads `process.temp_gate` and `process.temp_gate_max_f` when
+the card carries them. Cards built with the gate off, and cards that have
+no process block yet, keep the default: gate off.
+
+Code: `pipeline/model/config.py` `PROCESS_TEMP_MAX_F`, `PROCESS_TEMP_GATE`.
+`pipeline/model/process.py` `temp_gate`, applied in `evaluate_card` and
+`pipeline/model/signals.py`. `site/web/discovery.js` `activeTempGate`.
 
 ### 2. Wind
 
-Sustained wind only. Gusts and the ensemble P90 are not the gate.
+Sustained wind only. Gusts and the ensemble P90 are not the gate. The same
+cut applies to NFL and CFB.
 
 | Sustained wind | Band |
 |---|---|
-| ≤ 10 mph | not in the wind screen |
-| > 10 mph and ≤ 12 mph | consider |
-| > 12 mph | ideal (more is better) |
+| under 12 mph | not in the wind screen |
+| 12 mph up to 15 mph | watch. Display only. **Not a flag** and not an alert |
+| 15 mph and above | flag |
 
-Both consider and ideal can alert. Ideal is a label, not a stricter gate.
+Exactly 12 mph is a watch. Exactly 15 mph is a flag. The watch is labeled
+"not a flag" on the dashboard and does not send Telegram.
 
 Direction uses the stadium field orientation in `data/stadiums.csv`
 (`orientation_deg`, served as `stadium.orient_deg`):
@@ -112,10 +132,13 @@ Code: `process.rain_tier`, `process.rain_agreement`. Constants
 `PROCESS_RAIN_AGREE_TOL_MM`.
 
 Ensemble member sampling (`pipeline/weather/screening.py`) is not this gate.
-Wind and temperature sampling use the process cuts, with the existing
-buffers under the floor. Rain sampling stays at a 1.5 mm game-window total,
-plus a 0.25 mm tail, so a light deterministic total can still pull members.
-A 5 mm sampler would skip that case. Sampled rain is not an alert.
+Wind sampling uses the 15 mph flag. The existing 3 mph buffer (4 mph before
+detail) is measured down from that flag, so it still reaches the 12 mph
+watch. Temperature does not block sampling unless that league's optional
+gate is on; when it is on, the existing temperature buffer sits above the
+configured max. Rain sampling stays at a 1.5 mm game-window total, plus a
+0.25 mm tail, so a light deterministic total can still pull members. A 5 mm
+sampler would skip that case. Sampled rain is not an alert.
 
 ### 4. Price move
 
@@ -204,24 +227,34 @@ inputs. Gusts and `wind_p90` are not.
 
 | Kind | Meaning | Default candidate list |
 |---|---|---|
-| `signal` | temp < 65 and (wind > 10 or agreed heavy rain), price not blocked | shown |
-| `near` | rain watch / elevated watch, or heavy rain without agreement | shown |
+| `signal` | sustained wind ≥ 15 mph, or agreed heavy rain, and the optional temperature gate (if on) passes; price not blocked | shown |
+| `near` | 12–15 mph wind watch (labeled not a flag), rain watch / elevated watch, or heavy rain without agreement | shown |
 | `moved` | weather hit, consensus under move past the gate | hidden until "show all" |
 | `quiet` | outside the screen | hidden until "show all" |
 | `unknown` | forecast or CFB opener missing | shown as unknown |
 | `ineligible` | dome / closed roof, or CFB opener outside ±10 | hidden |
 
 Heat and altitude presets still exist on the Signals tab. They are not part
-of this under screen, and warm games do not come through `discoveryState` as
-signals.
+of this under screen. With the temperature gate off, a warm game with
+sustained wind ≥ 15 mph is a signal. The 12–15 mph band is `near` and the
+label says it is not a flag.
 
-`site/web/signals.js` wind flags match the new floor (temp < 65, wind > 10).
-High / Very High labels above 21.5 mph are severity only.
+`site/web/signals.js` wind flags use the same 15 mph floor. High / Very High
+labels above 21.5 mph are severity only and still use their temperature
+bands, so a warm flag is Low rather than High.
 
 ### 8. Watch: warm + wind
 
-This is a separate list. It is not an under signal and it does not send a
-Telegram alert. `process.alert` stays false for these games.
+This is a separate list. The tag itself is not an alert: `warm_wind.alert`
+is always false, and being on this list does not by itself send Telegram.
+
+With the temperature gate off, an exposed game at 65°F or warmer and
+sustained wind ≥ 15 mph is also an under flag. That overlap is deliberate.
+The flag is the wind rule. This list is the exploratory cohort. The 10–12
+and above-12-through-15 warm-wind buckets are not flags. Exactly 15 mph is
+an under flag and still sits in the warm-wind `12_15` bucket, because that
+bucket was specified as above 12 mph through 15 mph. The under-screen watch
+is 12 mph up to 15 mph and does not include 15.
 
 Exposed fields only (open roof, or a retractable roof confirmed open).
 Temperature is **at least 65°F**. Sustained wind is above 10 mph, in three
@@ -264,8 +297,10 @@ Telegram still fires from `pipeline/alerts.py` when a game qualifies and the
 published tier is at least `TELEGRAM_MIN_TIER` (default Low). Qualification
 is now `process.alert`, not "any legacy Low+". That means:
 
-- temp ≥ 65°F does not alert
-- sustained wind ≤ 10 mph does not alert unless agreed heavy rain does
+- the optional temperature gate, when on for that league, blocks a game at
+  or above its threshold; while it is off, temperature does not block
+- sustained wind under 15 mph does not alert; 12–15 mph is a watch only
+- agreed heavy rain can still alert without a wind flag
 - rain under 23 mm, or 23 mm without ECMWF agreement, does not alert on rain
 - a consensus under-probability move past the gate does not alert, and an
   open alert closes silently the same way a forecast that leaves the screen does
@@ -281,12 +316,24 @@ in that debate and does not add the flag. If that PR merges, these
 thresholds apply only when delivery is enabled. Until then, the current
 sender uses the new gate.
 
-## 2024–25 context
+## Context for the cuts
 
-A backtest on 2024–25 games, used only as context for these cuts:
+These are observed frequencies against the closing total. They are not a
+record, a rate of return, or a reason to bet a side.
 
-- Games flagged with sustained wind > 10 mph, temperature < 65°F, and a
-  price still within about 5% of the opener finished under the closing total
+A free 2018–25 NFL check on actual weather is why the flag is 15 mph and
+why temperature is not a hard gate:
+
+- Games with sustained wind above 10 mph finished under about 59% of the time.
+- Cutting those games on temperature added little to that rate.
+- Forecasts earlier in the week were noisy enough that the flag uses 15 mph
+  rather than 10.
+
+An earlier 2024–25 check, on the previous colder-and-windier cut, is context
+only and is not the current flag:
+
+- Games flagged with sustained wind above 10 mph, temperature under 65°F, and
+  a price still within about 5% of the opener finished under the closing total
   about 54.6% of the time.
 - Flags taken 3–72 hours before kickoff finished under more often than flags
   taken 120–240 hours out.
@@ -294,16 +341,17 @@ A backtest on 2024–25 games, used only as context for these cuts:
   same split on CFB did not.
 - Rain could not be tested on that sample.
 
-Those are observed frequencies against the closing total. They are not a
-record, a rate of return, or a reason to bet a side.
-
 ## Knobs
 
 | Name | Default | Where |
 |---|---|---|
-| `PROCESS_TEMP_MAX_F` | 65 | `config.py` |
-| `PROCESS_WIND_CONSIDER_MPH` | 10 | `config.py` |
-| `PROCESS_WIND_IDEAL_MPH` | 12 | `config.py` |
+| `PROCESS_TEMP_MAX_F` | 65 | threshold when the optional gate is on; strict `<` |
+| `PROCESS_TEMP_GATE` | off | env. See the temperature section |
+| `PROCESS_TEMP_GATE_NFL` | unset | env override for NFL; follows the global switch when unset |
+| `PROCESS_TEMP_GATE_CFB` | unset | env override for CFB; follows the global switch when unset |
+| `PROCESS_WIND_WATCH_MPH` | 12 | inclusive start of the display watch; not a flag |
+| `PROCESS_WIND_FLAG_MPH` | 15 | inclusive flag for both leagues |
+| `PROCESS_WARM_WIND_LOW_MPH` | 10 | warm-wind log only; exclusive. Not the under flag |
 | `PROCESS_RAIN_SIGNAL_MM` | 23 | `config.py` |
 | `PROCESS_RAIN_AGREE_TOL_MM` | 10 | `config.py` |
 | `PROCESS_UNDER_PROB_MOVE_MAX` | 0.04 | `config.py`, env override |

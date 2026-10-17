@@ -59,8 +59,8 @@ function markerRadius(g) {
 }
 function markerRing(g) {
   const wx = g.weather || {};
-  const temp = wx.signal_temp_f ?? wx.temp_fg, rain = wx.signal_rain_mm ?? wx.rain_fg;
-  if (isNum(rain) && Number(rain) >= 5 && isNum(temp) && Number(temp) < 65) return "#d0d7de";
+  const rain = wx.signal_rain_mm ?? wx.rain_fg;
+  if (isNum(rain) && Number(rain) >= 5) return "#d0d7de";
   const flags = gameFlags(g);
   if (flags.includes("Heat") || flags.includes("Alt+Heat")) return "#e5484d";
   return "rgba(255,255,255,.25)";

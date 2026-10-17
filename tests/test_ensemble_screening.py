@@ -60,10 +60,12 @@ def test_rain_tail_guard_covers_wet_model_when_primary_point_model_is_dry():
 
 def test_joint_conditions_same_model_and_hour():
     fc, loc = case()
-    loc.models["gfs"] = [replace(row, wind=25, temp=80) for row in loc.models["gfs"]]
+    # Below the 12 mph sampling buffer on both models. Cold on one model does not
+    # combine with a separate model's wind.
+    loc.models["gfs"] = [replace(row, wind=11, temp=80) for row in loc.models["gfs"]]
     loc.models["ifs"] = [replace(row, wind=1, temp=30) for row in loc.models["ifs"]]
     assert not decide(fc, loc).eligible
-    loc.models["gfs"][0] = replace(loc.models["gfs"][0], temp=60)
+    loc.models["gfs"] = [replace(row, wind=16, temp=80) for row in loc.models["gfs"]]
     assert "joint_wind_temperature" in decide(fc, loc).reasons
 
 
@@ -80,11 +82,11 @@ def test_climatology_weight_applied_to_raw_pair():
 
 
 def test_long_lead_does_not_widen_buffer_and_cfb_uses_canonical_wind_rule():
-    assert not decide(*case(wind=6.9, temp=60)).eligible
-    assert not decide(*case(lead=144, wind=6.9, temp=60)).eligible
-    assert not decide(*case(wind=10.9, temp=72), sport="cfb").eligible
-    assert decide(*case(wind=11, temp=64), sport="cfb").eligible
-    assert decide(*case(lead=144, wind=11, temp=64), sport="cfb").eligible
+    assert not decide(*case(wind=11.9, temp=40)).eligible
+    assert not decide(*case(lead=144, wind=11.9, temp=40)).eligible
+    assert not decide(*case(wind=11.9, temp=80), sport="cfb").eligible
+    assert decide(*case(wind=12, temp=80), sport="cfb").eligible
+    assert decide(*case(lead=144, wind=15, temp=80), sport="cfb").eligible
 
 
 def test_no_percentile_or_confidence_in_screen():
@@ -120,7 +122,7 @@ def test_stale_point_and_material_change():
     now = KO - timedelta(hours=24)
     assert decide(replace(fc, run_time=now - timedelta(minutes=31)), loc, now=now).priority == 2
     assert not decide(fc, loc, previous={"wind_fg": 20}).eligible
-    fc, loc = case(wind=10, temp=60)
+    fc, loc = case(wind=16, temp=60)
     assert "material_point_change" in decide(fc, loc, previous={"wind_fg": 5}).reasons
 
 
@@ -137,12 +139,14 @@ def test_cfb_boundary_or_unknown_opener_retains_near_signal_coverage(spread):
 
 
 def test_nws_purdue_tail_is_sent_to_detail_without_broadening_final_member_buffer():
-    fc, loc = case(wind=10, temp=69)
+    # Refinement buffer is 4 mph under the 15 mph flag (threshold 11). The final
+    # buffer is 3 mph (threshold 12). 11.5 mph is detail-only.
+    fc, loc = case(wind=11.5, temp=80)
     assert decide(fc, loc, sport="cfb", for_refinement=True).eligible
     assert not decide(fc, loc, sport="cfb").eligible
-    assert decide(*case(wind=11, temp=64), sport="cfb").eligible
+    assert decide(*case(wind=12, temp=80), sport="cfb").eligible
 
 
-def test_cfb_combined_wind_flag_uses_its_joint_temperature_boundary():
-    assert "joint_cfb_wind_flag" in decide(*case(wind=11, temp=64), sport="cfb").reasons
-    assert not decide(*case(wind=14, temp=69), sport="cfb").eligible
+def test_cfb_combined_wind_flag_uses_the_flag_not_a_temperature_cut():
+    assert "joint_cfb_wind_flag" in decide(*case(wind=15, temp=80), sport="cfb").reasons
+    assert not decide(*case(wind=11, temp=40), sport="cfb").eligible

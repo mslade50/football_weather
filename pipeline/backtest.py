@@ -571,7 +571,7 @@ def warm_wind_report(rows: Sequence[GameRow]) -> dict[str, Any]:
         "note": WARM_WIND_NOTE,
         "rules": {
             "temp_min_f": C.PROCESS_TEMP_MAX_F,
-            "wind_gt_mph": C.PROCESS_WIND_CONSIDER_MPH,
+            "wind_gt_mph": C.PROCESS_WARM_WIND_LOW_MPH,
             "buckets": {"10_12": "(10, 12]", "12_15": "(12, 15]", "gt_15": ">15"},
             "exposed_only": True,
             "early": "pre-kickoff snapshot closest to 72 h among leads of at least 48 h; else the earliest",

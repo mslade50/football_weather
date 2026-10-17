@@ -5,7 +5,10 @@ consumes are not inputs to this module's gates. Beyond 48 h the signal-driving
 forecast prefers ECMWF; the stitched ``wind_fg`` / ``temp_fg`` / ``rain_fg``
 stay the v1 inputs.
 
-Same weather rules for NFL and CFB. CFB keeps the opening-spread ±10 gate.
+Same weather rules for NFL and CFB. The flag is sustained wind >= 15 mph.
+12 mph up to 15 mph is a display watch, not a flag. Temperature is shown and
+does not block unless the optional gate is on. CFB keeps the opening-spread
+±10 gate.
 """
 
 from __future__ import annotations
@@ -67,6 +70,47 @@ def under_prob_move_max() -> float:
     return value
 
 
+def _parse_gate_token(raw: str) -> Optional[tuple[bool, float]]:
+    """``None`` when the variable is unset or not a gate token."""
+    text = raw.strip()
+    if not text:
+        return None
+    low = text.lower()
+    if low in ("0", "false", "no", "off"):
+        return False, C.PROCESS_TEMP_MAX_F
+    if low in ("1", "true", "yes", "on"):
+        return True, C.PROCESS_TEMP_MAX_F
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    if not math.isfinite(value):
+        return None
+    return True, value
+
+
+def temp_gate(sport: str) -> tuple[bool, float]:
+    """``(enabled, max_f)`` for the optional temperature gate.
+
+    Default is off for both leagues, so temperature is informational. The
+    threshold, when the gate is on, is strict ``<``. ``PROCESS_TEMP_GATE``
+    is the global switch: ``1`` / ``true`` / ``on`` uses ``PROCESS_TEMP_MAX_F``;
+    a number uses that number; ``0`` / ``false`` / ``off`` leaves the gate off.
+    ``PROCESS_TEMP_GATE_NFL`` and ``PROCESS_TEMP_GATE_CFB`` override the global
+    switch for that sport when they are set. An unset league variable follows
+    the global switch.
+    """
+    league = str(sport or "").strip().lower()
+    parsed = None
+    if league in ("nfl", "cfb"):
+        parsed = _parse_gate_token(os.environ.get(f"PROCESS_TEMP_GATE_{league.upper()}", ""))
+    if parsed is None:
+        parsed = _parse_gate_token(os.environ.get("PROCESS_TEMP_GATE", ""))
+    if parsed is None:
+        return bool(C.PROCESS_TEMP_GATE), C.PROCESS_TEMP_MAX_F
+    return parsed
+
+
 def ecmwf_first_enabled() -> bool:
     """Signal forecast beyond ``PROCESS_ECMWF_LEAD_H`` prefers ECMWF. ``0`` turns it off."""
     raw = os.environ.get("PROCESS_ECMWF_FIRST", "1").strip().lower()
@@ -113,13 +157,18 @@ def rain_tier(rain_mm: Optional[float]) -> str:
 
 
 def wind_band(wind_mph: Optional[float]) -> str:
-    """``none`` / ``consider`` / ``ideal``. Gusts are not an input."""
+    """``none`` / ``watch`` / ``flag``. Gusts are not an input.
+
+    ``watch`` is sustained wind from 12 mph up to, but not including, 15 mph.
+    It is a display tier, not a flag and not an alert. ``flag`` is sustained
+    wind of at least 15 mph.
+    """
     wind = _f(wind_mph)
-    if wind is None or wind <= C.PROCESS_WIND_CONSIDER_MPH:
+    if wind is None or wind < C.PROCESS_WIND_WATCH_MPH:
         return "none"
-    if wind <= C.PROCESS_WIND_IDEAL_MPH:
-        return "consider"
-    return "ideal"
+    if wind < C.PROCESS_WIND_FLAG_MPH:
+        return "watch"
+    return "flag"
 
 
 def _window(windows: dict[str, Any], model: str) -> dict[str, Any]:
@@ -406,9 +455,9 @@ def warm_wind_bucket(temp_f: Any, wind_mph: Any) -> Optional[str]:
         return None
     if wind > C.PROCESS_WARM_WIND_HIGH_MPH:
         return "gt_15"
-    if wind > C.PROCESS_WIND_IDEAL_MPH:
+    if wind > C.PROCESS_WARM_WIND_MID_MPH:
         return "12_15"
-    if wind > C.PROCESS_WIND_CONSIDER_MPH:
+    if wind > C.PROCESS_WARM_WIND_LOW_MPH:
         return "10_12"
     return None
 
@@ -482,12 +531,15 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
     windows = _models_dict(weather.get("models") or weather.get("model_windows"))
     driving = card_driving_forecast(card)
     temp, wind, rain = driving["temp_f"], driving["wind_mph"], driving["rain_mm"]
-    temp_ok = temp is not None and temp < C.PROCESS_TEMP_MAX_F
-    band = wind_band(wind) if temp_ok else "none"
-    tier = rain_tier(rain) if temp_ok else "ignore"
+    sport = str(card.get("sport") or "")
+    gate_on, gate_max = temp_gate(sport)
+    # Off: temperature is shown and does not block. On: temp must be known and under the max.
+    temp_passes = (not gate_on) or (temp is not None and temp < gate_max)
+    band = wind_band(wind) if temp_passes else "none"
+    tier = rain_tier(rain) if temp_passes else "ignore"
     agreement = rain_agreement(windows)
-    rain_signal = bool(temp_ok and tier == "signal_amount" and agreement["agree"])
-    if temp_ok and tier == "signal_amount" and not agreement["agree"]:
+    rain_signal = bool(temp_passes and tier == "signal_amount" and agreement["agree"])
+    if temp_passes and tier == "signal_amount" and not agreement["agree"]:
         tier = "unverified" if agreement["status"] in ("unverified", "missing_ecmwf") else "disagree"
     apart = ecmwf_disagreement(windows)
     orient = stadium.get("orient_deg")
@@ -503,11 +555,11 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
     price = under_prob_move(books)
     spread_open = (card.get("consensus") or {}).get("spread_open")
     spread_ok = _spread_ok(str(card.get("sport") or ""), spread_open)
-    wind_ok = band in ("consider", "ideal")
-    weather_hit = bool(exposed and spread_ok and temp_ok and (wind_ok or rain_signal))
+    wind_flag = band == "flag"
+    weather_hit = bool(exposed and spread_ok and temp_passes and (wind_flag or rain_signal))
     watch = bool(
-        exposed and spread_ok and temp_ok and not weather_hit
-        and tier in ("watch", "elevated", "unverified", "disagree")
+        exposed and spread_ok and temp_passes and not weather_hit
+        and (band == "watch" or tier in ("watch", "elevated", "unverified", "disagree"))
     )
     return {
         "version": C.PROCESS_VERSION,
@@ -517,7 +569,9 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "wind_mph": wind,
         "rain_mm": rain,
         "wind_dir_deg": driving["wind_dir_deg"],
-        "temp_ok": bool(temp_ok and exposed),
+        "temp_gate": bool(gate_on),
+        "temp_gate_max_f": gate_max,
+        "temp_ok": bool(temp_passes and exposed),
         "wind_band": band if exposed and spread_ok else "none",
         "rain_tier": tier if exposed and spread_ok else "ignore",
         "rain_agreement": agreement["status"] if rain_signal or tier in ("unverified", "disagree") else agreement["status"],
@@ -575,6 +629,7 @@ __all__ = [
     "rain_agreement",
     "rain_tier",
     "select_signal_forecast",
+    "temp_gate",
     "warm_wind_bucket",
     "warm_wind_track",
     "forecast_observation",

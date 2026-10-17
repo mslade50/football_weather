@@ -27,10 +27,10 @@ def test_v1_rain_tiers_stay_frozen() -> None:
 
 
 def test_wind_temp_and_rain_bands() -> None:
-    assert P.wind_band(10) == "none"
-    assert P.wind_band(10.01) == "consider"
-    assert P.wind_band(12) == "consider"
-    assert P.wind_band(12.01) == "ideal"
+    assert P.wind_band(11.99) == "none"
+    assert P.wind_band(12) == "watch"
+    assert P.wind_band(14.99) == "watch"
+    assert P.wind_band(15) == "flag"
     assert P.rain_tier(4.99) == "ignore"
     assert P.rain_tier(5) == "watch"
     assert P.rain_tier(14.99) == "watch"
@@ -127,8 +127,9 @@ def test_warm_wind_buckets_are_separate_from_the_under_screen() -> None:
     assert P.warm_wind_bucket(80, 12.01) == "12_15"
     assert P.warm_wind_bucket(80, 15) == "12_15"
     assert P.warm_wind_bucket(80, 15.01) == "gt_15"
-    cold = P.evaluate_card(_card(wind_fg=18, temp_fg=65))
-    assert cold["alert"] is False
+    warm_flag = P.evaluate_card(_card(wind_fg=18, temp_fg=65))
+    assert warm_flag["alert"] is True and warm_flag["wind_band"] == "flag"
+    assert warm_flag["temp_gate"] is False
     track = P.warm_wind_track(_card(wind_fg=14, temp_fg=72))
     assert track["tracked"] is True and track["bucket"] == "12_15" and track["alert"] is False
     wide = _card(wind_fg=11, temp_fg=78)
@@ -142,13 +143,12 @@ def test_warm_wind_buckets_are_separate_from_the_under_screen() -> None:
 
 
 def test_evaluate_card_shared_gates_for_both_sports() -> None:
-    cold_wind = P.evaluate_card(_card(wind_fg=11, temp_fg=64.9))
-    assert cold_wind["alert"] is True and cold_wind["wind_band"] == "consider"
-    assert cold_wind["crosswind_factor"] == pytest.approx(1.0)
-    assert P.evaluate_card(_card(wind_fg=10, temp_fg=50))["alert"] is False
-    assert P.evaluate_card(_card(wind_fg=18, temp_fg=65))["alert"] is False
-    ideal = P.evaluate_card(_card(wind_fg=12.5, temp_fg=40))
-    assert ideal["wind_band"] == "ideal" and ideal["alert"] is True
+    flagged = P.evaluate_card(_card(wind_fg=15, temp_fg=80))
+    assert flagged["alert"] is True and flagged["wind_band"] == "flag"
+    assert flagged["crosswind_factor"] == pytest.approx(1.0)
+    assert P.evaluate_card(_card(wind_fg=14.99, temp_fg=40))["alert"] is False
+    breeze = P.evaluate_card(_card(wind_fg=12.5, temp_fg=40))
+    assert breeze["wind_band"] == "watch" and breeze["alert"] is False and breeze["watch"] is True
     watch = P.evaluate_card(_card(wind_fg=3, temp_fg=40, rain_fg=8))
     assert watch["alert"] is False and watch["watch"] is True and watch["rain_tier"] == "watch"
     cfb = _card(wind_fg=16, temp_fg=50)
@@ -224,16 +224,41 @@ def test_published_tier_follows_ecmwf_while_v1_stays_on_the_stitch() -> None:
     assert sig.level == HIGH and "NFL Wind" in flags
 
 
+def test_optional_temp_gate_is_off_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PROCESS_TEMP_GATE", raising=False)
+    monkeypatch.delenv("PROCESS_TEMP_GATE_NFL", raising=False)
+    monkeypatch.delenv("PROCESS_TEMP_GATE_CFB", raising=False)
+    assert P.temp_gate("nfl") == (False, 65.0)
+    assert P.evaluate_card(_card(wind_fg=16, temp_fg=80))["alert"] is True
+    monkeypatch.setenv("PROCESS_TEMP_GATE", "1")
+    blocked = P.evaluate_card(_card(wind_fg=16, temp_fg=65))
+    assert blocked["alert"] is False and blocked["temp_gate"] is True
+    assert P.evaluate_card(_card(wind_fg=16, temp_fg=64.9))["alert"] is True
+    monkeypatch.setenv("PROCESS_TEMP_GATE_NFL", "0")
+    monkeypatch.setenv("PROCESS_TEMP_GATE_CFB", "70")
+    assert P.evaluate_card(_card(wind_fg=16, temp_fg=80))["alert"] is True
+    cfb = _card(wind_fg=16, temp_fg=72)
+    cfb["sport"] = "cfb"
+    cfb["consensus"] = {"spread_open": 3}
+    assert P.evaluate_card(cfb)["alert"] is False
+    cfb["weather"]["temp_fg"] = 69
+    assert P.evaluate_card(cfb)["alert"] is True
+
+
 def test_dashboard_constants_match_the_python_screen() -> None:
     src = (WEB / "discovery.js").read_text(encoding="utf8")
+    assert "const PROCESS_TEMP_GATE = false;" in src
     for name, value in (
         ("PROCESS_TEMP_MAX_F", C.PROCESS_TEMP_MAX_F),
-        ("PROCESS_WIND_CONSIDER_MPH", C.PROCESS_WIND_CONSIDER_MPH),
-        ("PROCESS_WIND_IDEAL_MPH", C.PROCESS_WIND_IDEAL_MPH),
+        ("PROCESS_WIND_WATCH_MPH", C.PROCESS_WIND_WATCH_MPH),
+        ("PROCESS_WIND_FLAG_MPH", C.PROCESS_WIND_FLAG_MPH),
         ("PROCESS_RAIN_IGNORE_MM", C.PROCESS_RAIN_IGNORE_MM),
         ("PROCESS_RAIN_WATCH_MM", C.PROCESS_RAIN_WATCH_MM),
         ("PROCESS_RAIN_SIGNAL_MM", C.PROCESS_RAIN_SIGNAL_MM),
         ("PROCESS_RAIN_AGREE_TOL_MM", C.PROCESS_RAIN_AGREE_TOL_MM),
         ("PROCESS_UNDER_PROB_MOVE_MAX", C.PROCESS_UNDER_PROB_MOVE_MAX),
+        ("WARM_WIND_LOW_MPH", C.PROCESS_WARM_WIND_LOW_MPH),
+        ("WARM_WIND_MID_MPH", C.PROCESS_WARM_WIND_MID_MPH),
+        ("WARM_WIND_HIGH_MPH", C.PROCESS_WARM_WIND_HIGH_MPH),
     ):
         assert f"const {name} = {int(value) if value >= 1 else value};" in src

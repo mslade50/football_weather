@@ -42,33 +42,35 @@ def test_nfl_low_rain_requires_heavy_amount() -> None:
 
 
 @pytest.mark.parametrize("temp", [65.0, 70.0, 75.0, None, float("nan")])
-def test_warm_or_missing_temperature_rain_has_no_low_signal(temp) -> None:
-    assert nfl_signal(3.0, temp, 23.0).level == NO
-    assert _cfb(wind=3.0, temp=temp, rain=23.0).level == NO
+def test_heavy_rain_amount_does_not_require_a_cold_temperature(temp) -> None:
+    # The optional temperature gate is off, so the amount can label Low at any temp.
+    # Model agreement is the process screen's extra rain requirement, not this label.
+    assert nfl_signal(3.0, temp, 23.0).level == LOW
+    assert _cfb(wind=3.0, temp=temp, rain=23.0).level == LOW
 
 
 def test_rain_preserves_other_qualifying_signals() -> None:
     assert nfl_signal(16.0, 49.9, 3.0).level == MID
     assert nfl_signal(16.0, 55.0, 3.0).level == MID
     assert nfl_signal(16.0, 40.0, 3.0).level == HIGH
-    assert nfl_signal(11.0, 55.0, 3.0).drivers == ("wind",)
-    assert nfl_signal(9.0, 55.0, 3.0).level == NO
+    assert nfl_signal(15.0, 55.0, 3.0).drivers == ("wind",)
+    assert nfl_signal(14.9, 55.0, 3.0).level == NO
     assert _cfb(wind=23.0, temp=60.0, rain=3.0).level == HIGH
     assert _cfb(wind=3.0, temp=76.0, rain=3.0, alt=900.0).level == MID
     assert _cfb(wind=15.0, temp=60.0, rain=3.0).label == "Low (Wind)"
 
 
 def test_nfl_low_wind_band() -> None:
-    assert nfl_signal(10.1, 55.0, 0.0).level == LOW
-    assert nfl_signal(10.0, 55.0, 0.0).level == NO
-    assert nfl_signal(12.0, 64.9, 0.0).level == LOW
-    assert nfl_signal(11.0, 65.0, 0.0).level == NO
+    assert nfl_signal(15.0, 55.0, 0.0).level == LOW
+    assert nfl_signal(14.99, 55.0, 0.0).level == NO
+    assert nfl_signal(12.0, 40.0, 0.0).level == NO
+    assert nfl_signal(16.0, 75.0, 0.0).level == LOW
 
 
 def test_nfl_mid() -> None:
     s = nfl_signal(wind_fg=16.0, temp_fg=50.0, rain_fg=0.0)
     assert (s.level, s.color, s.size) == (MID, "orange", 25)
-    assert nfl_signal(15.0, 50.0, 0.0).level == LOW  # >10 consider; Mid still requires >15
+    assert nfl_signal(15.0, 50.0, 0.0).level == LOW  # 15 mph is a flag; Mid still requires wind above 15
 
 
 def test_nfl_none_inputs() -> None:
@@ -110,15 +112,15 @@ def test_cfb_dow_shifts_boundary() -> None:
     # Weekday remains accepted for compatibility but no longer changes the wind rule.
     assert _cfb(wind=18.0, temp=45.0, weekday=SAT).level == LOW
     assert _cfb(wind=18.0, temp=45.0, weekday=SUN).level == LOW
-    assert _cfb(wind=10.0, temp=45.0, weekday=SUN).level == NO
-    assert _cfb(wind=10.0, temp=45.0, weekday=MON).level == NO
-    assert _cfb(wind=10.1, temp=45.0, weekday=MON).level == LOW
+    assert _cfb(wind=14.99, temp=45.0, weekday=SUN).level == NO
+    assert _cfb(wind=14.99, temp=45.0, weekday=MON).level == NO
+    assert _cfb(wind=15.0, temp=45.0, weekday=MON).level == LOW
 
 
 @pytest.mark.parametrize("wind,temp,spread,qualifies", [
-    (10.0, 64.9, 10.0, False), (10.01, 64.9, 10.0, True),
-    (20.0, 64.9, -10.0, True), (20.0, 64.999, 0.0, True),
-    (20.0, 65.0, 0.0, False), (20.0, 66.0, 10.0, False),
+    (14.99, 64.9, 10.0, False), (15.0, 64.9, 10.0, True),
+    (20.0, 64.9, -10.0, True), (20.0, 80.0, 0.0, True),
+    (20.0, 65.0, 0.0, True), (20.0, 66.0, 10.0, True),
     (20.0, 60.0, 10.01, False), (20.0, 60.0, -10.01, False), (20.0, 60.0, None, False),
 ])
 def test_cfb_wind_eligibility_exact_filter_boundaries(wind, temp, spread, qualifies):
@@ -178,7 +180,8 @@ def test_cfb_missing_spread_never_matches() -> None:
 def test_combined_flags_cfb() -> None:
     flags = combined_flags("cfb", wind_fg=15.0, temp_fg=64.0, open_spread=-10.0, travel_alt=900.0, home_temp=50.0, away_temp=50.0)
     assert flags == ["CFB Wind"]
-    assert combined_flags("cfb", 15.0, 69.0, -10.0, 900.0, 50.0, 50.0) == []
+    assert combined_flags("cfb", 15.0, 69.0, -10.0, 900.0, 50.0, 50.0) == ["CFB Wind"]
+    assert combined_flags("cfb", 14.99, 50.0, -10.0, 0.0, 60.0, 60.0) == []
     flags = combined_flags("cfb", wind_fg=1.0, temp_fg=81.0, open_spread=10.0, travel_alt=900.0, home_temp=50.0, away_temp=50.0)
     assert flags == ["Heat", "Alt+Heat"]
     assert combined_flags("cfb", 1.0, 76.0, 10.1, 900.0, 60.0, 60.0) == []
@@ -187,9 +190,9 @@ def test_combined_flags_cfb() -> None:
 
 
 def test_combined_flags_nfl() -> None:
-    assert combined_flags("nfl", 10.1, 64.9, -3.0, 0.0, 60.0, 60.0) == ["NFL Wind"]
-    assert combined_flags("nfl", 10.0, 59.0, -3.0, 0.0, 60.0, 60.0) == []
-    assert combined_flags("nfl", 15.0, 65.0, -3.0, 0.0, 60.0, 60.0) == []
+    assert combined_flags("nfl", 15.0, 64.9, -3.0, 0.0, 60.0, 60.0) == ["NFL Wind"]
+    assert combined_flags("nfl", 14.99, 40.0, -3.0, 0.0, 60.0, 60.0) == []
+    assert combined_flags("nfl", 15.0, 75.0, -3.0, 0.0, 60.0, 60.0) == ["NFL Wind"]
     assert combined_flags("nfl", 1.0, 81.0, -3.0, 2000.0, 56.0, 56.0) == ["Heat"]  # no Alt+Heat for NFL
 
 

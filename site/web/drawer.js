@@ -101,6 +101,12 @@ function warmWindDrawerText(g) {
   if (!track.tracked) return "Not in this list";
   return `Watch: warm + wind · ${esc(track.label || "")}. Exploratory, not an under signal and not an alert. The 2024-25 CFB note was unstable, and the above-15 mph count was about 16-18 games.`;
 }
+function tempGateText(g) {
+  const proc = g.process || {};
+  const max = isNum(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : 65;
+  if (proc.temp_gate === true) return `Optional gate on: temperature must be under ${max}°F`;
+  return "Shown only. Optional temperature gate is off.";
+}
 function underMoveText(g) {
   const proc = g.process || {};
   if (!isNum(proc.under_prob_move)) {
@@ -121,6 +127,7 @@ function weatherTable(g) {
     ["Watch: warm + wind", warmWindDrawerText(g)],
     ["Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${isNum(wx.gust_fg) ? ` · gust ${fmtNum(wx.gust_fg, 0)}` : ""}`],
     ["Temp", `${fmtNum(wx.temp_fg, 0)} °F`],
+    ["Temperature gate", tempGateText(g)],
     ["Rain", `${fmtNum(wx.rain_fg, 1)} mm${isNum(wx.precip_prob) ? ` · ${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%` : ""}`],
     ["Impact", isDome(g) ? "dome / closed (0)" : `${pct(v1.gs_fg_pct)} · away ${pct(v1.away_fg_pct)}`],
     ...(v2 ? [["Impact v2", `${pct(v2.gs_fg_pct)} · away ${pct(v2.away_fg_pct)}${isNum(v2.conf) ? ` · conf ${Number(v2.conf).toFixed(2)}` : ""}`]] : []),
