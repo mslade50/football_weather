@@ -9,6 +9,9 @@ const PROCESS_RAIN_WATCH_MM = 15;
 const PROCESS_RAIN_SIGNAL_MM = 23;
 const PROCESS_RAIN_AGREE_TOL_MM = 10;
 const PROCESS_UNDER_PROB_MOVE_MAX = 0.04;
+const WARM_WIND_TEMP_MIN_F = 65;
+const WARM_WIND_HIGH_MPH = 15;
+const WARM_WIND_NOTE = "Watch: warm + wind. Exploratory list for exposed games at 65°F or warmer with sustained wind above 10 mph. Not an under signal and not an alert. 2024-25 CFB, final forecast: these games finished over the close about 61% of the time (n=124). Early forecasts were about 51-54% and unstable by year. Winds above 15 mph finished over about 38% of the time (n about 16-18). The split to keep watching is light-to-medium wind, above 10 mph through 15 mph. Counts under 30 are thin.";
 const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
 const EXCHANGE_BOOKS = new Set(["kalshi", "novig", "prophetx", "polymarket_us", "4cx"]);
 const VERIFIED_OFFERS = new Map();
@@ -61,6 +64,50 @@ function rainAgreement(models, ecmwfMm) {
   if (!best) return "unverified";
   return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.rain >= PROCESS_RAIN_SIGNAL_MM
     && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
+}
+function warmWindLabel(bucket) {
+  return bucket === "10_12" ? "10–12 mph" : bucket === "12_15" ? "12–15 mph" : bucket === "gt_15" ? ">15 mph" : "";
+}
+function fieldExposed(g) {
+  const st = g.stadium || {};
+  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
+  const type = String(st.roof_type || "").toLowerCase();
+  if (type === "dome" || roof === "dome" || roof === "closed" || roof === "indoor") return false;
+  if (type === "retractable" && roof !== "open") return false;
+  return true;
+}
+function warmWindBucket(temp, wind) {
+  if (!finiteValue(temp) || !finiteValue(wind) || Number(temp) < WARM_WIND_TEMP_MIN_F) return null;
+  if (Number(wind) > WARM_WIND_HIGH_MPH) return "gt_15";
+  if (Number(wind) > PROCESS_WIND_IDEAL_MPH) return "12_15";
+  if (Number(wind) > PROCESS_WIND_CONSIDER_MPH) return "10_12";
+  return null;
+}
+function warmWindTrack(g) {
+  const saved = g.warm_wind;
+  if (saved && typeof saved.tracked === "boolean") {
+    return {tracked: saved.tracked === true, bucket: saved.bucket || null,
+      label: saved.label || warmWindLabel(saved.bucket), temp: saved.temp_f, wind: saved.wind_mph};
+  }
+  if (!fieldExposed(g)) return {tracked: false, bucket: null, label: "", temp: null, wind: null};
+  const drive = drivingForecast(g);
+  const bucket = warmWindBucket(drive.temp, drive.wind);
+  return {tracked: bucket != null, bucket, label: warmWindLabel(bucket), temp: drive.temp, wind: drive.wind};
+}
+function warmWindHtml(g) {
+  const track = warmWindTrack(g);
+  if (!track.tracked) return `<span class="discovery quiet">Not in Watch: warm + wind</span>`;
+  return `<span class="discovery warm-wind">Watch: warm + wind · ${esc(track.label)}</span>`
+    + `<span class="sub">Exploratory · not an alert · sample above 15 mph is thin</span>`;
+}
+function filterWarmWind(rows, state) {
+  return rows.filter(g => {
+    if (!upcomingGame(g) || !warmWindTrack(g).tracked) return false;
+    if (state.week != null && String(g.week) !== String(state.week)) return false;
+    const haystack = [gameLabel(g), g.home?.name, g.away?.name, g.stadium?.name].filter(Boolean).join(" ").toLowerCase().replace(/\s+/g, " ");
+    const query = (state.q || "").trim().toLowerCase().replace(/\s+/g, " ");
+    return !query || haystack.includes(query);
+  });
 }
 function discoveryState(g) {
   if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};

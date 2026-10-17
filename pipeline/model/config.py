@@ -109,6 +109,10 @@ PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
 PROCESS_VERSION = "process-v1"
+# Exploratory warm-wind log. Not an under gate and not an alert.
+# Buckets are (10, 12], (12, 15], and >15 mph at temp >= PROCESS_TEMP_MAX_F.
+PROCESS_WARM_WIND_HIGH_MPH = 15.0
+WARM_WIND_VERSION = "warm-wind-v1"
 
 # ---- signals (§7.4) ----------------------------------------------------------
 # Retained name: the old Low-rain path required temp < 50°F and rain > 2 mm.

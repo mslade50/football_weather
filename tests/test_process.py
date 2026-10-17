@@ -119,6 +119,28 @@ def _card(**weather: float) -> dict:
     }
 
 
+def test_warm_wind_buckets_are_separate_from_the_under_screen() -> None:
+    assert P.warm_wind_bucket(64.9, 18) is None
+    assert P.warm_wind_bucket(65, 10) is None
+    assert P.warm_wind_bucket(65, 10.01) == "10_12"
+    assert P.warm_wind_bucket(80, 12) == "10_12"
+    assert P.warm_wind_bucket(80, 12.01) == "12_15"
+    assert P.warm_wind_bucket(80, 15) == "12_15"
+    assert P.warm_wind_bucket(80, 15.01) == "gt_15"
+    cold = P.evaluate_card(_card(wind_fg=18, temp_fg=65))
+    assert cold["alert"] is False
+    track = P.warm_wind_track(_card(wind_fg=14, temp_fg=72))
+    assert track["tracked"] is True and track["bucket"] == "12_15" and track["alert"] is False
+    wide = _card(wind_fg=11, temp_fg=78)
+    wide["sport"] = "cfb"
+    wide["consensus"] = {"spread_open": 21}
+    assert P.evaluate_card(wide)["alert"] is False
+    assert P.warm_wind_track(wide)["tracked"] is True
+    dome = _card(wind_fg=20, temp_fg=80)
+    dome["stadium"] = {"roof_type": "dome", "roof_state": "dome"}
+    assert P.warm_wind_track(dome)["tracked"] is False
+
+
 def test_evaluate_card_shared_gates_for_both_sports() -> None:
     cold_wind = P.evaluate_card(_card(wind_fg=11, temp_fg=64.9))
     assert cold_wind["alert"] is True and cold_wind["wind_band"] == "consider"

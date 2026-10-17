@@ -366,7 +366,7 @@ function renderTable(rows, opts = {}) {
     const v1 = (g.impact && g.impact.v1) || {};
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${gameStateBadge(g)}${tableKickoffHtml(g)}</td>`,
-      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
+      `<td class="left">${STATE.warmWind ? warmWindHtml(g) : discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       tableStadiumHtml(g),
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,

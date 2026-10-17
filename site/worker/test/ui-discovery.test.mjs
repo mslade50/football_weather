@@ -54,6 +54,31 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   run(ctx, 'STATE.focus = "candidates"; STATE.book = "kalshi"; STATE.minEdge = 999;');
   assert.equal(run(ctx, 'currentGames().length'), 1);
 });
+test('Warm wind is a separate list and not an under signal', () => {
+  const ctx = ui();
+  ctx.game.weather.temp_fg = 72;
+  ctx.game.weather.wind_fg = 14;
+  ctx.game.weather.rain_fg = 0;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'quiet');
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), '12_15');
+  assert.match(run(ctx, 'warmWindHtml(game)'), /Watch: warm \+ wind/);
+  assert.match(run(ctx, 'warmWindHtml(game)'), /not an alert/);
+  assert.match(run(ctx, 'WARM_WIND_NOTE'), /n=124/);
+  assert.match(run(ctx, 'WARM_WIND_NOTE'), /16-18/);
+  run(ctx, 'STATE.sport = "cfb"; STATE.warmWind = false; DATA.games.cfb = [game];');
+  assert.equal(run(ctx, 'currentGames().length'), 0);
+  assert.equal(run(ctx, 'filterWarmWind(DATA.games.cfb, STATE).map(g => g.game_id).join(",")'), 'game');
+  ctx.game.stadium.roof_state = 'closed';
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
+  ctx.game.stadium.roof_state = 'open';
+  ctx.game.weather.wind_fg = 10;
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
+  ctx.game.weather.wind_fg = 16;
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), 'gt_15');
+  ctx.game.warm_wind = {tracked: false, bucket: null};
+  ctx.game.weather.wind_fg = 20;
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
+});
 test('Impact confidence and rain probability are never treated as signal likelihood', () => {
   const ctx = ui(); ctx.game.weather.precip_prob = .01; ctx.game.impact = {v2: {conf: .01}};
   assert.equal(run(ctx, 'discoveryState(game).probability'), null);

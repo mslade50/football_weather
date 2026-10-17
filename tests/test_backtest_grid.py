@@ -282,6 +282,37 @@ def _snaps():
     ]
 
 
+def test_warm_wind_log_keeps_early_final_totals_and_result():
+    def card(lead, wind, temp, total):
+        body = _card(lead, wind, total)
+        body["weather"]["temp_fg"] = temp
+        return body
+
+    snaps = [
+        (KICK - timedelta(hours=100), card(100, 11.0, 70.0, 51.0)),
+        (KICK - timedelta(hours=70), card(70, 18.0, 72.0, 50.0)),
+        (KICK - timedelta(hours=5), card(5, 13.0, 74.0, 47.0)),
+    ]
+    row = bt.finalize_row(bt.row_from_snapshots("cfb:2026:5:a@b", snaps))
+    row.home_score, row.away_score = 30, 24
+    bt.finalize_row(row)
+    assert row.warm_wind_early_lead_h == 70
+    assert row.warm_wind_early_bucket == "gt_15" and row.warm_wind_early_wind == 18
+    assert row.warm_wind_final_bucket == "12_15" and row.warm_wind_final_temp == 74
+    report = bt.warm_wind_report([row])
+    logged = report["games"][0]
+    assert logged["total_open"] == 50 and logged["total_close"] == 47 and logged["actual_total"] == 54
+    assert logged["result_vs_close"] == "over"
+    final = next(item for item in report["by_bucket"] if item["when"] == "final" and item["bucket"] == "12_15")
+    assert final["n"] == 1 and final["over"] == 1 and final["small_sample"] is True
+    assert "not an alert" in report["note"] and "n=124" in report["note"]
+    covered = _card(5, 20, 47)
+    covered["weather"]["temp_fg"] = 80
+    covered["stadium"]["roof_state"] = "closed"
+    closed = bt.row_from_snapshots("cfb:2026:5:a@b", [(KICK - timedelta(hours=5), covered)])
+    assert closed.warm_wind_final_bucket is None
+
+
 def test_row_from_snapshots_close_and_leads():
     r = bt.row_from_snapshots("cfb:2026:5:a@b", _snaps())
     assert (r.wind_fc, r.total_close, r.lead_fc) == (16.0, 48.0, 1.0)
@@ -467,7 +498,7 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games", "warm_wind"}
     assert payload["postmortem"]["latest"]["summary"]["bets"] == 0
     # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
     assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}

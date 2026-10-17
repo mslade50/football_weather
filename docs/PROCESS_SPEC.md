@@ -218,7 +218,47 @@ signals.
 `site/web/signals.js` wind flags match the new floor (temp < 65, wind > 10).
 High / Very High labels above 21.5 mph are severity only.
 
-### 8. Alerts
+### 8. Watch: warm + wind
+
+This is a separate list. It is not an under signal and it does not send a
+Telegram alert. `process.alert` stays false for these games.
+
+Exposed fields only (open roof, or a retractable roof confirmed open).
+Temperature is **at least 65°F**. Sustained wind is above 10 mph, in three
+buckets:
+
+| Bucket | Sustained wind |
+|---|---|
+| `10_12` | above 10 mph through 12 mph |
+| `12_15` | above 12 mph through 15 mph |
+| `gt_15` | above 15 mph |
+
+Exactly 10 mph is out. Gusts are not used. The CFB opening-spread gate does
+not apply. The live tag uses the same signal-driving forecast as the under
+screen and is stored on the card as `warm_wind` (`pipeline/model/process.py`
+`warm_wind_track`, written in `json_out.build_card`). The dashboard checkbox
+"Watch: warm + wind" shows only this list.
+
+The settled log is `warm_wind` on `board/backtest.json`, built from
+snapshots in `pipeline/backtest.py` `warm_wind_report`. For each game that
+is in a bucket on either end it keeps:
+
+- early forecast: the pre-kickoff snapshot closest to 72 hours, among leads
+  of at least 48 hours; if there is none, the earliest pre-kickoff snapshot
+- final forecast: the last snapshot before kickoff
+- consensus open total, closing total, actual total, and the result versus
+  the close (`over`, `under`, or `push`)
+
+Bucket counts with n under 30 are marked thin. There is no return column.
+
+2024–25 context, CFB, final forecast only: warm games with sustained wind
+above 10 mph finished over the close about 61% of the time (n=124). Early
+forecasts were about 51–54% and unstable by year. Winds above 15 mph
+finished over about 38% of the time (n about 16–18). The split to keep
+watching is light-to-medium wind. Those are observed frequencies, not a
+reason to take a side.
+
+### 9. Alerts
 
 Telegram still fires from `pipeline/alerts.py` when a game qualifies and the
 published tier is at least `TELEGRAM_MIN_TIER` (default Low). Qualification

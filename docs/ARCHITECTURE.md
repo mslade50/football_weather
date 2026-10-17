@@ -283,6 +283,8 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
           rain_agreement, cross_mph, head_mph, crosswind_factor, ecmwf_apart, ecmwf_apart_fields,
           under_prob_open, under_prob_now, under_prob_move, under_prob_basis, price_gate_max, price_blocked,
           candidate, watch, alert},   (docs/PROCESS_SPEC.md; v1 impact inputs are unchanged)
+ warm_wind {version, tracked, bucket, label, temp_f, wind_mph, forecast_source, lead_hours, exposed,
+            alert, exploratory},   (Watch: warm + wind; alert is always false; not the under screen)
  odds {<book>: {spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
                   total  {line, over, under, open_line, open_under, updated_at, expires_at?, source_updated_at?,
                           open_ts?, open_target_ts?, open_basis?,
