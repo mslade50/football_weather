@@ -41,6 +41,7 @@ from pipeline.model.config import (
     SPREAD_SRC_FALLBACK,
     SPREAD_SRC_LABELS,
 )
+from pipeline.model.process import evaluate_card, model_rows, warm_wind_track
 from pipeline.model.total_prices import compare_totals
 from pipeline.stadiums.roofs import resolve_roof_state
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
@@ -265,6 +266,15 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "climo_wind": getattr(fc, "climo_wind", None),
         "climo_temp": getattr(fc, "climo_temp", None),
         "hourly": _hourly(fc),
+        # Process screen (not the v1 stitch): per-model windows + ECMWF-first fields.
+        "models": model_rows(getattr(fc, "model_windows", None) or {}),
+        "signal_source": getattr(fc, "signal_source", None),
+        "signal_temp_f": getattr(fc, "signal_temp_f", None),
+        "signal_wind_mph": getattr(fc, "signal_wind_mph", None),
+        "signal_rain_mm": getattr(fc, "signal_rain_mm", None),
+        "signal_wind_dir_deg": getattr(fc, "signal_wind_dir_deg", None),
+        "ecmwf_apart": bool(getattr(fc, "ecmwf_apart", False)),
+        "ecmwf_apart_fields": list(getattr(fc, "ecmwf_apart_fields", ()) or ()),
     }
 
 
@@ -702,6 +712,8 @@ def build_card(
         "alerts": list(alerts),
         "run_id": run_id,
     }
+    card["process"] = evaluate_card(card)
+    card["warm_wind"] = warm_wind_track(card)
     return sanitize(card)
 
 

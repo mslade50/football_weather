@@ -36,6 +36,15 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
   ctx.game.weather.wind_fg = 12;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  assert.match(run(ctx, 'discoveryState(game).label'), /not a flag/);
+  ctx.game.weather.wind_fg = 15;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  ctx.game.weather.wind_fg = 3;
+  ctx.game.weather.rain_fg = 8;
+  ctx.game.weather.temp_fg = 50;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  ctx.game.weather.rain_fg = 0;
+  ctx.game.weather.temp_fg = 58;
   ctx.game.weather.wind_fg = 3;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'quiet');
   run(ctx, 'STATE.sport = "cfb"; DATA.games.cfb = [game];');
@@ -47,6 +56,96 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   ctx.game.weather.wind_fg = 18;
   run(ctx, 'STATE.focus = "candidates"; STATE.book = "kalshi"; STATE.minEdge = 999;');
   assert.equal(run(ctx, 'currentGames().length'), 1);
+});
+test('Board rain agreement uses ECMWF, matching Telegram', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.temp_fg = 50; game.weather.rain_fg = 25;
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 8},
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.weather.rain_fg = 40; game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 24},
+      {id: 'ncep_gfs_seamless', rain_mm: 25}];`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.weather.rain_fg = 25; game.weather.models = [
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.equal(run(ctx, 'rainAgreement(game.weather.models)'), 'missing_ecmwf');
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.process = {rain_agreement: 'missing_ecmwf'};
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 25},
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+});
+test('Retractable roof is eligible only when confirmed open', () => {
+  const ctx = ui();
+  run(ctx, `game.stadium = {roof_type: 'retractable', roof_state: 'outdoors', lat: 1, lon: 2};`);
+  assert.equal(run(ctx, 'hardEligible(game)'), false);
+  assert.match(run(ctx, 'ineligibleReason(game)'), /not confirmed open/);
+  run(ctx, `game.stadium.roof_state = 'open';`);
+  assert.equal(run(ctx, 'hardEligible(game)'), true);
+});
+test('Signal column does not read as a yes when rain models disagree', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.rain_fg = 25;
+    game.signal = {label: 'Low (Rain)', drivers: ['rain']};
+    game.process = {rain_agreement: 'disagree', wind_band: 'none'};`);
+  assert.match(run(ctx, 'signalPill(game.signal, game)'), /Rain models disagree/);
+  assert.doesNotMatch(run(ctx, 'signalPill(game.signal, game)'), /Low \(Rain\)/);
+  run(ctx, `game.process.wind_band = 'flag';`);
+  assert.match(run(ctx, 'signalPill(game.signal, game)'), /Low \(Wind\)/);
+});
+test('Heavy rain confirms with the closest model that itself clears 23 mm', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.temp_fg = 50; game.weather.rain_fg = 25;
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 25},
+      {id: 'ncep_nbm_conus', rain_mm: 22},
+      {id: 'ncep_gfs_seamless', rain_mm: 30}];`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, 'game.weather.models[2].rain_mm = 10;');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+});
+test('One book past the move cap is not a clean signal', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 16; game.process = {price_blocked: false, under_prob_basis: 'single_book', under_prob_move: 0, book_adverse_max: 0.12};`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'moved');
+  run(ctx, 'game.process.book_adverse_max = 0.01;');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.process = {line_open_missing: true, price_blocked: false};`);
+  assert.match(run(ctx, 'discoveryState(game).label'), /opener line unknown/);
+});
+test('Warm wind is a separate list and not an under signal', () => {
+  const ctx = ui();
+  ctx.game.weather.temp_fg = 72;
+  ctx.game.weather.wind_fg = 11;
+  ctx.game.weather.rain_fg = 0;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'quiet');
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), '10_12');
+  ctx.game.weather.wind_fg = 14;
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+  assert.match(run(ctx, 'discoveryState(game).label'), /not a flag/);
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), '12_15');
+  assert.match(run(ctx, 'warmWindHtml(game)'), /Watch: warm \+ wind/);
+  assert.match(run(ctx, 'warmWindHtml(game)'), /not an alert/);
+  assert.match(run(ctx, 'WARM_WIND_NOTE'), /n=124/);
+  assert.match(run(ctx, 'WARM_WIND_NOTE'), /16-18/);
+  ctx.game.weather.wind_fg = 11;
+  run(ctx, 'STATE.sport = "cfb"; STATE.warmWind = false; DATA.games.cfb = [game];');
+  assert.equal(run(ctx, 'currentGames().length'), 0);
+  assert.equal(run(ctx, 'filterWarmWind(DATA.games.cfb, STATE).map(g => g.game_id).join(",")'), 'game');
+  ctx.game.stadium.roof_state = 'closed';
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
+  ctx.game.stadium.roof_state = 'open';
+  ctx.game.weather.wind_fg = 10;
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
+  ctx.game.weather.wind_fg = 16;
+  assert.equal(run(ctx, 'warmWindTrack(game).bucket'), 'gt_15');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  ctx.game.warm_wind = {tracked: false, bucket: null};
+  ctx.game.weather.wind_fg = 20;
+  assert.equal(run(ctx, 'warmWindTrack(game).tracked'), false);
 });
 test('Impact confidence and rain probability are never treated as signal likelihood', () => {
   const ctx = ui(); ctx.game.weather.precip_prob = .01; ctx.game.impact = {v2: {conf: .01}};

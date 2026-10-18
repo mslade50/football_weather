@@ -321,6 +321,15 @@ class GameRow:
     signal_label: Optional[str] = None
     signal_level: Optional[str] = None
     signal_at: Optional[str] = None
+    # Exploratory warm-wind log (not an under grade). None when that end is outside the category.
+    warm_wind_early_bucket: Optional[str] = None
+    warm_wind_early_temp: Optional[float] = None
+    warm_wind_early_wind: Optional[float] = None
+    warm_wind_early_lead_h: Optional[float] = None
+    warm_wind_final_bucket: Optional[str] = None
+    warm_wind_final_temp: Optional[float] = None
+    warm_wind_final_wind: Optional[float] = None
+    warm_wind_final_lead_h: Optional[float] = None
 
     @property
     def spread_abs(self) -> Optional[float]:
@@ -465,7 +474,112 @@ def row_from_snapshots(game_id: str, snaps: Sequence[tuple[datetime, Mapping[str
             setattr(r, f"wind_lead{n}", _num(w.get("wind_fg")))
             setattr(r, f"temp_lead{n}", _num(w.get("temp_fg")))
             setattr(r, f"rain_lead{n}", _num(w.get("rain_fg")))
+    early, final = _warm_wind_ends(pre)
+    _stamp_warm_wind(r, early, final)
     return r
+
+
+def _warm_wind_ends(pre: Sequence[tuple[datetime, Mapping[str, Any]]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Early is the pre-kickoff snapshot closest to 72 h among leads of at least 48 h.
+
+    If none of those exist, the earliest pre-kickoff snapshot is the early end.
+    Final is the last snapshot before kickoff.
+    """
+    from pipeline.model.process import forecast_observation
+
+    final = forecast_observation(pre[-1][1])
+    pool: list[tuple[float, datetime, dict[str, Any]]] = []
+    for ts, card in pre:
+        obs = forecast_observation(card)
+        lead = obs.get("lead_hours")
+        if lead is not None and lead >= 48:
+            pool.append((abs(float(lead) - 72.0), ts, obs))
+    if pool:
+        pool.sort(key=lambda item: (item[0], item[1]))
+        return pool[0][2], final
+    return forecast_observation(pre[0][1]), final
+
+
+def _stamp_warm_wind(row: GameRow, early: Mapping[str, Any], final: Mapping[str, Any]) -> None:
+    row.warm_wind_early_bucket = early.get("bucket")
+    row.warm_wind_early_temp = _num(early.get("temp_f"))
+    row.warm_wind_early_wind = _num(early.get("wind_mph"))
+    row.warm_wind_early_lead_h = _num(early.get("lead_hours"))
+    row.warm_wind_final_bucket = final.get("bucket")
+    row.warm_wind_final_temp = _num(final.get("temp_f"))
+    row.warm_wind_final_wind = _num(final.get("wind_mph"))
+    row.warm_wind_final_lead_h = _num(final.get("lead_hours"))
+
+
+def result_vs_close(under_result: Optional[str]) -> Optional[str]:
+    """Closing-total result. Under-grade W is an under; L is an over."""
+    return {"W": "under", "L": "over", "P": "push"}.get(under_result or "")
+
+
+WARM_WIND_NOTE = (
+    "Exploratory frequencies versus the closing total. Not an under signal and not an alert. "
+    "2024-25 CFB, final forecast: warm games (at least 65°F) with sustained wind above 10 mph "
+    "finished over the close about 61% of the time (n=124). Early forecasts were about 51-54% "
+    "and unstable by year. Winds above 15 mph finished over about 38% of the time (n about 16-18). "
+    "The split to keep watching is light-to-medium wind, above 10 mph through 15 mph. "
+    "Counts under 30 are thin."
+)
+
+
+def warm_wind_report(rows: Sequence[GameRow]) -> dict[str, Any]:
+    """Per-game log plus bucket counts. A game is included when either end is in a bucket."""
+    from pipeline.model import config as C
+
+    games = []
+    for row in rows:
+        if not row.warm_wind_early_bucket and not row.warm_wind_final_bucket:
+            continue
+        games.append({
+            "game_id": row.game_id,
+            "sport": row.sport,
+            "season": row.season,
+            "week": row.week,
+            "bucket_early": row.warm_wind_early_bucket,
+            "temp_early_f": row.warm_wind_early_temp,
+            "wind_early_mph": row.warm_wind_early_wind,
+            "lead_early_h": row.warm_wind_early_lead_h,
+            "bucket_final": row.warm_wind_final_bucket,
+            "temp_final_f": row.warm_wind_final_temp,
+            "wind_final_mph": row.warm_wind_final_wind,
+            "lead_final_h": row.warm_wind_final_lead_h,
+            "total_open": row.total_open,
+            "total_close": row.total_close,
+            "actual_total": row.actual_total,
+            "result_vs_close": result_vs_close(row.under_result),
+        })
+
+    def tally(when: str, bucket: str) -> dict[str, Any]:
+        key = f"bucket_{when}"
+        graded = [g for g in games if g[key] == bucket and g["result_vs_close"]]
+        n = len(graded)
+        over = sum(1 for g in graded if g["result_vs_close"] == "over")
+        under = sum(1 for g in graded if g["result_vs_close"] == "under")
+        push = sum(1 for g in graded if g["result_vs_close"] == "push")
+        return {
+            "when": when, "bucket": bucket, "n": n, "over": over, "under": under, "push": push,
+            "over_rate": round(over / n, 3) if n else None, "small_sample": n < 30,
+        }
+
+    by_bucket = [tally(when, bucket) for when in ("final", "early") for bucket in ("10_12", "12_15", "gt_15")]
+    return {
+        "version": C.WARM_WIND_VERSION,
+        "note": WARM_WIND_NOTE,
+        "rules": {
+            "temp_min_f": C.PROCESS_TEMP_MAX_F,
+            "wind_gt_mph": C.PROCESS_WARM_WIND_LOW_MPH,
+            "buckets": {"10_12": "(10, 12]", "12_15": "(12, 15]", "gt_15": ">15"},
+            "exposed_only": True,
+            "early": "pre-kickoff snapshot closest to 72 h among leads of at least 48 h; else the earliest",
+            "final": "last snapshot before kickoff",
+        },
+        "by_bucket": by_bucket,
+        "games": games,
+    }
 
 
 # ---- D1 export / sqlite ---------------------------------------------------------------------
@@ -1334,6 +1448,7 @@ class BacktestResult:
                      "sources": self.sources, "legacy": self.legacy},
             "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
             "alerts_clv": self.alerts, "postmortem": self.postmortem, "games": self.games,
+            "warm_wind": warm_wind_report(self.rows),
         })
 
 

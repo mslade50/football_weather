@@ -20,9 +20,10 @@ function harness() {
     kickoff_utc:'2026-10-11T18:00:00Z',home:{name:`Home ${id}`},away:{name:'Away'},
     stadium:{roof_state:'open',lat:40,lon:-80},consensus:{spread_open:-3,total_now:46.5},weather:{temp_fg:58,wind_fg:wind,rain_fg:0},...patch});
   for(const sport of ['nfl','cfb']){
-    const threshold=sport==='nfl'?8:14;
-    ctx[sport]=[game(sport,'signal',threshold+4),game(sport,'near',threshold-2),game(sport,'quiet',1),
-      game(sport,'unknown',null),game(sport,'closed',threshold+4,{stadium:{roof_state:'closed',lat:40,lon:-80}}),
+    // Same process cuts for both sports: wind >= 15 mph is a signal; rain 5–15 mm is near.
+    ctx[sport]=[game(sport,'signal',16),
+      game(sport,'near',3,{weather:{temp_fg:58,wind_fg:3,rain_fg:8}}),game(sport,'quiet',1),
+      game(sport,'unknown',null),game(sport,'closed',16,{stadium:{roof_state:'closed',lat:40,lon:-80}}),
       ...(sport==='cfb'?[game(sport,'spread',18,{consensus:{spread_open:20,total_now:46.5}})]:[]),
       game(sport,'past',18,{kickoff_utc:'2026-10-09T18:00:00Z'}),game(sport,'live',18,{status:'in_progress'}),
       game(sport,'final',18,{status:'final'}),game(sport,'cancel',18,{status:'cancelled'}),

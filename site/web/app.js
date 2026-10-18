@@ -62,7 +62,7 @@ const LOAD_ERRORS = {};
 let OFFER_EXPIRY_TIMER;
 const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
-  signal: "", book: "", minEdge: null, showDomes: false, showWatch: true, game: null, focus: "candidates", showAllGames: false,
+  signal: "", book: "", minEdge: null, showDomes: false, showWatch: true, game: null, focus: "candidates", showAllGames: false, warmWind: false,
   preset: null,   // Signals preset id (signals.js PRESETS) — filters Table + maps while set
   tableMode: "live", executionGame: null,
 };
@@ -210,6 +210,7 @@ function readHash() {
   if (params.get("minEdge")) STATE.minEdge = parseFloat(params.get("minEdge"));
   STATE.focus = "candidates";
   STATE.showAllGames = params.get("all_games") === "1" || params.get("focus") === "all";
+  STATE.warmWind = params.get("warm_wind") === "1";
   STATE.q = params.get("q") || "";
   STATE.preset = params.get("preset") || null;
   STATE.tableMode = params.get("past") === "1" ? "history" : "live";
@@ -226,6 +227,7 @@ function writeHash() {
   if (STATE.book) params.set("book", STATE.book);
   if (STATE.minEdge != null) params.set("minEdge", STATE.minEdge);
   if (STATE.showAllGames) params.set("all_games", "1");
+  if (STATE.warmWind) params.set("warm_wind", "1");
   if (STATE.q) params.set("q", STATE.q);
   if (STATE.preset) params.set("preset", STATE.preset);
   if (typeof writeHistoricalHash === "function") writeHistoricalHash(params);
@@ -242,8 +244,9 @@ function render() {
   if (expiries.length) OFFER_EXPIRY_TIMER = setTimeout(() => { render(); if (STATE.game) refreshDrawerQuotes(); }, Math.max(1, Math.min(...expiries) - Date.now()));
   const notice = document.getElementById("loadnotice");
   if (notice) {
-    notice.hidden = true;
-    notice.textContent = "";
+    const showNote = STATE.warmWind && ["table", "map"].includes(STATE.view) && !(STATE.view === "table" && STATE.tableMode === "history");
+    notice.hidden = !showNote;
+    notice.textContent = showNote && typeof WARM_WIND_NOTE === "string" ? WARM_WIND_NOTE : "";
   }
   if (QUOTES) {
     DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
@@ -259,6 +262,11 @@ function render() {
   document.getElementById("sport").value = STATE.sport;
   const showAll = document.getElementById("showallgames");
   if (showAll) { showAll.checked = STATE.showAllGames; if (showAll.parentElement) showAll.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table"; }
+  const warmWind = document.getElementById("warmwind");
+  if (warmWind) {
+    warmWind.checked = !!STATE.warmWind;
+    if (warmWind.parentElement) warmWind.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table";
+  }
   document.getElementById("signal").value = STATE.signal;
   const mobileSort = document.getElementById("mobile-sort");
   if (mobileSort) mobileSort.value = STATE.sort === "discovery" ? "discovery" : "";
@@ -298,7 +306,8 @@ function render() {
   if (isStatus) { renderStatus(); return; }
   if (isSignals) { renderSignals(); return; }
   if (isHistorical) { renderHistoricalTable(); return; }
-  const rows = currentGames();
+  const rows = STATE.warmWind && typeof filterWarmWind === "function"
+    ? filterWarmWind(DATA.games[STATE.sport] || [], STATE) : currentGames();
   document.getElementById("rowcount").textContent = rows.length ? `${rows.length} games` : "";
   if (isMap) renderMap(rows); else renderTable(rows);
 }
@@ -315,6 +324,11 @@ function setupShowAllGames() {
     STATE.showAllGames = e.target.checked;
     STATE.focus = "candidates";
     if (STATE.showAllGames) { STATE.signal = ""; STATE.preset = null; }
+    render();
+  });
+  const warm = document.getElementById("warmwind");
+  if (warm) warm.addEventListener("change", e => {
+    STATE.warmWind = e.target.checked;
     render();
   });
 }

@@ -95,11 +95,20 @@ function tierChip(e) {
 }
 function signalPill(sig, game) {
   if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
-  const label = signalLabel(sig);
+  let label = signalLabel(sig);
+  const proc = (game && game.process) || {};
+  const drivers = (sig && sig.drivers) || [];
+  const rainDriven = drivers.includes("rain") || /\(Rain\)/i.test((sig && sig.label) || "");
+  const disagreed = proc.rain_agreement && proc.rain_agreement !== "agree";
+  if (rainDriven && disagreed) {
+    if (proc.wind_band === "flag") label = "Low (Wind)";
+    else label = proc.rain_agreement === "disagree" ? "Rain models disagree" : "Rain not confirmed";
+  }
   const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
     ? gameFlags(game) : ((sig && sig.flags) || []);
   const flags = matched.length ? ` · ${matched.join(", ")}` : "";
-  return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+  const muted = rainDriven && disagreed && proc.wind_band !== "flag";
+  return `<span class="sig" style="background:${muted ? "#8b949e" : signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];
@@ -316,7 +325,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
+    ["Discovery", "Process screen: cold + sustained wind or heavy rain. Likelihood is separate from impact severity", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
     ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
@@ -386,7 +395,7 @@ function renderTable(rows, opts = {}) {
     const v1 = (g.impact && g.impact.v1) || {};
     const tds = [
       `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${gameStateBadge(g)}${tableKickoffHtml(g)}</td>`,
-      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
+      `<td class="left">${STATE.warmWind ? warmWindHtml(g) : discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       tableStadiumHtml(g),
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,

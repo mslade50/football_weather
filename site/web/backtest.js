@@ -195,7 +195,8 @@ function normalizeBacktest(payload) {
   return { run_id: meta.run_id || d.run_id || null, generated_at: meta.generated_at || meta.last_updated || d.generated_at || d.last_updated || null,
     independent_publication: d.independent_publication || null,
     bucket_on: meta.bucket_on || null, n_graded: btNum(meta.n_graded), weeks: btNum(d.weeks, clv && clv.weeks),
-    grid, stadiums, stadiums_legacy, games, clv, postmortem, legacy };
+    grid, stadiums, stadiums_legacy, games, clv, postmortem, legacy,
+    warm_wind: d.warm_wind && typeof d.warm_wind === "object" ? d.warm_wind : {note: "", by_bucket: [], games: []} };
 }
 
 async function loadBacktest(force = false) {
@@ -617,6 +618,31 @@ function filteredBacktest() {
   return { grid, stadiums, games: games.slice(0, 1000), bets };
 }
 
+function warmWindSectionHtml(report, sport) {
+  const data = report && typeof report === "object" ? report : {};
+  const games = (Array.isArray(data.games) ? data.games : []).filter(row => !sport || row.sport === sport);
+  const labels = {"10_12": "10–12 mph", "12_15": "12–15 mph", "gt_15": ">15 mph"};
+  const summary = [];
+  for (const when of ["final", "early"]) {
+    const key = when === "final" ? "bucket_final" : "bucket_early";
+    for (const bucket of ["10_12", "12_15", "gt_15"]) {
+      const graded = games.filter(row => row[key] === bucket && row.result_vs_close);
+      const n = graded.length;
+      const over = graded.filter(row => row.result_vs_close === "over").length;
+      const under = graded.filter(row => row.result_vs_close === "under").length;
+      const push = graded.filter(row => row.result_vs_close === "push").length;
+      summary.push(`<tr><td>${when}</td><td>${labels[bucket]}</td><td>${n}</td><td>${over}</td><td>${under}</td><td>${push}</td><td>${n ? (100 * over / n).toFixed(1) + "%" : "—"}</td><td>${n && n < 30 ? "thin sample" : ""}</td></tr>`);
+    }
+  }
+  const logged = games.map(row => `<tr><td>${esc(row.sport || "")}</td><td>${esc(row.game_id || "")}</td>`
+    + `<td>${esc(row.bucket_early || "—")}</td><td>${isNum(row.temp_early_f) ? Number(row.temp_early_f).toFixed(0) : "—"}</td><td>${isNum(row.wind_early_mph) ? Number(row.wind_early_mph).toFixed(1) : "—"}</td><td>${isNum(row.lead_early_h) ? Number(row.lead_early_h).toFixed(0) : "—"}</td>`
+    + `<td>${esc(row.bucket_final || "—")}</td><td>${isNum(row.temp_final_f) ? Number(row.temp_final_f).toFixed(0) : "—"}</td><td>${isNum(row.wind_final_mph) ? Number(row.wind_final_mph).toFixed(1) : "—"}</td><td>${isNum(row.lead_final_h) ? Number(row.lead_final_h).toFixed(0) : "—"}</td>`
+    + `<td>${isNum(row.total_open) ? row.total_open : "—"}</td><td>${isNum(row.total_close) ? row.total_close : "—"}</td><td>${isNum(row.actual_total) ? row.actual_total : "—"}</td><td>${esc(row.result_vs_close || "pending")}</td></tr>`).join("");
+  return `<p class="discovery-note">${esc(data.note || "Exploratory. Not an under signal and not an alert.")}</p>`
+    + `<div class="wrap bt-wrap"><table class="bt"><thead><tr><th>When</th><th>Bucket</th><th>n</th><th>Over</th><th>Under</th><th>Push</th><th>Over %</th><th></th></tr></thead><tbody>${summary.join("")}</tbody></table></div>`
+    + `<div class="wrap bt-wrap"><table class="bt"><thead><tr><th>Sport</th><th>Game</th><th>Early bucket</th><th>Early °F</th><th>Early mph</th><th>Early lead h</th><th>Final bucket</th><th>Final °F</th><th>Final mph</th><th>Final lead h</th><th>Open</th><th>Close</th><th>Actual</th><th>Vs close</th></tr></thead><tbody>${logged || '<tr><td colspan="14" class="empty">No warm + wind games in the settled log yet.</td></tr>'}</tbody></table></div>`;
+}
+
 async function renderBacktest() {
   const host = document.getElementById("backtestwrap");
   if (!host) return;
@@ -634,7 +660,7 @@ async function renderBacktest() {
     + (lg.source ? ` · legacy: ${esc(lg.source)}${lg.seasons ? ` (${esc(lg.seasons)})` : ""}` : "");
   const controls = `<div class="controls btctl">
     <select id="bt-sport"><option value="">Sport: all</option><option value="cfb">CFB (NCAAF)</option><option value="nfl">NFL</option></select>
-    <select id="bt-section"><option value="postmortem">Weekly post-mortem</option><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
+    <select id="bt-section"><option value="postmortem">Weekly post-mortem</option><option value="warmwind">Watch: warm + wind</option><option value="grid">Bucket grid</option><option value="stadiums">Stadium results</option><option value="games">Matched games</option></select>
     <input id="bt-q" placeholder="Filter team / stadium…" />
     ${BT.section === "grid" ? `<label class="chk" title="Show the legacy sheet's Wins/Losses/Push/Sample/Margin/ROI/+CLV/CLV % next to this season's"><input type="checkbox" id="bt-legacy" /> legacy</label>` : ""}
     <span class="sub" id="bt-count"></span>
@@ -645,6 +671,8 @@ async function renderBacktest() {
   let section = "";
   if (!d.grid.length && !d.games.length && !d.stadiums.length && !d.stadiums_legacy.length && !d.postmortem.season.bets.length) {
     section = `<div class="empty">no backtest published yet (backtest.yml writes board/backtest.json every Tuesday)</div>`;
+  } else if (BT.section === "warmwind") {
+    section = warmWindSectionHtml(d.warm_wind, BT.sport);
   } else if (BT.section === "postmortem") {
     section = postmortemSectionHtml(d.postmortem, flt.bets);
   } else if (BT.section === "stadiums") {
@@ -655,7 +683,8 @@ async function renderBacktest() {
     section = gridSectionHtml(flt.grid);
   }
   host.innerHTML = controls + banner + clvSummaryHtml(d.clv) + section;
-  const counts = { postmortem: `${flt.bets.length} plays`, grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
+  const warmGames = ((d.warm_wind && d.warm_wind.games) || []).filter(row => !BT.sport || row.sport === BT.sport);
+  const counts = { postmortem: `${flt.bets.length} plays`, warmwind: `${warmGames.length} logged games`, grid: `${flt.grid.length} / ${d.grid.length} buckets`, stadiums: `${flt.stadiums.length} stadiums`, games: `${flt.games.length} / ${d.games.length} games` };
   document.getElementById("bt-count").textContent = counts[BT.section] || "";
   document.getElementById("bt-sport").value = BT.sport;
   document.getElementById("bt-section").value = BT.section;

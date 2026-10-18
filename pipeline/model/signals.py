@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from pipeline.model import config as C
+from pipeline.model.process import temp_gate
 
 NO = "No Impact"
 LOW = "Low Impact"
@@ -45,6 +46,10 @@ def _gt(a: Optional[float], b: float) -> bool:
     return a is not None and a > b
 
 
+def _ge(a: Optional[float], b: float) -> bool:
+    return a is not None and a >= b
+
+
 def _lt(a: Optional[float], b: float) -> bool:
     return a is not None and a < b
 
@@ -53,17 +58,33 @@ def _between(a: Optional[float], lo: float, hi: float) -> bool:
     return a is not None and lo <= a <= hi
 
 
+def _temp_allows(sport: str, temp: Optional[float]) -> bool:
+    """Temperature blocks only when that league's optional gate is on."""
+    enabled, max_f = temp_gate(sport)
+    if not enabled:
+        return True
+    return _lt(temp, max_f)
+
+
 # ---- NFL ---------------------------------------------------------------------
 
 def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Optional[float]) -> Signal:
-    """Evaluated purple-first so High is reachable (legacy ordering made it dead code)."""
+    """Evaluated purple-first so High is reachable (legacy ordering made it dead code).
+
+    The flag is sustained wind >= 15 mph. Mid and High stay stricter severity
+    labels (wind above 15 mph inside a cold band). A warm flag is Low unless
+    the optional temperature gate is on, in which case a warm game is No Impact.
+    """
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
-    if _gt(w, 15) and _between(t, 32, 45):
+    allows = _temp_allows("nfl", t)
+    if allows and _gt(w, 15) and _between(t, 32, 45):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
-    if _gt(w, 15) and _lt(t, 60):
+    if allows and _gt(w, 15) and _lt(t, C.PROCESS_TEMP_MAX_F):
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("wind",))
-    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
-    if rain_cond or (w is not None and 8 < w < 15 and _lt(t, 60)):
+    rain_cond = allows and _ge(r, C.PROCESS_RAIN_SIGNAL_MM)
+    wind_flag = allows and _ge(w, C.PROCESS_WIND_FLAG_MPH)
+    # Exactly 15 mph is a flag and stays Low. Mid/High still require wind above 15.
+    if rain_cond or (wind_flag and not (_gt(w, 15) and _lt(t, C.PROCESS_TEMP_MAX_F))):
         driver = "rain" if rain_cond else "wind"
         return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
@@ -91,9 +112,13 @@ def _cfb_spread_eligible(open_spread: Optional[float]) -> bool:
 
 
 def cfb_wind_eligible(wind_fg: Optional[float], temp_fg: Optional[float], open_spread: Optional[float]) -> bool:
-    """Canonical CFB Wind filter: |opening spread|≤10, temp<70°F, wind>14 mph."""
+    """CFB wind flag: |opening spread|≤10 and sustained wind >= 15 mph.
+
+    Temperature is not a hard gate. When the optional CFB temperature gate is
+    on, the temperature must be strictly under that gate's max (default 65°F).
+    """
     w, t = _f(wind_fg), _f(temp_fg)
-    return _cfb_spread_eligible(open_spread) and _lt(t, C.CFB_WIND_MAX_TEMP_F) and _gt(w, C.CFB_WIND_MIN_MPH)
+    return _cfb_spread_eligible(open_spread) and _temp_allows("cfb", t) and _ge(w, C.CFB_WIND_MIN_MPH)
 
 
 def cfb_altitude_mid_trigger(
@@ -124,11 +149,12 @@ def cfb_signal(
         return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
     wind_eligible = cfb_wind_eligible(w, t, sp)
-    # The 21.5 mph threshold is a severity boundary (14 + the former 7.5 mph
-    # offset), never an eligibility gate. Weekday no longer changes the wind rule.
-    hi = C.CFB_WIND_MIN_MPH + C.CFB_HIGH_OFFSET
+    # 21.5 mph is the historical severity boundary, not the 15 mph flag.
+    # Weekday no longer changes the wind rule. A warm flag is still Low:
+    # High / Very High keep their temperature bands.
+    hi = C.CFB_HIGH_WIND_MPH
 
-    rain_cond = _gt(r, 2) and _lt(t, C.LOW_RAIN_TEMP_MAX_F)
+    rain_cond = _temp_allows("cfb", t) and _ge(r, C.PROCESS_RAIN_SIGNAL_MM)
     heat_cond = _gt(t, 80) and _lt(ht, 57) and _lt(at, 57)
     altitude_mid = cfb_altitude_mid_trigger(t, sp, alt)
 
@@ -168,7 +194,7 @@ def combined_flags(
         if cfb_wind_eligible(w, t, sp):
             flags.append("CFB Wind")
     elif sport == "nfl":
-        if _gt(w, 15) and _lt(t, 60):
+        if _temp_allows("nfl", t) and _ge(w, C.PROCESS_WIND_FLAG_MPH):
             flags.append("NFL Wind")
     if _lt(ht, 57) and _lt(at, 57) and _gt(t, 80):
         flags.append("Heat")

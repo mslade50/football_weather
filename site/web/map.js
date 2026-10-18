@@ -59,15 +59,19 @@ function markerRadius(g) {
 }
 function markerRing(g) {
   const wx = g.weather || {};
-  if (isNum(wx.rain_fg) && Number(wx.rain_fg) > 2) return "#d0d7de";
+  const rain = wx.signal_rain_mm ?? wx.rain_fg;
+  if (isNum(rain) && Number(rain) >= 5) return "#d0d7de";
   const flags = gameFlags(g);
   if (flags.includes("Heat") || flags.includes("Alt+Heat")) return "#e5484d";
   return "rgba(255,255,255,.25)";
 }
 // fill: Signals preset → flag palette; otherwise impact tier palette
 function markerFill(g) {
+  if (STATE.warmWind && warmWindTrack(g).tracked) return "#f2cc60";
   if (!hardEligible(g)) return "#8b949e";
-  if (discoveryState(g).kind === "near") return "#ffd79a";
+  const discovered = discoveryState(g).kind;
+  if (discovered === "near") return "#ffd79a";
+  if (discovered === "moved") return "#8b949e";
   const preset = typeof activePreset === "function" ? activePreset() : null;
   if (preset && FLAG_COLORS[preset.flag]) return FLAG_COLORS[preset.flag];
   return signalColor(g.signal);
@@ -127,13 +131,13 @@ function markerEl(g) {
   const el = document.createElement("div");
   el.className = `marker${dome ? " dome" : ""}`;
   el.tabIndex = 0; el.setAttribute("role", "button");
-  el.setAttribute("aria-label", `${gameLabel(g)} ${discoveryState(g).label}; open details`);
+  el.setAttribute("aria-label", `${gameLabel(g)} ${listCaption(g)}; open details`);
   el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
   el.style.cssText = `width:${size}px;height:${size}px;`;
   // opacity lives on the <svg>: maplibre's Marker owns the wrapper's style.opacity (terrain occlusion)
   el.innerHTML = `<svg viewBox="${-half} ${-half} ${size} ${size}" width="${size}" height="${size}" style="opacity:${markerOpacity(g).toFixed(2)}">${parts.join("")}</svg>`;
-  el.insertAdjacentHTML("beforeend", `<span class="marker-label">${esc(gameLabel(g))} · ${esc(discoveryState(g).label)}</span>`);
-  el.title = `${gameLabel(g)} · ${discoveryState(g).label}`
+  el.insertAdjacentHTML("beforeend", `<span class="marker-label">${esc(gameLabel(g))} · ${esc(listCaption(g))}</span>`);
+  el.title = `${gameLabel(g)} · ${listCaption(g)}`
     + (isNum(wx.wind_fg) ? ` · ${fmtNum(wx.wind_fg, 0)} mph${wx.wind_dir_fg ? " " + wx.wind_dir_fg : ""}` : "");
   return el;
 }
@@ -155,6 +159,11 @@ function clusterEl(items) {
 }
 
 // ── popup ─────────────────────────────────────────────────────────────────
+function listCaption(g) {
+  if (typeof STATE !== "undefined" && STATE.warmWind && warmWindTrack(g).tracked)
+    return `Watch: warm + wind · ${warmWindTrack(g).label}`;
+  return discoveryState(g).label;
+}
 function popupHtml(g) {
   const wx = g.weather || {}, st = g.stadium || {}, c = g.consensus || {};
   const v1 = (g.impact && g.impact.v1) || {}, v2 = g.impact && g.impact.v2;
@@ -163,17 +172,23 @@ function popupHtml(g) {
   const row = (t, o) => `<div class="hc-li"><span class="t">${esc(t)}</span><span>${o}</span></div>`;
   const pp = isNum(wx.precip_prob) ? ` (${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%)` : "";
   const band = isNum(wx.wind_p10) && isNum(wx.wind_p90) ? ` <span class="sub">${fmtNum(wx.wind_p10, 0)}–${fmtNum(wx.wind_p90, 0)}</span>` : "";
-  const comp = isNum(wx.cross_mph) || isNum(wx.head_mph) ? row("Cross / Head", `${fmtNum(wx.cross_mph, 0)} / ${fmtNum(wx.head_mph, 0)} mph`) : "";
+  const proc = g.process || {};
+  const cross = isNum(proc.cross_mph) ? proc.cross_mph : wx.cross_mph;
+  const head = isNum(proc.head_mph) ? proc.head_mph : wx.head_mph;
+  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor : (typeof crosswindFactor === "function" ? crosswindFactor(wx.wind_dir_deg, st.orient_deg) : null);
+  const comp = isNum(cross) || isNum(head) ? row("Cross / Head", `${fmtNum(cross, 0)} / ${fmtNum(head, 0)} mph${isNum(factor) ? ` · |sin| ${fmtNum(factor, 2)}` : ""}`) : "";
+  const priceMove = isNum(proc.under_prob_move) ? row("Under prob vs opener", `${(Number(proc.under_prob_move) * 100).toFixed(1)} pp · ${esc(proc.under_prob_basis || "unpriced")}`) : "";
   const conf = gameConfidence(g);
   const src = wx.source || isNum(wx.lead_hours) ? row("Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · ${Math.round(Number(wx.lead_hours))}h out` : ""}`) : "";
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
-    ${row("Discovery", discoveryHtml(g))}
+    ${row(STATE.warmWind ? "Watch: warm + wind" : "Discovery", STATE.warmWind ? warmWindHtml(g) : discoveryHtml(g))}
     ${weatherCoverageHtml(g) ? row("Coverage", weatherCoverageHtml(g)) : ""}
     ${row("Signal", `<span class="sig" style="background:${signalColor(g.signal)}">${esc(signalLabel(g.signal))}</span>${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
     ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
     ${row("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}
     ${comp}
+    ${priceMove}
     ${row("Temp", `${fmtNum(wx.temp_fg, 0)} °F`)}
     ${row("Rain", `${fmtNum(wx.rain_fg, 1)} mm${pp}`)}
     ${row("Impact", isDome(g) ? "dome" : `${fmtNum(v1.gs_fg_pct, 1)}% / away ${fmtNum(v1.away_fg_pct, 1)}%`)}

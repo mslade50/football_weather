@@ -198,6 +198,16 @@ class WeatherForecast(_AsDict):
     ensemble_aged_sources: list[str] = field(default_factory=list)
     ensemble_unverified_sources: list[str] = field(default_factory=list)
     ensemble_verification_errors: dict[str, str] = field(default_factory=dict)
+    # Per-model game windows and the process-screen forecast (docs/PROCESS_SPEC.md).
+    # wind_fg / temp_fg / rain_fg_mm stay the stitched values v1 impact consumes.
+    model_windows: dict[str, Any] = field(default_factory=dict)
+    signal_source: Optional[str] = None
+    signal_temp_f: Optional[float] = None
+    signal_wind_mph: Optional[float] = None
+    signal_rain_mm: Optional[float] = None
+    signal_wind_dir_deg: Optional[float] = None
+    ecmwf_apart: bool = False
+    ecmwf_apart_fields: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:
