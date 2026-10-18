@@ -188,14 +188,18 @@ export function expireCardQuotes(original, now = Date.now()) {
       if (reference) markets[market].last_observed = reference;
     }
   }
-  if (removed.length) {
+  if (removed.length) card.expired_markets = [...new Set([...(card.expired_markets || []), ...removed])];
+  // BetCris aging out only retires that cell. A pricing book's expiry still
+  // means the published fair may include a stale number, so those comparisons
+  // are withheld until the next calculation.
+  const pricingRemoved = removed.filter(item => item.split("/")[0] !== "betcris");
+  if (pricingRemoved.length) {
     const currentBooks = (market) => Object.values(card.odds || {}).filter((markets) => {
       const quote = markets?.[market];
       const line = market === "spread" ? quote?.home_line : quote?.line;
       return !quote?.expired && line != null && Number.isFinite(Number(line));
     }).length;
     const spreadBooks = currentBooks("spread"), totalBooks = currentBooks("total");
-    card.expired_markets = [...new Set([...(card.expired_markets || []), ...removed])];
     card.consensus = { ...(card.consensus || {}), spread_now: null, total_now: null, move_s: null, move_t: null,
       spread_src: null, ref_book: null, n_books: 0, thin: true,
       spread_n_books: spreadBooks, spread_thin: spreadBooks < 2,
@@ -206,7 +210,7 @@ export function expireCardQuotes(original, now = Date.now()) {
     if (card.total_prices) {
       card.total_prices.fair_total = null;
       card.total_prices.best_under = card.total_prices.best_over = null;
-      for (const q of [...card.total_prices.quotes, ...card.total_prices.reference_quotes])
+      for (const q of [...(card.total_prices.quotes || []), ...(card.total_prices.reference_quotes || [])])
         for (const key of ['ev_roi', 'fair_cost', 'win_prob', 'push_prob', 'loss_prob']) q[key] = null;
     }
   }

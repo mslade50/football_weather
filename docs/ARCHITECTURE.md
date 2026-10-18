@@ -608,14 +608,17 @@ request remains unavailable. Stale diagnostics include the observation time, age
 and both the 30-minute ceiling and the provider TTL. The 120-second publication
 reserve still withholds other books that would expire during upload; it does not
 hide a BetCris print that is still inside the 30-minute window. The read-time
-guard then drops it at `feed_fetched_at + 1800s`.
+guard then marks that BetCris cell expired at `feed_fetched_at + 1800s`. That
+clock is not the compact row's earliest expiry, and it does not clear the
+game's fair line, edges, or best price while a pricing book is still fresh.
 The workflow reserves 120 seconds for the remaining board/state puts: quotes
 expiring within that window are withheld with their original expiry and opening
 fields. The guard records its actual check time separately; source clocks are
 never shifted. This covers expiry during the final upload loop while the
 read-time guard continues to enforce expiry if uploads run unusually slowly.
 The authenticated Worker and browser also enforce expiry, preserving opening
-fields but withholding derived current comparisons until a new calculation.
+fields. A pricing book's expiry withholds derived current comparisons until a
+new calculation. A BetCris expiry only expires the BetCris cell.
 Runtime `quote_expiries` metadata adjusts book health/counts without renewing
 source clocks. Quotes can expire between publication steps; the read-time guard
 is authoritative for current display.

@@ -385,8 +385,13 @@ def test_compact_board_carries_earliest_current_quote_expiry():
     original = card()
     original.update(season=2026, week=4, kickoff_utc=NOW.isoformat(), date_label="Mon", time_label="2:39", neutral=False)
     original["home"]["short"], original["away"]["short"] = "NO", "ATL"
-    assert json_out.table_row(original)["quote_expires_at"] == "2026-10-05T02:28:02Z"
-    assert json_out.table_row(expire_card(original, NOW))["quote_expires_at"] is None
+    # BetCris's own clock retires only that cell. It is not the row's earliest expiry.
+    assert json_out.table_row(original)["quote_expires_at"] is None
+    original["odds"]["pinnacle"]["total"]["expires_at"] = "2026-10-05T03:00:00Z"
+    original["odds"]["betonline"] = {"total": {"line": 46, "under": -110, "expires_at": "2026-10-05T04:00:00Z"}}
+    assert json_out.table_row(original)["quote_expires_at"] == "2026-10-05T03:00:00Z"
+    # After BetCris ages out, the still-fresh pricing clocks remain on the row.
+    assert json_out.table_row(expire_card(original, NOW))["quote_expires_at"] == "2026-10-05T03:00:00Z"
 
 
 @pytest.mark.parametrize("stamp,expected", [("2026-10-05T09:17:00+00:00", "2026-10-05T14:17:00Z"),

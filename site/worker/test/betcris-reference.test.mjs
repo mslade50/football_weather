@@ -99,3 +99,70 @@ test('A published fair that used BetCris is rebuilt from the other books', () =>
   assert.equal(again.consensus.spread_src, 'bol+pin');
   assert.equal(again.fair.best_total.book, 'kalshi');
 });
+
+test('An expired BetCris reference keeps a fresh Pinnacle, BetOnline, and Kalshi fair price', () => {
+  const page = board();
+  const card = page.ctx.game;
+  card.consensus = {total_now: 45, total_open: 47, n_books: 3, thin: false};
+  card.fair = {
+    fair_total: 40.5,
+    edges: [
+      {book: 'kalshi', market: 'total', side: 'under', line: 47, edge_pts: 6.5},
+      {book: 'pinnacle', market: 'total', side: 'under', line: 44.5, edge_pts: 4},
+    ],
+    best_total: {book: 'kalshi', market: 'total', edge_pts: 6.5},
+  };
+  card.odds = {
+    betcris: {total: {line: 60, under: -110, open_line: 47, expires_at: '2026-10-14T11:30:00Z'}},
+    pinnacle: {total: {line: 44.5, under: -110, expires_at: '2026-10-14T13:00:00Z'}},
+    betonline: {total: {line: 46, under: -110, expires_at: '2026-10-14T13:00:00Z'}},
+    kalshi: {total: {line: 47, under: -105, expires_at: '2026-10-14T13:00:00Z'}},
+  };
+  page.ctx.game = expireCardQuotes(card, now);
+  const served = page.ctx.game;
+  assert.equal(served.odds.betcris.total.expired, true);
+  assert.equal(served.odds.betcris.total.line, undefined);
+  assert.equal(served.odds.betcris.total.open_line, 47);
+  assert.equal(served.odds.pinnacle.total.line, 44.5);
+  assert.equal(served.odds.betonline.total.line, 46);
+  assert.equal(served.odds.kalshi.total.line, 47);
+  assert.equal(served.consensus.total_now, 45);
+  assert.equal(served.fair.fair_total, 40.5);
+  assert.deepEqual(served.fair.edges.map(edge => edge.book), ['kalshi', 'pinnacle']);
+  assert.equal(served.fair.edges[0].edge_pts, 6.5);
+  assert.equal(served.fair.best_total.book, 'kalshi');
+  assert.deepEqual(served.expired_markets, ['betcris/total']);
+  const cell = page.run("bookTotalCell(game,'betcris')");
+  assert.match(cell, /Expired reference/);
+  assert.doesNotMatch(cell, />U /);
+});
+
+test('A pricing book expiry still clears the fair line, edges, and best price', () => {
+  const card = {
+    consensus: {total_now: 49, total_open: 47, n_books: 3},
+    fair: {
+      fair_total: 45,
+      edges: [{book: 'kalshi', market: 'total', side: 'under', line: 47, edge_pts: 2}],
+      best_total: {book: 'kalshi', market: 'total', edge_pts: 2},
+    },
+    odds: {
+      pinnacle: {total: {line: 44.5, under: -110, expires_at: '2026-10-14T11:30:00Z'}},
+      betonline: {total: {line: 46, under: -110, expires_at: '2026-10-14T13:00:00Z'}},
+      kalshi: {total: {line: 47, under: -105, expires_at: '2026-10-14T13:00:00Z'}},
+    },
+  };
+  const served = expireCardQuotes(card, now);
+  assert.equal(served.odds.pinnacle.total.expired, true);
+  assert.equal(served.odds.pinnacle.total.line, undefined);
+  assert.equal(served.odds.betonline.total.line, 46);
+  assert.equal(served.odds.kalshi.total.line, 47);
+  assert.equal(served.consensus.total_now, null);
+  assert.equal(served.consensus.total_open, 47);
+  assert.equal(served.consensus.total_n_books, 2);
+  assert.equal(served.consensus.total_thin, false);
+  assert.equal(served.consensus.spread_n_books, 0);
+  assert.equal(served.consensus.n_books, 0);
+  assert.equal(served.fair.fair_total, null);
+  assert.deepEqual(served.fair.edges, []);
+  assert.equal(served.fair.best_total, null);
+});

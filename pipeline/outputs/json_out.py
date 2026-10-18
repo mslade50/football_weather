@@ -34,7 +34,13 @@ from typing import Any, Optional, Union
 
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
-from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
+from pipeline.model.config import (
+    REFERENCE_BOOKS,
+    SPREAD_AVG_DP,
+    SPREAD_CONSENSUS_BOOKS,
+    SPREAD_SRC_FALLBACK,
+    SPREAD_SRC_LABELS,
+)
 from pipeline.model.total_prices import compare_totals
 from pipeline.stadiums.roofs import resolve_roof_state
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
@@ -718,7 +724,11 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
     fair = card.get("fair") or {}
     best_t = fair.get("best_total") or {}
     best_s = fair.get("best_spread") or {}
-    expiries = [quote["expires_at"] for markets in (card.get("odds") or {}).values()
+    # A reference book's own clock (BetCris, feed time + 30 minutes) must not
+    # become the row's earliest expiry. That clock only retires the reference
+    # cell. A pricing book's expiry still clears the row's fair and best price.
+    expiries = [quote["expires_at"] for book, markets in (card.get("odds") or {}).items()
+                if book not in REFERENCE_BOOKS
                 for quote in markets.values() if quote.get("expires_at") and not quote.get("expired")]
     row = {
         "game_id": card["game_id"],
