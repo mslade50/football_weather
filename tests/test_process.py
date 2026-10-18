@@ -126,7 +126,7 @@ def test_price_move_uses_consensus_and_labels_the_approximation() -> None:
     approx = P.under_prob_move(implied)
     assert approx["basis"] == P.BASIS_IMPLIED and approx["price_blocked"] is True
     one = P.under_prob_move(implied[:1])
-    assert one["basis"] == P.BASIS_SINGLE and one["price_blocked"] is False
+    assert one["basis"] == P.BASIS_SINGLE and one["price_blocked"] is True
 
 
 def _even_books(line: float, open_line: float, under: int = -110, over: int = -110) -> list[dict]:
@@ -201,6 +201,38 @@ def test_one_book_with_an_opener_is_enough_for_the_line() -> None:
     card["odds"] = {"betonline": {"total": {"line": 43, "under": -110, "over": -110}}}
     flagged = P.evaluate_card(card)
     assert flagged["line_open_missing"] is True and flagged["alert"] is True and flagged["price_blocked"] is False
+
+
+def test_one_books_own_adverse_price_blocks_even_when_the_average_does_not() -> None:
+    single = [{
+        "book": "betonline", "line": 47, "open_line": 47,
+        "under": -180, "over": None, "open_under": -110, "open_over": None,
+    }]
+    one = P.under_prob_move(single, sport="nfl")
+    assert one["basis"] == P.BASIS_SINGLE
+    assert one["line_prob_move"] == pytest.approx(0.0)
+    assert one["book_adverse_max"] > C.PROCESS_UNDER_PROB_MOVE_MAX
+    assert one["price_blocked"] is True and one["price_block_book"] == "betonline"
+    mild = [{
+        "book": "betonline", "line": 47, "open_line": 47,
+        "under": -115, "over": None, "open_under": -110, "open_over": None,
+    }]
+    assert P.under_prob_move(mild, sport="nfl")["price_blocked"] is False
+    split = [
+        {"book": "pinnacle", "line": 47, "open_line": 47, "under": 130, "over": None, "open_under": -110, "open_over": None},
+        {"book": "betonline", "line": 47, "open_line": 47, "under": -180, "over": None, "open_under": -110, "open_over": None},
+    ]
+    mixed = P.under_prob_move(split, sport="nfl")
+    assert mixed["under_prob_price_move"] < C.PROCESS_UNDER_PROB_MOVE_MAX
+    assert mixed["book_adverse_max"] > C.PROCESS_UNDER_PROB_MOVE_MAX
+    assert mixed["price_blocked"] is True and mixed["price_block_book"] == "betonline"
+    card = _card(wind_fg=16, temp_fg=40)
+    card["odds"] = {
+        "pinnacle": {"total": {"line": 47, "open_line": 47, "under": 130, "open_under": -110}},
+        "betonline": {"total": {"line": 47, "open_line": 47, "under": -180, "open_under": -110}},
+    }
+    screen = P.evaluate_card(card)
+    assert screen["alert"] is False and screen["price_blocked"] is True
 
 
 def _card(**weather: float) -> dict:

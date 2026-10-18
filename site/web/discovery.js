@@ -182,10 +182,12 @@ function discoveryState(g) {
   // under_prob_move is the adverse sum (dropped total and shorter juice, neither cancelling).
   const move = finiteValue(proc.under_prob_move) ? Math.max(Number(proc.under_prob_move), 0) : null;
   const lineAdverse = finiteValue(proc.line_prob_move) ? Math.max(Number(proc.line_prob_move), 0) : 0;
+  const bookAdverse = finiteValue(proc.book_adverse_max) ? Math.max(Number(proc.book_adverse_max), 0) : 0;
   const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
   const juiceConsensus = ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis);
+  // One book's own adverse move blocks even when the cross-book average does not.
   const priceBlocked = proc.price_blocked === true || (weatherHit && (
-    (juiceConsensus && move != null && move > moveMax) || lineAdverse > moveMax));
+    (juiceConsensus && move != null && move > moveMax) || lineAdverse > moveMax || bookAdverse > moveMax));
   // Probability is optional explicit backend evidence, never inferred from impact/confidence/PoP.
   const probability = finiteValue(g.discovery?.signal_probability) && g.discovery.signal_probability >= 0
     && g.discovery.signal_probability <= 1 ? g.discovery.signal_probability : null;

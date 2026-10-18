@@ -107,6 +107,15 @@ test('Heavy rain confirms with the closest model that itself clears 23 mm', () =
   run(ctx, 'game.weather.models[2].rain_mm = 10;');
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
 });
+test('One book past the move cap is not a clean signal', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 16; game.process = {price_blocked: false, under_prob_basis: 'single_book', under_prob_move: 0, book_adverse_max: 0.12};`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'moved');
+  run(ctx, 'game.process.book_adverse_max = 0.01;');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.process = {line_open_missing: true, price_blocked: false};`);
+  assert.match(run(ctx, 'discoveryState(game).label'), /opener line unknown/);
+});
 test('Warm wind is a separate list and not an under signal', () => {
   const ctx = ui();
   ctx.game.weather.temp_fg = 72;

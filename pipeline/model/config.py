@@ -111,7 +111,7 @@ PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond t
 PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
-PROCESS_VERSION = "process-v4"            # v4: adverse line and juice do not cancel; one opener is enough
+PROCESS_VERSION = "process-v5"            # v5: one book's own adverse move blocks, even if the average does not
 # Exploratory warm-wind log. Not an under gate and not an alert by itself.
 # Buckets stay (10, 12], (12, 15], and >15 mph at temp >= 65°F. These edges
 # are independent of the 15 mph under flag.

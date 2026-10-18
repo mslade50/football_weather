@@ -367,8 +367,8 @@ def under_prob_move(
     ``under_prob_price_move`` is the signed juice move: consensus under
     probability now minus the opener, at the posted numbers. Two or more books
     with both sides use multiplicative devig (``novig_consensus``). Two or more
-    under-only books use ``under_only_implied``. One book's juice is
-    ``single_book`` and does not count as adverse juice.
+    under-only books use ``under_only_implied``. A lone book's juice does not
+    enter that average.
 
     ``line_prob_move`` restates the current number at the opener with
     ``fair.total_shift`` and ``PTS_PROB_TOTAL`` (0.026 per NFL point, 0.020 per
@@ -383,18 +383,25 @@ def under_prob_move(
     true, the line piece is not invented, and the line does not block. The
     card still carries the flag so a missing opener is not a silent pass.
 
-    The gate adds only the adverse pieces, each floored at zero::
+    The consensus gate adds only the adverse pieces, each floored at zero::
 
         adverse_juice = max(under_prob_price_move, 0)   # 0 unless a price consensus exists
         adverse_line = max(line_prob_move, 0)           # 0 when the total rose or is unchanged
-        under_prob_move = adverse_juice + adverse_line
+        consensus_adverse = adverse_juice + adverse_line
 
-    Block when that sum is past ``PROCESS_UNDER_PROB_MOVE_MAX``. A longer under
-    price (negative juice) cannot shrink a dropped total. A higher total does
-    not block on the line piece alone: the number got better for the under.
-    NFL 47 → 43 at -110/-110 is 0.104 and blocks. The same drop at +130/-150
-    still blocks, because the −0.080 juice is not adverse and the line stays
-    0.104. One NFL point (0.026) does not. NFL 47 → 49 at even money does not.
+    A longer under price cannot shrink a dropped total. A higher total does
+    not block on the line piece alone. NFL 47 → 43 at -110/-110 is 0.104 and
+    blocks. The same drop at +130/-150 still blocks. One NFL point (0.026)
+    does not. NFL 47 → 49 at even money does not.
+
+    The average is not the only check. Any one pricing book that has both a
+    current under price and an opener under price is scored the same way on
+    its own (its juice, plus its own line drop, neither cancelling). If that
+    book's adverse move is past the cap, the gate blocks even when the
+    weighted average is inside it. One book at -110 to -180 blocks. Pinnacle
+    drifting to +130 does not cancel BetOnline at -180.
+    ``under_prob_move`` is the larger of the consensus adverse sum and that
+    worst book.
     """
     limit = under_prob_move_max() if move_max is None else move_max
     rows = []
@@ -449,7 +456,10 @@ def under_prob_move(
         basis in (BASIS_NOVIG, BASIS_IMPLIED) and price_move is not None and price_move > 0
     ) else 0.0
     adverse_line = line_move if line_move is not None and line_move > 0 else 0.0
-    move = adverse_juice + adverse_line
+    consensus_adverse = adverse_juice + adverse_line
+    book_adverse_max, price_block_book = _worst_book_adverse(sport, rows)
+    # The average can hide one book. The gate uses whichever adverse number is larger.
+    move = max(consensus_adverse, book_adverse_max)
     blocked = bool(move > limit)
     return {
         "basis": basis,
@@ -461,10 +471,62 @@ def under_prob_move(
         "line_prob_move": line_move,
         "line_open_missing": line_move is None,
         "under_prob_move": move,
+        "book_adverse_max": book_adverse_max,
+        "price_block_book": price_block_book if blocked and book_adverse_max > limit else None,
         "price_gate_max": limit,
         "price_blocked": blocked,
         "books": rows,
     }
+
+
+def _book_price_move(row: dict[str, Any]) -> Optional[float]:
+    """Signed under-probability move for one book that has both ends.
+
+    Two-sided prices use no-vig on both ends. Otherwise both ends use the
+    implied under, so a devigged number is not subtracted from a raw one.
+    """
+    if row.get("under_prob_now_novig") is not None and row.get("under_prob_open_novig") is not None:
+        return float(row["under_prob_now_novig"]) - float(row["under_prob_open_novig"])
+    if row.get("under_prob_now_implied") is not None and row.get("under_prob_open_implied") is not None:
+        return float(row["under_prob_now_implied"]) - float(row["under_prob_open_implied"])
+    return None
+
+
+def _book_line_move(sport: str, row: dict[str, Any]) -> Optional[float]:
+    if row.get("line") is None or row.get("open_line") is None:
+        return None
+    sport_key = sport if sport in C.PTS_PROB_TOTAL else "nfl"
+    return total_shift(sport_key, row["line"], row["open_line"], "under")
+
+
+def _book_adverse(sport: str, row: dict[str, Any]) -> Optional[float]:
+    """Adverse move for one pricing book. None when it lacks both prices.
+
+    Juice and that book's own line drop are floored at zero and added, so a
+    longer price on this book cannot cancel its own dropped total.
+    """
+    price = _book_price_move(row)
+    if price is None:
+        return None
+    line = _book_line_move(sport, row)
+    adverse_juice = price if price > 0 else 0.0
+    adverse_line = line if line is not None and line > 0 else 0.0
+    return adverse_juice + adverse_line
+
+
+def _worst_book_adverse(sport: str, rows: list[dict[str, Any]]) -> tuple[float, Optional[str]]:
+    """Largest single-book adverse move, and the book that posted it."""
+    worst = 0.0
+    name: Optional[str] = None
+    for row in rows:
+        adverse = _book_adverse(sport, row)
+        row["adverse_move"] = adverse
+        if adverse is None:
+            continue
+        if name is None or adverse > worst or (adverse == worst and row["book"] < name):
+            worst = adverse
+            name = row["book"]
+    return worst, name
 
 
 def _line_prob_move(sport: str, rows: list[dict[str, Any]]) -> tuple[Optional[float], Optional[float], Optional[float]]:
@@ -663,6 +725,7 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "line_prob_move": price["line_prob_move"],
         "line_open_missing": bool(price["line_open_missing"]),
         "under_prob_move": price["under_prob_move"],
+        "book_adverse_max": price["book_adverse_max"],
         "under_prob_basis": price["basis"],
         "price_gate_max": price["price_gate_max"],
         "price_blocked": bool(price["price_blocked"] and weather_hit),

@@ -114,7 +114,7 @@ def test_books_ladder_wraps_past_limit():
 
 def test_edge_message_spread_side_sign():
     c = card([_edge(market="spread", side="home", line=-3.0, fair_line=-4.5, edge_pts=1.5, tier="strong")])
-    c["odds"] = {"betonline": {"spread": {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}}}
+    c["odds"]["betonline"]["spread"] = {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}
     lines = A.format_edge(c, c["fair"]["edges"][0], BOARD).splitlines()
     assert lines[2] == "<b>NE −3 (−110) · BetOnline</b>"
     assert lines[3] == "Weather: Wind: 18 mph"
@@ -280,6 +280,30 @@ def test_context_spread_is_the_consensus_spread_not_a_book_line():
     ladder = A.book_ladder(c, e)
     assert ladder == ["Books: <b>BetOnline −3.5 −110</b> · ref −2.7"]
     assert A._bet_line(c, e).startswith("<b>NE −3.5 −110 @ BetOnline</b>")
+
+
+def test_telegram_says_when_the_opener_line_is_unknown():
+    c = card()
+    edge = c["fair"]["edges"][0]
+    rec = {"last_line": 38.0, "last_edge": 3.4, "last_signal": "Mid Impact",
+           "last_wind": 18.0, "last_rain": 0.8, "last_book": "betonline"}
+    assert "Opener line unknown" not in A.format_edge(c, edge, BOARD)
+    assert "Opener line unknown" not in A._play_summary(c, edge)
+    assert "Opener line unknown" not in A.format_openers(
+        "nfl", 2026, 3, [(c, [f"{GID}|total|under|betonline"])], BOARD)
+    c["process"] = {"line_open_missing": True}
+    for text in (
+        A.format_edge(c, edge, BOARD),
+        A.format_move(c, rec, edge, "away from fair", BOARD),
+        A.format_signal_change(c, rec, edge, BOARD),
+        A.format_wx_move(c, rec, edge, BOARD),
+        A._play_summary(c, edge),
+        A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|total|under|betonline"])], BOARD),
+    ):
+        assert "Opener line unknown" in text
+    bare = card()
+    del bare["odds"]["betonline"]["total"]["open_line"]
+    assert "Opener line unknown" in A.format_edge(bare, bare["fair"]["edges"][0], BOARD)
 
 
 def test_candidate_summary_includes_weather_without_link():

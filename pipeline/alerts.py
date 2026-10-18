@@ -476,6 +476,7 @@ def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
                                  if q["book"] == edge.get("book") and q["line"] == edge.get("line")), edge))
     return (f"{_emoji_for(card)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}"
             f"\n{_price_context(card, edge)[0]}\nForecast: {_wx_numbers(card)}"
+            + "".join(f"\n{line}" for line in _opener_line_note(card))
             + "".join(f"\n{line}" for line in _liquidity_context(card)))
 
 
@@ -931,6 +932,16 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
     return rows
 
 
+def _opener_line_note(card: dict[str, Any]) -> list[str]:
+    """Surface a missing total opener. An absent flag is recomputed from the card."""
+    proc = card.get("process")
+    if not isinstance(proc, dict) or "line_open_missing" not in proc:
+        proc = process_screen.evaluate_card(card)
+    if proc.get("line_open_missing"):
+        return ["Opener line unknown"]
+    return []
+
+
 def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
     """Weather notification with optional price/model context, not an instruction to bet."""
     lines = [
@@ -939,6 +950,7 @@ def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEF
         *_why_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
+        *_opener_line_note(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -971,6 +983,7 @@ def format_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, Any],
         *_special_driver_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
+        *_opener_line_note(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -1004,6 +1017,7 @@ def format_signal_change(card: dict[str, Any], rec: dict[str, Any], edge: dict[s
         *_why_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
+        *_opener_line_note(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -1020,6 +1034,7 @@ def format_wx_move(card: dict[str, Any], rec: dict[str, Any], edge: dict[str, An
         *_special_driver_lines(card),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
+        *_opener_line_note(card),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -1033,10 +1048,12 @@ def format_openers(sport: str, season: Any, week: Any, items: Sequence[tuple[dic
         imp = _impact(card)
         books = sorted({k.split("|")[3] for k in keys if len(k.split("|")) == 4})
         cons = card.get("consensus") or {}
+        note = " · ".join(_opener_line_note(card))
         rows.append(
             f"{html.escape(_matchup(card))} {_kick_label(card)} · {_wx_numbers(card)} · "
             f"{_fmt_pct(imp.get('gs_fg_pct'))} · tot {_fmt_line(cons.get('total_now'))} sp {_fmt_line(cons.get('spread_now'), True)} · "
             f"{', '.join(_book_label(b) for b in books)}"
+            + (f" · {note}" if note else "")
         )
     link = f'<a href="{html.escape(board_url + "/#sport=" + sport + "&week=" + str(week), quote=True)}">board</a>'
     return "\n".join([head, *rows, link])
@@ -1507,6 +1524,7 @@ def followup_candidates(card: dict[str, Any], alerts: dict, cfg: Config, now: da
                             "book": candidate.record["last_book"]}
             candidate.summary += f"\n{_price_context(card, opening_edge)[0]}"
             candidate.summary += f"\nForecast: {_wx_numbers(card)}"
+            candidate.summary += "".join(f"\n{line}" for line in _opener_line_note(card))
             candidate.summary += "".join(f"\n{line}" for line in _liquidity_context(card))
     return out
 

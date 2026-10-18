@@ -174,7 +174,7 @@ so they cannot cancel:
 line_prob_move = total_shift(sport, line_now, line_open, "under")
 adverse_juice = max(under_prob_price_move, 0)    # only with a two-book price consensus
 adverse_line  = max(line_prob_move, 0)           # only when the total dropped
-under_prob_move = adverse_juice + adverse_line
+        under_prob_move = max(adverse_juice + adverse_line, worst single book)
 ```
 
 `under_prob_price_move` is the signed juice move (now minus opener). A longer
@@ -197,13 +197,22 @@ Worked examples, NFL:
 The same 4-point drop in CFB is 4 × 0.020 = 0.080 and blocks.
 
 Any book that has both the current total and the opener counts. One book is
-enough. Several are averaged with `BOOK_WEIGHTS`. A single book's juice still
-does not count; only its line does.
+enough. Several are averaged with `BOOK_WEIGHTS`.
+
+The average is not enough on its own. Any pricing book that has both a
+current under price and an opener under price is also scored alone, with the
+same adverse rule (its juice, plus its own dropped total, neither
+cancelling). If that one book is past the cap, the gate blocks even when the
+other books pull the average back inside it. A small move on one book still
+does not block. One book going from under -110 to -180, total unchanged, is
+about 12 percentage points and blocks. Pinnacle drifting to +130 does not
+cancel BetOnline at -180: the average is about zero, and BetOnline still
+blocks.
 
 If no book has an opener, `line_open_missing` is true. The line piece is not
 invented and does not block, because there is no measured move. The flag is
-on the card, and the board says the opener line is unknown, so the miss is
-not silent. Screen version `process-v4` is this rule.
+on the card, the board says the opener line is unknown, and Telegram says
+"Opener line unknown". Screen version `process-v5` is this rule.
 
 How the price consensus is built (`process.under_prob_move`):
 
@@ -211,7 +220,7 @@ How the price consensus is built (`process.under_prob_move`):
 |---|---|---|
 | Two or more books with both over and under, at the opener and now | `novig_consensus` (multiplicative devig, book weights from `BOOK_WEIGHTS`) | yes |
 | Two or more books with an under price but not a two-sided pair on both ends of the comparison | `under_only_implied` | yes, and the UI says it is an approximation |
-| Only one book | `single_book` | juice no; a dropped total on that book still blocks |
+| Only one book | `single_book` | the average ignores its juice; that book's own adverse move still blocks when it is past the cap |
 | Not enough prices on one end | `unavailable` | no |
 
 When the opener is under-only and the current price is two-sided, both ends
@@ -361,7 +370,7 @@ is now `process.alert`, not "any legacy Low+". That means:
 - rain under 23 mm, or 23 mm without ECMWF agreement, does not alert on rain
 - a consensus under-probability move past the gate does not alert, and an
   open alert closes silently the same way a forecast that leaves the screen does
-- a missing price, a single book, or a non-positive model edge still does not block a weather alert
+- a missing price or a non-positive model edge still does not block a weather alert. A single book's juice stays out of the consensus average, but that book's own adverse move blocks when it is past the cap
 
 v1 impact text in the message is still the stitched-forecast impact. Past
 48 h that number can disagree with the ECMWF signal forecast. Both are on
