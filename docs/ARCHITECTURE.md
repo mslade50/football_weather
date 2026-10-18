@@ -592,11 +592,17 @@ alerts and board output; historical openers and captured line history are kept.
 After raw uploads, a publication guard rechecks board and legacy current fields.
 BetCRIS CFB may revalidate the same public league URL once with `Cache-Control:
 no-cache` when a valid observation is stale. Both responses are captured separately.
-Recovery requires a genuinely fresh league observation under the unchanged minimum
-of the provider TTL and one-hour ceiling; catalog generation and download times do
-not renew prices. An unchanged stale response, invalid payload or denied request
-remains unavailable. Stale diagnostics include the observation time, age and both
-TTL limits. This bounded recovery cannot repair the upstream publisher's cadence.
+Recovery requires a genuinely fresh league observation. BetCris is shown for 30
+minutes from `feed_fetched_at` (1800s). A price older than 30 minutes is rejected.
+A price older than the provider's own `stale_after_seconds` stays on the board as
+a reference, with its age labeled, and cannot create an edge, a PLAY, a Telegram
+alert, or the best price used for entry or CLV. Catalog generation and download
+times do not renew prices. An unchanged stale response, invalid payload or denied
+request remains unavailable. Stale diagnostics include the observation time, age
+and both the 30-minute ceiling and the provider TTL. The 120-second publication
+reserve still withholds other books that would expire during upload; it does not
+hide a BetCris print that is still inside the 30-minute window. The read-time
+guard then drops it at `feed_fetched_at + 1800s`.
 The workflow reserves 120 seconds for the remaining board/state puts: quotes
 expiring within that window are withheld with their original expiry and opening
 fields. The guard records its actual check time separately; source clocks are

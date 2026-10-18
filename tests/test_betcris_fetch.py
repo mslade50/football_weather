@@ -118,7 +118,8 @@ def test_cfb_revalidation_recovers_only_a_new_fresh_observation_and_captures_bot
     assert client.requests == [(url, None), (url, {"Cache-Control": "no-cache"})]
     assert len(rows) == 12 and scraper.fetch_errors == {}
     assert all(r.source_updated_at == now - timedelta(seconds=60) for r in rows)
-    assert all(r.scraped_at == r.source_updated_at and r.expires_at == r.source_updated_at + timedelta(seconds=1500)
+    assert all(r.scraped_at == r.source_updated_at and r.expires_at == r.source_updated_at + timedelta(seconds=1800)
+               and r.actionable_until == r.source_updated_at + timedelta(seconds=1500) and not r.reference_only(now)
                for r in rows)
     assert next(r for r in rows if r.market == "total" and r.side == "under").odds == -125
     assert (raw.run_dir / "betcris_public_cfb.json").read_text(encoding="utf-8") == old

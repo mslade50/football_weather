@@ -5,8 +5,20 @@ export function quoteExpired(value, now = Date.now()) {
   return !Number.isFinite(expiry) || now > expiry;
 }
 
+function demoteReferenceEdges(card, now) {
+  const markets = card.odds?.betcris;
+  if (!markets || !card.fair?.edges) return;
+  const stale = new Set(Object.entries(markets).filter(([, quote]) => quote && Number.isFinite(Date.parse(quote.actionable_until)) && now > Date.parse(quote.actionable_until)).map(([market]) => market));
+  if (!stale.size) return;
+  card.fair.edges = card.fair.edges.filter(edge => !(edge.book === "betcris" && stale.has(edge.market)));
+  for (const key of ["best_total", "best_spread"]) {
+    if (card.fair[key]?.book === "betcris") card.fair[key] = null;
+  }
+}
+
 export function expireCardQuotes(original, now = Date.now()) {
   const card = structuredClone(original), removed = [];
+  demoteReferenceEdges(card, now);
   if (card.total_prices) {
     const prices = card.total_prices;
     const evidence = [...(prices.quote_evidence || []), ...(prices.quotes || []).map(q =>

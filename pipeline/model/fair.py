@@ -26,6 +26,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -274,7 +275,9 @@ def average_spread(books: dict[str, float]) -> tuple[float | None, str]:
     return round(sum(vals) / len(vals), C.SPREAD_AVG_DP), spread_src_label(b for b in C.SPREAD_CONSENSUS_BOOKS if b in books)
 
 
-def consensus(sport: str, lines: Iterable[GameLine], market: str) -> Consensus:
+def consensus(sport: str, lines: Iterable[GameLine], market: str, now: datetime | None = None) -> Consensus:
+    if now is not None:
+        lines = [gl for gl in lines if not gl.reference_only(now)]
     per_book = main_lines(lines, market)
     primary = _PRIMARY_SIDE[market]
     nums: list[float] = []
@@ -444,9 +447,10 @@ def evaluate_game(
     model_disagreement: float | None = None,
     lead_hours: float | None = None,
     model_version: str = C.MODEL_VERSION_V1,
+    now: datetime | None = None,
 ) -> GameFair:
-    rows = [gl for gl in lines if gl.game_id == game_id]
-    cons = {m: consensus(sport, rows, m) for m in ("total", "spread")}
+    rows = [gl for gl in lines if gl.game_id == game_id and (now is None or not gl.reference_only(now))]
+    cons = {m: consensus(sport, rows, m, now) for m in ("total", "spread")}
     fairs = {m: fair_line(m, cons[m], gs_fg_pct, away_fg_pct) for m in ("total", "spread")}
     conf = confidence(wind_vol_fc, model_disagreement, lead_hours, wind_vol_static)
     wd = weather_driven(gs_fg_pct, rain_c, away_fg_pct)
@@ -532,6 +536,7 @@ def evaluate_game_v2(
     wind_vol_static: str | None = None,
     model_disagreement: float | None = None,
     lead_hours: float | None = None,
+    now: datetime | None = None,
 ) -> GameFair:
     """Same edge machinery as v1 but fed by the v2 components; edges carry ``model_version='v2'``."""
     return evaluate_game(
@@ -546,6 +551,7 @@ def evaluate_game_v2(
         model_disagreement=model_disagreement,
         lead_hours=lead_hours,
         model_version=C.MODEL_VERSION_V2,
+        now=now,
     )
 
 

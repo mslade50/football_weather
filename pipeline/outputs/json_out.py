@@ -414,6 +414,8 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict,
                     # Match the existing one-hour carry/comparison ceiling.
                     # A provider without its own TTL cannot stay current forever.
                     values["expires_at"] = ref.scraped_at + timedelta(hours=1)
+                if ref.actionable_until is not None:
+                    values["actionable_until"] = ref.actionable_until
             out[book] = entry
 
     # Preserve historical openers when a book/market has no current quote. This

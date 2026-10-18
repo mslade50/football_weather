@@ -31,7 +31,7 @@ def _datetime(value) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
-def _card_lines(card: dict) -> list | None:
+def _card_lines(card: dict, now: datetime | None = None) -> list | None:
     """Rebuild the serialized main lines needed by the existing fair model.
 
     Exchange quotes omit their raw probability from the display block; the fair
@@ -58,6 +58,10 @@ def _card_lines(card: dict) -> list | None:
             continue
         for market, quote in markets.items():
             if market not in ("spread", "total", "ml") or not isinstance(quote, dict) or quote.get("expired"):
+                continue
+            # A BetCris print past the provider TTL stays visible. It is not a
+            # consensus or edge input, including when the publication guard rebuilds.
+            if now is not None and book == "betcris" and quote.get("actionable_until") and expired(quote.get("actionable_until"), now):
                 continue
             sides = []
             if market == "spread":
@@ -94,13 +98,14 @@ def _card_lines(card: dict) -> list | None:
                     scraped_at=_datetime(quote.get("updated_at")),
                     source_updated_at=_datetime(quote.get("source_updated_at")),
                     expires_at=_datetime(quote.get("expires_at")),
+                    actionable_until=_datetime(quote.get("actionable_until")),
                 ))
     return lines
 
 
 def _recompute_card(card: dict, now: datetime) -> bool:
     """Refresh comparisons from surviving serialized quotes; preserve all openers."""
-    lines = _card_lines(card)
+    lines = _card_lines(card, now)
     impact = card.get("impact") or {}
     v1 = impact.get("v1")
     if lines is None or not isinstance(v1, dict):
@@ -121,7 +126,7 @@ def _recompute_card(card: dict, now: datetime) -> bool:
     }
     fair_v1 = fair_mod.evaluate_game(
         sport, game_id, lines, v1.get("gs_fg_pct"), v1.get("away_fg_pct"),
-        rain_c=v1_components.get("rain"), **args,
+        rain_c=v1_components.get("rain"), now=now, **args,
     )
     fair_v2 = None
     v2 = impact.get("v2")
@@ -129,7 +134,7 @@ def _recompute_card(card: dict, now: datetime) -> bool:
         v2_components = v2.get("components") or {}
         fair_v2 = fair_mod.evaluate_game(
             sport, game_id, lines, v2.get("gs_fg_pct"), v2.get("away_fg_pct"),
-            rain_c=v2_components.get("rain"), model_version="v2", **args,
+            rain_c=v2_components.get("rain"), model_version="v2", now=now, **args,
         )
     selected = fair_v2 if impact.get("model_version") == "v2" and fair_v2 is not None else fair_v1
 
@@ -174,7 +179,7 @@ def _recompute_card(card: dict, now: datetime) -> bool:
     return True
 
 
-def expire_card(card: dict, now: datetime) -> dict:
+def expire_card(card: dict, now: datetime, *, lookahead: timedelta = timedelta(0)) -> dict:
     card = deepcopy(card)
     evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
     evidence = evidence + [{k: q.get(k) for k in ("book", "side", "line", "updated_at", "expires_at")}
@@ -182,7 +187,10 @@ def expire_card(card: dict, now: datetime) -> dict:
     removed = []
     for book, markets in card.get("odds", {}).items():
         for market, quote in markets.items():
-            if quote.get("expired") or not expired(quote.get("expires_at"), now):
+            # BetCris is allowed to be 30 minutes old. The upload reserve must
+            # not hide a print that is still inside that window.
+            check = now if book == "betcris" else now + lookahead
+            if quote.get("expired") or not expired(quote.get("expires_at"), check):
                 continue
             removed.append(f"{book}/{market}")
             reference = quote.get("last_observed")
@@ -222,14 +230,15 @@ def expire_card(card: dict, now: datetime) -> dict:
     return card
 
 
-def expire_meta(meta: dict, now: datetime) -> dict:
+def expire_meta(meta: dict, now: datetime, *, lookahead: timedelta = timedelta(0)) -> dict:
     meta = deepcopy(meta)
     if "quote_expiries" not in meta:
         return meta
     live = []
     removed = Counter()
     for group in meta.get("quote_expiries", []):
-        if expired(group["expires_at"], now):
+        check = now if group.get("book") == "betcris" else now + lookahead
+        if expired(group["expires_at"], check):
             removed[(group["book"], group["sport"], group["market"])] += group["count"]
         else:
             live.append(group)
@@ -251,11 +260,37 @@ def expire_meta(meta: dict, now: datetime) -> dict:
     return meta
 
 
+def demote_reference_card(card: dict, now: datetime) -> dict:
+    """Rebuild comparisons when a displayed BetCris price is past the provider TTL.
+
+    The price itself stays. Only consensus, edges, and best-price fields move.
+    """
+    odds = (card.get("odds") or {}).get("betcris") or {}
+    stale = [market for market, quote in odds.items()
+             if isinstance(quote, dict) and quote.get("actionable_until")
+             and not quote.get("expired") and expired(quote.get("actionable_until"), now)]
+    if not stale:
+        return card
+    try:
+        recomputed = _recompute_card(card, now)
+    except Exception:  # noqa: BLE001 - a reference price must not keep a stale edge
+        recomputed = False
+    if recomputed:
+        return card
+    fair = card.get("fair") or {}
+    fair["edges"] = [edge for edge in fair.get("edges") or [] if edge.get("book") != "betcris"]
+    for key in ("best_total", "best_spread"):
+        if isinstance(fair.get(key), dict) and fair[key].get("book") == "betcris":
+            fair[key] = None
+    card["fair"] = fair
+    return card
+
+
 def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0) -> None:
     """Recheck after raw uploads, immediately before uploading current board JSON."""
-    cutoff = now + timedelta(seconds=window_seconds)
+    lookahead = timedelta(seconds=window_seconds)
     original = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
-    meta = expire_meta(original, cutoff)
+    meta = expire_meta(original, now, lookahead=lookahead)
     if window_seconds:
         meta["publication_guard_at"] = now.isoformat()
         meta["publication_window_seconds"] = window_seconds
@@ -271,7 +306,7 @@ def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0
         if not path.exists():
             continue
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["games"] = [expire_card(c, cutoff) for c in payload["games"]]
+        payload["games"] = [demote_reference_card(expire_card(c, now, lookahead=lookahead), now) for c in payload["games"]]
         payload["meta"] = {**payload.get("meta", {}), "degradations": meta.get("degradations", [])}
         cards.extend(payload["games"])
         path.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")

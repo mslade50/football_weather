@@ -239,33 +239,71 @@ def test_publication_reserves_remaining_upload_time_without_shifting_clocks(tmp_
     directory = tmp_path / "board"
     directory.mkdir()
     original = card()
+    # The reserve applies to actionable books. BetCris has its own 30-minute
+    # reference window and is covered by the following test. Pinnacle 49 stays
+    # so a withheld quote still recomputes from the surviving book.
+    original["odds"]["circa"] = original["odds"].pop("betcris")
     expiry = NOW + timedelta(seconds=remaining)
-    quote = original["odds"]["betcris"]["total"]
+    quote = original["odds"]["circa"]["total"]
     quote["expires_at"] = expiry.isoformat()
     quote["source_updated_at"] = (expiry - timedelta(seconds=300)).isoformat()
-    meta = {"books": {"betcris": {"count": 4, "status": "green"}},
-            "counts": {"betcris": {"nfl": 2, "cfb": 2}}, "quote_expiries": [
-                {"book": "betcris", "sport": "nfl", "market": "total", "count": 2, "expires_at": expiry.isoformat()},
-                {"book": "betcris", "sport": "cfb", "market": "total", "count": 2,
+    meta = {"books": {"circa": {"count": 4, "status": "green"}},
+            "counts": {"circa": {"nfl": 2, "cfb": 2}}, "quote_expiries": [
+                {"book": "circa", "sport": "nfl", "market": "total", "count": 2, "expires_at": expiry.isoformat()},
+                {"book": "circa", "sport": "cfb", "market": "total", "count": 2,
                  "expires_at": (NOW + timedelta(minutes=30)).isoformat()}]}
     json_out.dump_json(directory / "meta.json", meta)
     json_out.dump_json(directory / "games_nfl.json", {"meta": {}, "games": [original]})
     publication_guard(directory, NOW, window_seconds=120)
     checked = json.loads((directory / "games_nfl.json").read_text())["games"][0]
     after = json.loads((directory / "meta.json").read_text())
-    assert checked["odds"]["betcris"]["total"].get("expired", False) is withheld
-    assert checked["odds"]["betcris"]["total"]["expires_at"] == quote["expires_at"]
-    assert checked["odds"]["betcris"]["total"]["source_updated_at"] == quote["source_updated_at"]
-    assert checked["odds"]["betcris"]["total"]["open_line"] == quote["open_line"]
+    assert checked["odds"]["circa"]["total"].get("expired", False) is withheld
+    assert checked["odds"]["circa"]["total"]["expires_at"] == quote["expires_at"]
+    assert checked["odds"]["circa"]["total"]["source_updated_at"] == quote["source_updated_at"]
+    assert checked["odds"]["circa"]["total"]["open_line"] == quote["open_line"]
     assert after["publication_guard_at"] == NOW.isoformat() and after["publication_window_seconds"] == 120
-    assert after["counts"]["betcris"]["cfb"] == 2
+    assert after["counts"]["circa"]["cfb"] == 2
     if withheld:
-        assert after["counts"]["betcris"]["nfl"] == 0 and after["books"]["betcris"]["status"] == "amber"
+        assert after["counts"]["circa"]["nfl"] == 0 and after["books"]["circa"]["status"] == "amber"
         assert after["degradations"][-1]["ts"] == NOW.isoformat()
         assert "publication window" in after["degradations"][-1]["reason"]
         assert checked["fair"]["fair_total"] == 49
     else:
-        assert after["books"]["betcris"]["count"] == 4 and not after.get("degradations")
+        assert after["books"]["circa"]["count"] == 4 and not after.get("degradations")
+
+
+def test_betcris_reference_survives_the_publication_reserve_and_loses_its_edge(tmp_path):
+    directory = tmp_path / "board"
+    directory.mkdir()
+    original = card()
+    quote = original["odds"]["betcris"]["total"]
+    quote["expires_at"] = (NOW + timedelta(seconds=30)).isoformat()
+    quote["source_updated_at"] = (NOW - timedelta(minutes=29, seconds=30)).isoformat()
+    quote["actionable_until"] = (NOW - timedelta(minutes=10)).isoformat()
+    quote["line"] = 48
+    original["fair"] = {"fair_total": 45, "edges": [{"book": "betcris", "market": "total", "edge_pts": 9}],
+                        "best_total": {"book": "betcris", "edge_pts": 9}}
+    meta = {"books": {"betcris": {"count": 2, "status": "green"}}, "counts": {"betcris": {"nfl": 2}},
+            "quote_expiries": [{"book": "betcris", "sport": "nfl", "market": "total", "count": 2,
+                                "expires_at": quote["expires_at"]}]}
+    json_out.dump_json(directory / "meta.json", meta)
+    json_out.dump_json(directory / "games_nfl.json", {"meta": {}, "games": [original]})
+    publication_guard(directory, NOW, window_seconds=120)
+    kept = json.loads((directory / "games_nfl.json").read_text())["games"][0]
+    assert kept["odds"]["betcris"]["total"]["line"] == 48
+    assert kept["odds"]["betcris"]["total"].get("expired") is not True
+    assert all(edge.get("book") != "betcris" for edge in kept["fair"]["edges"])
+    assert (kept["fair"].get("best_total") or {}).get("book") != "betcris"
+    after = json.loads((directory / "meta.json").read_text())
+    assert after["books"]["betcris"]["count"] == 2
+    quote["expires_at"] = (NOW - timedelta(seconds=1)).isoformat()
+    meta["quote_expiries"][0]["expires_at"] = quote["expires_at"]
+    json_out.dump_json(directory / "meta.json", meta)
+    json_out.dump_json(directory / "games_nfl.json", {"meta": {}, "games": [original]})
+    publication_guard(directory, NOW, window_seconds=120)
+    gone = json.loads((directory / "games_nfl.json").read_text())["games"][0]
+    assert gone["odds"]["betcris"]["total"].get("expired") is True
+    assert "line" not in gone["odds"]["betcris"]["total"]
 
 
 def test_compact_board_carries_earliest_current_quote_expiry():
