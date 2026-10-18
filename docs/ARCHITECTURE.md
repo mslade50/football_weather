@@ -353,8 +353,8 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 
 ### 7.3 Consensus / fair / edges (improvement)
 - Devig per book per market via multiplicative normalization of the two sides (`american_to_prob`, copied from golf). Exchanges (Kalshi/Novig/ProphetX) use `prob_raw` directly.
-- **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, betcris:1.5, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}`; `n_books<2 ⇒ thin=True` (no edges, no alerts). Consensus prob at that line = weighted mean of devigged probs after moving each book to the consensus line via pts→prob. For CFB only, the displayed per-book and consensus total "open" baseline is the line in force at kickoff−6 days (normally the prior Sunday for a Saturday game): last change-point at or before T−6, falling back to the earliest later observation when collection started late. It is recomputed from `history.json` and upserted to D1; spread openers and all NFL openers remain first-seen.
-- **Consensus SPREAD** = simple average of the Betcris, BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the three are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"cris+bol+pin"`, `"bol+pin"`, …). When none of the three has a spread the weighted-median rule above applies and `spread_src="fallback"`. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, the legacy CFB `Spread` column, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are still computed over every book posting a spread.
+- **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}` (polymarket_us uses the 0.5 default). BetCris is not in the median. `n_books<2 ⇒ thin=True` (no edges, no alerts), and BetCris does not count toward that two. Consensus prob at that line = weighted mean of devigged probs after moving each pricing book to the consensus line via pts→prob. For CFB only, the displayed per-book and consensus total "open" baseline is the line in force at kickoff−6 days (normally the prior Sunday for a Saturday game): last change-point at or before T−6, falling back to the earliest later observation when collection started late. It is recomputed from `history.json` and upserted to D1; spread openers and all NFL openers remain first-seen.
+- **Consensus SPREAD** = simple average of the BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the two are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"bol+pin"`, `"pin"`, …). When neither has a spread the weighted-median rule above applies and `spread_src="fallback"`. BetCris is not a member. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). An opener already frozen with BetCris in its members stays set-once; live `spread_now` does not include BetCris, so `move_s` can change once against that frozen baseline. This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, the legacy CFB `Spread` column, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are computed over every pricing book posting a spread. BetCris is excluded from all three.
 - **pts→prob**: totals `PTS_PROB_TOTAL = {"nfl": 0.026, "cfb": 0.020}` per point; spreads key-number-aware table `SPREAD_KEY_PROB["nfl"] = {0.5:.02,1:.015,1.5:.02,2:.02,2.5:.03,3:.095,3.5:.03,4:.02,...,6:.04,7:.075,...,10:.045,14:.04}` (cumulative half-point values from `data/calibration.json`, defaults shipped); CFB flatter table.
 - **Fair line** v1: `fair_total = consensus_total * (1 + gs_fg/100)`; `fair_spread = consensus_spread * (1 + away_fg/100)` (sign: home-relative). v2 uses v2 components (§7.5).
 - **Per (game, book, market, side)**: `edge_pts = signed(fair_line − book_line)` (positive means the side is favorable: under when book total > fair, over when book total < fair, home when book gives home more points than fair, etc.); `edge_prob = fair_prob(side at book line) − vigfree_prob(side)`; `best_book` per market/side.
@@ -592,18 +592,33 @@ alerts and board output; historical openers and captured line history are kept.
 After raw uploads, a publication guard rechecks board and legacy current fields.
 BetCRIS CFB may revalidate the same public league URL once with `Cache-Control:
 no-cache` when a valid observation is stale. Both responses are captured separately.
-Recovery requires a genuinely fresh league observation under the unchanged minimum
-of the provider TTL and one-hour ceiling; catalog generation and download times do
-not renew prices. An unchanged stale response, invalid payload or denied request
-remains unavailable. Stale diagnostics include the observation time, age and both
-TTL limits. This bounded recovery cannot repair the upstream publisher's cadence.
+Recovery requires a genuinely fresh league observation. BetCris is shown for 30
+minutes from `feed_fetched_at` (1800s). A price older than 30 minutes is rejected.
+The cell shows the age (`20m old`). A price older than the provider's own
+`stale_after_seconds` adds `reference`. BetCris never contributes to consensus,
+the fair line, edges, `n_books`, or the spread average, including while it is
+still inside the provider timer. Exchange books (Kalshi, Polymarket US, Novig,
+ProphetX) plus BetOnline and Pinnacle remain the pricing sources. It cannot
+create a PLAY, a Telegram alert, or the best price used for entry or CLV. A
+published card that already folded BetCris into the fair line is rebuilt from
+the other books on the publication guard and on the Worker read; best price
+falls through to the next book. Catalog generation and download
+times do not renew prices. An unchanged stale response, invalid payload or denied
+request remains unavailable. Stale diagnostics include the observation time, age
+and both the 30-minute ceiling and the provider TTL. The 120-second publication
+reserve still withholds other books that would expire during upload; it does not
+hide a BetCris print that is still inside the 30-minute window. The read-time
+guard then marks that BetCris cell expired at `feed_fetched_at + 1800s`. That
+clock is not the compact row's earliest expiry, and it does not clear the
+game's fair line, edges, or best price while a pricing book is still fresh.
 The workflow reserves 120 seconds for the remaining board/state puts: quotes
 expiring within that window are withheld with their original expiry and opening
 fields. The guard records its actual check time separately; source clocks are
 never shifted. This covers expiry during the final upload loop while the
 read-time guard continues to enforce expiry if uploads run unusually slowly.
 The authenticated Worker and browser also enforce expiry, preserving opening
-fields but withholding derived current comparisons until a new calculation.
+fields. A pricing book's expiry withholds derived current comparisons until a
+new calculation. A BetCris expiry only expires the BetCris cell.
 Runtime `quote_expiries` metadata adjusts book health/counts without renewing
 source clocks. Quotes can expire between publication steps; the read-time guard
 is authoritative for current display.
@@ -623,7 +638,7 @@ workflow completion. Historical trigger failures without receipts remain unknown
 
 The Best under column ranks fresh main-line unders by estimated ROI per dollar at risk; the drawer compares both sides. ROI = P(win) / cost + P(push) - 1, with cost from executable American odds including quoted vig and known exchange taker fees. Fair cost = P(win) / (1 - P(push)). Execution cost is not devigged. Integer sportsbook totals refund the stake; half points have no push. A discrete logistic score CDF is anchored on the active model fair total and consensus probability, with local slope from PTS_PROB_TOTAL. Push mass is the difference between adjacent half-point CDF values. This is an explicitly labeled estimate, not calibrated football key-number frequencies. Quotes older than one hour and games already started are not ranked. Thin consensus has no comparison. All-negative comparisons retain a negative EV label. Slippage and size-specific fee rounding are excluded. Existing fair/edge and alert selection rules are unchanged.
 
-Polymarket US uses the public gateway.polymarket.us /v2/leagues/{nfl,cfb}/events endpoint with bounded pagination and raw capture before parsing. Only full-game total, spread and winner market types are accepted. Long execution uses bestAskQuote, opposite execution uses 1-bestBidQuote. feeCoefficient * p * (1-p) is added before converting to American odds; midpoint probabilities remain separate for consensus. Integer exchange strikes are excluded until their settlement semantics are supported. BOOK_POLYMARKET_US_ENABLED controls the feed.
+Polymarket US uses the public gateway.polymarket.us /v2/leagues/{nfl,cfb}/events endpoint with bounded pagination and raw capture before parsing. When that list omits full-game spreads and totals, each listed game is completed from /v1/events/slug/{slug} before parsing. Only full-game total, spread and winner market types are accepted. Long execution uses bestAskQuote, opposite execution uses 1-bestBidQuote. feeCoefficient * p * (1-p) is added before converting to American odds; midpoint probabilities remain separate for consensus. Integer exchange strikes are excluded until their settlement semantics are supported. BOOK_POLYMARKET_US_ENABLED controls the feed.
 
 PLAY and UPDATE alerts show best overall and best exchange total prices for the alerted side, using the same fresh-quote estimated ROI ranking. Exchange eligibility is NoVig, Kalshi, ProphetX and Polymarket US. Stadium wind history comes from the latest read-only `board/backtest.json`: unique graded games at that stadium in the same sport, selected by the existing NFL Wind / CFB Wind combined-signal rules using closing forecasts and opening spreads. Results are under W-L-P versus closing totals, with sample size, seasons and source date; missing history is explicitly unavailable. Unrelated all-weather stadium aggregates are not substituted.
 

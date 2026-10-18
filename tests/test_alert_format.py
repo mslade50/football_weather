@@ -287,7 +287,7 @@ def test_candidate_summary_includes_weather_without_link():
     c = A.edge_candidates(_sample_card(), alerts, A.Config(board_url=BOARD))[0]
     assert "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm" in c.summary and "<a " not in c.summary
     # The summary includes the current bet, weekly opener, and complete weather.
-    assert c.summary == ("🌬️ MID · SEA @ NE · Under 38.5 (−108) · Betcris · Sun 1:00p ET\n"
+    assert c.summary == ("🌬️ MID · SEA @ NE · Under 38 (−105) · Novig · size unverified · Sun 1:00p ET\n"
                          "Week open: Under 38 (?) · BetOnline\n"
                          "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm")
 

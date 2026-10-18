@@ -85,14 +85,16 @@ def test_provider_expiry_and_original_payload_time_survive_archive_and_json(tmp_
                      NullRawStore("cfb", "expiry"), ["betcris"], tmp_path, 2026)
     archive = state.load_archive_last(tmp_path)
     observed = rows[0].scraped_at
-    expiry = observed + timedelta(seconds=750)
+    expiry = observed + timedelta(seconds=1800)
     carried = build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry)
     assert len(carried) == 6 and {r.expires_at for r in carried} == {expiry}
     assert {r.source_updated_at for r in carried} == {observed}
     assert build.carry_forward_lines(archive, "cfb", {game.game_id}, ["betonline"], now=expiry + timedelta(seconds=1)) == []
     values = odds_block(game.game_id, carried, {})["betcris"]
     assert all(x["updated_at"] == observed and x["expires_at"] == expiry
-               and x["source_updated_at"] == carried[0].source_updated_at for x in values.values())
+               and x["source_updated_at"] == carried[0].source_updated_at
+               and x["actionable_until"] == observed + timedelta(seconds=750) for x in values.values())
+    assert all(r.reference_only(expiry) for r in carried)
 
 
 @pytest.mark.parametrize("expiry", [None, "invalid", "2026-10-02T20:28:59Z"])
@@ -119,7 +121,7 @@ def test_source_expiry_survives_neutral_home_away_flip():
     result = merge.merge_odds("nfl", [game], rows, now=NOW, save=False)
     assert len(result.lines) == 6 and not result.unmatched
     assert {r.source_updated_at for r in result.lines} == {rows[0].source_updated_at}
-    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(hours=1)}
+    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(seconds=1800)}
     assert next(r for r in result.lines if r.market == "ml" and r.side == "home").odds == raw["markets"]["moneyline"]["visitor"]["price"]
 
 
@@ -178,11 +180,11 @@ def test_current_aware_timestamps_respect_offsets_dst_and_dates(sport, stamp, ex
 
 
 @pytest.mark.parametrize("sport,ttl,age,accepted", [
-    ("nfl", 9000, 3600, True), ("nfl", 9000, 3601, False),
-    ("cfb", 750, 750, True), ("cfb", 750, 751, False),
+    ("nfl", 9000, 1800, True), ("nfl", 9000, 1801, False),
+    ("cfb", 750, 750, True), ("cfb", 750, 1800, True), ("cfb", 750, 1801, False),
     ("nfl", 9000, 0, True), ("nfl", 9000, -1, False),
 ])
-def test_freshness_never_exceeds_board_ceiling_or_provider_ttl(sport, ttl, age, accepted):
+def test_freshness_ceiling_is_thirty_minutes(sport, ttl, age, accepted):
     assert build.ODDS_CARRY_MAX_AGE == timedelta(seconds=3600)
     data = payload(sport)
     data.update(stale_after_seconds=ttl, feed_fetched_at=(NOW - timedelta(seconds=age)).isoformat())
@@ -207,11 +209,12 @@ def test_october_fifth_cfb_drop_reports_the_exact_deadline_without_using_catalog
                 generated_at="2026-10-05T22:03:56Z", last_good_at="2026-10-05T22:03:56Z")
     for game in data["games"]:
         game["starts_at"] = "2026-10-10T19:30:00Z"
-    first = betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 21, 54, tzinfo=timezone.utc))
+    # 28 minutes old is inside the 30-minute board window. Catalog clocks do not extend it.
+    first = betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 21, 29, 22, tzinfo=timezone.utc))
     assert len(first) == 12
-    assert all(r.expires_at == datetime(2026, 10, 5, 22, 1, 2, tzinfo=timezone.utc) for r in first)
-    with pytest.raises(betcris.StaleObservationError, match="age_seconds=3774, effective_ttl_seconds=3600, provider_ttl_seconds=9000"):
-        betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 22, 3, 56, tzinfo=timezone.utc))
+    assert all(r.expires_at == datetime(2026, 10, 5, 21, 31, 2, tzinfo=timezone.utc) for r in first)
+    with pytest.raises(betcris.StaleObservationError, match="age_seconds=1801, effective_ttl_seconds=1800, provider_ttl_seconds=9000"):
+        betcris.parse_public(data, "cfb", now=datetime(2026, 10, 5, 21, 31, 3, tzinfo=timezone.utc))
 
 
 def test_final_job_replaces_expired_college_capture_with_new_prices(tmp_path, monkeypatch):
@@ -256,3 +259,90 @@ def test_final_job_replaces_expired_college_capture_with_new_prices(tmp_path, mo
     assert len(actual) == 6 and calls[-1] == ["betonline", "betcris"]
     assert {r.scraped_at for r in actual} == {later - timedelta(minutes=1)}
     assert next(r for r in actual if r.market == "total" and r.side == "under").odds == -125
+
+
+def test_price_past_provider_ttl_is_reference_only_and_cannot_price_or_alert():
+    from pipeline import alerts as A
+    from pipeline.contracts import actionable_lines
+    from pipeline.model import fair as fair_mod
+    from tests.test_alerts_rules import CFG
+    from tests.test_alerts_rules import card as alert_card
+
+    data = payload("cfb")
+    stale_at = NOW - timedelta(seconds=1200)
+    data.update(feed_fetched_at=stale_at.isoformat(), stale_after_seconds=750)
+    for game in data["games"]:
+        game["starts_at"] = (NOW + timedelta(days=2)).isoformat()
+    stale = betcris.parse_public(data, "cfb", now=NOW)
+    assert stale and all(r.reference_only(NOW) and r.expires_at == stale_at + timedelta(seconds=1800) for r in stale)
+    data["feed_fetched_at"] = (NOW - timedelta(seconds=100)).isoformat()
+    fresh = betcris.parse_public(data, "cfb", now=NOW)
+    assert fresh and all(not r.reference_only(NOW) for r in fresh)
+
+    from pipeline.contracts import GameLine
+    gid = "cfb:2026:5:away@home"
+    exchange = [GameLine(sport="cfb", game_id=gid, book="kalshi", market="total", side=side, odds=-110,
+                         line=45.0, prob_raw=0.52 if side == "over" else 0.48, scraped_at=NOW,
+                         expires_at=NOW + timedelta(minutes=5))
+                for side in ("over", "under")]
+    reference = [GameLine(sport="cfb", game_id=gid, book="betcris", market="total", side=side, odds=-110,
+                          line=60.0, scraped_at=stale_at, source_updated_at=stale_at,
+                          expires_at=stale_at + timedelta(seconds=1800),
+                          actionable_until=stale_at + timedelta(seconds=750))
+                 for side in ("over", "under")]
+    assert actionable_lines(reference, NOW) == []
+    alone = fair_mod.evaluate_game("cfb", gid, reference, -8.0, 0.0, now=NOW)
+    assert alone.edges == [] and alone.total.line is None
+    mixed = fair_mod.evaluate_game("cfb", gid, exchange + reference, -8.0, 0.0, now=NOW)
+    assert mixed.total.line == 45.0 and {e.book for e in mixed.edges} == {"kalshi"}
+    priced = fair_mod.consensus("cfb", exchange + reference, "total", now=NOW)
+    assert priced.line == 45.0 and "betcris" not in priced.books
+
+    played = alert_card(edges=[{
+        "game_id": gid, "book": "betcris", "market": "total", "side": "under", "line": 60.0, "odds": -110,
+        "fair_line": 45.0, "edge_pts": 15.0, "edge_prob": 0.2, "tier": "strong", "model_version": "v1",
+    }], signal="Mid Impact", sport="cfb", game_id=gid, kickoff=NOW + timedelta(days=2))
+    played["odds"]["betcris"] = {"total": {
+        "line": 60.0, "under": -110, "updated_at": stale_at.isoformat(),
+        "source_updated_at": stale_at.isoformat(), "expires_at": (stale_at + timedelta(seconds=1800)).isoformat(),
+        "actionable_until": (stale_at + timedelta(seconds=750)).isoformat(),
+    }}
+    signal = A.edge_candidates(played, {}, CFG, now=NOW)[0]
+    assert signal.record["last_book"] != "betcris" and signal.record["last_line"] is None
+    assert "Betcris" not in signal.text and "60.0" not in signal.text
+    assert "no posted price available" in signal.text
+
+
+def test_betcris_inside_provider_timer_does_not_price_consensus_edges_or_spread_average():
+    from pipeline.contracts import GameLine
+    from pipeline.model import fair as fair_mod
+
+    gid = "cfb:2026:5:away@home"
+    until = NOW + timedelta(minutes=20)
+    expires = NOW + timedelta(minutes=30)
+
+    def pair(book, market, line, **kw):
+        sides = ("home", "away") if market == "spread" else ("over", "under")
+        rows = []
+        for side in sides:
+            posted = -line if market == "spread" and side == "away" else line
+            rows.append(GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=-110,
+                                 line=posted, scraped_at=NOW, source_updated_at=NOW, expires_at=expires,
+                                 actionable_until=until, **kw))
+        return rows
+
+    cris = pair("betcris", "total", 60.0) + pair("betcris", "spread", -1.0)
+    assert cris and all(not row.reference_only(NOW) for row in cris)
+    others = (pair("pinnacle", "total", 44.5) + pair("betonline", "total", 46.0)
+              + pair("pinnacle", "spread", -3.0) + pair("betonline", "spread", -2.5)
+              + pair("kalshi", "total", 47.0))
+    mixed = others + cris
+    total = fair_mod.consensus("cfb", mixed, "total", now=NOW)
+    assert total.line == 45.25 and "betcris" not in total.books and total.n_books == 3
+    spread = fair_mod.consensus("cfb", mixed, "spread")
+    assert spread.line == -2.75 and spread.src == "bol+pin" and "betcris" not in spread.books and spread.n_books == 2
+    priced = fair_mod.evaluate_game("cfb", gid, mixed, -8.0, 0.0, now=NOW)
+    assert priced.total.line == 45.25 and priced.spread.line == -2.75
+    assert "betcris" not in {edge.book for edge in priced.edges}
+    untimed = fair_mod.evaluate_game("cfb", gid, mixed, -8.0, 0.0)
+    assert "betcris" not in {edge.book for edge in untimed.edges}
