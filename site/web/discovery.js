@@ -55,18 +55,23 @@ function modelRain(row) {
   return finiteValue(rain) ? Number(rain) : null;
 }
 function rainAgreement(models, ecmwfMm) {
+  // Partner is the closest non-ECMWF model that is itself at or above 23 mm.
+  // A nearer model under that bar is not a confirmation.
   if (!Array.isArray(models) || !models.length || !finiteValue(ecmwfMm)) return "unverified";
   let best = null;
+  let sawOther = false;
   for (const row of models) {
     if (!row || ECMWF_MODELS.has(row.id)) continue;
     const rain = modelRain(row);
     if (rain == null) continue;
+    sawOther = true;
+    if (rain < PROCESS_RAIN_SIGNAL_MM) continue;
     const gap = Math.abs(rain - Number(ecmwfMm));
     if (!best || gap < best.gap) best = {gap, rain};
   }
-  if (!best) return "unverified";
-  return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.rain >= PROCESS_RAIN_SIGNAL_MM
-    && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
+  if (!sawOther) return "unverified";
+  if (!best) return "disagree";
+  return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
 }
 function warmWindLabel(bucket) {
   return bucket === "10_12" ? "10–12 mph" : bucket === "12_15" ? "12–15 mph" : bucket === "gt_15" ? ">15 mph" : "";
@@ -150,6 +155,7 @@ function discoveryState(g) {
   const weatherHit = tempPasses && (windBand === "flag" || rainSignal);
   const rainNear = ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
   const watch = tempPasses && !weatherHit && (windBand === "watch" || rainNear);
+  // under_prob_move already adds the line, restated at the opener. Do not add it again.
   const move = finiteValue(proc.under_prob_move) ? Math.abs(Number(proc.under_prob_move)) : null;
   const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
   const priceBlocked = proc.price_blocked === true || (weatherHit && move != null && move > moveMax
@@ -161,7 +167,7 @@ function discoveryState(g) {
   if (probability !== null && probability < .05) {
     kind = "quiet"; label = "Very low signal likelihood";
   } else if (priceBlocked && weatherHit) {
-    kind = "moved"; label = "Under price moved vs opener";
+    kind = "moved"; label = "Under moved vs opener";
   } else if (weatherHit) {
     kind = "signal";
     label = rainSignal && windBand === "flag" ? "Signal · wind ≥15 mph · heavy rain"

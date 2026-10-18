@@ -57,6 +57,17 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   run(ctx, 'STATE.focus = "candidates"; STATE.book = "kalshi"; STATE.minEdge = 999;');
   assert.equal(run(ctx, 'currentGames().length'), 1);
 });
+test('Heavy rain confirms with the closest model that itself clears 23 mm', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.temp_fg = 50; game.weather.rain_fg = 25;
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 25},
+      {id: 'ncep_nbm_conus', rain_mm: 22},
+      {id: 'ncep_gfs_seamless', rain_mm: 30}];`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, 'game.weather.models[2].rain_mm = 10;');
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'near');
+});
 test('Warm wind is a separate list and not an under signal', () => {
   const ctx = ui();
   ctx.game.weather.temp_fg = 72;

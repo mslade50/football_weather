@@ -56,8 +56,28 @@ def test_rain_signal_needs_ecmwf_and_another_model() -> None:
     windows["ncep_gfs_seamless"]["rain_mm"] = 8.0
     refused = P.rain_agreement(windows)
     assert refused["agree"] is False and refused["status"] == "disagree"
+    assert refused["partner"] is None
     only_ecmwf = {P.ECMWF_IFS: {"rain_mm": 30.0}, P.ECMWF_AIFS: {"rain_mm": 28.0}}
     assert P.rain_agreement(only_ecmwf)["status"] == "unverified"
+
+
+def test_rain_partner_is_the_closest_model_that_clears_the_signal() -> None:
+    windows = {
+        P.ECMWF_IFS: {"rain_mm": 25.0},
+        "ncep_nbm_conus": {"rain_mm": 22.0},
+        "ncep_gfs_seamless": {"rain_mm": 30.0},
+    }
+    agreed = P.rain_agreement(windows)
+    assert agreed["agree"] is True and agreed["status"] == "agree"
+    assert agreed["partner"] == "ncep_gfs_seamless"
+    assert agreed["partner_mm"] == pytest.approx(30.0)
+    windows["ncep_gfs_seamless"]["rain_mm"] = 10.0
+    none = P.rain_agreement(windows)
+    assert none["agree"] is False and none["status"] == "disagree"
+    assert none["partner"] is None and none["partner_mm"] is None
+    windows["ncep_gfs_seamless"]["rain_mm"] = 40.0
+    far = P.rain_agreement(windows)
+    assert far["partner"] == "ncep_gfs_seamless" and far["agree"] is False
 
 
 def test_ecmwf_apart_is_a_flag() -> None:
@@ -107,6 +127,48 @@ def test_price_move_uses_consensus_and_labels_the_approximation() -> None:
     assert approx["basis"] == P.BASIS_IMPLIED and approx["price_blocked"] is True
     one = P.under_prob_move(implied[:1])
     assert one["basis"] == P.BASIS_SINGLE and one["price_blocked"] is False
+
+
+def _even_books(line: float, open_line: float, under: int = -110, over: int = -110) -> list[dict]:
+    row = {
+        "line": line, "open_line": open_line,
+        "under": under, "over": over, "open_under": -110, "open_over": -110,
+    }
+    return [{"book": "pinnacle", **row}, {"book": "betonline", **row}]
+
+
+def test_moved_total_counts_even_when_the_price_is_back_at_even() -> None:
+    moved = P.under_prob_move(_even_books(43, 47), sport="nfl")
+    assert moved["basis"] == P.BASIS_NOVIG
+    assert moved["under_prob_price_move"] == pytest.approx(0.0)
+    assert moved["line_open"] == pytest.approx(47) and moved["line_now"] == pytest.approx(43)
+    assert moved["line_prob_move"] == pytest.approx(4 * C.PTS_PROB_TOTAL["nfl"])
+    assert moved["under_prob_move"] == pytest.approx(moved["under_prob_price_move"] + moved["line_prob_move"])
+    assert moved["under_prob_move"] == pytest.approx(0.104)
+    assert moved["price_blocked"] is True
+    one_point = P.under_prob_move(_even_books(46, 47), sport="nfl")
+    assert one_point["line_prob_move"] == pytest.approx(C.PTS_PROB_TOTAL["nfl"])
+    assert one_point["price_blocked"] is False
+    single = P.under_prob_move(_even_books(43, 47)[:1], sport="nfl")
+    assert single["basis"] == P.BASIS_SINGLE and single["price_blocked"] is False
+    assert single["line_prob_move"] is None
+    cfb = P.under_prob_move(_even_books(43, 47), sport="cfb")
+    assert cfb["line_prob_move"] == pytest.approx(4 * C.PTS_PROB_TOTAL["cfb"])
+    assert cfb["price_blocked"] is True
+    # A longer under price can offset the line. The gate uses the sum, not the larger term.
+    offset = P.under_prob_move(_even_books(43, 47, under=130, over=-150), sport="nfl")
+    assert offset["under_prob_price_move"] < 0 < offset["line_prob_move"]
+    assert offset["under_prob_move"] == pytest.approx(offset["under_prob_price_move"] + offset["line_prob_move"])
+    assert abs(offset["under_prob_move"]) < C.PROCESS_UNDER_PROB_MOVE_MAX
+    assert offset["price_blocked"] is False
+    card = _card(wind_fg=16, temp_fg=40)
+    card["odds"] = {
+        "pinnacle": {"total": {"line": 43, "open_line": 47, "under": -110, "over": -110, "open_under": -110, "open_over": -110}},
+        "betonline": {"total": {"line": 43, "open_line": 47, "under": -110, "over": -110, "open_under": -110, "open_over": -110}},
+    }
+    screen = P.evaluate_card(card)
+    assert screen["candidate"] is True and screen["price_blocked"] is True and screen["alert"] is False
+    assert screen["line_prob_move"] == pytest.approx(0.104)
 
 
 def _card(**weather: float) -> dict:

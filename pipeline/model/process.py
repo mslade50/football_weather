@@ -18,7 +18,7 @@ import os
 from typing import Any, Optional
 
 from pipeline.model import config as C
-from pipeline.model.fair import american_to_prob, devig_pair
+from pipeline.model.fair import american_to_prob, devig_pair, total_shift
 from pipeline.stadiums.roofs import weather_exposed
 
 ECMWF_IFS = "ecmwf_ifs025"
@@ -57,7 +57,10 @@ def _f(value: Any) -> Optional[float]:
 
 
 def under_prob_move_max() -> float:
-    """Absolute no-vig under-probability move vs the consensus opener. Default 4%."""
+    """Cap on the combined under-probability move. Default 4%.
+
+    Juice and the total's move share this one limit. See ``under_prob_move``.
+    """
     raw = os.environ.get("PROCESS_UNDER_PROB_MOVE_MAX", "").strip()
     if not raw:
         return C.PROCESS_UNDER_PROB_MOVE_MAX
@@ -282,12 +285,17 @@ def rain_agreement(windows: Optional[dict[str, Any]]) -> dict[str, Any]:
     """Heavy rain counts only when ECMWF and at least one other model agree.
 
     Both totals must be ≥ ``PROCESS_RAIN_SIGNAL_MM`` and within
-    ``PROCESS_RAIN_AGREE_TOL_MM`` of each other. The closest other model at or
-    above the threshold is the partner. IFS/AIFS do not count as each other's
-    confirming model.
+    ``PROCESS_RAIN_AGREE_TOL_MM`` of each other. The partner is the closest
+    non-ECMWF model that is itself at or above that threshold. A nearer model
+    under the threshold is skipped: ECMWF 25 mm, NBM 22 mm, GFS 30 mm partners
+    with GFS. IFS and AIFS do not confirm each other. Other models with a rain
+    total but none at the threshold are ``disagree`` with no partner. No other
+    rain total at all is ``unverified``.
     """
     ecmwf = ecmwf_fields(windows or {})
     ecmwf_mm = ecmwf.get("rain_mm")
+    saw_other = False
+    # (gap, model id, mm) so equal gaps pick a stable id.
     partners: list[tuple[float, str, float]] = []
     for model, row in (windows or {}).items():
         if model in ECMWF_MODELS or not isinstance(row, dict):
@@ -295,18 +303,19 @@ def rain_agreement(windows: Optional[dict[str, Any]]) -> dict[str, Any]:
         other = _f(row.get("rain_mm"))
         if other is None or ecmwf_mm is None:
             continue
+        saw_other = True
+        if other < C.PROCESS_RAIN_SIGNAL_MM:
+            continue
         partners.append((abs(other - float(ecmwf_mm)), model, other))
     partners.sort()
     if ecmwf_mm is None:
         return {"status": "missing_ecmwf", "ecmwf_mm": None, "partner": None, "partner_mm": None, "agree": False}
-    if not partners:
+    if not saw_other:
         return {"status": "unverified", "ecmwf_mm": ecmwf_mm, "partner": None, "partner_mm": None, "agree": False}
-    _gap, partner, partner_mm = partners[0]
-    agree = (
-        float(ecmwf_mm) >= C.PROCESS_RAIN_SIGNAL_MM
-        and partner_mm >= C.PROCESS_RAIN_SIGNAL_MM
-        and abs(partner_mm - float(ecmwf_mm)) <= C.PROCESS_RAIN_AGREE_TOL_MM
-    )
+    if not partners:
+        return {"status": "disagree", "ecmwf_mm": ecmwf_mm, "partner": None, "partner_mm": None, "agree": False}
+    gap, partner, partner_mm = partners[0]
+    agree = float(ecmwf_mm) >= C.PROCESS_RAIN_SIGNAL_MM and gap <= C.PROCESS_RAIN_AGREE_TOL_MM
     return {
         "status": "agree" if agree else "disagree",
         "ecmwf_mm": ecmwf_mm,
@@ -350,16 +359,39 @@ def _weighted(pairs: list[tuple[float, float]]) -> Optional[float]:
     return sum(weight * prob for weight, prob in pairs) / total
 
 
-def under_prob_move(books: list[dict[str, Any]], *, move_max: Optional[float] = None) -> dict[str, Any]:
-    """Consensus no-vig under probability now minus the consensus opener.
+def under_prob_move(
+    books: list[dict[str, Any]], *, move_max: Optional[float] = None, sport: str = "nfl",
+) -> dict[str, Any]:
+    """Under-probability move vs the consensus opener, including the total.
 
-    ``books`` rows carry ``book``, current ``under``/``over`` American odds and
-    opener ``open_under``/``open_over``. Two-sided prices use multiplicative
-    devig. When either side of the comparison lacks two-sided prices at two or
-    more books, both sides of the comparison fall back to the raw implied
-    under probability and ``basis`` is ``under_only_implied``. One book is
-    reported as ``single_book`` and does not trip the gate: the process wants
-    a cross-book consensus, not one book's move.
+    Juice alone misses a moved number. 47 to 43 with both sides back at -110
+    has the same no-vig price and a total that already moved. The gate therefore
+    compares one combined probability with ``PROCESS_UNDER_PROB_MOVE_MAX``.
+
+    ``under_prob_price_move`` is the consensus under probability now minus the
+    opener, at whatever number each side is posted. Two-sided prices use
+    multiplicative devig. When either side of that comparison lacks two-sided
+    prices at two or more books, both sides fall back to the raw implied under
+    probability and ``basis`` is ``under_only_implied``. One book is
+    ``single_book`` and does not trip the gate.
+
+    ``line_prob_move`` restates the current price at the opener's number, using
+    ``fair.total_shift`` and ``PTS_PROB_TOTAL`` (0.026 per NFL point, 0.020 per
+    CFB point)::
+
+        line_prob_move = total_shift(sport, line_now, line_open, "under")
+        under_prob_move = under_prob_price_move + line_prob_move
+
+    A lower total is positive: the under of the opener's number got more
+    likely. A higher total is negative. The two terms are added, so they can
+    offset. The gate blocks when ``abs(under_prob_move)`` is past the cap.
+    NFL 47 → 43 at -110/-110 is juice 0 + 4 × 0.026 = 0.104, which blocks.
+    One NFL point (0.026) does not, unless the juice moves too.
+
+    The line term needs two or more books that each have both ``line`` and
+    ``open_line``, averaged with ``BOOK_WEIGHTS``. Fewer than that leaves
+    ``line_prob_move`` empty and adds nothing. A missing price consensus does
+    not invent a move from the line alone, and a single book never gates.
     """
     limit = under_prob_move_max() if move_max is None else move_max
     rows = []
@@ -373,6 +405,7 @@ def under_prob_move(books: list[dict[str, Any]], *, move_max: Optional[float] = 
             "book": name,
             "weight": _book_weight(name),
             "line": _f(book.get("line")),
+            "open_line": _f(book.get("open_line")),
             "over": _american(book.get("over")),
             "under": _american(book.get("under")),
             "open_over": _american(book.get("open_over")),
@@ -405,17 +438,45 @@ def under_prob_move(books: list[dict[str, Any]], *, move_max: Optional[float] = 
         now_p = now_novig if now_novig is not None else now_implied
     else:
         basis, open_p, now_p = BASIS_UNAVAILABLE, None, None
-    move = (now_p - open_p) if open_p is not None and now_p is not None else None
+    price_move = (now_p - open_p) if open_p is not None and now_p is not None else None
+    line_open, line_now, line_move = _line_prob_move(sport, rows)
+    # Add only when both pieces exist. A missing line stays juice-only. A missing
+    # price consensus stays ungated even if the number moved at one book.
+    if price_move is None or basis not in (BASIS_NOVIG, BASIS_IMPLIED):
+        move = price_move
+    else:
+        move = price_move + (line_move if line_move is not None else 0.0)
     blocked = bool(basis in (BASIS_NOVIG, BASIS_IMPLIED) and move is not None and abs(move) > limit)
     return {
         "basis": basis,
         "under_prob_open": open_p,
         "under_prob_now": now_p,
+        "under_prob_price_move": price_move,
+        "line_open": line_open,
+        "line_now": line_now,
+        "line_prob_move": line_move,
         "under_prob_move": move,
         "price_gate_max": limit,
         "price_blocked": blocked,
         "books": rows,
     }
+
+
+def _line_prob_move(sport: str, rows: list[dict[str, Any]]) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """Weighted opener and current totals, and the under-probability of that gap.
+
+    Returns ``(None, None, None)`` unless two books each have both numbers.
+    """
+    both = [row for row in rows if row.get("line") is not None and row.get("open_line") is not None]
+    if len(both) < 2:
+        return None, None, None
+    line_open = _weighted([(row["weight"], row["open_line"]) for row in both])
+    line_now = _weighted([(row["weight"], row["line"]) for row in both])
+    if line_open is None or line_now is None:
+        return None, None, None
+    sport_key = sport if sport in C.PTS_PROB_TOTAL else "nfl"
+    # Restate the current under at the opener's number. A drop (line_now < line_open) is positive.
+    return line_open, line_now, total_shift(sport_key, line_now, line_open, "under")
 
 
 def _models_dict(models: Any) -> dict[str, Any]:
@@ -551,8 +612,11 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         total = (markets or {}).get("total") or {}
         if not isinstance(total, dict):
             continue
-        books.append({"book": name, **{k: total.get(k) for k in ("line", "over", "under", "open_over", "open_under")}})
-    price = under_prob_move(books)
+        books.append({
+            "book": name,
+            **{k: total.get(k) for k in ("line", "open_line", "over", "under", "open_over", "open_under")},
+        })
+    price = under_prob_move(books, sport=sport or "nfl")
     spread_open = (card.get("consensus") or {}).get("spread_open")
     spread_ok = _spread_ok(str(card.get("sport") or ""), spread_open)
     wind_flag = band == "flag"
@@ -585,6 +649,10 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "ecmwf_apart_fields": list(apart["fields"]),
         "under_prob_open": price["under_prob_open"],
         "under_prob_now": price["under_prob_now"],
+        "under_prob_price_move": price["under_prob_price_move"],
+        "line_open": price["line_open"],
+        "line_now": price["line_now"],
+        "line_prob_move": price["line_prob_move"],
         "under_prob_move": price["under_prob_move"],
         "under_prob_basis": price["basis"],
         "price_gate_max": price["price_gate_max"],

@@ -118,7 +118,11 @@ function underMoveText(g) {
   const pp = (Number(proc.under_prob_move) * 100).toFixed(1);
   const basis = proc.under_prob_basis === "under_only_implied" ? "under-only implied (approximation)"
     : proc.under_prob_basis === "novig_consensus" ? "no-vig consensus" : esc(proc.under_prob_basis || "");
-  return `${pp} pp vs opener · ${basis}${proc.price_blocked ? " · past the move gate" : ""}`;
+  let lineNote = "";
+  if (isNum(proc.line_open) && isNum(proc.line_now) && isNum(proc.line_prob_move) && Number(proc.line_prob_move) !== 0) {
+    lineNote = ` · line ${Number(proc.line_open)}→${Number(proc.line_now)}`;
+  }
+  return `${pp} pp vs opener · ${basis}${lineNote}${proc.price_blocked ? " · past the move gate" : ""}`;
 }
 function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};

@@ -113,9 +113,15 @@ Game-window total is the sum of the three hourly samples from kickoff through
 (0.90 in × 25.4 = 22.86 mm).
 
 A heavy-rain **signal** also needs agreement: the ECMWF total (IFS if that
-field is present, otherwise AIFS) and at least one non-ECMWF model are both
-≥ 23 mm and within 10 mm of each other. IFS and AIFS do not confirm each
-other. If ECMWF is missing, or no other model has a total, the rain is
+field is present, otherwise AIFS) and a non-ECMWF partner are both ≥ 23 mm
+and within 10 mm of each other. The partner is the closest non-ECMWF model
+that is itself at or above 23 mm. A nearer model under 23 mm is not the
+partner. IFS and AIFS do not confirm each other.
+
+Example: ECMWF 25 mm, NBM 22 mm, GFS 30 mm. NBM is closer but under 23 mm,
+so the partner is GFS. The gap is 5 mm, inside 10 mm, so the rain agrees.
+If GFS were also under 23 mm, the status is `disagree` and there is no
+partner. If ECMWF is missing, or no other model has a total, the rain is
 `unverified` and is not a signal. Disagreement is shown and is not a signal.
 
 Watch and elevated rain, and unverified or disagreed heavy rain, show as
@@ -142,19 +148,52 @@ sampler would skip that case. Sampled rain is not an alert.
 
 ### 4. Price move
 
-He does not want the under once the no-vig under probability has moved more
-than about 3–5% from the **consensus opener across books**.
+He does not want the under once it has moved more than about 3–5% from the
+**consensus opener across books**. The move includes the total, not only the
+juice at whatever number is posted now.
 
-The field is `process.under_prob_move` (current consensus minus opener
-consensus, in probability points). The gate is
+The gate compares one field, `process.under_prob_move`, with
 `PROCESS_UNDER_PROB_MOVE_MAX`, default **0.04** (4 percentage points).
 Override with the env var `PROCESS_UNDER_PROB_MOVE_MAX` (a number strictly
 between 0 and 1). `process.price_blocked` is true only when a real consensus
-exists and the absolute move is past that limit. Blocked games leave the
-alert set and the default dashboard candidate list (`discovery` kind
+exists and the absolute combined move is past that limit. Blocked games leave
+the alert set and the default dashboard candidate list (`discovery` kind
 `moved`). They stay visible with "show all".
 
-How the consensus is built (`process.under_prob_move`):
+Line and price share that one cap. They are added, in under-probability:
+
+```
+line_prob_move = total_shift(sport, line_now, line_open, "under")
+under_prob_move = under_prob_price_move + line_prob_move
+```
+
+`under_prob_price_move` is the consensus under probability now minus the
+opener, at the number each side is posted. `line_prob_move` restates the
+current price at the opener's number, using `fair.total_shift` and
+`PTS_PROB_TOTAL`: **0.026 per NFL point**, **0.020 per CFB point**. A lower
+total is positive (the under of the opener's number got more likely). A
+higher total is negative. The gate uses the absolute value of the sum.
+
+Worked example: opener 47, now 43, both sides -110 at both ends, two books.
+The juice term is 0. The line term is `total_shift("nfl", 43, 47, "under")`
+= 4 × 0.026 = 0.104. Combined 0.104, past 0.04, so the game is blocked.
+One NFL point is 0.026 and does not block by itself. The same 4-point drop
+in CFB is 4 × 0.020 = 0.080 and does block.
+
+Because the terms are added, they can offset. A 4-point NFL drop is +0.104
+on its own, but a much longer under price at the new number can bring the
+sum back under 0.04. That is the probability of the original under, not a
+second rule that any point move blocks.
+
+The line term needs two or more books that each have both `line` and
+`open_line`. Those books are averaged with `BOOK_WEIGHTS`. Fewer than two
+leaves `line_prob_move` empty and adds nothing, so the gate stays juice-only.
+One book, or a comparison with no prices, still does not trip the gate.
+
+Screen version `process-v3` is this formula. `process-v2` cards stored
+juice only in `under_prob_move`.
+
+How the price consensus is built (`process.under_prob_move`):
 
 | Prices on hand | Basis | Gate |
 |---|---|---|
@@ -173,7 +212,7 @@ they are. New runs store both sides (see below). A move computed from the old
 files would be the labeled approximation at best, and only where two books
 exist.
 
-Code: `pipeline/model/process.py`, `pipeline/model/fair.py` `devig_pair`.
+Code: `pipeline/model/process.py`, `pipeline/model/fair.py` `devig_pair` and `total_shift`.
 The card field is filled in `pipeline/outputs/json_out.py` `build_card`.
 
 ### 5. Forecast models
