@@ -157,6 +157,15 @@ def test_all_nfl_and_college_covered_home_venues(book: StadiumBook) -> None:
 
 def test_venue_aliases_and_neutral_roofs(book: StadiumBook) -> None:
     assert book.find_stadium("Tottenham Hotspur Stadium").stadium_id == "tottenham-hotspur-stadium"
+    assert book.find_stadium("Tottenham Stadium").stadium_id == "tottenham-hotspur-stadium"
+    assert book.find_stadium("Sports Authority Field at Mile High").stadium_id == "empower-field-at-mile-high"
+    assert book.find_stadium("Broncos Stadium at Mile High").stadium_id == "empower-field-at-mile-high"
+    assert book.find_stadium("Azteca Stadium").stadium_id == "estadio-banorte"
+    assert book.find_stadium("Pitbull Stadium").stadium_id == "fiu-stadium"
+    assert book.find_stadium("Riccardo Silva Stadium").stadium_id == "fiu-stadium"
+    assert book.find_stadium("2031").stadium_id == "fiu-stadium"
+    assert book.find_stadium("HighPoint.com Stadium").stadium_id == "shi-stadium"
+    assert book.find_stadium("3754").stadium_id == "shi-stadium"
     assert book.find_stadium("JMA Wireless Dome").stadium_id == "carrier-dome"
     assert book.find_stadium("ICCU Dome").stadium_id == "holt-arena"
     g = _game("cfb", "texas", "oklahoma", "att-stadium", neutral=True)

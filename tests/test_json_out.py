@@ -276,11 +276,11 @@ def test_consensus_spread_opener_averages_member_openers_with_fallback():
                                _ln("betcris", "spread", "home", -2.0, -110), _ln("betcris", "spread", "away", 2.0, -110),
                                _ln("fanduel", "spread", "home", -9.0, -110),    # non-member ignored
                                _ln("fanduel", "spread", "away", 9.0, -110)], "t1")
-    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")            # betcris opener is not a member
     del op["openers"][pstate.odds_key(GID, "spread", "home", "pinnacle")]       # away-only opener flips
-    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")
     pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "spread", "away", 2.5, -110)], "t2")
-    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+bol+pin")
+    assert json_out.consensus_spread_opener(GID, op) == (-2.75, "bol+pin")
     assert json_out.consensus_spread_opener("nfl:2026:3:x@y", op) == (None, "fallback")
 
 
@@ -610,4 +610,4 @@ def test_frozen_consensus_spread_opener_ignores_members_posting_later():
     block = json_out.consensus_block(GID, {}, op)
     assert block["spread_open"] == -3.0 and block["spread_open_members"] == ["pinnacle"]
     del op["consensus_spread_open"]                                                # unfrozen -> computed
-    assert json_out.consensus_spread_opener(GID, op) == (-4.0, "cris+pin")
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")            # later betcris opener is not a member

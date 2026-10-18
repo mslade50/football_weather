@@ -1,0 +1,21 @@
+{
+  "season": {"type": 2, "year": 2018},
+  "week": {"number": 1},
+  "events": [
+    {
+      "id": "401012345",
+      "competitions": [
+        {
+          "date": "2018-08-25T21:30Z",
+          "neutralSite": false,
+          "venue": {"id": "3985", "fullName": "Warren McGuirk Alumni Stadium"},
+          "competitors": [
+            {"homeAway": "home", "team": {"location": "Massachusetts", "displayName": "UMass Minutemen", "abbreviation": "MASS"}},
+            {"homeAway": "away", "team": {"location": "Duquesne", "displayName": "Duquesne Dukes", "abbreviation": "DUQ"}}
+          ],
+          "status": {"type": {"state": "post"}}
+        }
+      ]
+    }
+  ]
+}

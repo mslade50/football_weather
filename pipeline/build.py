@@ -82,7 +82,7 @@ from typing import Any
 
 from pipeline import alerts as alerts_mod
 from pipeline import state as pstate
-from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
+from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast, actionable_lines
 from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
@@ -939,7 +939,7 @@ class ConsensusLine:
     n_books: int
     ref_book: str | None
     side: str  # the side whose line/odds this is (home for spread, under for total)
-    src: str | None = None  # spread: averaged members ("cris+bol+pin" subset) or "fallback"
+    src: str | None = None  # spread: averaged members ("bol+pin" subset) or "fallback"
 
 
 def _average_spread(per_book: dict[str, float]) -> tuple[float | None, str]:
@@ -965,13 +965,18 @@ def weighted_median(values: Sequence[tuple[float, float]]) -> float | None:
     return pts[-1][0]
 
 
-def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, float] | None = None) -> dict[tuple[str, str], ConsensusLine]:
+def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, float] | None = None,
+                    now: datetime | None = None) -> dict[tuple[str, str], ConsensusLine]:
     """``(game_id, market)`` -> weighted-median main line across books (spread: home side,
     total: under side). ``ref_book`` = heaviest book sitting on the consensus number."""
     w = weights or BOOK_WEIGHTS
     side_for = {"spread": "home", "total": "under"}
     by_key: dict[tuple[str, str], dict[str, GameLine]] = {}
     for ln in lines:
+        if ln.book in model_config.REFERENCE_BOOKS:
+            continue
+        if now is not None and ln.reference_only(now):
+            continue
         if ln.sport != sport or not ln.is_main or ln.market not in side_for or ln.side != side_for[ln.market]:
             continue
         if ln.line is None or ln.book == CONSENSUS_BOOK:
@@ -1019,7 +1024,7 @@ def _external_consensus(mod: Any, sport: str, lines: Sequence[GameLine], ctx: Ru
     try:
         for game_id, glines in by_game.items():
             for market, side in side_for.items():
-                c = fn(sport, glines, market)
+                c = fn(sport, glines, market, now=ctx.now_utc)
                 line = getattr(c, "line", None)
                 if line is None:
                     continue
@@ -1366,20 +1371,23 @@ def stage_odds(
         else:
             consensus = _external_consensus(fair_mod, sport, board_lines, ctx)
         if consensus is None:
-            consensus = consensus_lines(sport, board_lines)
+            consensus = consensus_lines(sport, board_lines, now=ctx.now_utc)
 
     # state: first-seen openers except CFB totals, which use the T-6-day snapshot;
     # archive_last remains the most recently seen value per key
     with ctx.stage(f"{sport}.state"):
         now = utc_iso(ctx.now_utc)
         main_lines = [ln for ln in lines if ln.is_main]
+        # A BetCris print past the provider TTL stays on the board, but it is not
+        # an opener, a history point, or a closing used for CLV.
+        priced_lines = actionable_lines(main_lines, ctx.now_utc)
         before_keys = set(openers.get("openers") or {})
-        added = pstate.record_openers(openers, main_lines, now)
+        added = pstate.record_openers(openers, priced_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
-        record_weekly_totals(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+        record_weekly_totals(openers, pstate.load_history(state_dir), priced_lines, games, ctx.now_utc)
         json_out.freeze_consensus_spread_openers(openers, sorted(active_ids), now)
         opener_update_keys = (
-            retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+            retarget_cfb_total_openers(openers, pstate.load_history(state_dir), priced_lines, games, ctx.now_utc)
             if sport == "cfb" else []
         )
         new_keys = sorted(set(openers.get("openers") or {}) - before_keys)
@@ -1389,7 +1397,7 @@ def stage_odds(
         last = archive.setdefault("last", {})
         # consensus spread rides along as book='consensus' (history / D1 / closings), never carried forward
         pseudo = consensus_spread_lines(consensus, sport, ctx.now_utc, ctx.run_id)
-        deltas = d1_out.odds_deltas(main_lines + pseudo, last)  # change-only set BEFORE last is advanced
+        deltas = d1_out.odds_deltas(priced_lines + pseudo, last)  # change-only set BEFORE last is advanced
         # Keep historical observations, but an empty/partial scrape withdraws its
         # missing quotes from later jobs. Do not resurrect them from archive_last.
         for key, value in last.items():
@@ -1402,6 +1410,8 @@ def stage_odds(
                 last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
             if ln.expires_at is not None:
                 last[ln.key]["expires_at"] = utc_iso(ln.expires_at)
+            if ln.actionable_until is not None:
+                last[ln.key]["actionable_until"] = utc_iso(ln.actionable_until)
         if _prune_allowed(archive, sport, len(active_ids), ctx, "archive_last"):
             pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
@@ -1506,7 +1516,8 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
                                 odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at,
                                 source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {},
-                                source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at))
+                                source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at,
+                                actionable_until=pstate.parse_utc(val.get("actionable_until"))))
         except (TypeError, ValueError):
             continue
     return out
@@ -1692,7 +1703,7 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
     for line in res.odds.lines:
         res.odds.by_game.setdefault(line.game_id, []).append(line)
     fair_mod = _import("pipeline.model.fair")
-    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines)
+    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines, now=now)
     for book, count in Counter(line.book for line in removed).items():
         counts = ctx.counts.get(book, {})
         if res.sport in counts:
@@ -1748,6 +1759,7 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
             model_disagreement=fc.model_disagreement if fc else None,
             lead_hours=fc.lead_hours if fc else None,
             model_version=model_version,
+            now=ctx.now_utc,
         )
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("model.fair", f"{game.game_id}: evaluate_game[{model_version}] failed ({type(exc).__name__}: {exc})", "warn")
@@ -1846,7 +1858,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
     with ctx.stage(f"{sport}.history"):
         hist = pstate.load_history(state_dir)
         # book lines + the consensus spread series (book='consensus'), the drawer chart / CLV source
-        n_pts = pstate.update_history(hist, [ln for ln in res.odds.scraped if ln.is_main] + list(res.odds.pseudo), now)
+        priced = actionable_lines([ln for ln in res.odds.scraped if ln.is_main], ctx.now_utc)
+        n_pts = pstate.update_history(hist, priced + list(res.odds.pseudo), now)
         fairs: dict[str, float] = {}
         for gid, gf in res.fairs.items():
             for market, side in (("total", "over"), ("spread", "home")):

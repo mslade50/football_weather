@@ -720,8 +720,11 @@ def _ladder_rows(card: dict[str, Any], market: str, side: str) -> list[tuple[flo
     """``(line, odds, book, rendered)`` for every book in ``card['odds']`` pricing ``market``;
     the line is expressed from the bettor's side (spread away = −home_line)."""
     rows: list[tuple[float, Optional[float], str, str]] = []
+    now = _dt(card.get("_alert_at")) or now_utc()
     for book, blk in (card.get("odds") or {}).items():
         if book == CONSENSUS_BOOK or not isinstance(blk, dict):
+            continue
+        if book == "betcris" and _betcris_reference(card, market, now):
             continue
         m = blk.get(market) or {}
         if market == "total":
@@ -1146,6 +1149,15 @@ def consensus_entry(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _betcris_reference(card: dict[str, Any], market: str, now: datetime) -> bool:
+    """A BetCris price past the provider TTL is a labeled reference, not an entry."""
+    quote = ((card.get("odds") or {}).get("betcris") or {}).get(market) or {}
+    if not isinstance(quote, dict):
+        return False
+    until = _dt(quote.get("actionable_until"))
+    return until is not None and now > until
+
+
 def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
     """Use the same fresh ROI-ranked under as Best price, independent of signal eligibility.
 
@@ -1176,7 +1188,8 @@ def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
         return dict(entry, line=None, odds=None, edge_pts=None)
     unders = [e for e in ((card.get("fair") or {}).get("edges") or [])
               if e.get("market") == "total" and e.get("side") == "under"
-              and _num(e.get("line")) is not None and _num(e.get("odds")) is not None]
+              and _num(e.get("line")) is not None and _num(e.get("odds")) is not None
+              and e.get("book") != "betcris"]
     if unders:   # ties on edge_pts → the best price for an under bettor (higher line, then better odds)
         return max(unders, key=lambda e: (_num(e.get("edge_pts")) or 0.0, _num(e.get("line")) or -1e9,
                                           _num(e.get("odds")) or -1e9))

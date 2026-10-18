@@ -196,8 +196,8 @@ Worked examples, NFL:
 
 The same 4-point drop in CFB is 4 × 0.020 = 0.080 and blocks.
 
-Any book that has both the current total and the opener counts. One book is
-enough. Several are averaged with `BOOK_WEIGHTS`.
+Any pricing book that has both the current total and the opener counts. One
+book is enough. Several are averaged with `BOOK_WEIGHTS`.
 
 The average is not enough on its own. Any pricing book that has both a
 current under price and an opener under price is also scored alone, with the
@@ -208,6 +208,11 @@ does not block. One book going from under -110 to -180, total unchanged, is
 about 12 percentage points and blocks. Pinnacle drifting to +130 does not
 cancel BetOnline at -180: the average is about zero, and BetOnline still
 blocks.
+
+`REFERENCE_BOOKS` (BetCris) is left out of this gate entirely. It does not
+enter the average, the line, or the single-book check. BetCris under -110 to
+-180, or a BetCris total from 47 to 43, does not block when the pricing books
+are unchanged. A two-sided BetCris price does not pull the average.
 
 If no book has an opener, `line_open_missing` is true. The line piece is not
 invented and does not block, because there is no measured move. The flag is

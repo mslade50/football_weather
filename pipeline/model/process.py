@@ -402,12 +402,15 @@ def under_prob_move(
     drifting to +130 does not cancel BetOnline at -180.
     ``under_prob_move`` is the larger of the consensus adverse sum and that
     worst book.
+
+    Books in ``REFERENCE_BOOKS`` (BetCris) are left out entirely. They do not
+    enter the average, the line, or the single-book check.
     """
     limit = under_prob_move_max() if move_max is None else move_max
     rows = []
     for book in books:
         name = str(book.get("book") or "")
-        if not name or name == "consensus":
+        if not name or name == "consensus" or name in C.REFERENCE_BOOKS:
             continue
         now = _side_probs(book.get("under"), book.get("over"))
         opener = _side_probs(book.get("open_under"), book.get("open_over"))

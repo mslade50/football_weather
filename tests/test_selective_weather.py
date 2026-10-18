@@ -375,7 +375,7 @@ def test_cfb_uses_current_consensus_opener_and_preserves_active_alert(weather, t
     gid = group[0].game_id
     openers = {"openers": {}}
     if spread is not None:
-        openers["openers"][f"{gid}|spread|home|betcris"] = {"line": spread}
+        openers["openers"][f"{gid}|spread|home|pinnacle"] = {"line": spread}
     ctx = RunContext("cfb", git_sha="test-sha")
     result = build.stage_weather(ctx, "cfb", group, stadiums, NullRawStore("cfb", ctx.run_id), {},
                                  state_dir=tmp_path, openers=openers)

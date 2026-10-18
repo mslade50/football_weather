@@ -360,13 +360,15 @@ def test_signal_slugs():
 
 def test_play_is_the_largest_under_edge_any_book():
     alerts, _ = _fresh()
-    c = A.edge_candidates(card([_edge(), _edge(book="betcris", line=38.5, edge_pts=3.9, tier="watch"),
+    c = A.edge_candidates(card([_edge(), _edge(book="betcris", line=41.0, edge_pts=9.0),
+                                _edge(book="novig", line=38.5, edge_pts=3.9, tier="watch"),
                                 _edge(book="fanduel", side="over", edge_pts=9.0),
-                                _edge(book="novig", market="spread", side="home", line=-3.0, edge_pts=5.0, tier="strong")]),
+                                _edge(book="kalshi", market="spread", side="home", line=-3.0, edge_pts=5.0, tier="strong")]),
                           alerts, CFG)
     assert [x.key for x in c] == [EKEY]
-    assert c[0].record["book"] == "betcris" and c[0].record["last_book"] == "betcris"
-    assert "<b>Under 38.5 (−110) · Betcris</b>" in c[0].text
+    assert c[0].record["book"] == "novig" and c[0].record["last_book"] == "novig"
+    assert "<b>Under 38.5 (−110) · Novig</b>" in c[0].text
+    assert "Betcris" not in c[0].text
 
 
 def test_best_book_churn_keeps_one_stable_play_identity():
@@ -376,10 +378,12 @@ def test_best_book_churn_keeps_one_stable_play_identity():
     out, _, _ = _live(first, alerts, tg)
     assert out.n_sent == 1
 
-    # Betcris becomes the best recommendation, but a book change is not a new PLAY
-    # and a sub-threshold line change is not an UPDATE.
+    # Kalshi becomes the best recommendation, but a book change is not a new PLAY
+    # and a sub-threshold line change is not an UPDATE. A larger BetCris edge is
+    # not a recommendation.
     churned = card([_edge(book="betonline", line=38.0, edge_pts=3.4),
-                    _edge(book="betcris", line=38.5, edge_pts=3.9)])
+                    _edge(book="betcris", line=41.0, edge_pts=9.0),
+                    _edge(book="novig", line=38.5, edge_pts=3.9)])
     assert A.edge_candidates(churned, alerts, CFG) == []
     assert A.followup_candidates(churned, alerts, CFG, NOW + timedelta(hours=1)) == []
     assert [r["alert_key"] for r in pstate.open_edge_records(alerts, GID)] == [EKEY]
@@ -387,10 +391,12 @@ def test_best_book_churn_keeps_one_stable_play_identity():
     # A material change in the best available offer is useful, but it must not
     # be described as though one book's market line moved.
     better = card([_edge(book="betonline", line=38.0, edge_pts=3.4),
-                   _edge(book="betcris", line=40.0, edge_pts=5.4)])
+                   _edge(book="betcris", line=42.0, edge_pts=9.0),
+                   _edge(book="novig", line=40.0, edge_pts=5.4)])
     update = A.followup_candidates(better, alerts, CFG, NOW + timedelta(hours=5))
     assert len(update) == 1 and update[0].family == "move"
-    assert "Play price: Under 38 (−110) · BetOnline → Under 40 (−110) · Betcris" in update[0].text
+    assert "Play price: Under 38 (−110) · BetOnline → Under 40 (−110) · Novig" in update[0].text
+    assert "Betcris" not in update[0].text
     assert "Line:" not in update[0].text
     assert "Play price:" in update[0].summary and "BetOnline → Under 40" in update[0].summary
 

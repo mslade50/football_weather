@@ -133,7 +133,7 @@ Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:
 | `TELEGRAM_MIN_TIER` | minimum weather signal tier (default: `low`); no price/edge gate |
 | `TELEGRAM_MAX_LEAD_DAYS` | furthest valid future kickoff for betting alerts (default: `7` days); board and odds windows are independent |
 | `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | volume controls (defaults: `4`, `0`) |
-| `TELEGRAM_SYSTEM_ALERTS` | opt in to one aggregated provider/workflow failure page (`0` by default) |
+| `TELEGRAM_SYSTEM_ALERTS` | opt in to aggregated SYSTEM pages (`0` by default). A rejected pipeline publish, or a failed gate or light build, pages without it; a Playwright-only failure still needs it |
 | `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | complete weekly report fallback when Telegram fails or cannot fit every game; optional `SMTP_USE_SSL` / `SMTP_STARTTLS` |
 | `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID` | wrangler R2 / D1 / deploy in the workflows |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | optional: `pipeline.outputs.r2 --publish` locally (boto3) |

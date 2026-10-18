@@ -158,3 +158,50 @@ def test_pagination_limit_does_not_publish_partial_slate(monkeypatch):
         transport=httpx.MockTransport(handler), **kw))
     with pytest.raises(ValueError, match="safety limit"):
         asyncio.run(scraper.PolymarketUSScraper().scrape("nfl"))
+
+
+def _moneyline_only(event):
+    listed = copy.deepcopy(event)
+    listed["markets"] = [m for m in listed["markets"] if m["sportsMarketType"] == "football_team_full_game_winner"]
+    listed["marketCounts"] = {"numSpreadsAndTotalsMarkets": 12}
+    # The captured kickoff is already in the past relative to a live scrape clock.
+    listed["startTime"] = "2026-10-25T17:00:00Z"
+    return listed
+
+
+def test_league_list_without_spreads_loads_the_event_document(monkeypatch):
+    full = fixture()["events"][0]
+    listed = _moneyline_only(full)
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json={"events": [listed]})
+        assert request.url.path == f"/v1/events/slug/{full['slug']}"
+        return httpx.Response(200, json={"event": full})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper.httpx, "AsyncClient", lambda **kw: real_client(
+        transport=httpx.MockTransport(handler), **kw))
+    rows = asyncio.run(scraper.PolymarketUSScraper().scrape("nfl"))
+    assert seen == ["/v2/leagues/nfl/events", f"/v1/events/slug/{full['slug']}"]
+    assert {r.market for r in rows} == {"ml", "spread", "total"}
+
+
+def test_event_document_failure_keeps_the_listed_moneyline(monkeypatch):
+    full = fixture()["events"][0]
+    listed = _moneyline_only(full)
+
+    def handler(request):
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json={"events": [listed]})
+        return httpx.Response(404, json={"error": "missing"})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper.httpx, "AsyncClient", lambda **kw: real_client(
+        transport=httpx.MockTransport(handler), **kw))
+    book = scraper.PolymarketUSScraper()
+    rows = asyncio.run(book.scrape("nfl"))
+    assert rows and {r.market for r in rows} == {"ml"}
+    assert "event documents failed" in book.fetch_errors["event_documents"]

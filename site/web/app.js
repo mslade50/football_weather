@@ -8,6 +8,7 @@
  *
  * /data/meta.json
  *   { run_id, last_updated, season, week, sport_counts {nfl, cfb}, git_sha, model_version,
+ *     retained_sports? { <sport>: { from_run_id, games, refreshed_at } },
  *     next_run_eta, degradations [{component, reason, severity, run_id, ts}],
  *     books { <book>: { count, baseline, status: "green"|"amber"|"red", last_ok } },
  *     weeks? { nfl: <current week>, cfb: <current week> } (array tolerated: first entry),
@@ -162,12 +163,14 @@ function bestEdge(g, market = null, book = null) {
   for (const e of edgesOf(g)) {
     if (market && e.market !== market) continue;
     if (book && e.book !== book) continue;
+    if (e.book === "betcris") continue;
     if (!isNum(e.edge_pts)) continue;
     if (!best || Math.abs(e.edge_pts) > Math.abs(best.edge_pts)) best = e;
   }
   return best;
 }
 function edgeAt(g, book, market) {
+  if (book === "betcris") return null;
   return edgesOf(g).find((e) => e.book === book && e.market === market) || null;
 }
 
@@ -615,6 +618,10 @@ async function boot() {
       const history = document.getElementById("drawer-stadium-history");
       if (history) history.innerHTML = stadiumHistoryDetails(DRAWER.game);
     }
+  });
+  if (typeof loadStadiumClimate === "function") loadStadiumClimate().then(() => {
+    if (["table", "map", "signals"].includes(STATE.view)) render();
+    if (typeof paintStadiumClimate === "function") paintStadiumClimate();
   });
 }
 

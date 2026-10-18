@@ -15,6 +15,7 @@ import { pinPublication } from './publication.js';
 import { betConfirmationsRoute } from './bet-confirmations.js';
 import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
 import { stadiumHistoryPayload } from './stadium-history.js';
+import { stadiumClimatePayload } from './stadium-climate.js';
 
 const DATA_PREFIX = "/data/";
 const API_PREFIX = "/api/";
@@ -486,6 +487,11 @@ async function handleFetchInner(request, env) {
   if (url.pathname === '/api/stadium-history') {
     if (request.method !== 'GET') return methodNotAllowed('GET');
     return jsonResponse(stadiumHistoryPayload());
+  }
+
+  if (url.pathname === '/api/stadium-climate') {
+    if (request.method !== 'GET') return methodNotAllowed('GET');
+    return jsonResponse(stadiumClimatePayload());
   }
 
   if (url.pathname === '/api/bet-confirmations') {

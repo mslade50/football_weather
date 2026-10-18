@@ -235,6 +235,63 @@ def test_one_books_own_adverse_price_blocks_even_when_the_average_does_not() -> 
     assert screen["alert"] is False and screen["price_blocked"] is True
 
 
+def _flat_total() -> dict:
+    return {
+        "line": 47, "open_line": 47,
+        "under": -110, "over": -110, "open_under": -110, "open_over": -110,
+    }
+
+
+def test_reference_books_stay_out_of_the_price_gate() -> None:
+    flat = _flat_total()
+    pricing = [{"book": "pinnacle", **flat}, {"book": "betonline", **flat}]
+    juice = P.under_prob_move(pricing + [{
+        "book": "betcris", "line": 47, "open_line": 47,
+        "under": -180, "over": -110, "open_under": -110, "open_over": -110,
+    }], sport="nfl")
+    assert juice["price_blocked"] is False
+    assert juice["under_prob_move"] == pytest.approx(0.0)
+    assert juice["book_adverse_max"] == pytest.approx(0.0)
+    assert all(row["book"] != "betcris" for row in juice["books"])
+    dropped = P.under_prob_move(pricing + [{
+        "book": "betcris", "line": 43, "open_line": 47,
+        "under": -110, "over": -110, "open_under": -110, "open_over": -110,
+    }], sport="nfl")
+    assert dropped["line_prob_move"] == pytest.approx(0.0)
+    assert dropped["price_blocked"] is False
+    sided = P.under_prob_move(pricing + [{
+        "book": "betcris", "line": 47, "open_line": 47,
+        "under": -180, "over": 150, "open_under": -110, "open_over": -110,
+    }], sport="nfl")
+    assert sided["basis"] == P.BASIS_NOVIG
+    assert sided["under_prob_price_move"] == pytest.approx(0.0)
+    assert sided["price_blocked"] is False
+    only_reference = P.under_prob_move([{
+        "book": "betcris", "line": 43, "open_line": 47,
+        "under": -180, "over": 150, "open_under": -110, "open_over": -110,
+    }], sport="nfl")
+    assert only_reference["books"] == []
+    assert only_reference["line_open_missing"] is True and only_reference["price_blocked"] is False
+    short = dict(flat, under=-180, over=None, open_over=None)
+    still = P.under_prob_move([
+        {"book": "pinnacle", **flat},
+        {"book": "betonline", **short},
+        {"book": "betcris", **flat},
+    ], sport="nfl")
+    assert still["price_blocked"] is True and still["price_block_book"] == "betonline"
+    card = _card(wind_fg=16, temp_fg=40)
+    card["odds"] = {
+        "pinnacle": {"total": flat},
+        "betonline": {"total": flat},
+        "betcris": {"total": {
+            "line": 43, "open_line": 47,
+            "under": -180, "over": 150, "open_under": -110, "open_over": -110,
+        }},
+    }
+    screen = P.evaluate_card(card)
+    assert screen["alert"] is True and screen["price_blocked"] is False
+
+
 def _card(**weather: float) -> dict:
     return {
         "sport": "nfl",

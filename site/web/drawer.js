@@ -620,6 +620,7 @@ function openDrawer(gameId) {
     </div>
     ${g.stadium ? `<h3>Stadium</h3>${compassCard(g)}` : ""}
     <div id="drawer-stadium-history">${stadiumHistoryDetails(g)}</div>
+    <div id="drawer-stadium-climate">${typeof stadiumClimateDetails === "function" ? stadiumClimateDetails(g) : ""}</div>
     <h3>Total price comparison</h3><div id="drawer-prices" style="overflow:auto">${totalPriceTable(g)}</div>
     ${typeof confirmationControls === 'function' ? confirmationControls(g) : ''}
     <h3 id="drawer-odds-heading" tabindex="-1">Odds by book (${g.sport === "cfb" ? "totals T-6d; spreads open" : "open"} → now)</h3><div id="drawer-odds" style="overflow:auto">${oddsTable(g)}</div>
