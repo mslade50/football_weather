@@ -95,11 +95,20 @@ function tierChip(e) {
 }
 function signalPill(sig, game) {
   if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
-  const label = signalLabel(sig);
+  let label = signalLabel(sig);
+  const proc = (game && game.process) || {};
+  const drivers = (sig && sig.drivers) || [];
+  const rainDriven = drivers.includes("rain") || /\(Rain\)/i.test((sig && sig.label) || "");
+  const disagreed = proc.rain_agreement && proc.rain_agreement !== "agree";
+  if (rainDriven && disagreed) {
+    if (proc.wind_band === "flag") label = "Low (Wind)";
+    else label = proc.rain_agreement === "disagree" ? "Rain models disagree" : "Rain not confirmed";
+  }
   const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
     ? gameFlags(game) : ((sig && sig.flags) || []);
   const flags = matched.length ? ` · ${matched.join(", ")}` : "";
-  return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+  const muted = rainDriven && disagreed && proc.wind_band !== "flag";
+  return `<span class="sig" style="background:${muted ? "#8b949e" : signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];

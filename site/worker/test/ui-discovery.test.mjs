@@ -57,6 +57,45 @@ test('Signal, near signal, quiet and unknown are distinct; no prices never hides
   run(ctx, 'STATE.focus = "candidates"; STATE.book = "kalshi"; STATE.minEdge = 999;');
   assert.equal(run(ctx, 'currentGames().length'), 1);
 });
+test('Board rain agreement uses ECMWF, matching Telegram', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.temp_fg = 50; game.weather.rain_fg = 25;
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 8},
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.weather.rain_fg = 40; game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 24},
+      {id: 'ncep_gfs_seamless', rain_mm: 25}];`);
+  assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.weather.rain_fg = 25; game.weather.models = [
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.equal(run(ctx, 'rainAgreement(game.weather.models)'), 'missing_ecmwf');
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+  run(ctx, `game.process = {rain_agreement: 'missing_ecmwf'};
+    game.weather.models = [
+      {id: 'ecmwf_ifs025', rain_mm: 25},
+      {id: 'ncep_gfs_seamless', rain_mm: 26}];`);
+  assert.notEqual(run(ctx, 'discoveryState(game).kind'), 'signal');
+});
+test('Retractable roof is eligible only when confirmed open', () => {
+  const ctx = ui();
+  run(ctx, `game.stadium = {roof_type: 'retractable', roof_state: 'outdoors', lat: 1, lon: 2};`);
+  assert.equal(run(ctx, 'hardEligible(game)'), false);
+  assert.match(run(ctx, 'ineligibleReason(game)'), /not confirmed open/);
+  run(ctx, `game.stadium.roof_state = 'open';`);
+  assert.equal(run(ctx, 'hardEligible(game)'), true);
+});
+test('Signal column does not read as a yes when rain models disagree', () => {
+  const ctx = ui();
+  run(ctx, `game.weather.wind_fg = 3; game.weather.rain_fg = 25;
+    game.signal = {label: 'Low (Rain)', drivers: ['rain']};
+    game.process = {rain_agreement: 'disagree', wind_band: 'none'};`);
+  assert.match(run(ctx, 'signalPill(game.signal, game)'), /Rain models disagree/);
+  assert.doesNotMatch(run(ctx, 'signalPill(game.signal, game)'), /Low \(Rain\)/);
+  run(ctx, `game.process.wind_band = 'flag';`);
+  assert.match(run(ctx, 'signalPill(game.signal, game)'), /Low \(Wind\)/);
+});
 test('Heavy rain confirms with the closest model that itself clears 23 mm', () => {
   const ctx = ui();
   run(ctx, `game.weather.wind_fg = 3; game.weather.temp_fg = 50; game.weather.rain_fg = 25;

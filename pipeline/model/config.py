@@ -106,12 +106,12 @@ PROCESS_RAIN_IGNORE_MM = 5.0              # game-window total below this is igno
 PROCESS_RAIN_WATCH_MM = 15.0              # [5, 15) watch; [15, 23) elevated watch
 PROCESS_RAIN_SIGNAL_MM = 23.0             # ~0.30 in/hr * 3 h (22.86 mm), rounded
 PROCESS_RAIN_AGREE_TOL_MM = 10.0          # ECMWF vs another model, both at/above the signal
-PROCESS_UNDER_PROB_MOVE_MAX = 0.04        # |juice + line restated as under prob|; env override
+PROCESS_UNDER_PROB_MOVE_MAX = 0.04        # adverse juice + adverse line drop; env override
 PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond this lead
 PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
-PROCESS_VERSION = "process-v3"            # v3 adds the total-line term to under_prob_move
+PROCESS_VERSION = "process-v4"            # v4: adverse line and juice do not cancel; one opener is enough
 # Exploratory warm-wind log. Not an under gate and not an alert by itself.
 # Buckets stay (10, 12], (12, 15], and >15 mph at temp >= 65°F. These edges
 # are independent of the 15 mph under flag.

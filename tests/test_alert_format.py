@@ -500,7 +500,7 @@ def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
 def test_weekly_opener_survives_snapshots_and_signal_overflow(sport):
     c = card(sport=sport)
-    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["odds"]["betonline"]["total"].update(line=41.5, open_line=41.5, open_under=-105)
     c["weekly_total_open"].update(line=41.5, under=-105)
     expected = "Week open: Under 41.5 (−105) · BetOnline"
     signal = A.edge_candidates(c, {}, CFG, now=NOW)[0]
@@ -513,7 +513,7 @@ def test_weekly_opener_survives_snapshots_and_signal_overflow(sport):
 @pytest.mark.parametrize("change", ["tier", "line", "weather", "outage"])
 def test_weekly_opener_survives_update_overflow(change):
     c = card()
-    c["odds"]["betonline"]["total"].update(open_line=41.5, open_under=-105)
+    c["odds"]["betonline"]["total"].update(line=41.5, open_line=41.5, open_under=-105)
     c["weekly_total_open"].update(line=41.5, under=-105)
     if change == "tier":
         c["signal"]["label"] = "High Impact"

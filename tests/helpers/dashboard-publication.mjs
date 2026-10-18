@@ -23,16 +23,28 @@ for (const sport of ['nfl','cfb']) {
     assert.equal(game.total_prices.best_under, null);
     assert.equal(game.total_prices.quotes[0].ev_roi, null);
     assert.equal(run('verifiedOffer(game)'), null);
-    if (game.season===2026) assert.match(run('exchangeOfferHtml(game)'), /reference; \$500 depth unchecked/);
+    if (game.season===2026) {
+      const offer = run('exchangeOfferHtml(game)');
+      if (run('hardEligible(game)')) assert.match(offer, /reference; \$500 depth unchecked/);
+      else assert.match(offer, /Retractable roof not confirmed open|Not eligible/);
+    }
     ctx.game=expireCardQuotes(game, now+180000);
-    if (game.season===2026) assert.match(run('exchangeOfferHtml(game)'), /Exchange quotes stale/);
+    if (game.season===2026) {
+      const offer = run('exchangeOfferHtml(game)');
+      if (run('hardEligible(game)')) assert.match(offer, /Exchange quotes stale/);
+      else assert.match(offer, /Retractable roof not confirmed open|Not eligible/);
+    }
     assert.equal(run('verifiedOffer(game)'),null);
   }
   // Server publication guard must retain source evidence even if rehydrating
   // model data fails. Browser cannot confuse these with a missing provider.
   for (const game of input.guarded[sport].games) {
     ctx.game=expireCardQuotes(game, now+180000);
-    if (game.season===2026) assert.match(run('exchangeOfferHtml(game)'),/Exchange quotes stale/);
+    if (game.season===2026) {
+      const offer = run('exchangeOfferHtml(game)');
+      if (run('hardEligible(game)')) assert.match(offer, /Exchange quotes stale/);
+      else assert.match(offer, /Retractable roof not confirmed open|Not eligible/);
+    }
   }
 }
 for (const id of ['huntington-bank-field','lambeau-field','soldier-field','camp-randall-stadium']) {

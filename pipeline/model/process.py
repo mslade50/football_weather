@@ -362,36 +362,39 @@ def _weighted(pairs: list[tuple[float, float]]) -> Optional[float]:
 def under_prob_move(
     books: list[dict[str, Any]], *, move_max: Optional[float] = None, sport: str = "nfl",
 ) -> dict[str, Any]:
-    """Under-probability move vs the consensus opener, including the total.
+    """Adverse under move vs the opener. A dropped total and shorter juice do not cancel.
 
-    Juice alone misses a moved number. 47 to 43 with both sides back at -110
-    has the same no-vig price and a total that already moved. The gate therefore
-    compares one combined probability with ``PROCESS_UNDER_PROB_MOVE_MAX``.
+    ``under_prob_price_move`` is the signed juice move: consensus under
+    probability now minus the opener, at the posted numbers. Two or more books
+    with both sides use multiplicative devig (``novig_consensus``). Two or more
+    under-only books use ``under_only_implied``. One book's juice is
+    ``single_book`` and does not count as adverse juice.
 
-    ``under_prob_price_move`` is the consensus under probability now minus the
-    opener, at whatever number each side is posted. Two-sided prices use
-    multiplicative devig. When either side of that comparison lacks two-sided
-    prices at two or more books, both sides fall back to the raw implied under
-    probability and ``basis`` is ``under_only_implied``. One book is
-    ``single_book`` and does not trip the gate.
-
-    ``line_prob_move`` restates the current price at the opener's number, using
+    ``line_prob_move`` restates the current number at the opener with
     ``fair.total_shift`` and ``PTS_PROB_TOTAL`` (0.026 per NFL point, 0.020 per
     CFB point)::
 
         line_prob_move = total_shift(sport, line_now, line_open, "under")
-        under_prob_move = under_prob_price_move + line_prob_move
 
-    A lower total is positive: the under of the opener's number got more
-    likely. A higher total is negative. The two terms are added, so they can
-    offset. The gate blocks when ``abs(under_prob_move)`` is past the cap.
-    NFL 47 → 43 at -110/-110 is juice 0 + 4 × 0.026 = 0.104, which blocks.
-    One NFL point (0.026) does not, unless the juice moves too.
+    Positive means the total dropped (worse number for a new under). Negative
+    means the total rose (better number for a new under). Any book that has
+    both ``line`` and ``open_line`` counts; one book is enough. Several are a
+    ``BOOK_WEIGHTS`` average. If no book has both, ``line_open_missing`` is
+    true, the line piece is not invented, and the line does not block. The
+    card still carries the flag so a missing opener is not a silent pass.
 
-    The line term needs two or more books that each have both ``line`` and
-    ``open_line``, averaged with ``BOOK_WEIGHTS``. Fewer than that leaves
-    ``line_prob_move`` empty and adds nothing. A missing price consensus does
-    not invent a move from the line alone, and a single book never gates.
+    The gate adds only the adverse pieces, each floored at zero::
+
+        adverse_juice = max(under_prob_price_move, 0)   # 0 unless a price consensus exists
+        adverse_line = max(line_prob_move, 0)           # 0 when the total rose or is unchanged
+        under_prob_move = adverse_juice + adverse_line
+
+    Block when that sum is past ``PROCESS_UNDER_PROB_MOVE_MAX``. A longer under
+    price (negative juice) cannot shrink a dropped total. A higher total does
+    not block on the line piece alone: the number got better for the under.
+    NFL 47 → 43 at -110/-110 is 0.104 and blocks. The same drop at +130/-150
+    still blocks, because the −0.080 juice is not adverse and the line stays
+    0.104. One NFL point (0.026) does not. NFL 47 → 49 at even money does not.
     """
     limit = under_prob_move_max() if move_max is None else move_max
     rows = []
@@ -440,13 +443,14 @@ def under_prob_move(
         basis, open_p, now_p = BASIS_UNAVAILABLE, None, None
     price_move = (now_p - open_p) if open_p is not None and now_p is not None else None
     line_open, line_now, line_move = _line_prob_move(sport, rows)
-    # Add only when both pieces exist. A missing line stays juice-only. A missing
-    # price consensus stays ungated even if the number moved at one book.
-    if price_move is None or basis not in (BASIS_NOVIG, BASIS_IMPLIED):
-        move = price_move
-    else:
-        move = price_move + (line_move if line_move is not None else 0.0)
-    blocked = bool(basis in (BASIS_NOVIG, BASIS_IMPLIED) and move is not None and abs(move) > limit)
+    # Adverse pieces only. A longer under and a higher total are 0, so neither
+    # can cancel a drop or a shorter under price.
+    adverse_juice = price_move if (
+        basis in (BASIS_NOVIG, BASIS_IMPLIED) and price_move is not None and price_move > 0
+    ) else 0.0
+    adverse_line = line_move if line_move is not None and line_move > 0 else 0.0
+    move = adverse_juice + adverse_line
+    blocked = bool(move > limit)
     return {
         "basis": basis,
         "under_prob_open": open_p,
@@ -455,6 +459,7 @@ def under_prob_move(
         "line_open": line_open,
         "line_now": line_now,
         "line_prob_move": line_move,
+        "line_open_missing": line_move is None,
         "under_prob_move": move,
         "price_gate_max": limit,
         "price_blocked": blocked,
@@ -463,19 +468,22 @@ def under_prob_move(
 
 
 def _line_prob_move(sport: str, rows: list[dict[str, Any]]) -> tuple[Optional[float], Optional[float], Optional[float]]:
-    """Weighted opener and current totals, and the under-probability of that gap.
+    """Opener and current totals, and the under-probability of that gap.
 
-    Returns ``(None, None, None)`` unless two books each have both numbers.
+    One book with both numbers is enough. Several are a weighted mean.
+    Returns ``(None, None, None)`` when no book has both.
     """
     both = [row for row in rows if row.get("line") is not None and row.get("open_line") is not None]
-    if len(both) < 2:
+    if not both:
         return None, None, None
-    line_open = _weighted([(row["weight"], row["open_line"]) for row in both])
-    line_now = _weighted([(row["weight"], row["line"]) for row in both])
+    pairs_open = [(row["weight"], row["open_line"]) for row in both]
+    pairs_now = [(row["weight"], row["line"]) for row in both]
+    line_open = pairs_open[0][1] if len(pairs_open) == 1 else _weighted(pairs_open)
+    line_now = pairs_now[0][1] if len(pairs_now) == 1 else _weighted(pairs_now)
     if line_open is None or line_now is None:
         return None, None, None
     sport_key = sport if sport in C.PTS_PROB_TOTAL else "nfl"
-    # Restate the current under at the opener's number. A drop (line_now < line_open) is positive.
+    # Positive when the total dropped. A rise is negative and is not adverse.
     return line_open, line_now, total_shift(sport_key, line_now, line_open, "under")
 
 
@@ -653,6 +661,7 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "line_open": price["line_open"],
         "line_now": price["line_now"],
         "line_prob_move": price["line_prob_move"],
+        "line_open_missing": bool(price["line_open_missing"]),
         "under_prob_move": price["under_prob_move"],
         "under_prob_basis": price["basis"],
         "price_gate_max": price["price_gate_max"],

@@ -109,7 +109,11 @@ function tempGateText(g) {
 }
 function underMoveText(g) {
   const proc = g.process || {};
+  if (proc.line_open_missing === true && Number(proc.under_prob_move) === 0) {
+    return "Opener line unknown — line check did not run";
+  }
   if (!isNum(proc.under_prob_move)) {
+    if (proc.line_open_missing === true) return "Opener line unknown — line check did not run";
     const basis = proc.under_prob_basis;
     if (basis === "under_only_implied") return "Under-only implied probability (approximation); move unavailable";
     if (basis === "single_book") return "One book only — not a consensus move";
@@ -122,7 +126,8 @@ function underMoveText(g) {
   if (isNum(proc.line_open) && isNum(proc.line_now) && isNum(proc.line_prob_move) && Number(proc.line_prob_move) !== 0) {
     lineNote = ` · line ${Number(proc.line_open)}→${Number(proc.line_now)}`;
   }
-  return `${pp} pp vs opener · ${basis}${lineNote}${proc.price_blocked ? " · past the move gate" : ""}`;
+  const missing = proc.line_open_missing === true ? " · opener line unknown" : "";
+  return `${pp} pp adverse vs opener · ${basis}${lineNote}${missing}${proc.price_blocked ? " · past the move gate" : ""}`;
 }
 function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};

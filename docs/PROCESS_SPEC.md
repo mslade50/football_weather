@@ -121,8 +121,16 @@ partner. IFS and AIFS do not confirm each other.
 Example: ECMWF 25 mm, NBM 22 mm, GFS 30 mm. NBM is closer but under 23 mm,
 so the partner is GFS. The gap is 5 mm, inside 10 mm, so the rain agrees.
 If GFS were also under 23 mm, the status is `disagree` and there is no
-partner. If ECMWF is missing, or no other model has a total, the rain is
-`unverified` and is not a signal. Disagreement is shown and is not a signal.
+partner. If ECMWF is missing, the status is `missing_ecmwf`. If other models
+have no rain total, the status is `unverified`. Neither is a signal.
+Disagreement is shown and is not a signal.
+
+The comparison total is ECMWF's own window, not the short-range stitch.
+Telegram and the board use that same total. When the card already carries
+`process.rain_agreement`, the board uses that status. Otherwise it recomputes
+from the model rows with the same IFS-then-AIFS rule. A stitch of 25 mm with
+ECMWF at 8 mm is not a signal. A stitch of 40 mm with ECMWF 24 mm and GFS
+25 mm is. Missing ECMWF is not a signal even when the stitch and GFS are heavy.
 
 Watch and elevated rain, and unverified or disagreed heavy rain, show as
 "near" on the dashboard. They do not send a Telegram alert by themselves.
@@ -152,46 +160,50 @@ He does not want the under once it has moved more than about 3–5% from the
 **consensus opener across books**. The move includes the total, not only the
 juice at whatever number is posted now.
 
-The gate compares one field, `process.under_prob_move`, with
+The gate compares `process.under_prob_move` with
 `PROCESS_UNDER_PROB_MOVE_MAX`, default **0.04** (4 percentage points).
 Override with the env var `PROCESS_UNDER_PROB_MOVE_MAX` (a number strictly
-between 0 and 1). `process.price_blocked` is true only when a real consensus
-exists and the absolute combined move is past that limit. Blocked games leave
-the alert set and the default dashboard candidate list (`discovery` kind
-`moved`). They stay visible with "show all".
+between 0 and 1). `process.price_blocked` is true when that adverse move is
+past the limit. Blocked games leave the alert set and the default dashboard
+candidate list (`discovery` kind `moved`). They stay visible with "show all".
 
-Line and price share that one cap. They are added, in under-probability:
+The number is the sum of two adverse pieces. Each piece is floored at zero,
+so they cannot cancel:
 
 ```
 line_prob_move = total_shift(sport, line_now, line_open, "under")
-under_prob_move = under_prob_price_move + line_prob_move
+adverse_juice = max(under_prob_price_move, 0)    # only with a two-book price consensus
+adverse_line  = max(line_prob_move, 0)           # only when the total dropped
+under_prob_move = adverse_juice + adverse_line
 ```
 
-`under_prob_price_move` is the consensus under probability now minus the
-opener, at the number each side is posted. `line_prob_move` restates the
-current price at the opener's number, using `fair.total_shift` and
-`PTS_PROB_TOTAL`: **0.026 per NFL point**, **0.020 per CFB point**. A lower
-total is positive (the under of the opener's number got more likely). A
-higher total is negative. The gate uses the absolute value of the sum.
+`under_prob_price_move` is the signed juice move (now minus opener). A longer
+under price is negative and contributes 0. `line_prob_move` restates the
+current number at the opener with `fair.total_shift` and `PTS_PROB_TOTAL`:
+**0.026 per NFL point**, **0.020 per CFB point**. A lower total is positive.
+A higher total is negative and contributes 0: the number got better for a
+new under, so the line piece alone does not block. This replaces the earlier
+absolute-value rule, which blocked a rise from 47 to 49 at even money.
 
-Worked example: opener 47, now 43, both sides -110 at both ends, two books.
-The juice term is 0. The line term is `total_shift("nfl", 43, 47, "under")`
-= 4 × 0.026 = 0.104. Combined 0.104, past 0.04, so the game is blocked.
-One NFL point is 0.026 and does not block by itself. The same 4-point drop
-in CFB is 4 × 0.020 = 0.080 and does block.
+Worked examples, NFL:
 
-Because the terms are added, they can offset. A 4-point NFL drop is +0.104
-on its own, but a much longer under price at the new number can bring the
-sum back under 0.04. That is the probability of the original under, not a
-second rule that any point move blocks.
+| Opener | Now | Price | Adverse move | Blocked |
+|---|---|---|---|---|
+| 47 | 43 | -110/-110 both ends | 4 × 0.026 = 0.104 | yes |
+| 47 | 43 | under +130 / over -150 | juice is about −0.080, so 0; line stays 0.104 | yes |
+| 47 | 46 | -110/-110 | 0.026 | no |
+| 47 | 49 | -110/-110 | line is −0.052, so 0 | no |
 
-The line term needs two or more books that each have both `line` and
-`open_line`. Those books are averaged with `BOOK_WEIGHTS`. Fewer than two
-leaves `line_prob_move` empty and adds nothing, so the gate stays juice-only.
-One book, or a comparison with no prices, still does not trip the gate.
+The same 4-point drop in CFB is 4 × 0.020 = 0.080 and blocks.
 
-Screen version `process-v3` is this formula. `process-v2` cards stored
-juice only in `under_prob_move`.
+Any book that has both the current total and the opener counts. One book is
+enough. Several are averaged with `BOOK_WEIGHTS`. A single book's juice still
+does not count; only its line does.
+
+If no book has an opener, `line_open_missing` is true. The line piece is not
+invented and does not block, because there is no measured move. The flag is
+on the card, and the board says the opener line is unknown, so the miss is
+not silent. Screen version `process-v4` is this rule.
 
 How the price consensus is built (`process.under_prob_move`):
 
@@ -199,7 +211,7 @@ How the price consensus is built (`process.under_prob_move`):
 |---|---|---|
 | Two or more books with both over and under, at the opener and now | `novig_consensus` (multiplicative devig, book weights from `BOOK_WEIGHTS`) | yes |
 | Two or more books with an under price but not a two-sided pair on both ends of the comparison | `under_only_implied` | yes, and the UI says it is an approximation |
-| Only one book | `single_book` | no — one book is not the consensus |
+| Only one book | `single_book` | juice no; a dropped total on that book still blocks |
 | Not enough prices on one end | `unavailable` | no |
 
 When the opener is under-only and the current price is two-sided, both ends
@@ -271,7 +283,7 @@ inputs. Gusts and `wind_p90` are not.
 | `moved` | weather hit, consensus under move past the gate | hidden until "show all" |
 | `quiet` | outside the screen | hidden until "show all" |
 | `unknown` | forecast or CFB opener missing | shown as unknown |
-| `ineligible` | dome / closed roof, or CFB opener outside ±10 | hidden |
+| `ineligible` | dome / closed / indoor, retractable roof not confirmed open, or CFB opener outside ±10 | hidden |
 
 Heat and altitude presets still exist on the Signals tab. They are not part
 of this under screen. With the temperature gate off, a warm game with
@@ -281,6 +293,12 @@ label says it is not a flag.
 `site/web/signals.js` wind flags use the same 15 mph floor. High / Very High
 labels above 21.5 mph are severity only and still use their temperature
 bands, so a warm flag is Low rather than High.
+
+The Signal column uses the published severity label. When that label is
+rain and `process.rain_agreement` is not `agree`, the column says "Rain
+models disagree" or "Rain not confirmed" instead of reading as a yes. A
+wind flag on the same game still shows as wind. A retractable roof is
+eligible only when `roof_state` is `open`, matching `weather_exposed`.
 
 ### 8. Watch: warm + wind
 

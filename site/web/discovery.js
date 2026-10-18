@@ -19,10 +19,18 @@ const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
 const EXCHANGE_BOOKS = new Set(["kalshi", "novig", "prophetx", "polymarket_us", "4cx"]);
 const VERIFIED_OFFERS = new Map();
 const finiteValue = v => typeof v === "number" && Number.isFinite(v);
-function hardEligible(g) {
+function roofExposed(g) {
+  // Same rule as pipeline/stadiums/roofs.py weather_exposed: a retractable roof
+  // counts only when the game says it is open. Dome, closed, and indoor do not.
   const st = g.stadium || {};
-  const roof = String(st.roof_state || g.roof_state || st.roof_type || "").toLowerCase();
-  return !["dome", "closed", "indoor"].includes(roof)
+  const type = String(st.roof_type || "").toLowerCase();
+  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
+  if (type === "dome" || roof === "dome" || roof === "closed" || roof === "indoor") return false;
+  if (type === "retractable") return roof === "open";
+  return true;
+}
+function hardEligible(g) {
+  return roofExposed(g)
     && !(g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10);
 }
 function upcomingGame(g) {
@@ -32,8 +40,13 @@ function showAllBoardGames(state) {
   return !!state.showAllGames && (state.view === "map" || (state.view === "table" && state.tableMode !== "history"));
 }
 function ineligibleReason(g) {
-  const roof = String(g.stadium?.roof_state || g.roof_state || g.stadium?.roof_type || "").toLowerCase(), reasons = [];
-  if (["dome", "closed", "indoor"].includes(roof)) reasons.push(roof === "closed" ? "Closed roof" : "Indoor / dome");
+  const st = g.stadium || {};
+  const type = String(st.roof_type || "").toLowerCase();
+  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
+  const reasons = [];
+  if (type === "dome" || roof === "dome" || roof === "indoor") reasons.push("Indoor / dome");
+  else if (roof === "closed") reasons.push("Closed roof");
+  else if (type === "retractable" && roof !== "open") reasons.push("Retractable roof not confirmed open");
   if (g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10)
     reasons.push("Opening spread outside ±10");
   return reasons.join(" · ");
@@ -54,10 +67,24 @@ function modelRain(row) {
   const rain = row && (row.rain_mm ?? row.rain_fg);
   return finiteValue(rain) ? Number(rain) : null;
 }
-function rainAgreement(models, ecmwfMm) {
-  // Partner is the closest non-ECMWF model that is itself at or above 23 mm.
-  // A nearer model under that bar is not a confirmation.
-  if (!Array.isArray(models) || !models.length || !finiteValue(ecmwfMm)) return "unverified";
+function ecmwfRainMm(models) {
+  // IFS rain when that model has one; AIFS only when IFS has none. Not the stitch.
+  if (!Array.isArray(models)) return null;
+  let ifs = null, aifs = null, sawIfs = false;
+  for (const row of models) {
+    if (!row) continue;
+    if (row.id === "ecmwf_ifs025") { sawIfs = true; ifs = modelRain(row); }
+    else if (row.id === "ecmwf_aifs025_single") aifs = modelRain(row);
+  }
+  if (sawIfs && ifs != null) return ifs;
+  return aifs;
+}
+function rainAgreement(models) {
+  // Same partner rule as pipeline/model/process.py rain_agreement. The comparison
+  // total is ECMWF's own window, not the short-range stitch.
+  const ecmwfMm = ecmwfRainMm(models);
+  if (!Array.isArray(models) || !models.length) return ecmwfMm == null ? "missing_ecmwf" : "unverified";
+  if (ecmwfMm == null) return "missing_ecmwf";
   let best = null;
   let sawOther = false;
   for (const row of models) {
@@ -77,12 +104,7 @@ function warmWindLabel(bucket) {
   return bucket === "10_12" ? "10–12 mph" : bucket === "12_15" ? "12–15 mph" : bucket === "gt_15" ? ">15 mph" : "";
 }
 function fieldExposed(g) {
-  const st = g.stadium || {};
-  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
-  const type = String(st.roof_type || "").toLowerCase();
-  if (type === "dome" || roof === "dome" || roof === "closed" || roof === "indoor") return false;
-  if (type === "retractable" && roof !== "open") return false;
-  return true;
+  return roofExposed(g);
 }
 function warmWindBucket(temp, wind) {
   if (!finiteValue(temp) || !finiteValue(wind) || Number(temp) < WARM_WIND_TEMP_MIN_F) return null;
@@ -149,17 +171,21 @@ function discoveryState(g) {
     rainTier = mm < PROCESS_RAIN_IGNORE_MM ? "ignore" : mm < PROCESS_RAIN_WATCH_MM ? "watch"
       : mm < PROCESS_RAIN_SIGNAL_MM ? "elevated" : "signal_amount";
   }
-  const agree = rainAgreement(w.models, finiteValue(rain) ? Number(rain) : null);
+  const storedAgree = proc.rain_agreement;
+  const agree = ["agree", "disagree", "unverified", "missing_ecmwf"].includes(storedAgree)
+    ? storedAgree : rainAgreement(w.models);
   const rainSignal = rainTier === "signal_amount" && agree === "agree";
   if (rainTier === "signal_amount" && !rainSignal) rainTier = agree === "disagree" ? "disagree" : "unverified";
   const weatherHit = tempPasses && (windBand === "flag" || rainSignal);
   const rainNear = ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
   const watch = tempPasses && !weatherHit && (windBand === "watch" || rainNear);
-  // under_prob_move already adds the line, restated at the opener. Do not add it again.
-  const move = finiteValue(proc.under_prob_move) ? Math.abs(Number(proc.under_prob_move)) : null;
+  // under_prob_move is the adverse sum (dropped total and shorter juice, neither cancelling).
+  const move = finiteValue(proc.under_prob_move) ? Math.max(Number(proc.under_prob_move), 0) : null;
+  const lineAdverse = finiteValue(proc.line_prob_move) ? Math.max(Number(proc.line_prob_move), 0) : 0;
   const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
-  const priceBlocked = proc.price_blocked === true || (weatherHit && move != null && move > moveMax
-    && ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis));
+  const juiceConsensus = ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis);
+  const priceBlocked = proc.price_blocked === true || (weatherHit && (
+    (juiceConsensus && move != null && move > moveMax) || lineAdverse > moveMax));
   // Probability is optional explicit backend evidence, never inferred from impact/confidence/PoP.
   const probability = finiteValue(g.discovery?.signal_probability) && g.discovery.signal_probability >= 0
     && g.discovery.signal_probability <= 1 ? g.discovery.signal_probability : null;
@@ -180,6 +206,8 @@ function discoveryState(g) {
     label = windNote && rainNote ? `${windNote} · ${rainNote.replace(/^Watch · /, "")}` : (windNote || rainNote);
   }
   if (w.ecmwf_apart && (kind === "signal" || kind === "near")) label += " · ECMWF stands apart";
+  if (proc.line_open_missing === true && (kind === "signal" || kind === "near" || kind === "moved"))
+    label += " · opener line unknown";
   const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
     : `Signal likelihood ${(probability * 100).toFixed(1)}%`;
   return {kind, label, probability, note, windBand, rainTier};

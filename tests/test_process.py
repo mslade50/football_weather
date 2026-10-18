@@ -143,32 +143,64 @@ def test_moved_total_counts_even_when_the_price_is_back_at_even() -> None:
     assert moved["under_prob_price_move"] == pytest.approx(0.0)
     assert moved["line_open"] == pytest.approx(47) and moved["line_now"] == pytest.approx(43)
     assert moved["line_prob_move"] == pytest.approx(4 * C.PTS_PROB_TOTAL["nfl"])
-    assert moved["under_prob_move"] == pytest.approx(moved["under_prob_price_move"] + moved["line_prob_move"])
+    assert moved["line_open_missing"] is False
     assert moved["under_prob_move"] == pytest.approx(0.104)
     assert moved["price_blocked"] is True
     one_point = P.under_prob_move(_even_books(46, 47), sport="nfl")
     assert one_point["line_prob_move"] == pytest.approx(C.PTS_PROB_TOTAL["nfl"])
     assert one_point["price_blocked"] is False
-    single = P.under_prob_move(_even_books(43, 47)[:1], sport="nfl")
-    assert single["basis"] == P.BASIS_SINGLE and single["price_blocked"] is False
-    assert single["line_prob_move"] is None
+    # A longer under price does not cancel the drop. Adverse juice is 0; the line stays.
+    longer = P.under_prob_move(_even_books(43, 47, under=130, over=-150), sport="nfl")
+    assert longer["under_prob_price_move"] < 0 < longer["line_prob_move"]
+    assert longer["under_prob_move"] == pytest.approx(longer["line_prob_move"])
+    assert longer["under_prob_move"] == pytest.approx(0.104)
+    assert longer["price_blocked"] is True
+    # A higher total is better for the under and does not block on the line alone.
+    risen = P.under_prob_move(_even_books(49, 47), sport="nfl")
+    assert risen["line_prob_move"] == pytest.approx(-2 * C.PTS_PROB_TOTAL["nfl"])
+    assert risen["under_prob_move"] == pytest.approx(0.0)
+    assert risen["price_blocked"] is False
     cfb = P.under_prob_move(_even_books(43, 47), sport="cfb")
     assert cfb["line_prob_move"] == pytest.approx(4 * C.PTS_PROB_TOTAL["cfb"])
     assert cfb["price_blocked"] is True
-    # A longer under price can offset the line. The gate uses the sum, not the larger term.
-    offset = P.under_prob_move(_even_books(43, 47, under=130, over=-150), sport="nfl")
-    assert offset["under_prob_price_move"] < 0 < offset["line_prob_move"]
-    assert offset["under_prob_move"] == pytest.approx(offset["under_prob_price_move"] + offset["line_prob_move"])
-    assert abs(offset["under_prob_move"]) < C.PROCESS_UNDER_PROB_MOVE_MAX
-    assert offset["price_blocked"] is False
     card = _card(wind_fg=16, temp_fg=40)
     card["odds"] = {
-        "pinnacle": {"total": {"line": 43, "open_line": 47, "under": -110, "over": -110, "open_under": -110, "open_over": -110}},
-        "betonline": {"total": {"line": 43, "open_line": 47, "under": -110, "over": -110, "open_under": -110, "open_over": -110}},
+        "pinnacle": {"total": {"line": 43, "open_line": 47, "under": 130, "over": -150, "open_under": -110, "open_over": -110}},
+        "betonline": {"total": {"line": 43, "open_line": 47, "under": 130, "over": -150, "open_under": -110, "open_over": -110}},
     }
     screen = P.evaluate_card(card)
     assert screen["candidate"] is True and screen["price_blocked"] is True and screen["alert"] is False
-    assert screen["line_prob_move"] == pytest.approx(0.104)
+    assert screen["line_open_missing"] is False
+
+
+def test_one_book_with_an_opener_is_enough_for_the_line() -> None:
+    single = P.under_prob_move(_even_books(43, 47)[:1], sport="nfl")
+    assert single["basis"] == P.BASIS_SINGLE
+    assert single["line_open"] == pytest.approx(47) and single["line_now"] == pytest.approx(43)
+    assert single["line_prob_move"] == pytest.approx(0.104)
+    assert single["line_open_missing"] is False
+    assert single["price_blocked"] is True
+    # Current prices at two books, but only one recorded opener. That opener still counts.
+    partial = _even_books(43, 47)
+    del partial[1]["open_line"]
+    one_opener = P.under_prob_move(partial, sport="nfl")
+    assert one_opener["line_open"] == pytest.approx(47) and one_opener["line_prob_move"] == pytest.approx(0.104)
+    assert one_opener["price_blocked"] is True
+    # No opener anywhere: do not invent a line move, and do not pretend the check ran.
+    naked = [
+        {"book": "pinnacle", "line": 43, "under": -110, "over": -110},
+        {"book": "betonline", "line": 43, "under": -110, "over": -110},
+    ]
+    missing = P.under_prob_move(naked, sport="nfl")
+    assert missing["line_prob_move"] is None and missing["line_open_missing"] is True
+    assert missing["price_blocked"] is False
+    card = _card(wind_fg=16, temp_fg=40)
+    card["odds"] = {"betonline": {"total": {"line": 43, "open_line": 47, "under": -110, "over": -110, "open_under": -110, "open_over": -110}}}
+    blocked = P.evaluate_card(card)
+    assert blocked["alert"] is False and blocked["price_blocked"] is True
+    card["odds"] = {"betonline": {"total": {"line": 43, "under": -110, "over": -110}}}
+    flagged = P.evaluate_card(card)
+    assert flagged["line_open_missing"] is True and flagged["alert"] is True and flagged["price_blocked"] is False
 
 
 def _card(**weather: float) -> dict:
@@ -219,6 +251,38 @@ def test_evaluate_card_shared_gates_for_both_sports() -> None:
     assert P.evaluate_card(cfb)["alert"] is False
     cfb["consensus"] = {"spread_open": 3}
     assert P.evaluate_card(cfb)["alert"] is True
+
+
+def test_rain_agreement_follows_ecmwf_not_the_driving_total() -> None:
+    """The three cases where a stitch total and ECMWF disagree."""
+    low_ecmwf = P.rain_agreement({
+        P.ECMWF_IFS: {"rain_mm": 8.0},
+        "ncep_gfs_seamless": {"rain_mm": 26.0},
+    })
+    assert low_ecmwf["agree"] is False and low_ecmwf["ecmwf_mm"] == pytest.approx(8.0)
+    matched = P.rain_agreement({
+        P.ECMWF_IFS: {"rain_mm": 24.0},
+        "ncep_gfs_seamless": {"rain_mm": 25.0},
+    })
+    assert matched["agree"] is True and matched["partner"] == "ncep_gfs_seamless"
+    missing = P.rain_agreement({"ncep_gfs_seamless": {"rain_mm": 26.0}})
+    assert missing["status"] == "missing_ecmwf" and missing["agree"] is False
+    stitch_high = _card(wind_fg=3, temp_fg=50, rain_fg=25)
+    stitch_high["weather"]["models"] = [
+        {"id": P.ECMWF_IFS, "rain_mm": 8.0},
+        {"id": "ncep_gfs_seamless", "rain_mm": 26.0},
+    ]
+    assert P.evaluate_card(stitch_high)["alert"] is False
+    stitch_far = _card(wind_fg=3, temp_fg=50, rain_fg=40)
+    stitch_far["weather"]["models"] = [
+        {"id": P.ECMWF_IFS, "rain_mm": 24.0},
+        {"id": "ncep_gfs_seamless", "rain_mm": 25.0},
+    ]
+    assert P.evaluate_card(stitch_far)["alert"] is True
+    no_ecmwf = _card(wind_fg=3, temp_fg=50, rain_fg=25)
+    no_ecmwf["weather"]["models"] = [{"id": "ncep_gfs_seamless", "rain_mm": 26.0}]
+    screen = P.evaluate_card(no_ecmwf)
+    assert screen["alert"] is False and screen["rain_agreement"] == "missing_ecmwf"
 
 
 def test_heavy_rain_without_agreement_does_not_alert() -> None:
