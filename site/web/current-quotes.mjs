@@ -5,14 +5,152 @@ export function quoteExpired(value, now = Date.now()) {
   return !Number.isFinite(expiry) || now > expiry;
 }
 
-function demoteReferenceEdges(card, now) {
-  const markets = card.odds?.betcris;
-  if (!markets || !card.fair?.edges) return;
-  const stale = new Set(Object.entries(markets).filter(([, quote]) => quote && Number.isFinite(Date.parse(quote.actionable_until)) && now > Date.parse(quote.actionable_until)).map(([market]) => market));
-  if (!stale.size) return;
-  card.fair.edges = card.fair.edges.filter(edge => !(edge.book === "betcris" && stale.has(edge.market)));
-  for (const key of ["best_total", "best_spread"]) {
-    if (card.fair[key]?.book === "betcris") card.fair[key] = null;
+const SPREAD_MEMBERS = ["betonline", "pinnacle"];
+const BOOK_WEIGHTS = {pinnacle: 3, betonline: 2, fanduel: 1, draftkings: 1, kalshi: 1, novig: 1, prophetx: 0.75};
+const DEFAULT_WEIGHT = 0.5;
+const SPREAD_LABELS = {betonline: "bol", pinnacle: "pin"};
+
+function finite(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function weightedMedian(posts) {
+  const pts = posts.filter(post => post.line != null && post.weight > 0).sort((a, b) => a.line - b.line);
+  if (!pts.length) return null;
+  const total = pts.reduce((sum, post) => sum + post.weight, 0);
+  let acc = 0;
+  for (let i = 0; i < pts.length; i++) {
+    acc += pts[i].weight;
+    if (Math.abs(acc - total / 2) < 1e-9 && i + 1 < pts.length) return (pts[i].line + pts[i + 1].line) / 2;
+    if (acc >= total / 2) return pts[i].line;
+  }
+  return pts[pts.length - 1].line;
+}
+
+function pricingPosts(card, market) {
+  const posts = [];
+  for (const [book, markets] of Object.entries(card.odds || {})) {
+    if (book === "betcris" || book === "consensus" || !markets) continue;
+    const quote = markets[market];
+    if (!quote || quote.expired) continue;
+    const line = finite(market === "spread" ? quote.home_line : quote.line);
+    if (line == null) continue;
+    posts.push({book, line, weight: BOOK_WEIGHTS[book] ?? DEFAULT_WEIGHT});
+  }
+  return posts;
+}
+
+function consensusFromOdds(card, market) {
+  const posts = pricingPosts(card, market);
+  if (market === "spread") {
+    const members = SPREAD_MEMBERS.filter(book => posts.some(post => post.book === book));
+    if (members.length) {
+      const values = members.map(book => posts.find(post => post.book === book).line);
+      return {line: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 100) / 100,
+        src: members.map(book => SPREAD_LABELS[book]).join("+"), n: posts.length};
+    }
+    return {line: weightedMedian(posts), src: posts.length ? "fallback" : null, n: posts.length};
+  }
+  return {line: weightedMedian(posts), src: null, n: posts.length};
+}
+
+function scaleFair(oldFair, oldConsensus, nextConsensus, pct) {
+  if (nextConsensus == null) return null;
+  const fair = finite(oldFair), old = finite(oldConsensus), impact = finite(pct);
+  if (old != null && old !== 0 && fair != null) return fair * (nextConsensus / old);
+  return impact == null ? nextConsensus : nextConsensus * (1 + impact / 100);
+}
+
+function homeRelative(edge) {
+  const line = finite(edge.line);
+  if (line == null) return null;
+  return edge.market === "spread" && edge.side === "away" ? -line : line;
+}
+
+function edgePoints(edge, fairLine) {
+  const line = homeRelative(edge);
+  if (line == null || fairLine == null) return null;
+  if (edge.market === "total") return edge.side === "under" ? line - fairLine : fairLine - line;
+  if (edge.market === "spread") return edge.side === "home" ? line - fairLine : fairLine - line;
+  return null;
+}
+
+function pickBest(edges, market) {
+  const cands = edges.filter(edge => edge && edge.market === market && edge.book !== "betcris");
+  const ranked = cands.filter(edge => finite(edge.edge_pts) != null);
+  const pool = ranked.length ? ranked : cands;
+  if (!pool.length) return null;
+  return pool.reduce((best, edge) => {
+    const pts = finite(edge.edge_pts) ?? -Infinity, bestPts = finite(best.edge_pts) ?? -Infinity;
+    const prob = finite(edge.edge_prob) ?? -Infinity, bestProb = finite(best.edge_prob) ?? -Infinity;
+    return pts > bestPts || (pts === bestPts && prob > bestProb) ? edge : best;
+  });
+}
+
+function usedBetCris(src) {
+  return String(src || "").split("+").includes("cris");
+}
+
+function retargetEdges(edges, market, fairLine, nBooks) {
+  for (const edge of edges) {
+    if (!edge || edge.market !== market) continue;
+    const pts = edgePoints(edge, fairLine);
+    edge.fair_line = fairLine;
+    edge.n_books = nBooks;
+    if (pts == null) {
+      edge.edge_pts = null;
+      edge.edge_prob = null;
+    } else {
+      edge.edge_pts = pts;
+    }
+  }
+}
+
+function applyMarket(card, market) {
+  const next = consensusFromOdds(card, market);
+  const consensus = card.consensus || (card.consensus = {});
+  const nowKey = market === "total" ? "total_now" : "spread_now";
+  const openKey = market === "total" ? "total_open" : "spread_open";
+  const moveKey = market === "total" ? "move_t" : "move_s";
+  const pctKey = market === "total" ? "gs_fg_pct" : "away_fg_pct";
+  const old = finite(consensus[nowKey]);
+  if (card.fair) {
+    const fairKey = market === "total" ? "fair_total" : "fair_spread";
+    const fairV2Key = market === "total" ? "fair_total_v2" : "fair_spread_v2";
+    card.fair[fairKey] = scaleFair(card.fair[fairKey], old, next.line, card.impact?.v1?.[pctKey]);
+    if (card.fair[fairV2Key] != null) card.fair[fairV2Key] = scaleFair(card.fair[fairV2Key], old, next.line, card.impact?.v2?.[pctKey]);
+    retargetEdges(card.fair.edges, market, card.fair[fairKey], next.n);
+  }
+  consensus[nowKey] = next.line;
+  if (market === "spread") consensus.spread_src = next.line == null ? null : next.src;
+  const open = finite(consensus[openKey]);
+  consensus[moveKey] = next.line != null && open != null ? next.line - open : null;
+  consensus[market === "spread" ? "spread_n_books" : "total_n_books"] = next.n;
+  consensus[market === "spread" ? "spread_thin" : "total_thin"] = next.n < 2;
+  const spreadN = Number(consensus.spread_n_books) || 0, totalN = Number(consensus.total_n_books) || 0;
+  consensus.n_books = Math.max(spreadN, totalN);
+  consensus.thin = consensus.n_books < 2;
+  if (consensus.ref_book === "betcris") consensus.ref_book = null;
+}
+
+function demoteReferenceEdges(card) {
+  const fair = card.fair;
+  const edges = Array.isArray(fair?.edges) ? fair.edges : [];
+  const betcrisEdges = edges.filter(edge => edge && edge.book === "betcris");
+  const touchTotal = betcrisEdges.some(edge => edge.market === "total");
+  const touchSpread = betcrisEdges.some(edge => edge.market === "spread") || usedBetCris(card.consensus?.spread_src);
+  if (fair && Array.isArray(fair.edges)) fair.edges = edges.filter(edge => edge && edge.book !== "betcris");
+  if (!touchTotal && !touchSpread) {
+    if (fair?.best_total?.book === "betcris") fair.best_total = pickBest(fair.edges, "total");
+    if (fair?.best_spread?.book === "betcris") fair.best_spread = pickBest(fair.edges, "spread");
+    return;
+  }
+  if (touchTotal) applyMarket(card, "total");
+  if (touchSpread) applyMarket(card, "spread");
+  if (!fair) return;
+  for (const [key, market] of [["best_total", "total"], ["best_spread", "spread"]]) {
+    if (fair[key]?.book === "betcris" || (market === "total" ? touchTotal : touchSpread)) fair[key] = pickBest(fair.edges, market);
   }
 }
 

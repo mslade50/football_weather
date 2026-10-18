@@ -311,3 +311,38 @@ def test_price_past_provider_ttl_is_reference_only_and_cannot_price_or_alert():
     assert signal.record["last_book"] != "betcris" and signal.record["last_line"] is None
     assert "Betcris" not in signal.text and "60.0" not in signal.text
     assert "no posted price available" in signal.text
+
+
+def test_betcris_inside_provider_timer_does_not_price_consensus_edges_or_spread_average():
+    from pipeline.contracts import GameLine
+    from pipeline.model import fair as fair_mod
+
+    gid = "cfb:2026:5:away@home"
+    until = NOW + timedelta(minutes=20)
+    expires = NOW + timedelta(minutes=30)
+
+    def pair(book, market, line, **kw):
+        sides = ("home", "away") if market == "spread" else ("over", "under")
+        rows = []
+        for side in sides:
+            posted = -line if market == "spread" and side == "away" else line
+            rows.append(GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=-110,
+                                 line=posted, scraped_at=NOW, source_updated_at=NOW, expires_at=expires,
+                                 actionable_until=until, **kw))
+        return rows
+
+    cris = pair("betcris", "total", 60.0) + pair("betcris", "spread", -1.0)
+    assert cris and all(not row.reference_only(NOW) for row in cris)
+    others = (pair("pinnacle", "total", 44.5) + pair("betonline", "total", 46.0)
+              + pair("pinnacle", "spread", -3.0) + pair("betonline", "spread", -2.5)
+              + pair("kalshi", "total", 47.0))
+    mixed = others + cris
+    total = fair_mod.consensus("cfb", mixed, "total", now=NOW)
+    assert total.line == 45.25 and "betcris" not in total.books and total.n_books == 3
+    spread = fair_mod.consensus("cfb", mixed, "spread")
+    assert spread.line == -2.75 and spread.src == "bol+pin" and "betcris" not in spread.books and spread.n_books == 2
+    priced = fair_mod.evaluate_game("cfb", gid, mixed, -8.0, 0.0, now=NOW)
+    assert priced.total.line == 45.25 and priced.spread.line == -2.75
+    assert "betcris" not in {edge.book for edge in priced.edges}
+    untimed = fair_mod.evaluate_game("cfb", gid, mixed, -8.0, 0.0)
+    assert "betcris" not in {edge.book for edge in untimed.edges}

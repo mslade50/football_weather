@@ -133,10 +133,18 @@ BOOK_WEIGHTS: dict[str, float] = {
     "prophetx": 0.75,
 }
 DEFAULT_BOOK_WEIGHT = 0.5   # books absent from BOOK_WEIGHTS (e.g. polymarket_us)
+# BetCris is a labeled reference of where that book is. It is not a pricing
+# source: consensus, the spread average, edges, and n_books never read it.
+# ``BOOK_WEIGHTS["betcris"]`` stays so an old lookup still resolves, and it is
+# not applied. One posted pricing book is enough for a number; thin is fewer
+# than two pricing books.
+REFERENCE_BOOKS: frozenset[str] = frozenset({"betcris"})
 # Consensus SPREAD = simple average of these books' home main lines (whichever are
-# posted); none posted -> the weighted-median fallback. ``consensus.spread_src`` labels
-# the members actually used ("cris+bol+pin", "bol+pin", ...) or "fallback".
-SPREAD_CONSENSUS_BOOKS: tuple[str, ...] = ("betcris", "betonline", "pinnacle")
+# posted); none posted -> the weighted-median fallback of the other pricing books.
+# ``consensus.spread_src`` labels the members actually used ("bol+pin", "pin", ...)
+# or "fallback". "cris" remains a label so a frozen opener that already recorded
+# BetCris still renders; new averages do not include it.
+SPREAD_CONSENSUS_BOOKS: tuple[str, ...] = ("betonline", "pinnacle")
 SPREAD_SRC_LABELS: dict[str, str] = {"betcris": "cris", "betonline": "bol", "pinnacle": "pin"}
 SPREAD_SRC_FALLBACK = "fallback"
 SPREAD_AVG_DP = 2  # rounding of the averaged spread (keeps change-only history stable)

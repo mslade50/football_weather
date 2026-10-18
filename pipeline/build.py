@@ -939,7 +939,7 @@ class ConsensusLine:
     n_books: int
     ref_book: str | None
     side: str  # the side whose line/odds this is (home for spread, under for total)
-    src: str | None = None  # spread: averaged members ("cris+bol+pin" subset) or "fallback"
+    src: str | None = None  # spread: averaged members ("bol+pin" subset) or "fallback"
 
 
 def _average_spread(per_book: dict[str, float]) -> tuple[float | None, str]:
@@ -973,6 +973,8 @@ def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, fl
     side_for = {"spread": "home", "total": "under"}
     by_key: dict[tuple[str, str], dict[str, GameLine]] = {}
     for ln in lines:
+        if ln.book in model_config.REFERENCE_BOOKS:
+            continue
         if now is not None and ln.reference_only(now):
             continue
         if ln.sport != sport or not ln.is_main or ln.market not in side_for or ln.side != side_for[ln.market]:

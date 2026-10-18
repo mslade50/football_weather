@@ -1128,11 +1128,10 @@ def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
             return dict(entry, book=q["book"], line=q["line"], odds=q["odds"],
                         edge_pts=round(q["line"] - fair, 2) if fair is not None else None)
         return dict(entry, line=None, odds=None, edge_pts=None)
-    now = _dt(card.get("_alert_at")) or now_utc()
     unders = [e for e in ((card.get("fair") or {}).get("edges") or [])
               if e.get("market") == "total" and e.get("side") == "under"
               and _num(e.get("line")) is not None and _num(e.get("odds")) is not None
-              and not (e.get("book") == "betcris" and _betcris_reference(card, "total", now))]
+              and e.get("book") != "betcris"]
     if unders:   # ties on edge_pts → the best price for an under bettor (higher line, then better odds)
         return max(unders, key=lambda e: (_num(e.get("edge_pts")) or 0.0, _num(e.get("line")) or -1e9,
                                           _num(e.get("odds")) or -1e9))

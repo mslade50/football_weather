@@ -6,9 +6,10 @@ Odds math helpers are copied verbatim from ``golf_scraping/board/build.py``
 
 * per-book devig (multiplicative two-way normalisation; exchanges use ``prob_raw``)
 * consensus line: TOTAL = Pinnacle-weighted median of main lines; SPREAD = simple
-  average of the Betcris / BetOnline / Pinnacle home lines that are posted
-  (``Consensus.src`` = "cris+bol+pin" subset, or "fallback" = the weighted median
-  when none of the three has a spread); plus the weighted-mean vig-free
+  average of the BetOnline / Pinnacle home lines that are posted
+  (``Consensus.src`` = "bol+pin" subset, or "fallback" = the weighted median
+  when neither has a spread). BetCris is display-only and is excluded from
+  both, from n_books, and from edges. Plus the weighted-mean vig-free
   probability at that line
 * pts->prob shift tables (totals linear per point; spreads key-number aware)
 * fair lines from the v1 impact percentages, per-(book, market, side) edges,
@@ -253,7 +254,7 @@ class Consensus:
     ref_book: str | None
     thin: bool
     books: dict[str, float] = field(default_factory=dict)  # book -> main line (home-relative)
-    src: str | None = None  # spread only: members averaged ("cris+bol+pin" subset) or "fallback"
+    src: str | None = None  # spread only: members averaged ("bol+pin" subset) or "fallback"
 
     @property
     def primary_side(self) -> str:
@@ -261,7 +262,7 @@ class Consensus:
 
 
 def spread_src_label(members: Iterable[str]) -> str:
-    """'cris+bol+pin' subset (canonical order) for the members used; '' when none."""
+    """'bol+pin' subset (canonical order) for the members used; '' when none."""
     used = set(members)
     return "+".join(C.SPREAD_SRC_LABELS[b] for b in C.SPREAD_CONSENSUS_BOOKS if b in used)
 
@@ -275,10 +276,25 @@ def average_spread(books: dict[str, float]) -> tuple[float | None, str]:
     return round(sum(vals) / len(vals), C.SPREAD_AVG_DP), spread_src_label(b for b in C.SPREAD_CONSENSUS_BOOKS if b in books)
 
 
+def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> list[GameLine]:
+    """Lines that may move consensus, the spread average, edges, or n_books.
+
+    BetCris stays on the board as a reference. It never prices the fair line,
+    including while it is still inside the provider timer. Any other line past
+    its own actionable_until is also excluded when ``now`` is set.
+    """
+    kept: list[GameLine] = []
+    for gl in lines:
+        if gl.book in C.REFERENCE_BOOKS:
+            continue
+        if now is not None and gl.reference_only(now):
+            continue
+        kept.append(gl)
+    return kept
+
+
 def consensus(sport: str, lines: Iterable[GameLine], market: str, now: datetime | None = None) -> Consensus:
-    if now is not None:
-        lines = [gl for gl in lines if not gl.reference_only(now)]
-    per_book = main_lines(lines, market)
+    per_book = main_lines(_pricing_lines(lines, now), market)
     primary = _PRIMARY_SIDE[market]
     nums: list[float] = []
     wts: list[float] = []
@@ -449,7 +465,7 @@ def evaluate_game(
     model_version: str = C.MODEL_VERSION_V1,
     now: datetime | None = None,
 ) -> GameFair:
-    rows = [gl for gl in lines if gl.game_id == game_id and (now is None or not gl.reference_only(now))]
+    rows = _pricing_lines((gl for gl in lines if gl.game_id == game_id), now)
     cons = {m: consensus(sport, rows, m, now) for m in ("total", "spread")}
     fairs = {m: fair_line(m, cons[m], gs_fg_pct, away_fg_pct) for m in ("total", "spread")}
     conf = confidence(wind_vol_fc, model_disagreement, lead_hours, wind_vol_static)

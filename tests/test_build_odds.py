@@ -220,9 +220,9 @@ def test_consensus_is_weighted_median_with_ref_book():
     ]
     c = consensus_lines("nfl", lines)
     sp = c[(KC_BUF, "spread")]
-    # spread = simple average of pinnacle/betonline/betcris (-3.0, -2.5, -2.5); kalshi is not a member
-    assert sp.line == -2.67 and sp.n_books == 4 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
-    assert sp.src == "cris+bol+pin"
+    # spread = simple average of pinnacle/betonline (-3.0, -2.5); kalshi is not a member and betcris is display-only
+    assert sp.line == -2.75 and sp.n_books == 3 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
+    assert sp.src == "bol+pin"
     to = c[(KC_BUF, "total")]
     assert to.line == 47.5 and to.ref_book == "pinnacle" and to.n_books == 2 and to.side == "under" and to.src is None
     assert (KC_BUF, "ml") not in c
@@ -322,7 +322,8 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
 
 
 def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
-    lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("betcris", "total", "under", 47.5, -105)]
+    lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
+             _ln("betcris", "total", "under", 60.0, -110)]
     cons = consensus_lines("nfl", lines)
     openers = pstate.migrate(None, "openers")
     pstate.record_openers(openers, build.consensus_pseudo_lines(cons, "nfl"), "t0")
@@ -330,7 +331,8 @@ def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
     assert o["ref_book"] == "consensus"
     assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-3.0, -108, 47.5, -105)
     assert (o["spread_open"], o["total_open"]) == (-3.0, 47.5)
-    assert o["spread_ref_book"] == "pinnacle" and o["total_ref_book"] == "betcris"
+    assert o["spread_ref_book"] == "pinnacle" and o["total_ref_book"] == "pinnacle"
+    assert o["total_proj"] == 47.5
 
 
 def test_cfb_legacy_odds_from_fanduel():
@@ -481,23 +483,24 @@ def test_external_merge_and_fair_real_modules():
     ctx = RunContext(sport="nfl", scope="full", git_sha="t")
     prov = "nfl:raw:20260913:buffalo-bills@kansas-city-chiefs"
     raw_lines = [_ln("pinnacle", "spread", "home", -3.0, -108, game_id=prov), _ln("pinnacle", "spread", "away", 3.0, -112, game_id=prov),
-                 _ln("betcris", "spread", "home", -2.5, -110, game_id=prov), _ln("betcris", "total", "under", 47.5, -105, game_id=prov),
+                 _ln("betcris", "spread", "home", -2.5, -110, game_id=prov),
+                 _ln("pinnacle", "total", "under", 47.5, -105, game_id=prov),
+                 _ln("betcris", "total", "under", 60.0, -110, game_id=prov),
                  # next week's card: outside the span, must not count as unresolved
                  _ln("betcris", "total", "under", 40.0, game_id="nfl:raw:20260927:buffalo-bills@kansas-city-chiefs")]
     openers = pstate.migrate(None, "openers")
     merged = build._external_merge(merge_mod, "nfl", [_game()], raw_lines, {}, openers, ctx)
     assert merged is not None
     lines, unresolved = merged
-    assert {ln.game_id for ln in lines} == {KC_BUF} and len(lines) == 4
+    assert {ln.game_id for ln in lines} == {KC_BUF} and len(lines) == 5
     assert unresolved == []
     cons = build._external_consensus(fair_mod, "nfl", lines, ctx)
     assert cons is not None
     sp = cons[(KC_BUF, "spread")]
-    # avg of pinnacle -3.0 and betcris -2.5; the price is the devigged consensus prob at -2.75
-    assert sp.line == -2.75 and sp.ref_book == "pinnacle" and sp.n_books == 2 and sp.src == "cris+pin"
-    assert isinstance(sp.odds, int) and sp.odds != 0
+    # BetCris -2.5 is display-only, so the spread is Pinnacle's -3.0.
+    assert sp.line == -3.0 and sp.ref_book == "pinnacle" and sp.n_books == 1 and sp.src == "pin" and sp.odds == -108
     to = cons[(KC_BUF, "total")]
-    assert to.line == 47.5 and to.odds == -105 and to.side == "under"
+    assert to.line == 47.5 and to.odds == -105 and to.side == "under" and to.n_books == 1
     assert not any(d.severity == "warn" for d in ctx.degradations)
 
 

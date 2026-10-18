@@ -59,9 +59,9 @@ def _card_lines(card: dict, now: datetime | None = None) -> list | None:
         for market, quote in markets.items():
             if market not in ("spread", "total", "ml") or not isinstance(quote, dict) or quote.get("expired"):
                 continue
-            # A BetCris print past the provider TTL stays visible. It is not a
-            # consensus or edge input, including when the publication guard rebuilds.
-            if now is not None and book == "betcris" and quote.get("actionable_until") and expired(quote.get("actionable_until"), now):
+            # BetCris stays on the card as a reference. It is never a consensus,
+            # edge, or spread-average input, inside the provider timer or past it.
+            if book == "betcris":
                 continue
             sides = []
             if market == "spread":
@@ -260,16 +260,51 @@ def expire_meta(meta: dict, now: datetime, *, lookahead: timedelta = timedelta(0
     return meta
 
 
-def demote_reference_card(card: dict, now: datetime) -> dict:
-    """Rebuild comparisons when a displayed BetCris price is past the provider TTL.
+def _betcris_edges(card: dict) -> list[dict]:
+    return [edge for edge in (card.get("fair") or {}).get("edges") or []
+            if isinstance(edge, dict) and edge.get("book") == "betcris"]
 
-    The price itself stays. Only consensus, edges, and best-price fields move.
+
+def _spread_src_uses_betcris(card: dict) -> bool:
+    src = str((card.get("consensus") or {}).get("spread_src") or "")
+    return "cris" in src.split("+")
+
+
+def _next_edge(edges: list, market: str) -> dict | None:
+    """Same ranking as ``json_out.fair_block``: higher edge_pts, then edge_prob."""
+    cands = [edge for edge in edges if isinstance(edge, dict) and edge.get("market") == market
+             and isinstance(edge.get("edge_pts"), (int, float)) and not isinstance(edge.get("edge_pts"), bool)]
+    pool = cands or [edge for edge in edges if isinstance(edge, dict) and edge.get("market") == market]
+    if not pool:
+        return None
+    return max(pool, key=lambda edge: (edge.get("edge_pts") or 0.0, edge.get("edge_prob") or 0.0))
+
+
+def _clear_betcris_fair(card: dict, *, total: bool, spread: bool) -> None:
+    """Drop derived numbers that were computed from a BetCris quote."""
+    fair = card.setdefault("fair", {})
+    consensus = card.setdefault("consensus", {})
+    if total:
+        fair["fair_total"] = fair["fair_total_v2"] = None
+        consensus["total_now"] = consensus["move_t"] = None
+    if spread:
+        fair["fair_spread"] = fair["fair_spread_v2"] = None
+        consensus["spread_now"] = consensus["move_s"] = consensus["spread_src"] = None
+    if consensus.get("ref_book") == "betcris":
+        consensus["ref_book"] = None
+
+
+def demote_reference_card(card: dict, now: datetime) -> dict:
+    """Rebuild comparisons when a published fair or edge used a BetCris quote.
+
+    The price itself stays, with its age. Consensus, edges, and best price are
+    recomputed from the other books. Best price falls through to the next edge
+    when the model cannot be rebuilt.
     """
-    odds = (card.get("odds") or {}).get("betcris") or {}
-    stale = [market for market, quote in odds.items()
-             if isinstance(quote, dict) and quote.get("actionable_until")
-             and not quote.get("expired") and expired(quote.get("actionable_until"), now)]
-    if not stale:
+    edges = _betcris_edges(card)
+    total = any(edge.get("market") == "total" for edge in edges)
+    spread = any(edge.get("market") == "spread" for edge in edges) or _spread_src_uses_betcris(card)
+    if not total and not spread:
         return card
     try:
         recomputed = _recompute_card(card, now)
@@ -277,12 +312,13 @@ def demote_reference_card(card: dict, now: datetime) -> dict:
         recomputed = False
     if recomputed:
         return card
-    fair = card.get("fair") or {}
+    fair = card.setdefault("fair", {})
     fair["edges"] = [edge for edge in fair.get("edges") or [] if edge.get("book") != "betcris"]
-    for key in ("best_total", "best_spread"):
-        if isinstance(fair.get(key), dict) and fair[key].get("book") == "betcris":
-            fair[key] = None
-    card["fair"] = fair
+    for market, key in (("total", "best_total"), ("spread", "best_spread")):
+        current = fair.get(key)
+        if isinstance(current, dict) and current.get("book") == "betcris":
+            fair[key] = _next_edge(fair["edges"], market)
+    _clear_betcris_fair(card, total=total, spread=spread)
     return card
 
 
