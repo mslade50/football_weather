@@ -335,7 +335,6 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .discovery-note.error { color: #ffb4a8; border: 1px solid #e5484d; padding: 12px; }
 .discovery { display: block; font-weight: 700; color: #b8e7cb; }
 .discovery.near { color: #ffd79a; }
-.discovery.warm-wind { color: #f2cc60; }
 .discovery.unknown, .discovery.quiet { color: #b7bfcc; }
 .game-detail { background: transparent; color: inherit; border: 0; padding: 8px 0; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
 .copy-coordinates { display: block; margin-top: 6px; }

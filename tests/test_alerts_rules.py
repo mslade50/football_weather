@@ -252,15 +252,14 @@ def test_leaving_the_wind_flag_drops_queued_alert():
     assert plan.flush == [] and out.n_sent == 0 and sender.sent == [] and tg["queue"] == []
 
 
-def test_warm_wind_tracking_does_not_alert():
+def test_warm_game_below_the_flag_does_not_alert():
     c = card(signal="No Impact", wind=14.0, rain=0.0)
     c["weather"]["temp_fg"] = 72
-    c["warm_wind"] = {"tracked": True, "bucket": "12_15", "alert": False}
     assert A.edge_candidates(c, {}, CFG, now=NOW) == []
 
 
 @pytest.mark.parametrize("label", ["Mid Impact", "High Impact", "Very High Impact", "Low (Wind)", "Low (Temp)"])
-def test_warm_wind_flag_still_alerts_when_the_temp_gate_is_off(label):
+def test_warm_game_at_the_wind_flag_still_alerts(label):
     c = card(signal=label, wind=18, rain=0)
     c["weather"]["temp_fg"] = 75
     c["signal"]["drivers"] = ["wind"]

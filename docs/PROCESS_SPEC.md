@@ -314,38 +314,19 @@ models disagree" or "Rain not confirmed" instead of reading as a yes. A
 wind flag on the same game still shows as wind. A retractable roof is
 eligible only when `roof_state` is `open`, matching `weather_exposed`.
 
-### 8. Watch: warm + wind
+### 8. Exposed-game forecast log
 
-This is a separate list. The tag itself is not an alert: `warm_wind.alert`
-is always false, and being on this list does not by itself send Telegram.
+This is a settled log, not a dashboard list and not an alert. The old
+"Watch: warm + wind" list is gone. A free 2018–25 check of actual weather
+on outdoor games (6,377 CFB and 1,563 NFL) found no over edge for warm and
+windy games: CFB finished over the close 49.4% of the time (n=578), and NFL
+leaned under.
 
-With the temperature gate off, an exposed game at 65°F or warmer and
-sustained wind ≥ 15 mph is also an under flag. That overlap is deliberate.
-The flag is the wind rule. This list is the exploratory cohort. The 10–12
-and above-12-through-15 warm-wind buckets are not flags. Exactly 15 mph is
-an under flag and still sits in the warm-wind `12_15` bucket, because that
-bucket was specified as above 12 mph through 15 mph. The under-screen watch
-is 12 mph up to 15 mph and does not include 15.
-
-Exposed fields only (open roof, or a retractable roof confirmed open).
-Temperature is **at least 65°F**. Sustained wind is above 10 mph, in three
-buckets:
-
-| Bucket | Sustained wind |
-|---|---|
-| `10_12` | above 10 mph through 12 mph |
-| `12_15` | above 12 mph through 15 mph |
-| `gt_15` | above 15 mph |
-
-Exactly 10 mph is out. Gusts are not used. The CFB opening-spread gate does
-not apply. The live tag uses the same signal-driving forecast as the under
-screen and is stored on the card as `warm_wind` (`pipeline/model/process.py`
-`warm_wind_track`, written in `json_out.build_card`). The dashboard checkbox
-"Watch: warm + wind" shows only this list.
-
-The settled log is `warm_wind` on `board/backtest.json`, built from
-snapshots in `pipeline/backtest.py` `warm_wind_report`. For each game that
-is in a bucket on either end it keeps:
+The log is `exposed_forecasts` on `board/backtest.json`, built from
+snapshots in `pipeline/backtest.py` `exposed_forecast_report`. It includes
+every exposed game, including calm games, so the calm games are the
+comparison group. A covered roof is left out. For each included game it
+keeps:
 
 - early forecast: the pre-kickoff snapshot closest to 72 hours, among leads
   of at least 48 hours; if there is none, the earliest pre-kickoff snapshot
@@ -353,14 +334,12 @@ is in a bucket on either end it keeps:
 - consensus open total, closing total, actual total, and the result versus
   the close (`over`, `under`, or `push`)
 
-Bucket counts with n under 30 are marked thin. There is no return column.
-
-2024–25 context, CFB, final forecast only: warm games with sustained wind
-above 10 mph finished over the close about 61% of the time (n=124). Early
-forecasts were about 51–54% and unstable by year. Winds above 15 mph
-finished over about 38% of the time (n about 16–18). The split to keep
-watching is light-to-medium wind. Those are observed frequencies, not a
-reason to take a side.
+`forecast eased` is a tag on that log, not a Telegram alert and not a board
+filter. It is set when an earlier pre-kickoff forecast had sustained wind of
+at least 15 mph and the latest forecast does not. The recorded move is the
+latest consensus total minus the consensus total on the last snapshot that
+still met the flag. A positive move means the total rose after that flag.
+Exactly 15 mph is still a flag, so a latest forecast of 15 mph is not eased.
 
 ### 9. Alerts
 
@@ -376,6 +355,7 @@ is now `process.alert`, not "any legacy Low+". That means:
 - a consensus under-probability move past the gate does not alert, and an
   open alert closes silently the same way a forecast that leaves the screen does
 - a missing price or a non-positive model edge still does not block a weather alert. A single book's juice stays out of the consensus average, but that book's own adverse move blocks when it is past the cap
+- the forecast-eased tag is a settled-log mark only. It does not send Telegram
 
 v1 impact text in the message is still the stitched-forecast impact. Past
 48 h that number can disagree with the ECMWF signal forecast. Both are on
@@ -422,7 +402,6 @@ only and is not the current flag:
 | `PROCESS_TEMP_GATE_CFB` | unset | env override for CFB; follows the global switch when unset |
 | `PROCESS_WIND_WATCH_MPH` | 12 | inclusive start of the display watch; not a flag |
 | `PROCESS_WIND_FLAG_MPH` | 15 | inclusive flag for both leagues |
-| `PROCESS_WARM_WIND_LOW_MPH` | 10 | warm-wind log only; exclusive. Not the under flag |
 | `PROCESS_RAIN_SIGNAL_MM` | 23 | `config.py` |
 | `PROCESS_RAIN_AGREE_TOL_MM` | 10 | `config.py` |
 | `PROCESS_UNDER_PROB_MOVE_MAX` | 0.04 | `config.py`, env override |
