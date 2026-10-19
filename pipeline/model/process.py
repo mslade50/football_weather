@@ -570,32 +570,6 @@ def _spread_ok(sport: str, spread_open: Any) -> bool:
     return spread is not None and abs(spread) <= C.CFB_OPEN_SPREAD_MAX
 
 
-WARM_WIND_BUCKETS = ("10_12", "12_15", "gt_15")
-WARM_WIND_LABELS = {
-    "10_12": "10–12 mph",
-    "12_15": "12–15 mph",
-    "gt_15": ">15 mph",
-}
-
-
-def warm_wind_bucket(temp_f: Any, wind_mph: Any) -> Optional[str]:
-    """Sustained-wind bucket for a warm game. None when it is not in the log.
-
-    Temperature is at least 65°F. Wind is sustained, not a gust. Edges are
-    (10, 12], (12, 15], and above 15 mph. Exactly 10 mph is out.
-    """
-    temp, wind = _f(temp_f), _f(wind_mph)
-    if temp is None or wind is None or temp < C.PROCESS_TEMP_MAX_F:
-        return None
-    if wind > C.PROCESS_WARM_WIND_HIGH_MPH:
-        return "gt_15"
-    if wind > C.PROCESS_WARM_WIND_MID_MPH:
-        return "12_15"
-    if wind > C.PROCESS_WARM_WIND_LOW_MPH:
-        return "10_12"
-    return None
-
-
 def card_driving_forecast(card: dict[str, Any]) -> dict[str, Any]:
     """Signal-driving forecast already stamped on the card, else the stitch."""
     weather = card.get("weather") or {}
@@ -622,38 +596,19 @@ def card_driving_forecast(card: dict[str, Any]) -> dict[str, Any]:
 
 
 def forecast_observation(card: dict[str, Any]) -> dict[str, Any]:
-    """One snapshot's warm-wind reading. Covered roofs are not tracked."""
+    """One snapshot's signal-driving forecast. Covered roofs are not exposed."""
     weather = card.get("weather") or {}
     stadium = card.get("stadium") or {}
     driving = card_driving_forecast(card)
     exposed = weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state"))
-    temp, wind = driving["temp_f"], driving["wind_mph"]
+    wind = driving["wind_mph"]
     return {
-        "temp_f": temp,
+        "temp_f": driving["temp_f"],
         "wind_mph": wind,
         "lead_hours": _f(weather.get("lead_hours")),
         "source": driving.get("source"),
         "exposed": exposed,
-        "bucket": warm_wind_bucket(temp, wind) if exposed else None,
-    }
-
-
-def warm_wind_track(card: dict[str, Any]) -> dict[str, Any]:
-    """Live tag. ``alert`` is always false; this is not the under screen."""
-    obs = forecast_observation(card)
-    bucket = obs["bucket"]
-    return {
-        "version": C.WARM_WIND_VERSION,
-        "tracked": bucket is not None,
-        "bucket": bucket,
-        "label": WARM_WIND_LABELS.get(bucket or ""),
-        "temp_f": obs["temp_f"],
-        "wind_mph": obs["wind_mph"],
-        "forecast_source": obs["source"],
-        "lead_hours": obs["lead_hours"],
-        "exposed": obs["exposed"],
-        "alert": False,
-        "exploratory": True,
+        "wind_flag": bool(exposed and wind is not None and wind >= C.PROCESS_WIND_FLAG_MPH),
     }
 
 
@@ -773,8 +728,6 @@ __all__ = [
     "rain_tier",
     "select_signal_forecast",
     "temp_gate",
-    "warm_wind_bucket",
-    "warm_wind_track",
     "forecast_observation",
     "card_driving_forecast",
     "under_prob_move",

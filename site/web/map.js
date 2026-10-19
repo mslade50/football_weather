@@ -67,7 +67,6 @@ function markerRing(g) {
 }
 // fill: Signals preset → flag palette; otherwise impact tier palette
 function markerFill(g) {
-  if (STATE.warmWind && warmWindTrack(g).tracked) return "#f2cc60";
   if (!hardEligible(g)) return "#8b949e";
   const discovered = discoveryState(g).kind;
   if (discovered === "near") return "#ffd79a";
@@ -160,8 +159,6 @@ function clusterEl(items) {
 
 // ── popup ─────────────────────────────────────────────────────────────────
 function listCaption(g) {
-  if (typeof STATE !== "undefined" && STATE.warmWind && warmWindTrack(g).tracked)
-    return `Watch: warm + wind · ${warmWindTrack(g).label}`;
   return discoveryState(g).label;
 }
 function popupHtml(g) {
@@ -182,7 +179,7 @@ function popupHtml(g) {
   const src = wx.source || isNum(wx.lead_hours) ? row("Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · ${Math.round(Number(wx.lead_hours))}h out` : ""}`) : "";
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
-    ${row(STATE.warmWind ? "Watch: warm + wind" : "Discovery", STATE.warmWind ? warmWindHtml(g) : discoveryHtml(g))}
+    ${row("Discovery", discoveryHtml(g))}
     ${weatherCoverageHtml(g) ? row("Coverage", weatherCoverageHtml(g)) : ""}
     ${row("Signal", `<span class="sig" style="background:${signalColor(g.signal)}">${esc(signalLabel(g.signal))}</span>${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
     ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
