@@ -104,6 +104,32 @@ def test_unfilled_template_fails():
     assert result.returncode == 1
     assert "Proof section is empty or still placeholder text" in result.stderr
     assert "Rollback section is empty or still placeholder text" in result.stderr
+    assert "Test changes" not in result.stderr
+
+
+def test_template_has_optional_test_changes_section():
+    text = TEMPLATE.read_text(encoding="utf-8")
+    assert "## Test changes" in text
+    assert "Say which tests and why." in text
+
+
+def test_test_weakening_job_is_read_only_and_fetches_history():
+    text = _workflow_text()
+    job = _workflow()["jobs"]["test-weakening"]
+    assert job["runs-on"] == "ubuntu-latest"
+    assert "permissions" not in job
+    checkout = job["steps"][0]
+    assert checkout["uses"] == "actions/checkout@v4"
+    assert checkout["with"]["fetch-depth"] == 0
+    step = next(item for item in job["steps"] if item.get("name") == "Check test weakening")
+    assert step["env"]["PR_BODY"] == "${{ github.event.pull_request.body }}"
+    assert step["env"]["PR_AUTHOR"] == "${{ github.event.pull_request.user.login }}"
+    assert step["env"]["PR_NUMBER"] == "${{ github.event.pull_request.number }}"
+    assert step["env"]["BASE_SHA"] == "${{ github.event.pull_request.base.sha }}"
+    assert step["env"]["HEAD_SHA"] == "${{ github.event.pull_request.head.sha }}"
+    assert step["run"].strip() == "python3 scripts/check_test_weakening.py"
+    assert "pull_request_target" not in text
+    assert "secrets." not in text
 
 
 def test_placeholder_words_fail():

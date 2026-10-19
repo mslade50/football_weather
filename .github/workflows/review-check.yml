@@ -1,9 +1,11 @@
 name: review-check
 
 # Proof and Rollback must be filled in, then the same pytest and ruff commands
-# the repo already runs in ci.yml. No secrets are read or printed. The body is
-# passed only through env vars. Dependabot and Renovate skip the template rule
-# inside scripts/check_pr_body.py; other bots and agents do not.
+# the repo already runs in ci.yml. A third job reads the pull request diff and
+# fails when tests get weaker without a real "## Test changes" note. No secrets
+# are read or printed. The body is passed only through env vars. Dependabot and
+# Renovate skip the template rule inside scripts/check_pr_body.py and the
+# weakening check; other bots and agents do not.
 
 on:
   pull_request:
@@ -30,6 +32,24 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: python3 scripts/check_pr_body.py
+
+  test-weakening:
+    name: test weakening
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check test weakening
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check_test_weakening.py
 
   test:
     name: tests and ruff
