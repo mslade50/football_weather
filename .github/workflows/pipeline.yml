@@ -43,9 +43,10 @@ name: pipeline
 on:
   # GitHub schedule is only a SPARSE BACKSTOP (~every 3-4h on game days, off-the-
   # minute UTC). The Cloudflare Worker dispatches the hourly game-day cadence
-  # (shouldDispatch in site/worker/index.js); GitHub drops scheduled ticks, so
-  # the Worker is primary. The gate job skips a backstop tick when a Worker/manual
-  # dispatch started within the last 50 minutes, and the concurrency group below
+  # and every odd ET hour from 7 AM through 11 PM (site/worker/index.js);
+  # GitHub drops scheduled ticks, so the Worker is primary. The gate job skips
+  # a backstop tick when a Worker/manual dispatch started within the last 100
+  # minutes, and the concurrency group below
   # queues any remaining overlap, so the two never double-run.
   schedule:
     - cron: '17 9 * * *'
@@ -85,6 +86,15 @@ on:
         type: boolean
         required: false
         default: false
+      ecmwf_opendata:
+        description: 'ECMWF source: auto (open data on Open-Meteo error, 429, or stale), force, or off'
+        type: choice
+        required: false
+        default: auto
+        options:
+          - auto
+          - force
+          - off
 
 # Serialize writers so two ticks can never race on the R2 put loop.
 # Queue rather than cancel so an in-flight build completes instead of leaving
@@ -103,6 +113,8 @@ env:
   # above do not silence them.
   FOOTBALL_FAILURE_ALERTS: ${{ vars.FOOTBALL_FAILURE_ALERTS || '1' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
+  # auto uses ECMWF Open Data only after an Open-Meteo error, HTTP 429, or a stale ECMWF run.
+  ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}
@@ -161,7 +173,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Fail-open: any error leaves skip empty and the gate runs normally.
-          SINCE="$(date -u -d '50 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          SINCE="$(date -u -d '100 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
           N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20"             | jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled")] | length')" || N=0
           echo "Recent dispatch runs: ${N:-0}"
           if [ "${N:-0}" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi

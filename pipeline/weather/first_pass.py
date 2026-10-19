@@ -9,6 +9,7 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
+from pipeline.weather import ecmwf_fallback
 from pipeline.weather.screening import finite
 
 MODELS = "ncep_nbm_conus,ncep_hrrr_conus,ncep_gfs_seamless,ecmwf_ifs025,ecmwf_aifs025_single"
@@ -88,6 +89,7 @@ def collect(ctx, sport, om, nws, by_point, conus, hours, reused, start, end, cap
             meta[point] = {**meta.get(point, {}), "stage": "global_first_pass", "aged": False}
         if failures:
             ctx.degrade("weather", f"{sport}: lean global points unavailable at {sum(size for _, size, _ in failures)} locations", "warn")
+        ecmwf_fallback.supplement_forecasts(ctx, sport, group, forecasts, failures, hours, capture, stamps)
     return forecasts, grids, stamps, meta
 
 
@@ -131,3 +133,4 @@ def refine(ctx, sport, om, points, conus, forecasts, stamps, meta, start, end, c
                     meta[point] = {**meta.get(point, {}), "stage": "refined_multimodel", "aged": False}
             if failures:
                 ctx.degrade("weather", f"{sport}: detailed point refinement unavailable at {sum(size for _, size, _ in failures)} locations; retaining first pass", "warn")
+            ecmwf_fallback.supplement_forecasts(ctx, sport, group, forecasts, failures, hours, capture, stamps)

@@ -404,6 +404,19 @@ test("scheduled: heartbeat written first, then trimmed or dispatched", async () 
   assert.deepEqual(noTok.plan, { sport: "all", scope: "full" });
 });
 
+test("api/status includes the ECMWF open-data block from meta.json", async () => {
+  const env = fakeEnv();
+  env.ODDS._store.set("board/meta.json", JSON.stringify({
+    run_id: "r", last_updated: "2026-10-19T16:00:00Z",
+    ecmwf_opendata: {used: true, license: "CC-BY-4.0", mode: "auto"},
+    degradations: [], books: {},
+  }));
+  const status = await handleFetch(req("/api/status", { headers: basic("a", "viewer-pw") }), env);
+  const body = await status.json();
+  assert.equal(body.meta.ecmwf_opendata.used, true);
+  assert.equal(body.meta.ecmwf_opendata.license, "CC-BY-4.0");
+});
+
 test("default export wires fetch and scheduled with ctx.waitUntil", async () => {
   assert.equal(typeof worker.fetch, "function");
   assert.equal(typeof worker.scheduled, "function");

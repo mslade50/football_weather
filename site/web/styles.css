@@ -45,6 +45,7 @@ header { padding: 12px 18px; border-bottom: 1px solid var(--line);
 header h1 { font-size: 18px; margin: 0; font-weight: 650; }
 header .event { color: var(--accent); font-weight: 600; }
 header .updated, header .nextrun { color: var(--muted); font-size: 12px; }
+header .nextrun.overdue { color: var(--warn); font-weight: 700; }
 header .chips { display: flex; gap: 5px; flex-wrap: wrap; }
 header .refresh-actions { margin-left: auto; display: flex; gap: 7px; flex-wrap: wrap; }
 header .refreshbtn { background: var(--panel); color: var(--text);

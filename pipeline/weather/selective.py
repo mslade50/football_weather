@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pipeline.weather import ecmwf_fallback
 from pipeline.weather.member_cache import (  # noqa: F401
     SOURCES,
     MemberCache,
@@ -159,6 +160,7 @@ def members(
                 coverage[point]["errors"].setdefault(source, str(failures[0][2]) if failures else "no member response")
         if failures:
             ctx.degrade("weather", f"{sport}: {source} full ensemble unavailable for {sum(size for _, size, _ in failures)} selected locations; successful batches retained ({failures[0][2]})", "warn")
+    ecmwf_fallback.supplement_ensemble(ctx, sport, points, hours, locations, coverage, capture)
     if cache.invalid:
         ctx.degrade("weather", f"{sport}: invalid raw-member cache entries were ignored", "warn")
     if not ctx.dry_run:
