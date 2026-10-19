@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -137,6 +138,66 @@ Revert this PR.
 """
     result = _run(body)
     assert result.returncode == 0
+
+
+REJECTED_SECTIONS = [
+    "N/A.",
+    "```\n```",
+    "TODO fill this in",
+    "Tests passed",
+    "Revert if needed",
+]
+REAL_PYTEST = """python -m pytest tests -q
+........................ [100%]
+12 passed in 0.2s
+ruff check .
+All checks passed!
+"""
+FENCED_LOG = """```
+python -m pytest tests -q
+12 passed in 0.2s
+ruff check .
+All checks passed!
+```
+"""
+
+
+@pytest.mark.parametrize("section", REJECTED_SECTIONS)
+def test_vague_phrase_is_rejected_as_the_whole_proof_section(section: str):
+    body = f"## Proof\n{section}\n\n## Rollback steps\nRevert this PR\n"
+    result = _run(body)
+    assert result.returncode == 1
+    assert "Proof section is empty or still placeholder text" in result.stderr
+    assert "Rollback" not in result.stderr
+
+
+@pytest.mark.parametrize("section", REJECTED_SECTIONS)
+def test_vague_phrase_is_rejected_as_the_whole_rollback_section(section: str):
+    body = f"## Proof\n{REAL_PYTEST}\n## Rollback steps\n{section}\n"
+    result = _run(body)
+    assert result.returncode == 1
+    assert "Rollback section is empty or still placeholder text" in result.stderr
+    assert "Proof section" not in result.stderr
+
+
+def test_real_pytest_output_is_accepted():
+    body = f"## Proof\n{REAL_PYTEST}\n## Rollback steps\nRevert this PR\n"
+    result = _run(body)
+    assert result.returncode == 0
+    assert "Proof and Rollback sections are filled" in result.stdout
+
+
+def test_fenced_test_log_is_accepted():
+    body = f"## Proof\n{FENCED_LOG}\n## Rollback steps\nRevert this PR\n"
+    result = _run(body)
+    assert result.returncode == 0
+
+
+def test_revert_this_pr_is_accepted():
+    body = f"## Proof\n{FENCED_LOG}\n## Rollback steps\nRevert this PR\n"
+    result = _run(body)
+    assert result.returncode == 0
+    assert "Rollback" not in result.stderr
 
 
 def test_missing_rollback_fails():

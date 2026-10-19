@@ -17,25 +17,29 @@ import sys
 FENCE = re.compile(r"^(?P<mark>`{3,}|~{3,})")
 HEADING = re.compile(r"^##\s+(?P<title>.+?)\s*$")
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# A fence with no body, including one that only has a language tag.
+EMPTY_FENCE = re.compile(
+    r"(?m)^[ \t]*(?P<mark>`{3,}|~{3,})[^\n]*\n(?:[ \t]*\n)*[ \t]*(?P=mark)[ \t]*\n?"
+)
 
-# Whole-section text that counts as unfilled. Comments are stripped first, so
-# the HTML notes in the template already fail as empty; these catch the same
-# notes left behind as visible text, plus one-line stand-ins.
-PLACEHOLDER_TEXT = {
+# Phrases that are not proof or a rollback step. Matching happens after
+# normalization (lowercase, punctuation removed, whitespace collapsed), so
+# "N/A." and "n/a" are the same entry. Add a line here to reject it when it
+# is the whole Proof or Rollback section.
+REJECTED_PHRASES = (
     "todo",
     "tbd",
     "fixme",
     "xxx",
     "placeholder",
     "n/a",
-    "na",
     "none",
-    "...",
-    "high or low. high = alerts, pricing, edge, or fair price, r2 or worker publish, workflows, or secrets. low = display, copy, or docs.",
-    "paste real pytest and ruff output here. for ui or alert changes, also attach sample alert text, a board screenshot, or a json sample.",
-    "plain words: what to revert, which flag to turn off, or what to redeploy.",
-}
-PLACEHOLDER_LINES = {"todo", "tbd", "fixme", "xxx", "placeholder", "n/a", "na", "none", "..."}
+    "todo fill this in",
+    "tests passed",
+    "revert if needed",
+    "Paste real pytest and ruff output here. For UI or alert changes, also attach sample alert text, a board screenshot, or a JSON sample.",
+    "Plain words: what to revert, which flag to turn off, or what to redeploy.",
+)
 DEPENDENCY_BOTS = {"dependabot", "dependabot-preview", "renovate"}
 REQUIRED = (("proof", "Proof"), ("rollback", "Rollback"))
 
@@ -48,25 +52,31 @@ def is_dependency_bot(author: str | None) -> bool:
     return name in DEPENDENCY_BOTS or name.startswith("dependabot")
 
 
-def _normalize(text: str) -> str:
-    return " ".join(text.split()).strip().lower()
+def _fold(text: str) -> str:
+    """Lowercase, drop punctuation, and collapse whitespace."""
+    kept = (ch.lower() for ch in text if ch.isalnum() or ch.isspace())
+    return " ".join("".join(kept).split())
 
 
-def _visible(text: str) -> str:
-    return COMMENT.sub("", text).strip()
+_REJECTED = frozenset(phrase for phrase in (_fold(item) for item in REJECTED_PHRASES) if phrase)
+
+
+def _prepare(text: str) -> str:
+    visible = COMMENT.sub("", text)
+    previous = None
+    while previous != visible:
+        previous = visible
+        visible = EMPTY_FENCE.sub("\n", visible)
+    return visible
 
 
 def is_placeholder(text: str) -> bool:
-    visible = _visible(text)
-    if not visible:
+    visible = _prepare(text)
+    folded = _fold(visible)
+    if not folded or folded in _REJECTED:
         return True
-    folded = _normalize(visible)
-    if folded in PLACEHOLDER_TEXT:
-        return True
-    if folded.startswith("<") and folded.endswith(">"):
-        return True
-    lines = [_normalize(line) for line in COMMENT.sub("", text).splitlines() if line.strip()]
-    return bool(lines) and all(line in PLACEHOLDER_LINES for line in lines)
+    lines = [line for line in (_fold(line) for line in visible.splitlines()) if line]
+    return bool(lines) and all(line in _REJECTED for line in lines)
 
 
 def sections(body: str) -> dict[str, str]:
