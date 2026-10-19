@@ -14,6 +14,7 @@ RUN = "published-test"
 @pytest.fixture
 def board(tmp_path, monkeypatch):
     monkeypatch.delenv("TELEGRAM_DISABLED", raising=False)
+    monkeypatch.setenv("FOOTBALL_TELEGRAM_ENABLED", "1")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "test-shared-chat")
     monkeypatch.setattr(alerts, "enrich_liquidity", lambda cards: None)
     board_dir, state_dir = tmp_path / "board", tmp_path / "state"

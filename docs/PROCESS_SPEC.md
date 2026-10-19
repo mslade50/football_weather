@@ -361,11 +361,8 @@ v1 impact text in the message is still the stitched-forecast impact. Past
 48 h that number can disagree with the ECMWF signal forecast. Both are on
 the card; the message did not grow a second impact line.
 
-Open PR #13 retires football Telegram behind `FOOTBALL_TELEGRAM_ENABLED`
-(exact `1` would turn delivery back on). This change does not take a side
-in that debate and does not add the flag. If that PR merges, these
-thresholds apply only when delivery is enabled. Until then, the current
-sender uses the new gate.
+Football Telegram delivery is off unless `FOOTBALL_TELEGRAM_ENABLED` is
+exactly `1`. When delivery is on, these thresholds are the send gate.
 
 ## Context for the cuts
 

@@ -17,6 +17,7 @@ import worker, {
   dispatchBoard,
   handleFetch,
   handleScheduled,
+  notifyTelegram,
 } from "../index.js";
 
 const basic = (user, pass) => ({ Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}` });
@@ -168,6 +169,7 @@ test("api/runs clamps limit; api/alerts filters; api/status includes heartbeat",
   const body = await status.json();
   assert.equal(body.heartbeat.cron, "*/30 * * * *");
   assert.equal(body.meta, null);
+  assert.deepEqual(body.notifications, { football_telegram_enabled: false });
   const nf = await handleFetch(req("/api/nope", { headers: basic("a", "viewer-pw") }), env);
   assert.equal(nf.status, 404);
 });
@@ -219,6 +221,34 @@ test("dispatchBoard posts to pipeline.yml on main with sport/scope/force inputs"
   assert.match(fail.detail, /boom/);
 });
 
+test("retired Worker sender never fetches even if SYSTEM alerts are enabled", async () => {
+  for (const flag of [undefined, "", "0", "true", "invalid"]) {
+    const env = { FOOTBALL_TELEGRAM_ENABLED: flag, TELEGRAM_SYSTEM_ALERTS: "1",
+      TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture" };
+    await notifyTelegram(env, "fixture", async () => assert.fail("retired sender must not fetch"));
+  }
+});
+
+test("retired scheduled failure still records heartbeat and dispatch", async () => {
+  const origFetch = globalThis.fetch;
+  const calls = [];
+  try {
+    globalThis.fetch = async (url) => {
+      calls.push(String(url));
+      assert.match(String(url), /^https:\/\/api.github.com\//);
+      return new Response("fixture failure", { status: 500 });
+    };
+    const env = fakeEnv({ GH_DISPATCH_TOKEN: "fixture", TELEGRAM_SYSTEM_ALERTS: "1",
+      TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture", FOOTBALL_TELEGRAM_ENABLED: "0" });
+    // Wednesday 17:15 UTC still dispatches. Saturday 17:15 is skipped because the
+    // 17:00 game-day tick already covers it.
+    await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, env);
+    assert.equal(calls.length, 1);
+    assert.ok(env.ODDS._store.has("board/cf_heartbeat.json"));
+    assert.ok(env.ODDS._store.has("board/cf_dispatch.json"));
+  } finally { globalThis.fetch = origFetch; }
+});
+
 test("scheduled SYSTEM notices are opt-in and concise", async () => {
   const origFetch = globalThis.fetch;
   const sent = [];
@@ -232,7 +262,7 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
     assert.equal(sent.length, 0);
 
     const blockedEnv = fakeEnv({
-      TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
+      FOOTBALL_TELEGRAM_ENABLED: "1", TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, blockedEnv);
     assert.equal(sent.length, 1);
@@ -247,7 +277,7 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
       return new Response(null, { status: 200 });
     };
     const failedEnv = fakeEnv({
-      GH_DISPATCH_TOKEN: "tok", TELEGRAM_SYSTEM_ALERTS: "1",
+      GH_DISPATCH_TOKEN: "tok", FOOTBALL_TELEGRAM_ENABLED: "1", TELEGRAM_SYSTEM_ALERTS: "1",
       TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, failedEnv);

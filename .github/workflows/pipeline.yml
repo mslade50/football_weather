@@ -96,6 +96,8 @@ env:
   SPORT: ${{ inputs.sport || 'all' }}
   SCOPE: ${{ inputs.scope || 'full' }}
   TELEGRAM_DISABLED: ${{ inputs.safe_refresh == true && '1' || '0' }}
+  # Football Telegram retirement; safe_refresh remains an independent hard stop.
+  FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
@@ -292,7 +294,7 @@ jobs:
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board
-        if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' }}
+        if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -464,7 +466,7 @@ jobs:
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board (playwright)
-        if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' }}
+        if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -489,13 +491,14 @@ jobs:
     # this page (GitHub skips a dependent job when one need was skipped unless
     # the condition is unconditional). The step decides whether to send.
     # safe_refresh stays quiet. Cancelled runs do not page.
+    # Football Telegram stays off unless FOOTBALL_TELEGRAM_ENABLED is exactly 1.
     needs: [gate, light, playwright_scrape, playwright]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Telegram on failure
-        if: ${{ !cancelled() && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || (needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1') || (needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1')) }}
+        if: ${{ !cancelled() && vars.FOOTBALL_TELEGRAM_ENABLED == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || (needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1') || (needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1')) }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

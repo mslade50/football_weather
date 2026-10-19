@@ -16,6 +16,7 @@ from pipeline.current_quotes import expire_card
 from pipeline.outputs import d1_out, json_out
 from pipeline.publication import verify_generation
 from pipeline.run_context import RunContext
+from utils.telegram import football_telegram_enabled
 from utils.timeutil import now_utc
 
 
@@ -43,8 +44,8 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
                      uploader: Callable | None = None, archiver: Callable = archive_receipts,
                      sender: alerts.Sender | None = None, now: datetime | None = None,
                      confirmation_reader: Callable[[], dict] | None = None) -> alerts.AlertsRun | None:
-    # safe_refresh must not modify delivery markers or queue state.
-    if os.environ.get("TELEGRAM_DISABLED") == "1":
+    # Retirement and safe_refresh must not modify delivery markers or queue state.
+    if not football_telegram_enabled() or os.environ.get("TELEGRAM_DISABLED") == "1":
         return None
     meta = json.loads((board_dir / "meta.json").read_text(encoding="utf-8"))
     if meta.get("run_id") != run_id:

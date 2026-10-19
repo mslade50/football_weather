@@ -8,6 +8,9 @@
 
 Telegram reports qualifying weather signals; prices provide context:
 
+Delivery is retired by default. ``FOOTBALL_TELEGRAM_ENABLED=1`` is required
+to restore the retained behavior below; dry-run rendering remains available.
+
 * SIGNAL: one stable ``edge|...|total|under|best|model`` identity per game (book
   churn and model promotion do not mint another notification). The weather
   gate is the process screen (docs/PROCESS_SPEC.md): sustained wind >= 15 mph,
@@ -16,8 +19,8 @@ Telegram reports qualifying weather signals; prices provide context:
   on. A consensus no-vig under move past ``PROCESS_UNDER_PROB_MOVE_MAX`` (default 4%) blocks
   the send. ``TELEGRAM_MIN_TIER`` can still raise the tier floor. Missing
   prices, missing fairs, and negative edges never suppress a signal.
-  Delivery itself is unchanged here; open PR #13's ``FOOTBALL_TELEGRAM_ENABLED``
-  switch, if merged, sits in front of these sends.
+  ``FOOTBALL_TELEGRAM_ENABLED=1`` sits in front of these sends. Any other
+  value leaves delivery off.
 * UPDATE: at most one per game/run, prioritised tier change → price availability → line
   move → forecast move. Best-book changes update the same parent and are labeled
   as play-price changes. Betting notifications stop at kickoff.
@@ -73,6 +76,7 @@ from pipeline.model import signals as model_signals
 from pipeline.model.wind_history import stadium_wind_history
 from pipeline.stadiums.roofs import weather_exposed
 from utils.env import load_repo_dotenv
+from utils.telegram import football_telegram_enabled
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
 
 logger = logging.getLogger(__name__)
@@ -2045,6 +2049,7 @@ def run_alerts(
 ) -> AlertsRun:
     """Collect → plan → dispatch → persist. With ``enabled=False`` or ``dry_run``
     the candidates are printed with their keys and nothing is sent or marked."""
+    enabled = enabled and football_telegram_enabled()
     cfg = cfg or Config.from_env()
     supplied_now = now is not None
     now = ensure_utc(now) if now else now_utc()
@@ -2346,6 +2351,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     load_repo_dotenv()
     args = parse_args(argv)
+    # Retirement must not trigger failure/SMTP fallback or drain saved queues.
+    # Explicit dry-run rendering remains available.
+    if not args.dry_run and (args.digest or args.flush) and not football_telegram_enabled():
+        print("football Telegram retired: digest/flush delivery skipped")
+        return 0
     cfg = Config.from_env()
     sender = print_sender() if args.dry_run else default_sender()
     now = now_utc()

@@ -41,8 +41,11 @@ BOARD_ADMIN_USERNAME = "mslade"
 GH_REPO = "mslade50/football_weather"
 GH_WORKFLOW = "pipeline.yml"
 GH_REF = "main"
-# Keep Telegram reserved for actionable bets. Set to "1" only if SYSTEM paging
-# is explicitly wanted; scheduled dispatch failures otherwise stay in Worker logs.
+# Football Telegram is retired. Opt in only for an explicit rollback; no secrets
+# or collection/heartbeat schedules are removed.
+FOOTBALL_TELEGRAM_ENABLED = "0"
+# After an explicit master-switch rollback, SYSTEM paging still needs this
+# separate opt-in; dispatch failures otherwise stay in Worker logs.
 TELEGRAM_SYSTEM_ALERTS = "0"
 
 # ── Cron Triggers ─────────────────────────────────────────────────────────────
