@@ -446,7 +446,7 @@ jobs:
          python -m pipeline.build --sport $sport --scope odds --books betonline,betcris --merge-into-r2 --no-alerts
            (fetches board/games_*.json + state, reuses same-workflow weather inputs, re-runs merge/fair/edges);
          publish, archive, self-check and notify in the same order as light;
-  notify_failure: needs [gate, light, playwright]; if: always() so a skipped Playwright job cannot hide it. One Telegram page when gate or light fails, including a rejected publish. A Playwright/BetOnline failure alone pages only when `TELEGRAM_SYSTEM_ALERTS=1`. Cancelled runs and safe_refresh stay quiet. Other workflows still require `TELEGRAM_SYSTEM_ALERTS=1`.
+  notify_failure: needs [gate, light, playwright_scrape, playwright]; if: always() so a skipped Playwright job cannot hide it. One Telegram page when a gate or light failure starts, including a rejected publish, and one page when a later run's main build succeeds. Repeats while the incident is open do not page. The marker is R2 `board/pipeline_health.json`, written only after the send. `FOOTBALL_FAILURE_ALERTS=0` silences it; the pick-alert switch does not. A Playwright/BetOnline failure alone pages only when `TELEGRAM_SYSTEM_ALERTS=1`. Cancelled runs and safe_refresh stay quiet. Other workflows still require `TELEGRAM_SYSTEM_ALERTS=1` and stay on unless `FOOTBALL_FAILURE_ALERTS=0`.
 ```
 The 30-minute per-build backstop accommodates cold weather retrievals. Upload concurrency avoids serial CLI startup overhead. A 120-second quote-freshness reserve and an 80-second critical-upload budget prevent a delayed final marker from claiming stale prices.
 

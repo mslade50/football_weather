@@ -328,22 +328,26 @@ def test_cron_backstop_has_no_duplicate_ticks_and_is_thinner(text: str):
 
 def test_telegram_on_failure(text: str):
     job = _job(text, "notify_failure")
-    step = _step(job, "Telegram on failure")
+    step = _step(job, "Telegram on failure or recovery")
     assert "needs: [gate, light, playwright_scrape, playwright]" in job
     # Unconditional at the job: a skipped Playwright job must not skip the page.
     assert "\n    if: always()\n" in job
     assert "!cancelled()" in step
     assert "inputs.safe_refresh != true" in step
-    assert "needs.gate.result == 'failure'" in step
-    assert "needs.light.result == 'failure'" in step
-    # Playwright pages only when the system-alert switch is on. Gate, light,
-    # and a rejected publish (which fails the light job) do not need it.
-    assert "needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in step
-    assert "needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in step
-    assert "needs.light.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS" not in step
-    assert "needs.gate.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS" not in step
+    assert "env.FOOTBALL_FAILURE_ALERTS != '0'" in step
+    assert "FOOTBALL_TELEGRAM_ENABLED" not in job
+    assert "python -m pipeline.failure_page plan" in step
+    assert "python -m pipeline.failure_page commit" in step
+    assert 'GATE_RESULT: ${{ needs.gate.result }}' in step
+    assert 'LIGHT_RESULT: ${{ needs.light.result }}' in step
+    assert 'PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}' in step
+    assert 'PLAYWRIGHT_SCRAPE_RESULT: ${{ needs.playwright_scrape.result }}' in step
+    assert "TELEGRAM_SYSTEM_ALERTS: ${{ vars.TELEGRAM_SYSTEM_ALERTS || '0' }}" in step
+    # The marker is stored only after the send succeeds.
+    assert step.index('sendMessage') < step.index('pipeline.failure_page commit')
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
     assert "--max-time 15" in step
+    assert "FOOTBALL_FAILURE_ALERTS: ${{ vars.FOOTBALL_FAILURE_ALERTS || '1' }}" in text
 
 
 def test_novig_nbx_secrets_reach_only_the_light_build(text: str):

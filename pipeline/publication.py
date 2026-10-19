@@ -15,6 +15,9 @@ BUILD_PROTECTED_NAMES = frozenset({
     'alerts', 'telegram_state', 'alerts_live_feed', 'notification_owner',
     'bet_confirmations', 'cf_heartbeat', 'live_quotes',
     'owner_review_outbox', 'review_outbox_owner', 'owner_review_receipts',
+    # Failure-page incident marker. notify_failure owns it; a board publish must
+    # not replace it with a stale or missing copy.
+    'pipeline_health',
 })
 
 PUBLIC_NAMES = {

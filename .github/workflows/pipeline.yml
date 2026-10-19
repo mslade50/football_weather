@@ -99,6 +99,9 @@ env:
   TELEGRAM_DISABLED: ${{ inputs.safe_refresh == true && '1' || '0' }}
   # Football Telegram retirement; safe_refresh remains an independent hard stop.
   FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
+  # Failure and recovery pages stay on unless this is exactly 0. Pick alerts
+  # above do not silence them.
+  FOOTBALL_FAILURE_ALERTS: ${{ vars.FOOTBALL_FAILURE_ALERTS || '1' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
@@ -489,28 +492,60 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   notify_failure:
-    # Page when the publish is rejected or the gate or main (light) build fails.
-    # A Playwright/BetOnline failure alone (scrape or publish job) pages only when
-    # TELEGRAM_SYSTEM_ALERTS=1. The job condition is only always(): a skipped
-    # Playwright job must not skip
-    # this page (GitHub skips a dependent job when one need was skipped unless
-    # the condition is unconditional). The step decides whether to send.
-    # safe_refresh stays quiet. Cancelled runs do not page.
-    # Football Telegram stays off unless FOOTBALL_TELEGRAM_ENABLED is exactly 1.
+    # Page once when a failure starts, and once when a later run recovers.
+    # The job condition is only always(). A compound if is not enough: GitHub
+    # skips a job when one need was skipped unless the condition is unconditional,
+    # and the 2026-10-17 if also required TELEGRAM_SYSTEM_ALERTS == '1', which
+    # skipped the job on all seven content-floor failures.
+    # FOOTBALL_FAILURE_ALERTS defaults on and is independent of the pick-alert
+    # switch. safe_refresh and cancelled runs stay quiet and do not touch the
+    # incident marker. The marker is written only after Telegram accepts the page.
     needs: [gate, light, playwright_scrape, playwright]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - name: Telegram on failure
-        if: ${{ !cancelled() && vars.FOOTBALL_TELEGRAM_ENABLED == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || (needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1') || (needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1')) }}
+      - uses: actions/checkout@v4
+        if: ${{ !cancelled() && inputs.safe_refresh != true && env.FOOTBALL_FAILURE_ALERTS != '0' }}
+      - uses: actions/setup-python@v5
+        if: ${{ !cancelled() && inputs.safe_refresh != true && env.FOOTBALL_FAILURE_ALERTS != '0' }}
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - name: Install R2 client
+        if: ${{ !cancelled() && inputs.safe_refresh != true && env.FOOTBALL_FAILURE_ALERTS != '0' }}
+        run: pip install boto3
+      - name: Telegram on failure or recovery
+        if: ${{ !cancelled() && inputs.safe_refresh != true && env.FOOTBALL_FAILURE_ALERTS != '0' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_SYSTEM_ALERTS: ${{ vars.TELEGRAM_SYSTEM_ALERTS || '0' }}
+          GATE_RESULT: ${{ needs.gate.result }}
+          LIGHT_RESULT: ${{ needs.light.result }}
+          PLAYWRIGHT_SCRAPE_RESULT: ${{ needs.playwright_scrape.result }}
+          PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
-          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJobs: gate=%s · light=%s · BetOnline scrape=%s · BetOnline publish=%s\nTrigger: %s · Sport: %s\nOpen run: %s' \
-            '${{ needs.gate.result }}' '${{ needs.light.result }}' '${{ needs.playwright_scrape.result }}' '${{ needs.playwright.result }}' \
-            '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
+          python -m pipeline.failure_page plan \
+            --action-out "$RUNNER_TEMP/failure-action" \
+            --message-out "$RUNNER_TEMP/failure-message" \
+            --state-out "$RUNNER_TEMP/failure-state.json"
+          ACTION="$(tr -d '\n' < "$RUNNER_TEMP/failure-action")"
+          echo "failure-page action=$ACTION"
+          if [ "$ACTION" != "failure" ] && [ "$ACTION" != "recovery" ]; then
+            exit 0
+          fi
+          MSG="$(cat "$RUNNER_TEMP/failure-message")"
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -fsS --max-time 15 \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true
+            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null; then
+            python -m pipeline.failure_page commit --state-file "$RUNNER_TEMP/failure-state.json" \
+              || echo "::warning::Page sent but the incident marker was not saved; the next run may page again"
+          else
+            echo "::warning::Failure page was not delivered; the next run will try again"
+          fi
