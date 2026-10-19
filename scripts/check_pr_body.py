@@ -39,6 +39,7 @@ REJECTED_PHRASES = (
     "revert if needed",
     "Paste real pytest and ruff output here. For UI or alert changes, also attach sample alert text, a board screenshot, or a JSON sample.",
     "Plain words: what to revert, which flag to turn off, or what to redeploy.",
+    "Optional. Required only when this PR deletes or weakens tests. Say which tests and why.",
 )
 DEPENDENCY_BOTS = {"dependabot", "dependabot-preview", "renovate"}
 REQUIRED = (("proof", "Proof"), ("rollback", "Rollback"))
@@ -79,11 +80,29 @@ def is_placeholder(text: str) -> bool:
     return bool(lines) and all(line in _REJECTED for line in lines)
 
 
+def _section_key(title: str) -> str | None:
+    """Map a ## heading to the section we keep.
+
+    Proof and Rollback use the first word, so "Rollback steps" counts.
+    "Test changes" is the optional weakening explanation and matches only
+    that heading, not every heading that starts with Test.
+    """
+    parts = [part.lower().rstrip(":") for part in title.split()]
+    if not parts:
+        return None
+    if parts[0] in {"proof", "rollback"}:
+        return parts[0]
+    if parts[:2] == ["test", "changes"]:
+        return "test"
+    return None
+
+
 def sections(body: str) -> dict[str, str]:
-    """Map the first Proof and Rollback headings to the text under each.
+    """Map Proof, Rollback, and Test changes headings to the text under each.
 
     Headings inside fenced code blocks are part of the section body, so pasted
-    command output cannot close a section early.
+    command output cannot close a section early. Test changes is optional:
+    the body check does not require it.
     """
     found: dict[str, str] = {}
     title: str | None = None
@@ -94,9 +113,8 @@ def sections(body: str) -> dict[str, str]:
         nonlocal title, buf
         if title is None:
             return
-        parts = title.split()
-        key = parts[0].lower().rstrip(":") if parts else ""
-        if key in {"proof", "rollback"} and key not in found:
+        key = _section_key(title)
+        if key and key not in found:
             found[key] = "\n".join(buf)
         title = None
         buf = []
