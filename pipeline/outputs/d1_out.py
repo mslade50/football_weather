@@ -302,6 +302,20 @@ def alert_upsert_sql(rows: Sequence[dict[str, Any]]) -> list[str]:
             for chunk in chunked(list(rows))]
 
 
+def run_status(ctx: Any) -> str:
+    """``error`` fails the process. ``warn`` stays exit 0 and is the status-page pill
+    when an enabled book returned 0 lines for a league that has games."""
+    degradations = getattr(ctx, "degradations", None) or []
+    if any(getattr(item, "severity", "") == "error" for item in degradations):
+        return "error"
+    if any(
+        getattr(item, "severity", "") == "warn" and "returned 0 lines" in (getattr(item, "reason", "") or "")
+        for item in degradations
+    ):
+        return "warn"
+    return "ok"
+
+
 def run_row(
     ctx: Any,
     *,
@@ -314,7 +328,7 @@ def run_row(
     status: Optional[str] = None,
 ) -> dict[str, Any]:
     if status is None:
-        status = "error" if any(d.severity == "error" for d in ctx.degradations) else "ok"
+        status = run_status(ctx)
     return {
         "run_id": ctx.run_id, "sport": ctx.sport, "season": season, "week": week, "git_sha": ctx.git_sha,
         "scope": ctx.scope, "started_at": utc_iso(ctx.started_at), "finished_at": utc_iso(finished_at),

@@ -117,6 +117,7 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 |---|---|---|---|
 | `CFBD_API_KEY` | `pipeline/schedule` (CFB schedule/results), `pipeline/backtest.py` results | .env, GH | optional — ESPN scoreboard fallback (warn degradation) |
 | `PROPHETX_API_KEY`, `PROPHETX_SECRET_KEY`, `PROPHETX_ACCESS_KEY`, `PROPHETX_API_BASE_URL` | `pipeline/odds/prophetx.py` | .env, GH (`_API_BASE_URL` optional, defaults in code) | optional — book returns 0 lines without them |
+| `NOVIG_CLIENT_ID`, `NOVIG_CLIENT_SECRET` | `pipeline/odds/novig.py` NBX fallback after the public catalog returns 401/403 | .env, GH (pipeline.yml light job) | optional — the public catalog at `api.novig.com/v3/public/catalog` needs neither; both must be set together or the fallback names them in the warning |
 | `BOOK_PINNACLE_ENABLED`, `BOOK_BETCRIS_ENABLED`, `BOOK_FANDUEL_ENABLED`, `BOOK_KALSHI_ENABLED`, `BOOK_NOVIG_ENABLED`, `BOOK_PROPHETX_ENABLED`, `BOOK_BETONLINE_ENABLED` | each `pipeline/odds/<book>.py` (`"0"` disables the book); `BOOK_BETONLINE_ENABLED` also read as a GH **variable** by `pipeline.yml` to skip the Playwright job | .env, GH variable | optional (default enabled) |
 | `BETONLINE_CHANNEL` | `pipeline/odds/betonline.py` Playwright channel (e.g. `chrome`) | .env | optional |
 | `ODDS_API_KEY`, `ODDS_API_ENABLED` | `pipeline/odds/oddsapi.py` opener seeding (`ODDS_API_ENABLED=0` disables) | .env, GH (not yet referenced by any workflow) | optional |

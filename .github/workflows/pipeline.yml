@@ -36,8 +36,9 @@ name: pipeline
 #
 # Requires GitHub secrets: CFBD_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
 # CLOUDFLARE_API_TOKEN (Workers Scripts:Edit, R2:Edit, D1:Edit), CF_ACCOUNT_ID.
-# Optional: PROPHETX_*; BOOK_BETONLINE_ENABLED=0 (repo variable) skips Playwright;
-#   BOOK_PROPHETX_ENABLED=0 (repo variable) skips ProphetX (sandbox-only creds).
+# Optional: PROPHETX_*; NOVIG_CLIENT_ID + NOVIG_CLIENT_SECRET (NBX fallback when
+#   the public catalog returns 403); BOOK_BETONLINE_ENABLED=0 (repo variable) skips
+#   Playwright; BOOK_PROPHETX_ENABLED=0 (repo variable) skips ProphetX (sandbox-only creds).
 
 on:
   # GitHub schedule is only a SPARSE BACKSTOP (~every 3-4h on game days, off-the-
@@ -246,6 +247,10 @@ jobs:
           PROPHETX_API_KEY: ${{ secrets.PROPHETX_API_KEY }}
           PROPHETX_ACCESS_KEY: ${{ secrets.PROPHETX_ACCESS_KEY }}
           PROPHETX_SECRET_KEY: ${{ secrets.PROPHETX_SECRET_KEY }}
+          # Public catalog needs no key. These are sent only if the catalog returns
+          # 401/403; unset secrets are empty and the book records a warning.
+          NOVIG_CLIENT_ID: ${{ secrets.NOVIG_CLIENT_ID }}
+          NOVIG_CLIENT_SECRET: ${{ secrets.NOVIG_CLIENT_SECRET }}
         run: |
           # 'full' runs the httpx books here; BetOnline is added by the playwright job.
           LIGHT_SCOPE="$SCOPE"

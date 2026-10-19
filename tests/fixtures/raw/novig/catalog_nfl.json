@@ -1,0 +1,167 @@
+{
+  "source": "public",
+  "events": [
+    {
+      "items": [
+        {
+          "eventId": "e-lions",
+          "description": "Green Bay Packers @ Detroit Lions",
+          "sport": "FOOTBALL",
+          "league": "NFL",
+          "status": "OPEN_PREGAME",
+          "startsTs": 1792959900000
+        },
+        {
+          "eventId": "e-final",
+          "description": "Dallas Cowboys @ Philadelphia Eagles",
+          "sport": "FOOTBALL",
+          "league": "NFL",
+          "status": "FINAL",
+          "startsTs": 1792000000000
+        }
+      ],
+      "next": null
+    }
+  ],
+  "markets": [
+    {
+      "items": [
+        {
+          "marketId": "spread-main",
+          "eventId": "e-lions",
+          "marketType": "SPREAD",
+          "strike": "-3.5",
+          "status": "OPEN",
+          "description": "DET -3.5",
+          "outcomes": [
+            {"outcomeId": "a1", "name": "GB +3.5", "status": "TBD"},
+            {"outcomeId": "h1", "name": "DET -3.5", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "spread-alt",
+          "eventId": "e-lions",
+          "marketType": "SPREAD",
+          "strike": "14.5",
+          "status": "OPEN",
+          "description": "DET +14.5",
+          "outcomes": [
+            {"outcomeId": "h2", "name": "DET +14.5", "status": "TBD"},
+            {"outcomeId": "a2", "name": "GB -14.5", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "total-main",
+          "eventId": "e-lions",
+          "marketType": "TOTAL",
+          "strike": "45.5",
+          "status": "OPEN",
+          "description": "GB @ DET t45.5",
+          "outcomes": [
+            {"outcomeId": "u1", "name": "Under 45.5", "status": "TBD"},
+            {"outcomeId": "o1", "name": "Over 45.5", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "total-alt",
+          "eventId": "e-lions",
+          "marketType": "TOTAL",
+          "strike": "70.5",
+          "status": "OPEN",
+          "description": "GB @ DET t70.5",
+          "outcomes": [
+            {"outcomeId": "o2", "name": "Over 70.5", "status": "TBD"},
+            {"outcomeId": "u2", "name": "Under 70.5", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "ml",
+          "eventId": "e-lions",
+          "marketType": "MONEY",
+          "status": "OPEN",
+          "description": "GB @ DET",
+          "outcomes": [
+            {"outcomeId": "a3", "name": "GB", "status": "TBD"},
+            {"outcomeId": "h3", "name": "DET", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "total-empty",
+          "eventId": "e-lions",
+          "marketType": "TOTAL",
+          "strike": "10.5",
+          "status": "OPEN",
+          "description": "GB @ DET t10.5",
+          "outcomes": [
+            {"outcomeId": "o3", "name": "Over 10.5", "status": "TBD"},
+            {"outcomeId": "u3", "name": "Under 10.5", "status": "TBD"}
+          ]
+        },
+        {
+          "marketId": "final-spread",
+          "eventId": "e-final",
+          "marketType": "SPREAD",
+          "strike": "-3.5",
+          "status": "OPEN",
+          "description": "PHI -3.5",
+          "outcomes": [
+            {"outcomeId": "fh", "name": "PHI -3.5", "status": "TBD"},
+            {"outcomeId": "fa", "name": "DAL +3.5", "status": "TBD"}
+          ]
+        }
+      ],
+      "next": null
+    }
+  ],
+  "books": {
+    "spread-main": {
+      "marketId": "spread-main",
+      "seq": 4,
+      "orders": {
+        "h1": [{"orderId": "o-h1", "price": "0.5", "qty": 100}],
+        "a1": [{"orderId": "o-a1", "price": "0.5", "qty": 100}]
+      }
+    },
+    "spread-alt": {
+      "marketId": "spread-alt",
+      "seq": 2,
+      "orders": {
+        "h2": [{"orderId": "o-h2", "price": "0.8", "qty": 100}],
+        "a2": [{"orderId": "o-a2", "price": "0.2", "qty": 100}]
+      }
+    },
+    "total-main": {
+      "marketId": "total-main",
+      "seq": 3,
+      "orders": {
+        "o1": [{"orderId": "o-o1", "price": "0.5", "qty": 100}],
+        "u1": [{"orderId": "o-u1", "price": "0.5", "qty": 100}]
+      }
+    },
+    "total-alt": {
+      "marketId": "total-alt",
+      "seq": 1,
+      "orders": {
+        "o2": [{"orderId": "o-o2", "price": "0.9", "qty": 100}],
+        "u2": [{"orderId": "o-u2", "price": "0.1", "qty": 100}]
+      }
+    },
+    "ml": {
+      "marketId": "ml",
+      "seq": 5,
+      "orders": {
+        "h3": [{"orderId": "o-h3", "price": "0.4", "qty": 100}],
+        "a3": [{"orderId": "o-a3", "price": "0.6", "qty": 100}]
+      }
+    },
+    "total-empty": {"marketId": "total-empty", "seq": 0, "orders": {}},
+    "final-spread": {
+      "marketId": "final-spread",
+      "seq": 1,
+      "orders": {
+        "fh": [{"orderId": "o-fh", "price": "0.5", "qty": 100}],
+        "fa": [{"orderId": "o-fa", "price": "0.5", "qty": 100}]
+      }
+    }
+  }
+}

@@ -226,6 +226,80 @@ def test_current_public_response_uses_competitor_ids_and_total_descriptions(spor
     assert payload == before
 
 
+def test_public_catalog_uses_opposing_bids_and_ignores_order() -> None:
+    payload = json.loads((FIX / "catalog_nfl.json").read_text(encoding="utf-8"))
+    rows = parse(payload, "nfl")
+    assert len(rows) == 10
+    assert len({r.game_id for r in rows}) == 1
+    gid = provisional_game_id(
+        "nfl", datetime(2026, 10, 25, 20, 25, tzinfo=timezone.utc), "Green Bay Packers", "Detroit Lions",
+    )
+    assert {r.game_id for r in rows} == {gid}
+    home = _by(rows, rows[0].game_id, "spread", "home")
+    away = _by(rows, rows[0].game_id, "spread", "away")
+    assert (home.line, home.prob_raw, away.line, away.prob_raw) == (-3.5, 0.5, 3.5, 0.5)
+    assert home.source_id == "e-lions:spread-main"
+    alt = _by(rows, rows[0].game_id, "spread", "home", main=False)
+    assert alt.line == 14.5 and alt.prob_raw == 0.8
+    over = _by(rows, rows[0].game_id, "total", "over")
+    under = _by(rows, rows[0].game_id, "total", "under")
+    assert (over.line, over.prob_raw, under.prob_raw) == (45.5, 0.5, 0.5)
+    assert over.outcome_ids == {"over": "o1", "under": "u1"}
+    ml_home = _by(rows, rows[0].game_id, "ml", "home")
+    ml_away = _by(rows, rows[0].game_id, "ml", "away")
+    assert (ml_home.prob_raw, ml_away.prob_raw, ml_home.line) == (0.4, 0.6, None)
+    assert "Dallas" not in rows[0].game_id
+    assert gid.startswith("nfl:raw:")
+
+
+def test_nbx_book_overrides_last_trade() -> None:
+    payload = {
+        "source": "nbx",
+        "open_markets": {"SPREAD": [{
+            "id": "m1", "type": "SPREAD", "strike": -3.5, "league": "NFL", "status": "OPEN", "eventId": "e1",
+            "outcomes": [
+                {"id": "h", "type": "Home", "index": 1, "last": 0.1, "description": "home"},
+                {"id": "a", "type": "Away", "index": 0, "last": 0.9, "description": "away"},
+            ],
+            "event": {"id": "e1", "status": "OPEN_PREGAME", "game": {
+                "scheduledStart": "2026-11-26T17:30:00Z",
+                "homeTeam": {"id": "det", "name": "Detroit Lions"},
+                "awayTeam": {"id": "gb", "name": "Green Bay Packers"},
+            }},
+        }]},
+        "event_books": {"e1": [{"id": "m1", "book": {"outcomeLadders": [
+            {"outcomeId": "h", "bids": [{"price": 0.5}]},
+            {"outcomeId": "a", "bids": [{"price": 0.25}]},
+        ]}}]},
+    }
+    rows = parse(payload, "nfl")
+    home = next(r for r in rows if r.side == "home")
+    away = next(r for r in rows if r.side == "away")
+    assert home.prob_raw == 0.75 and away.prob_raw == 0.5
+    assert home.line == -3.5 and away.line == 3.5
+
+
+def test_nbx_uses_last_trade_when_the_book_is_empty() -> None:
+    payload = {
+        "source": "nbx",
+        "open_markets": {"MONEY": [{
+            "id": "m1", "type": "MONEY", "strike": 0, "league": "NFL", "status": "OPEN", "eventId": "e1",
+            "outcomes": [
+                {"id": "h", "type": "Home", "index": 0, "last": 0.6, "description": "home"},
+                {"id": "a", "type": "Away", "index": 1, "last": 0.4, "description": "away"},
+            ],
+            "event": {"id": "e1", "status": "OPEN_PREGAME", "game": {
+                "scheduledStart": "2026-11-26T17:30:00Z",
+                "homeTeam": {"id": "det", "name": "Detroit Lions"},
+                "awayTeam": {"id": "gb", "name": "Green Bay Packers"},
+            }},
+        }]},
+        "event_books": {},
+    }
+    rows = parse(payload, "nfl")
+    assert {(r.side, r.prob_raw) for r in rows} == {("home", 0.6), ("away", 0.4)}
+
+
 def test_current_response_does_not_guess_side_or_fill_absent_quotes() -> None:
     payload = _load("nfl_markets_current")
     markets = payload["main"]["data"]["market"]

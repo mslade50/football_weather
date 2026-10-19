@@ -1293,6 +1293,36 @@ def legacy_odds(
     return out
 
 
+def note_empty_book(
+    ctx: RunContext, sport: str, name: str, games: Sequence[Game], n_lines: int, scraper: Any,
+) -> None:
+    """Warn, without failing the run, when an enabled book is dark and the league has games.
+
+    A league with nothing in the odds horizon is not a dark book. The GitHub
+    annotation keeps a successful job from looking clean, and the run status
+    becomes ``warn`` so the Status tab does not stay green.
+    """
+    if n_lines or not games:
+        return
+    detail = ""
+    errors = getattr(scraper, "fetch_errors", None)
+    if isinstance(errors, dict) and errors:
+        detail = "; ".join(f"{key}: {value}" if key != sport else str(value) for key, value in errors.items())
+    reason = f"{sport}: {name} returned 0 lines"
+    if detail:
+        reason = f"{reason} ({detail})"
+    ctx.degrade("odds", reason, "warn")
+    print(f"::warning::{reason}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary:
+        return
+    try:
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write(f"- Warning: {reason}\n")
+    except OSError:
+        return
+
+
 @dataclass
 class OddsResult:
     lines: list[GameLine]
@@ -1352,8 +1382,7 @@ def stage_odds(
         n_games = len({ln.game_id for ln in lines})
         detail = " ".join(f"{m}={markets[m]}" for m in ("spread", "total", "ml") if m in markets)
         print(f"  odds {name:<10} {sport}: {len(lines):>4} lines / {n_games:>3} games {detail}")
-        if not lines:
-            ctx.degrade("odds", f"{sport}: {name} returned 0 lines", "warn")
+        note_empty_book(ctx, sport, name, games, len(lines), scrapers.get(name))
 
     # Cross-run per-book health (only books scraped this run; carried books are untouched).
     if not dry_run:
