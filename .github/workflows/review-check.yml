@@ -1,0 +1,60 @@
+name: review-check
+
+# Proof and Rollback must be filled in, then the same pytest and ruff commands
+# the repo already runs in ci.yml. No secrets are read or printed. The body is
+# passed only through env vars. Dependabot and Renovate skip the template rule
+# inside scripts/check_pr_body.py; other bots and agents do not.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: review-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  body:
+    name: PR body
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Proof and Rollback
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: python3 scripts/check_pr_body.py
+
+  test:
+    name: tests and ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m pytest tests -q
