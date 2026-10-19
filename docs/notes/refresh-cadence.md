@@ -41,44 +41,49 @@ returns `null` for heartbeats). If only the Worker misbehaves, unset
 Caveat: if the Worker secret is missing, game-day cadence drops to the 3h
 backstop (a SYSTEM Telegram notice fires when TELEGRAM_SYSTEM_ALERTS=1).
 
-## Part 2 - Playwright job in parallel (design only, NOT implemented)
+## Part 2 - Playwright job in parallel (implemented)
 
-Current: `playwright` has `needs: [gate, light]`, measured 150-170s after
-light. It runs `pipeline.build --scope odds --books betonline,betcris
---merge-into-r2 --reuse-weather-dir ...`, i.e. a full build (schedule, model,
-fair/edges, alerts-less) that first pulls the state light just pushed, then
-publishes board/legacy/state/meta itself.
+Before: `playwright` had `needs: [gate, light]` and re-ran a full build that
+launched Chromium to scrape BetOnline (+ BetCRIS), adding 151-184s after light
+(8 production runs, 2026-10-15/16).
 
-Why it is serialized: BetOnline lines are not an input artifact; they are
-scraped inside `build`, merged into `archive_last`/openers/history state, and
-published as board JSON. State (`openers`, `history`, `archive_last`, alerts)
-round-trips via R2 board/*.json, so the publish must start from light's final
-state, and meta.json must be pushed last under `football-refresh`.
-`carry_forward_lines` (ODDS_CARRY_MAX_AGE=1h) only carries prior-run lines
-for books not scraped; it is not an ingest path for a parallel job.
+Now (`.github/workflows/pipeline.yml`):
+1. `playwright_scrape` (`needs: gate`, parallel to `light`): installs Chromium
+   and runs `python -m pipeline.build --scrape-only data/pw-lines --books
+   betonline --run-id <...>-pwscrape`. Raw captures go to `data/raw_runs/` as
+   usual (raw-first, parser untouched); parsed lines go to
+   `data/pw-lines/{sport}/betonline.json` (`pipeline/odds/handoff.py`, schema v1:
+   every `GameLine` field incl. the original `scraped_at`, the scraper's raw
+   games for merge, and its `fetch_errors`). Uploaded as the
+   `pw-lines-<run>-<attempt>` artifact (1-day retention). No state, no secrets,
+   no R2/D1 writes.
+2. `playwright` publish job (`needs: [gate, light, playwright_scrape]`, runs
+   when light succeeded and the scrape job succeeded OR failed): no Chromium
+   (light deps), downloads the artifact into `data/`, then the unchanged
+   sequence: fetch R2 state -> `build --scope odds --books betonline,betcris
+   --merge-into-r2 --ingest-lines data/pw-lines` -> push raw (incl. the scrape
+   job's captures) / snapshots / legacy / board / state -> meta.json last ->
+   D1 -> self-check -> notify. Still under `concurrency: football-refresh`.
 
-Proposed split (needs new code, hence not done here):
-1. `playwright_scrape` (`needs: gate`): install Chromium, run a new scrape-only
-   mode (`main.py --book betonline` / `build --scope scrape-only`) that writes
-   verbatim raw capture + parsed `Line` records (with `scraped_at`) to an
-   artifact. No R2 writes.
-2. `playwright` publish job (`needs: [light, playwright_scrape]`): download the
-   artifact, new `build --ingest-lines <dir>` merges those lines instead of
-   scraping (raw-first rule: raw payload preserved; parser stays pure), then
-   the existing merge-into-R2 + publish sequence unchanged.
-Required new work: scrape-only entry point, a lines (de)serializer honoring
-`scraped_at` so the 1h freshness/expiry semantics (`current_quotes`) stay
-truthful (BetOnline would be ~light-duration older at publish), tests for
-staleness, and BetCRIS (also re-scraped in this job for TTL reasons) would
-have to stay in the publish job. These touch freshness-critical code, so this
-is deferred.
+Freshness: `--ingest-lines` reads BetOnline lines with their original
+`scraped_at` (archive_last `ts`, `ODDS_CARRY_MAX_AGE`, `current_quotes` and the
+`scraped_at + 1h` expiry all see the true age). At ingest, lines older than
+`ODDS_CARRY_MAX_AGE`, already expired, undated, or more than 2 min in the future
+are dropped with an `odds.ingest` warn degradation. A missing/corrupt handoff
+reads exactly like a failed in-build scrape: BetOnline 0 lines, its previous
+archive_last quotes withdrawn, book_health records the error. BetCRIS stays a
+live scrape in the publish job (short college TTL). Ingested BetOnline lines
+are ~one light job old at publish (2.5-9 min observed light duration), well
+inside the 1h window.
 
-Expected saving if built: the Chromium install/cache restore and the scrape
-(roughly 90-120s of the 150-170s) overlap with `light`; the serialized tail
-shrinks to fetch state + build + publish (~40-60s). Net wall-clock saving
-about 1.5-2 min per full run. Lines would be older by ~light's duration at
-publish (several minutes) - acceptable against the 1h TTL but must be
-reflected in `scraped_at`.
+Saving (measured components, same 8 runs): Chromium/deps install ~36s and the
+BetOnline+BetCRIS scrape stages 18-42s leave the serialized tail; BetCRIS alone
+(httpx) and the artifact download (~2-3s) stay. The scrape job itself (~70-100s
+incl. setup) is shorter than every observed light job (146-549s), so it is
+never on the critical path. Estimated net: ~50-75s per full run (tail
+~150-185s -> ~100-120s). The earlier 1.5-2 min estimate assumed a slower
+Chromium install than the cached path shows.
 
-Rollback for a future implementation: keep the old single-job `playwright`
-behind a repo variable and flip back by reverting the YAML + contract tests.
+Rollback: revert the commit (restores the single serialized `playwright` job
+and its contract tests). `--scrape-only` / `--ingest-lines` are inert unless
+passed, so the build-side code can stay.

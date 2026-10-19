@@ -89,6 +89,7 @@ from pipeline.model import config as model_config
 from pipeline.model import signals
 from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
+from pipeline.odds import handoff
 from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
@@ -649,6 +650,62 @@ async def scrape_books(
             detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
             degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
     return out, scrapers
+
+
+def ingest_book_lines(ctx: RunContext, sport: str, name: str, ingest_dir: Path) -> tuple[list[GameLine], Any]:
+    """Load one Playwright book's handoff. A missing file reads as a failed scrape
+    (0 lines, fetch error for book health); stale/expired lines are dropped, never
+    re-stamped, so ``scraped_at`` stays the time the book was actually seen."""
+    ing = handoff.load_lines(ingest_dir, sport, name, now=ctx.now_utc, max_age=ODDS_CARRY_MAX_AGE)
+    for problem in ing.problems:
+        ctx.degrade("odds.ingest", f"{sport}: {name} {problem}", "warn")
+    dropped = ing.rejected_stale + ing.rejected_expired + ing.rejected_invalid
+    if dropped:
+        ctx.degrade("odds.ingest", f"{sport}: {name} handoff dropped {dropped} line(s) "
+                    f"(older than {ODDS_CARRY_MAX_AGE}: {ing.rejected_stale}, expired: {ing.rejected_expired}, "
+                    f"invalid: {ing.rejected_invalid})", "warn")
+    errors = getattr(ing.scraper, "fetch_errors", {})
+    if errors and not ing.missing:
+        detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
+        ctx.degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
+    oldest = min((ln.scraped_at for ln in ing.lines if ln.scraped_at is not None), default=None)
+    age = f", oldest {int((ctx.now_utc - oldest).total_seconds())}s old" if oldest is not None else ""
+    print(f"  ingest {name:<10} {sport}: {len(ing.lines)} lines from run {ing.run_id or '-'}{age}")
+    return ing.lines, ing.scraper
+
+
+def scrape_only(sports: Sequence[str], out_dir: Path, *, books: Sequence[str] | None = None,
+                raw_dir: Path = DEFAULT_BASE, run_id: str | None = None) -> int:
+    """Parallel CI job: scrape the Playwright books and write raw captures plus a
+    ``pipeline.odds.handoff`` file per sport/book. Reads no state and writes nothing
+    to R2; the publish job ingests the handoff after the light job. A book that fails
+    still gets a (0-line) handoff carrying its fetch errors."""
+    ctx = RunContext(sport="all" if len(sports) > 1 else sports[0], scope="scrape-only", run_id=run_id or "")
+    try:
+        book_list = books_for_scope("odds", books or list(PLAYWRIGHT_BOOKS))
+    except ValueError as exc:
+        ctx.degrade("scope", str(exc), "error")
+        book_list = []
+    merge_mod = _import("pipeline.odds.merge")
+    rg_fn = getattr(merge_mod, "raw_games_from_scraper", None)
+    for sport in sports:
+        raw = RawStore(sport, ctx.run_id, raw_dir)
+        with ctx.stage(f"{sport}.scrape"):
+            per_book, scrapers = _run_async(scrape_books(sport, book_list, raw, ctx.run_id, ctx.degrade))
+        raw.finalize()
+        for name in book_list:
+            scraper = scrapers.get(name)
+            lines = per_book.get(name, [])
+            raw_games = list(rg_fn(scraper, name, sport).values()) if callable(rg_fn) and scraper is not None else []
+            errors = dict(getattr(scraper, "fetch_errors", None) or {})
+            if scraper is None:
+                errors.setdefault(sport, "scraper unavailable")
+            path = handoff.dump_lines(out_dir, sport, name, lines, run_id=ctx.run_id, raw_games=raw_games,
+                                      fetch_errors=errors)
+            print(f"  scrape-only {name:<10} {sport}: {len(lines):>4} lines / {len(raw_games):>3} games -> {path}")
+    for line in ctx.summary_lines():
+        print(line)
+    return 1 if any(d.severity == "error" for d in ctx.degradations) else 0
 
 
 def _run_async(coro: Any) -> Any:
@@ -1262,14 +1319,24 @@ def stage_odds(
     state_dir: Path,
     season: int | None,
     dry_run: bool = False,
+    ingest_dir: Path | None = None,
 ) -> OddsResult:
     """``games`` is the odds-horizon schedule (``split_schedule``): every game in it
     is matched and gets openers / archive_last / deltas / consensus, card or not."""
     if not books:
         return OddsResult([], {}, pstate.load_openers(state_dir), {}, [], {})
     raw_arg: RawStore | None = None if isinstance(raw, NullRawStore) else raw
+    # --ingest-lines: Playwright books were scraped by the parallel CI job; read its
+    # handoff (scraped_at preserved, stale/expired lines rejected) instead of scraping.
+    ingest_books = [b for b in books if ingest_dir is not None and b in PLAYWRIGHT_BOOKS]
+    live_books = [b for b in books if b not in ingest_books]
     with ctx.stage(f"{sport}.scrape"):
-        per_book, scrapers = _run_async(scrape_books(sport, books, raw_arg, ctx.run_id, ctx.degrade))
+        per_book, scrapers = (_run_async(scrape_books(sport, live_books, raw_arg, ctx.run_id, ctx.degrade))
+                              if live_books else ({}, {}))
+    if ingest_books and ingest_dir is not None:
+        with ctx.stage(f"{sport}.ingest"):
+            for name in ingest_books:
+                per_book[name], scrapers[name] = ingest_book_lines(ctx, sport, name, ingest_dir)
     all_lines: list[GameLine] = []
     per_book_n: dict[str, int] = {}
     for name in books:
@@ -1892,6 +1959,7 @@ def run_sport(
     season: int | None,
     books: Sequence[str] = (),
     state_dir: Path = DEFAULT_STATE_DIR,
+    ingest_dir: Path | None = None,
 ) -> SportResult:
     with ctx.stage(f"{sport}.stadiums"):
         book = stage_stadiums(ctx, sport)
@@ -1918,14 +1986,16 @@ def run_sport(
 
     # CFB selection uses the same current opening consensus as its signal model.
     # Capture newly arriving book openers before weather; unknowns stay eligible.
-    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run) if sport == "cfb" else None
+    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run,
+                      ingest_dir=ingest_dir) if sport == "cfb" else None
     wx_extras: dict[str, dict[str, Any]] = {}
     with ctx.stage(f"{sport}.weather"):
         forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras, state_dir=state_dir,
                                   openers=odds.openers if odds is not None else None)
 
     if odds is None:
-        odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
+        odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run,
+                      ingest_dir=ingest_dir)
     if books:
         carded_ids = {g.game_id for g in games}
         n_priced = len(odds.by_game)
@@ -2288,6 +2358,7 @@ def build(
     force: bool = False,
     weather_handoff_dir: Path | None = None,
     reuse_weather_dir: Path | None = None,
+    ingest_dir: Path | None = None,
 ) -> int:
     ctx = RunContext(sport="all" if len(sports) > 1 else sports[0], scope=scope, dry_run=dry_run,
                      run_id=run_id or "", **({"started_at": started_at} if started_at else {}))
@@ -2319,7 +2390,9 @@ def build(
     raw_files: dict[str, Path] = {}
     for sport in sports:
         raw: RawStore = NullRawStore(sport, ctx.run_id) if dry_run else RawStore(sport, ctx.run_id, raw_dir, mirror=mirror)
-        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir)
+        # ingest_dir only when set: keeps run_sport's long-standing call shape otherwise.
+        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir,
+                        **({"ingest_dir": ingest_dir} if ingest_dir is not None else {}))
         results.append(res)
         if print_rows:
             print(f"== {sport} ({len(res.records)} games)")
@@ -2397,6 +2470,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--force", action="store_true", help="skip the publish content floor")
     p.add_argument("--weather-handoff-dir", type=Path, help="save raw point inputs for this workflow's dependent job")
     p.add_argument("--reuse-weather-dir", type=Path, help="reuse matching same-workflow raw point inputs only")
+    p.add_argument("--scrape-only", type=Path, metavar="DIR",
+                   help="scrape the Playwright books only (raw captures + DIR/{sport}/{book}.json handoff); "
+                        "no schedule, state, outputs or R2")
+    p.add_argument("--ingest-lines", type=Path, metavar="DIR",
+                   help="read Playwright-book lines from a --scrape-only handoff instead of scraping them")
     return p.parse_args(argv)
 
 
@@ -2405,6 +2483,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     sports = list(SPORTS_ALL) if args.sport == "all" else [args.sport]
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+    books = [b for b in args.books.split(",")] if args.books else None
+    if args.scrape_only is not None:
+        return scrape_only(sports, args.scrape_only, books=books, raw_dir=args.raw_dir, run_id=args.run_id)
     return build(
         sports,
         scope=args.scope,
@@ -2415,7 +2496,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print_rows=args.print_rows,
         run_id=args.run_id,
         season=args.season,
-        books=[b for b in args.books.split(",")] if args.books else None,
+        books=books,
         state_dir=args.state_dir,
         alerts=args.alerts,
         alerts_stdout=args.alerts_stdout,
@@ -2427,6 +2508,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         force=args.force,
         weather_handoff_dir=args.weather_handoff_dir,
         reuse_weather_dir=args.reuse_weather_dir,
+        ingest_dir=args.ingest_lines,
     )
 
 
