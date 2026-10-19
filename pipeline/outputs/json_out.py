@@ -41,7 +41,7 @@ from pipeline.model.config import (
     SPREAD_SRC_FALLBACK,
     SPREAD_SRC_LABELS,
 )
-from pipeline.model.process import evaluate_card, model_rows, warm_wind_track
+from pipeline.model.process import evaluate_card, model_rows
 from pipeline.model.total_prices import compare_totals
 from pipeline.stadiums.roofs import resolve_roof_state
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
@@ -713,7 +713,6 @@ def build_card(
         "run_id": run_id,
     }
     card["process"] = evaluate_card(card)
-    card["warm_wind"] = warm_wind_track(card)
     return sanitize(card)
 
 

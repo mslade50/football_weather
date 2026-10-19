@@ -112,13 +112,8 @@ PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
 PROCESS_VERSION = "process-v5"            # v5: one book's own adverse move blocks, even if the average does not
-# Exploratory warm-wind log. Not an under gate and not an alert by itself.
-# Buckets stay (10, 12], (12, 15], and >15 mph at temp >= 65°F. These edges
-# are independent of the 15 mph under flag.
-PROCESS_WARM_WIND_LOW_MPH = 10.0          # exclusive
-PROCESS_WARM_WIND_MID_MPH = 12.0          # exclusive lower edge of the 12–15 bucket
-PROCESS_WARM_WIND_HIGH_MPH = 15.0         # exclusive; above this is gt_15
-WARM_WIND_VERSION = "warm-wind-v1"
+# Settled log of every exposed game. Not an under gate and not an alert.
+EXPOSED_FORECAST_VERSION = "exposed-forecast-v1"
 
 # ---- signals (§7.4) ----------------------------------------------------------
 # Retained name: the old Low-rain path required temp < 50°F and rain > 2 mm.

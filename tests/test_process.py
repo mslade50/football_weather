@@ -302,27 +302,17 @@ def _card(**weather: float) -> dict:
     }
 
 
-def test_warm_wind_buckets_are_separate_from_the_under_screen() -> None:
-    assert P.warm_wind_bucket(64.9, 18) is None
-    assert P.warm_wind_bucket(65, 10) is None
-    assert P.warm_wind_bucket(65, 10.01) == "10_12"
-    assert P.warm_wind_bucket(80, 12) == "10_12"
-    assert P.warm_wind_bucket(80, 12.01) == "12_15"
-    assert P.warm_wind_bucket(80, 15) == "12_15"
-    assert P.warm_wind_bucket(80, 15.01) == "gt_15"
-    warm_flag = P.evaluate_card(_card(wind_fg=18, temp_fg=65))
-    assert warm_flag["alert"] is True and warm_flag["wind_band"] == "flag"
-    assert warm_flag["temp_gate"] is False
-    track = P.warm_wind_track(_card(wind_fg=14, temp_fg=72))
-    assert track["tracked"] is True and track["bucket"] == "12_15" and track["alert"] is False
+def test_a_warm_breeze_is_not_its_own_list() -> None:
+    quiet = P.evaluate_card(_card(wind_fg=11, temp_fg=72))
+    assert quiet["alert"] is False and quiet["wind_band"] == "none"
+    watch = P.evaluate_card(_card(wind_fg=14, temp_fg=72))
+    assert watch["alert"] is False and watch["wind_band"] == "watch"
+    flagged = P.evaluate_card(_card(wind_fg=18, temp_fg=65))
+    assert flagged["alert"] is True and flagged["wind_band"] == "flag" and flagged["temp_gate"] is False
     wide = _card(wind_fg=11, temp_fg=78)
     wide["sport"] = "cfb"
     wide["consensus"] = {"spread_open": 21}
     assert P.evaluate_card(wide)["alert"] is False
-    assert P.warm_wind_track(wide)["tracked"] is True
-    dome = _card(wind_fg=20, temp_fg=80)
-    dome["stadium"] = {"roof_type": "dome", "roof_state": "dome"}
-    assert P.warm_wind_track(dome)["tracked"] is False
 
 
 def test_evaluate_card_shared_gates_for_both_sports() -> None:
@@ -472,8 +462,8 @@ def test_dashboard_constants_match_the_python_screen() -> None:
         ("PROCESS_RAIN_SIGNAL_MM", C.PROCESS_RAIN_SIGNAL_MM),
         ("PROCESS_RAIN_AGREE_TOL_MM", C.PROCESS_RAIN_AGREE_TOL_MM),
         ("PROCESS_UNDER_PROB_MOVE_MAX", C.PROCESS_UNDER_PROB_MOVE_MAX),
-        ("WARM_WIND_LOW_MPH", C.PROCESS_WARM_WIND_LOW_MPH),
-        ("WARM_WIND_MID_MPH", C.PROCESS_WARM_WIND_MID_MPH),
-        ("WARM_WIND_HIGH_MPH", C.PROCESS_WARM_WIND_HIGH_MPH),
     ):
         assert f"const {name} = {int(value) if value >= 1 else value};" in src
+    assert "WARM_WIND" not in src and "Watch: warm + wind" not in src
+    html = (WEB / "index.html").read_text(encoding="utf8")
+    assert 'id="warmwind"' not in html
