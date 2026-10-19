@@ -34,9 +34,12 @@ from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 BOOK = "betcris"
+# Board reference window. The provider TTL still decides whether a price may
+# create an edge; this ceiling only decides whether the price is shown.
+DISPLAY_MAX_AGE_S = 1800
 DEFAULT_JUICE = -110
 PT = ZoneInfo("America/Los_Angeles")
 
@@ -245,14 +248,15 @@ def game_lines(
         if away_sp is None and home_sp is not None:
             away_sp = -home_sp
         if away_sp is not None and home_sp is not None:
-            out.append(GameLine(market="spread", side="away", line=away_sp, odds=DEFAULT_JUICE, **common))
-            out.append(GameLine(market="spread", side="home", line=home_sp, odds=DEFAULT_JUICE, **common))
+            out.append(game_line(market="spread", side="away", line=away_sp, odds=DEFAULT_JUICE, **common))
+            out.append(game_line(market="spread", side="home", line=home_sp, odds=DEFAULT_JUICE, **common))
     if want("total") and g.total is not None:
-        out.append(GameLine(market="total", side="over", line=g.total, odds=DEFAULT_JUICE, **common))
-        out.append(GameLine(market="total", side="under", line=g.total, odds=DEFAULT_JUICE, **common))
+        out.append(game_line(market="total", side="over", line=g.total, odds=DEFAULT_JUICE, **common))
+        out.append(game_line(market="total", side="under", line=g.total, odds=DEFAULT_JUICE, **common))
     if want("ml") and g.away_ml is not None and g.home_ml is not None:
-        out.append(GameLine(market="ml", side="away", odds=g.away_ml, **common))
-        out.append(GameLine(market="ml", side="home", odds=g.home_ml, **common))
+        out.append(game_line(market="ml", side="away", odds=g.away_ml, **common))
+        out.append(game_line(market="ml", side="home", odds=g.home_ml, **common))
+    out = [x for x in out if x is not None]
     return out
 
 
@@ -335,13 +339,16 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     if observed is None or ttl is None or ttl <= 0 or now < observed:
         raise ValueError("Betcris public feed has a stale or invalid observation timestamp")
     age = (now - observed).total_seconds()
-    # Match the one-hour carry ceiling and retain any tighter provider TTL.
-    effective_ttl = min(ttl, 3600)
+    # Show the print for 30 minutes from the feed clock. A tighter provider TTL
+    # does not hide it; it only marks the price reference-only downstream.
+    effective_ttl = float(DISPLAY_MAX_AGE_S)
     if age > effective_ttl:
         raise StaleObservationError(
             "Betcris public feed has a stale or invalid observation timestamp: "
             f"observed={observed.isoformat()}, age_seconds={age:.0f}, "
             f"effective_ttl_seconds={effective_ttl:g}, provider_ttl_seconds={ttl:g}")
+    display_until = observed + timedelta(seconds=DISPLAY_MAX_AGE_S)
+    actionable_until = observed + timedelta(seconds=ttl)
     games = payload.get("games")
     if not isinstance(games, list):
         raise ValueError("Betcris public feed is missing its games list")
@@ -384,9 +391,11 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                     continue
                 if target_market != "ml" and line is None:
                     continue
-                out.append(GameLine(sport=sport, game_id=gid, book=BOOK, market=target_market,
+                out.append(game_line(sport=sport, game_id=gid, book=BOOK, market=target_market,
                                     side=side, line=line, odds=int(price), scraped_at=observed,
                                     source_id=f"public:{game.get('id')}", run_id=run_id,
                                     source_updated_at=observed,
-                                    expires_at=observed + timedelta(seconds=min(ttl, 3600))))
+                                    expires_at=display_until,
+                                    actionable_until=actionable_until))
+    out = [x for x in out if x is not None]
     return out

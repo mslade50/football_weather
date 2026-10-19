@@ -27,6 +27,11 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
+      # The publication integration regression invokes the browser code from pytest.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       # Tests stub browser/anti-bot deps via sys.modules.setdefault (see
       # golf_scraping/tests/test_betcris.py), so only the light stack is installed.
       - name: Install deps
@@ -42,10 +47,11 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -m pytest tests -q
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       # Worker unit tests (auth, /data sanitize, cron -> {sport, scope} map, Quartz DOW).
       - name: Worker tests
         run: node --test site/worker/test/*.test.mjs
+
+      # Build with the deployment major, without credentials or an upload.
+      - name: Worker bundle check
+        working-directory: site/worker
+        run: npx --yes wrangler@4 deploy --dry-run --outdir ../../tmp/worker-bundle

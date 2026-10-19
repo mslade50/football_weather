@@ -242,7 +242,7 @@ def test_raw_games_registry_overrides_slugged_ids():
 
 # ---- main-line selection ----------------------------------------------------------
 
-def test_select_main_prefers_is_main_then_consensus_then_balance():
+def test_select_main_uses_is_main_rows_only_and_picks_one_pair():
     gid = "cfb:2026:1:ohio@ohio-state"
     ladder = [
         _ln(gid, "kalshi", "spread", "home", -110, -20.5, is_main=False, prob=0.52),
@@ -254,12 +254,13 @@ def test_select_main_prefers_is_main_then_consensus_then_balance():
     ]
     assert select_main(ladder)["home"].line == -24.5
     no_main = [_ln(x.game_id, x.book, x.market, x.side, x.odds, x.line, is_main=False, prob=x.prob_raw) for x in ladder]
-    assert select_main(no_main)["home"].line == -24.5                 # most balanced
-    assert select_main(no_main, consensus=-21.0)["home"].line == -20.5  # nearest consensus
+    assert select_main(no_main) == {}                                  # alternates are never promoted
+    all_main = [_ln(x.game_id, x.book, x.market, x.side, x.odds, x.line, is_main=True, prob=x.prob_raw) for x in ladder]
+    assert select_main(all_main)["home"].line == -24.5                 # several mains -> most balanced pair
     board = pivot(ladder + [
         _ln(gid, "pinnacle", "spread", "home", -108, -20.5), _ln(gid, "pinnacle", "spread", "away", -112, 20.5),
     ])
-    assert board[gid]["kalshi"]["spread"]["line"] == -24.5   # is_main wins over consensus
+    assert board[gid]["kalshi"]["spread"]["line"] == -24.5   # the main pair is the board line
     assert board[gid]["kalshi"]["spread"]["n_alt"] == 2
     assert board[gid]["pinnacle"]["spread"]["home"]["odds"] == -108
 
@@ -289,8 +290,9 @@ def test_opener_stability_across_runs(tmp_path: Path):
     assert r1.board[unc_tcu]["fanduel"]["spread"]["line"] == -3.0
 
     # run 2: FanDuel moved, betcris unchanged, a new book appears (only its keys are new openers)
-    r2 = run(-4.5, 53.0, t1 + timedelta(hours=6), extra=[_ln(p2, "pinnacle", "total", "over", -110, 44.5)])
-    assert r2.new_openers == 1
+    r2 = run(-4.5, 53.0, t1 + timedelta(hours=6), extra=[_ln(p2, "pinnacle", "total", "over", -110, 44.5),
+                                                        _ln(p2, "pinnacle", "total", "under", -110, 44.5)])
+    assert r2.new_openers == 2
     fd = opener_for(r2.openers, unc_tcu, "spread", "fanduel")
     assert fd["line"] == -3.0 and fd["home"]["ts"] == t1.isoformat()   # Fd_open unchanged
     assert opener_for(r2.openers, unc_tcu, "total", "fanduel")["line"] == 51.5
@@ -301,7 +303,7 @@ def test_opener_stability_across_runs(tmp_path: Path):
 
     # persisted file round-trips with schema_version and identical opener values
     saved = state_mod.load_openers(tmp_path)
-    assert saved["schema_version"] == state_mod.SCHEMA_VERSION
+    assert saved['schema_version'] == state_mod.KIND_VERSIONS['openers']
     assert saved["openers"][state_mod.odds_key(unc_tcu, "spread", "home", "fanduel")]["line"] == -3.0
 
 
@@ -311,10 +313,11 @@ def test_openers_ignore_alternates_and_provisional_rows(tmp_path: Path):
     lines = [
         _ln(gid, "kalshi", "total", "over", -110, 44.5, is_main=False, prob=0.5),
         _ln(gid, "kalshi", "total", "over", -110, 47.5, is_main=True, prob=0.5),
+        _ln(gid, "kalshi", "total", "under", -110, 47.5, is_main=True, prob=0.5),
         _ln("cfb:raw:unknown:Nobody@Ohio State", "kalshi", "total", "over", -110, 40.5),
     ]
     res = merge_odds("cfb", games, lines, data_dir=tmp_path, save=False)
-    assert res.new_openers == 1
+    assert res.new_openers == 2
     assert opener_for(res.openers, gid, "total", "kalshi")["line"] == 47.5
     assert not (tmp_path / "openers.json").exists()
     assert res.unmatched and res.unresolved == ["cfb|kalshi|Nobody"]
@@ -382,6 +385,8 @@ def test_horizon_schedule_matches_the_meeting_the_stamp_points_at():
     stamp = (KICK + timedelta(days=28)).strftime("%Y%m%d")
     lines = [
         _ln(f"nfl:raw:{stamp}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "under", -110, 44.5, sport="nfl"),
+        _ln(f"nfl:raw:{stamp}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "over", -110, 44.5, sport="nfl"),
+        _ln(f"nfl:raw:{KICK.strftime('%Y%m%d')}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "over", -110, 47.0, sport="nfl"),
         _ln(f"nfl:raw:{KICK.strftime('%Y%m%d')}:buffalo-bills@kansas-city-chiefs", "betonline", "total", "under", -110, 47.0, sport="nfl"),
     ]
     openers = state_mod.migrate(None, "openers")

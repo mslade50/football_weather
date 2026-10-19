@@ -29,7 +29,7 @@ def test_constants():
 def test_migrate_empty_gives_fresh_default(kind):
     for empty in (None, {}, [], "junk"):
         d = state.migrate(empty, kind)
-        assert d["schema_version"] == state.SCHEMA_VERSION
+        assert d["schema_version"] == state.KIND_VERSIONS.get(kind, state.SCHEMA_VERSION)
         for k, v in state._DEFAULTS[kind].items():
             assert k in d
             assert isinstance(d[k], type(v))
@@ -38,13 +38,13 @@ def test_migrate_empty_gives_fresh_default(kind):
 def test_migrate_v0_golf_style_openers():
     old = {"event_id": "123", "openers": {f"{G1}|total|over|betcris": {"line": 44.5, "odds": -110, "ts": "t0"}}}
     d = state.migrate(old, "openers")
-    assert d["schema_version"] == 1
+    assert d["schema_version"] == 2
     assert "event_id" not in d
     assert d["openers"][f"{G1}|total|over|betcris"]["line"] == 44.5
 
 
 def test_migrate_current_version_is_noop():
-    cur = {"schema_version": 1, "sent": {"k": "t"}}
+    cur = {"schema_version": 2, "sent": {"k": "t"}}
     assert state.migrate(cur, "alerts") == cur
 
 
@@ -57,7 +57,7 @@ def test_migrate_fills_missing_keys_and_fixes_wrong_types():
 
 def test_migrate_newer_version_fails():
     with pytest.raises(state.StateSchemaError):
-        state.migrate({"schema_version": state.SCHEMA_VERSION + 1, "sent": {}}, "alerts")
+        state.migrate({"schema_version": state.KIND_VERSIONS['alerts'] + 1, "sent": {}}, "alerts")
 
 
 def test_migrate_unknown_kind():
@@ -65,16 +65,16 @@ def test_migrate_unknown_kind():
         state.migrate({}, "nope")
 
 
-def test_corrupt_file_fails_open(tmp_path: Path):
+def test_corrupt_opener_file_fails_closed(tmp_path: Path):
     (tmp_path / state.OPENERS_FILE).write_text("{not json", encoding="utf-8")
-    d = state.load_openers(tmp_path)
-    assert d == {"schema_version": 1, "openers": {}}
+    with pytest.raises(state.StateSchemaError):
+        state.load_openers(tmp_path)
 
 
 def test_save_stamps_schema_version(tmp_path: Path):
     state.save_alerts(tmp_path, {"sent": {}})
     raw = json.loads((tmp_path / state.ALERTS_FILE).read_text(encoding="utf-8"))
-    assert raw["schema_version"] == state.SCHEMA_VERSION
+    assert raw["schema_version"] == state.KIND_VERSIONS['alerts']
     assert state.load_alerts(tmp_path)["sent"] == {}
 
 
@@ -88,8 +88,9 @@ def test_save_rejects_nan(tmp_path: Path):
 def test_openers_first_seen_never_overwritten(tmp_path: Path):
     op = state.load_openers(tmp_path)
     key = state.odds_key(G1, "total", "over", "betcris")
-    assert state.record_openers(op, [_line(G1, "total", "over", "betcris", 44.5, -110)], "t0") == 1
-    assert state.record_openers(op, [_line(G1, "total", "over", "betcris", 46.0, -115)], "t1") == 0
+    both = lambda line, odds: [_line(G1, "total", "over", "betcris", line, odds), _line(G1, "total", "under", "betcris", line, odds)]  # noqa: E731
+    assert state.record_openers(op, both(44.5, -110), "t0") == 2
+    assert state.record_openers(op, both(46.0, -115), "t1") == 0
     assert state.get_opener(op, key) == {"line": 44.5, "odds": -110, "ts": "t0"}
     state.save_openers(tmp_path, op)
     assert state.get_opener(state.load_openers(tmp_path), key)["line"] == 44.5
@@ -101,8 +102,8 @@ def test_openers_skip_missing_odds_and_prune():
     assert op["openers"] == {}
     state.record_openers(op, [_line(G1, "ml", "home", "kalshi", None, -150),
                               _line(G2, "ml", "home", "kalshi", None, 120)], "t0")
-    assert state.prune_openers(op, [G2]) == 1
-    assert list(op["openers"]) == [state.odds_key(G2, "ml", "home", "kalshi")]
+    assert state.prune_openers(op, [G2]) == 0
+    assert len(op['openers']) == 2
 
 
 def test_retarget_openers_uses_line_in_force_at_target_and_late_fallback():
@@ -140,15 +141,17 @@ def test_retarget_openers_uses_line_in_force_at_target_and_late_fallback():
     )
 
     assert changed == [bol, pin]
-    assert op["openers"][pin] == {
+    assert op['openers'][pin]['line'] == 50.0
+    assert bol not in op['openers']  # History alone cannot invent a first collection receipt.
+    assert op['references']['t_minus_6d'][pin] == {
         "line": 52.0,
         "odds": -112,
         "ts": "2026-09-13T18:00:00Z",
         "basis": "t_minus_6d",
         "target_ts": "2026-09-13T20:00:00Z",
     }
-    assert op["openers"][bol]["line"] == 54.0
-    assert op["openers"][bol]["ts"] == "2026-09-14T03:00:00Z"
+    assert op['references']['t_minus_6d'][bol]['line'] == 54.0
+    assert op['references']['t_minus_6d'][bol]['ts'] == "2026-09-14T03:00:00Z"
     assert op["openers"][spread]["line"] == -3.0
     assert state.retarget_openers(
         op,
@@ -240,3 +243,35 @@ def test_archive_last_roundtrip_and_prune(tmp_path: Path):
     d2 = state.load_archive_last(tmp_path)
     assert state.prune_archive_last(d2, [G1]) == 1
     assert len(d2["last"]) == 1
+
+
+def test_pair_openers_record_together_and_never_mismatch():
+    op = state.migrate(None, "openers")
+    rec = lambda *rows: state.record_openers(op, list(rows), "t0")  # noqa: E731
+    # sides on different numbers: nothing recorded
+    assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.5, -110)) == 0
+    assert op["openers"] == {}
+    # away is flipped before comparing
+    assert rec(_line(G1, "spread", "home", "pinnacle", -3.0, -110), _line(G1, "spread", "away", "pinnacle", 3.0, -105)) == 2
+    assert state.get_opener(op, state.odds_key(G1, "spread", "away", "pinnacle"))["ts"] == "t0"
+    # a one-sided book still gets an opener; its other side completes only on the same number
+    assert rec(_line(G1, "spread", "away", "betonline", 3.5, -110)) == 1
+    assert rec(_line(G1, "spread", "home", "betonline", -4.0, -110)) == 0
+    assert rec(_line(G1, "spread", "home", "betonline", -3.5, -112)) == 1
+    # ml stays per side
+    assert rec(_line(G1, "ml", "home", "pinnacle", None, -150)) == 1
+
+
+def test_pair_openers_legacy_one_sided_state_only_completes_on_same_number():
+    op = state.migrate(None, "openers")
+    op["openers"][state.odds_key(G1, "total", "under", "betonline")] = {"line": 44.5, "odds": -110, "ts": "t0"}
+    assert state.record_openers(op, [_line(G1, "total", "over", "betonline", 46.0, -110)], "t1") == 0
+    assert state.odds_key(G1, "total", "over", "betonline") not in op["openers"]
+    assert state.record_openers(op, [_line(G1, "total", "over", "betonline", 44.5, -105)], "t2") == 1
+    assert state.get_opener(op, state.odds_key(G1, "total", "over", "betonline"))["odds"] == -105
+    assert state.get_opener(op, state.odds_key(G1, "total", "under", "betonline"))["ts"] == "t0"
+
+
+def test_migrate_adds_empty_consensus_spread_open():
+    assert state.migrate({"openers": {}, "schema_version": 2}, "openers")["consensus_spread_open"] == {}
+    assert state.migrate(None, "openers")["consensus_spread_open"] == {}

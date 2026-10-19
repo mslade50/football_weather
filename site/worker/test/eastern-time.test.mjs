@@ -13,7 +13,8 @@ test('Kickoff, details and update header use Eastern regardless of venue or view
       return nodes.get(id);
     } } });
     const app = readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
-    vm.runInContext(app.replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(app.replace(/\nboot\(\);\s*$/, ''), ctx);
     vm.runInContext(readFileSync(new URL('../../web/drawer.js', import.meta.url), 'utf8'), ctx);
     vm.runInContext(readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
     vm.runInContext('renderBookChips = () => {};', ctx);

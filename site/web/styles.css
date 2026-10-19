@@ -7,6 +7,15 @@
   --tier-no: #2ea043; --tier-low-wind: #2f81f7; --tier-low-rain: #d0d7de; --tier-low-temp: #e5484d;
   --tier-mid: #f0883e; --tier-high: #a371f7; --tier-veryhigh: #8b0000;
 }
+
+.placed-bet-confirmation form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.placed-bet-confirmation label { display: grid; gap: 4px; max-width: 100%; }
+.placed-bet-confirmation input[type="number"] { width: 145px; max-width: 100%; }
+.placed-bet-confirmation input[type="number"], .placed-bet-confirmation select { min-height: 44px; padding: 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; }
+.placed-bet-confirmation button { min-height: 44px; }
+.placed-bet-confirmation .placed-bet-ack { display: flex; align-items: center; width: 100%; }
+.placed-bet-confirmation .placed-bet-ack { min-height: 44px; }
+.placed-bet-confirmation [role="status"] { overflow-wrap: anywhere; }
 .execution-preview { margin: 18px 0; padding: 14px; border: 1px solid var(--accent); border-radius: 8px; }
 .execution-preview h3 { margin-top: 0; }
 .execution-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
@@ -79,7 +88,6 @@ input { width: 200px; }
   border-radius: 6px; padding: 6px 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .controlbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .sub { color: var(--muted); font-size: 12px; }
-.best-price .sub { display: block; margin-top: 3px; }
 
 .statusbar { display: flex; align-items: center; gap: 12px; padding: 6px 18px;
   border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted);
@@ -266,6 +274,7 @@ tr.alert-row.st-closed td, tr.alert-row.st-settled td { opacity: .75; }
 .banners.static .banner { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; }
 .banners .banner.ok { color: #7ee2a8; background: rgba(46,150,90,.10); }
 .banners .banner.info { color: var(--muted); }
+.banners .banner.carried { color: var(--text); background: rgba(88,166,255,.10); }
 .names { display: flex; flex-wrap: wrap; gap: 4px; max-height: 220px; overflow: auto; }
 .names .name { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(139,148,158,.14); border: 1px solid var(--line); }
 .seg.bad { color: var(--bad); }
@@ -318,3 +327,107 @@ table.bt-grid td:nth-child(7), table.bt-grid td:nth-child(15) { border-left: 1px
 .alertctl .al-clv { margin-left: auto; }
 .alertctl .al-clv b { color: var(--text); }
 @media (max-width: 800px) { .status-grid, .bt-pm-summary { grid-template-columns: 1fr; } }
+
+
+.mobile-sort { display: none; }
+/* Discovery and source clocks stay visible without hover on touch screens. */
+.discovery-note { margin: 8px 12px; color: #8b949e; font-size: 13px; }
+.discovery-note.error { color: #ffb4a8; border: 1px solid #e5484d; padding: 12px; }
+.discovery { display: block; font-weight: 700; color: #b8e7cb; }
+.discovery.near { color: #ffd79a; }
+.discovery.unknown, .discovery.quiet { color: #b7bfcc; }
+.game-detail { background: transparent; color: inherit; border: 0; padding: 8px 0; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.copy-coordinates { display: block; margin-top: 6px; }
+.coordinates { user-select: all; white-space: normal; overflow-wrap: anywhere; }
+.marker-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #0b0f16ed; color: #e6edf3; border-radius: 4px; padding: 3px 5px; font-size: 11px; white-space: nowrap; }
+.popup .hc-li { flex-wrap: wrap; gap: 5px; }
+.popup .hc-li > span:last-child { overflow-wrap: anywhere; }
+.popup { max-height: 65vh; overflow-y: auto; }
+#mapwrap { height: auto; }
+#map { position: relative; height: max(400px, 65dvh); }
+button.tab { font: inherit; color: inherit; background: transparent; border: 0; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .mobile-sort { display: block; }
+  .controlbtn, .controls select, .controls input, .refreshbtn, .game-detail { min-height: 44px; }
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tab { flex-shrink: 0; }
+  .controls { gap: 6px; }
+  .controls #search { width: 100%; flex: 1 1 100%; }
+  .wrap { max-height: none; }
+  #table td.game { min-width: 112px; max-width: 140px; white-space: normal; }
+  #table td.left { min-width: 130px; max-width: 160px; white-space: normal; }
+  #map { height: max(320px, 55dvh); }
+  .maplegend { position: relative; left: auto; bottom: auto; margin: 8px 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .maplegend .lg-ctl { width: 100%; }
+  .drawer { width: 100vw; max-width: 100vw; }
+  .drawer-grid { grid-template-columns: 1fr; }
+  #table, #table tbody { display: block; width: 100%; }
+  #table thead { display: none; }
+  #table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); padding: 10px; gap: 6px; border-bottom: 1px solid var(--line); }
+  #table tbody td { display: none; }
+  #table tbody td:nth-child(-n+3) { display: block; border: 0; padding: 4px; min-width: 0; max-width: none; text-align: left; }
+  #table tbody td.game { grid-column: 1 / -1; position: static; background: transparent; }
+  #table tbody td.game .sub { display: inline; margin-left: 6px; }
+    #table tbody td.game .kickoff-eastern, #table tbody td.game .kickoff-local { display: block; margin-left: 0; }
+  #table tbody td.stadium-cell { grid-column: 1 / -1; }
+  #table tbody td.empty { display: block; grid-column: 1 / -1; }
+  .wrap { overflow-x: hidden; }
+}
+.coverage-note { display: block; color: #ffd79a; font-size: 11px; margin-top: 4px; white-space: normal; }
+.offer-unusable { display: inline-block; color: #ffd79a; font-weight: 600; }
+#bookchips { display: none; }
+#statusbar { display: block; padding: 8px 12px; }
+.health-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.health-fact { font-size: 12px; color: #9da9b8; }
+.health-error { color: #ffb4a8; }
+#board-health-details { margin-top: 4px; }
+#board-health-details > summary, .health-books > summary { cursor: pointer; width: fit-content; padding: 7px 0; font-size: 12px; color: #a9b5c7; }
+.health-details { border-top: 1px solid var(--line); padding-top: 8px; max-width: 1100px; }
+.health-guidance { font-size: 12px; line-height: 1.5; margin: 4px 0 8px; color: #a9b5c7; }
+.health-facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; }
+.health-group h3 { font-size: 12px; margin: 10px 0 4px; text-transform: none; }
+.health-group ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.health-group li { margin: 4px 0; }
+.health-group li .sub { font-size: 11px; }
+.health-books .execution-scroll { max-height: 280px; }
+@media (max-width: 600px) {
+  #board-health-details > summary, .health-books > summary { min-height: 44px; display: flex; align-items: center; padding: 0; }
+  .health-overview { gap: 5px 10px; }
+  .health-fact { font-size: 11px; }
+}
+
+.discovery.ineligible { color: #ffd79a; }
+.show-all { min-height: 44px; cursor: pointer; }
+.show-all[hidden] { display: none; }
+
+/* Shared drawer compass, reduced without changing bearings or missing-data rules. */
+.stadium-cell { min-width: 190px; max-width: 220px; white-space: normal; }
+.stadium-detail { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0;
+  border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.compact-compass { display: block; flex: 0 0 66px; }
+.compact-compass svg { width: 66px; height: 66px; }
+.stadium-summary { font-size: 11px; }
+.stadium-cell .sub { display: block; font-size: 11px; }
+.stadium-cell .coordinates { display: block; font-size: 10px; margin-top: 4px; }
+.stadium-cell .copy-coordinates { font-size: 10px; padding: 3px 6px; margin-top: 2px; }
+#table td.compact-total { padding: 4px 5px; }
+.book-total-detail { min-width: 58px; min-height: 44px; border: 0; padding: 4px;
+  background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.book-total-detail .sub { display: block; font-size: 11px; }
+.book-total-detail:hover, .stadium-detail:hover { color: var(--accent); }
+.drawer-body table.kv td { white-space: normal; overflow-wrap: anywhere; }
+.drawer-body table.kv td:first-child { width: 34%; }
+.stadium-history-details > summary, .stadium-climate-details > summary { cursor: pointer; padding: 12px 0; color: var(--accent); }
+#hovercard { max-height: 70vh; overflow: hidden; }
+@media (hover: none) { #hovercard { display: none !important; } }
+.stadium-climate-short { display: none; }
+@media (max-width: 600px) {
+  #table tbody td.stadium-cell { min-width: 0; max-width: none; }
+  .stadium-cell .copy-coordinates { min-height: 44px; }
+  .stadium-cell .stadium-climate-full { display: none; }
+  .stadium-cell .stadium-climate-short { display: inline; }
+}
+
+#table tr.started { opacity: .55; }
+#table th.book-warn { color: #b45309; }

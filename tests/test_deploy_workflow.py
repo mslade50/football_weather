@@ -37,7 +37,11 @@ def _steps(wf: dict) -> list[dict]:
 def test_parses_and_targets_site_paths(wf: dict):
     on = wf[True]
     assert on["push"]["branches"] == ["main"]
-    assert "site/**" in on["push"]["paths"]
+    paths = on["push"]["paths"]
+    assert "site/**" in paths
+    assert "data/raw/stadium_game_climate.json" in paths
+    assert "data/raw/nfl_stadium_signal_history.json" not in paths
+    assert "data/raw/cfb_stadium_signal_history.json" not in paths
     assert "workflow_dispatch" in on
 
 
@@ -61,6 +65,15 @@ def test_deploy_uses_wrangler_action(wf: dict):
     dep = next(s for s in _steps(wf) if "wrangler-action" in s.get("uses", ""))
     assert dep["with"]["workingDirectory"] == "site/worker"
     assert dep["with"]["command"] == "deploy"
+    assert dep["with"]["wranglerVersion"] == "4"
+
+
+def test_ci_bundles_with_the_deployment_major_without_upload():
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    bundle = next(s for s in ci["jobs"]["test"]["steps"] if s.get("name") == "Worker bundle check")
+    assert bundle["working-directory"] == "site/worker"
+    assert "wrangler@4 deploy --dry-run" in bundle["run"]
+    assert "CLOUDFLARE_API_TOKEN" not in str(bundle)
 
 
 def test_no_continue_on_error(text: str):

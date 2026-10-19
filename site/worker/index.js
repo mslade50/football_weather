@@ -8,7 +8,14 @@
 // CRON_PLAN with America/New_York trimming, then dispatch pipeline.yml.
 
 import { executionPreviewRoute } from "./execution-preview.js";
+import { freshOddsRoute } from "./fresh-odds.js";
+import { exchangeRefresh } from './exchange-refresh.js';
+import { residentEvidence } from '../web/resident-quotes.mjs';
+import { pinPublication } from './publication.js';
+import { betConfirmationsRoute } from './bet-confirmations.js';
 import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
+import { stadiumHistoryPayload } from './stadium-history.js';
+import { stadiumClimatePayload } from './stadium-climate.js';
 
 const DATA_PREFIX = "/data/";
 const API_PREFIX = "/api/";
@@ -38,13 +45,55 @@ export function sportForMonth(month) {
   return null;
 }
 
+// Game-day dispatch windows, UTC (day = getUTCDay, 0=Sun). Hourly on the :00
+// tick; each window starts at `from` on `day` and runs to `to` on the next UTC
+// day. pipeline.gate_check still trims no-kickoff windows and the workflow's
+// `concurrency` group queues overlaps.
+//   CFB Sat 15:00Z..Sun 04:00Z | NFL Sun 15:00Z..Mon 01:00Z
+//   Thu night 22:00Z..Fri 02:00Z | Mon night 22:00Z..Tue 02:00Z
+const GAME_WINDOWS = [
+  { day: 6, from: 15, to: 4, kind: "sat" },
+  { day: 0, from: 15, to: 1, kind: "nfl" },
+  { day: 4, from: 22, to: 2, kind: "nfl" },
+  { day: 1, from: 22, to: 2, kind: "nfl" },
+];
+
+// Pure: Date -> {sport, scope:"full"} | null. Only exact :00 ticks qualify.
+export function shouldDispatch(date) {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime()) || d.getUTCMinutes() !== 0) return null;
+  const day = d.getUTCDay();
+  const hour = d.getUTCHours();
+  for (const w of GAME_WINDOWS) {
+    const inFirst = day === w.day && hour >= w.from;
+    const inSecond = day === (w.day + 1) % 7 && hour <= w.to;
+    if (!inFirst && !inSecond) continue;
+    const month = etParts(d).month; // season decided on the ET calendar month
+    if (!sportForMonth(month)) return null;
+    if (w.kind === "sat") {
+      if (month === 2) return null; // no CFB in February
+      // NFL also plays some Saturdays in Dec/Jan; otherwise CFB only.
+      return { sport: month === 12 || month === 1 ? "all" : "cfb", scope: "full" };
+    }
+    return { sport: "nfl", scope: "full" };
+  }
+  return null;
+}
+
 // Paid-plan expressions (ARCH §9.1) with in-handler ET trimming. Free-plan
 // entries first; expand wrangler.toml with PAID_CRONS on Workers Paid.
 export const CRON_PLAN = {
-  [HEARTBEAT_CRON]: () => null,
-  [MIDDAY_CRON]: (p) => {
+  // The 30-min heartbeat doubles as the hourly game-day dispatcher (the free
+  // plan has no spare trigger): only the :00 tick can dispatch.
+  [HEARTBEAT_CRON]: (_p, date) => shouldDispatch(date),
+  [MIDDAY_CRON]: (p, date) => {
     const sport = sportForMonth(p.month);
-    return sport ? { sport, scope: "full" } : null;
+    if (!sport) return null;
+    // Game-day windows already dispatch at 17:00 UTC; skip the 17:15 duplicate.
+    const top = new Date(date);
+    top.setUTCMinutes(0, 0, 0);
+    if (shouldDispatch(top)) return null;
+    return { sport, scope: "full" };
   },
   // Tue/Wed 10:00 + 16:00 ET-ish (openers) -> light
   "0 14,20 * * 3,4": (p) => {
@@ -105,7 +154,7 @@ export function etParts(date) {
 export function resolveCron(cron, date) {
   const plan = CRON_PLAN[cron];
   if (!plan) return null;
-  return plan(etParts(date)) || null;
+  return plan(etParts(date), date) || null;
 }
 
 // ── request helpers ──────────────────────────────────────────────────────────
@@ -287,9 +336,6 @@ async function refreshRoute(url, request, env, identity) {
   if (identity.role !== "admin") {
     return jsonResponse({ ok: false, error: "refresh is restricted to the admin login" }, 403);
   }
-  if (!env.GH_DISPATCH_TOKEN) {
-    return jsonResponse({ ok: false, error: "refresh not configured (GH_DISPATCH_TOKEN unset)" }, 503);
-  }
   // CSRF guard: browsers replay cached Basic Auth on cross-site form POSTs, so
   // only accept JSON bodies (a non-simple content type forces a CORS preflight
   // this Worker never answers). app.js always posts application/json.
@@ -310,6 +356,14 @@ async function refreshRoute(url, request, env, identity) {
   const force = body.force === true || url.searchParams.get("force") === "1";
   if (!SPORTS.has(sport) || !SCOPES.has(scope)) {
     return jsonResponse({ ok: false, error: "sport must be nfl|cfb|all and scope weather|light|full|exchanges" }, 400);
+  }
+  if (scope === 'exchanges') {
+    try { return jsonResponse(await exchangeRefresh(env, { sport, request_id: body.request_id, requested_at: body.requested_at })); }
+    catch (error) { return jsonResponse({ ok: false, request_id: body.request_id, sport, scope,
+      can_execute: false, error: error.message || 'Exchange quotes unavailable' }, 503); }
+  }
+  if (!env.GH_DISPATCH_TOKEN) {
+    return jsonResponse({ ok: false, error: "refresh not configured (GH_DISPATCH_TOKEN unset)" }, 503);
   }
   // Forced refreshes skip the dedup (an active run is usually a ~20s gate-skip);
   // pipeline.yml's concurrency group queues rather than races.
@@ -388,11 +442,36 @@ export async function notifyTelegram(env, text, fetchImpl = fetch) {
 }
 
 // ── handlers ─────────────────────────────────────────────────────────────────
-export async function handleFetch(request, env) {
+export async function handleFetch(request, env, deadlineMs = 28000) {
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || !['/api/fresh-odds', '/api/execution-preview'].includes(url.pathname)) return handleFetchInner(request, env);
+  const controller = new AbortController();
+  let timer;
+  try {
+    return await Promise.race([handleFetchInner(request, { ...env, QUOTE_ABORT_SIGNAL: controller.signal }), new Promise(resolve => {
+      timer = setTimeout(() => { controller.abort(); resolve(jsonResponse({ ok: false, can_execute: false,
+        error: 'Quote request deadline exceeded, including publication verification' }, 503)); }, Math.min(28000, deadlineMs));
+    })]);
+  } finally { clearTimeout(timer); controller.abort(); }
+}
+
+async function handleFetchInner(request, env) {
   const url = new URL(request.url);
 
   const identity = boardIdentity(request, env);
   if (!identity.authenticated) return unauthorized();
+  if (['/api/fresh-odds', '/api/execution-preview'].includes(url.pathname) && request.method !== 'GET') return methodNotAllowed('GET');
+  if (url.pathname === '/api/execution-preview' && identity.role !== 'admin') return jsonResponse({ ok: false, error: 'Admin access required' }, 403);
+
+  if (env.ODDS && (url.pathname.startsWith(DATA_PREFIX) || ['/api/fresh-odds', '/api/execution-preview', '/api/status'].includes(url.pathname))) {
+    try {
+      const pinned = await pinPublication(env.ODDS, url.pathname.startsWith(DATA_PREFIX) ? url.searchParams.get('generation') : null);
+      if (env.QUOTE_ABORT_SIGNAL?.aborted) throw new Error('Publication verification deadline exceeded');
+      env = { ...env, ODDS: pinned.bucket, PUBLICATION_META: pinned.meta };
+    } catch {
+      return jsonResponse({ ok: false, can_execute: false, publication_status: 'unavailable', error: 'Publication generation could not be verified' }, 503);
+    }
+  }
 
   if (url.pathname === "/auth/me") {
     if (request.method !== "GET") return methodNotAllowed("GET");
@@ -406,6 +485,23 @@ export async function handleFetch(request, env) {
 
   if (url.pathname === "/refresh") return refreshRoute(url, request, env, identity);
 
+  if (url.pathname === '/api/stadium-history') {
+    if (request.method !== 'GET') return methodNotAllowed('GET');
+    return jsonResponse(stadiumHistoryPayload());
+  }
+
+  if (url.pathname === '/api/stadium-climate') {
+    if (request.method !== 'GET') return methodNotAllowed('GET');
+    return jsonResponse(stadiumClimatePayload());
+  }
+
+  if (url.pathname === '/api/bet-confirmations') {
+    try { return await betConfirmationsRoute(request, env, identity); }
+    catch { return jsonResponse({ ok: false, error: 'Confirmation ledger unavailable' }, 503); }
+  }
+
+  if (url.pathname === "/api/fresh-odds") return freshOddsRoute(request, env);
+
   if (url.pathname === "/api/execution-preview") {
     if (identity.role !== "admin") return jsonResponse({ ok: false, error: "Admin access required" }, 403);
     return executionPreviewRoute(request, env);
@@ -417,10 +513,18 @@ export async function handleFetch(request, env) {
     if (request.method !== "GET") return methodNotAllowed("GET");
     const name = sanitizeDataName(url.pathname);
     if (!name) return new Response("not found", { status: 404 });
-    const obj = await env.ODDS.get(`board/${name}`);
+      if (name === 'bet_confirmations.json') return jsonResponse({ ok: false, error: 'Use the admin confirmation endpoint' }, 403);
+      let obj;
+      try { obj = await env.ODDS.get(`board/${name}`); }
+      catch { return jsonResponse({ ok: false, error: 'Publication payload checksum failed', publication_status: 'unavailable' }, 503); }
     if (!obj) return new Response("not found", { status: 404 });
     if (/^(games_(nfl|cfb)|meta|status|board)\.json$/.test(name)) {
-      return jsonResponse(expirePayload(name, await obj.json()));
+        const payload = expirePayload(name, await obj.json());
+      if (name === 'meta.json') {
+          return jsonResponse({ ...payload, publication_status: env.PUBLICATION_META?.publication_status || 'legacy_unverified',
+            resident: residentEvidence(payload, await readR2Json(env, 'board/live_quotes.json')) });
+      }
+      return jsonResponse(payload);
     }
     return new Response(obj.body, {
       headers: {

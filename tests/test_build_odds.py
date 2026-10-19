@@ -82,6 +82,19 @@ def _ln(book: str, market: str, side: str, line: float | None, odds: int = -110,
     return GameLine(sport="nfl", game_id=game_id, book=book, market=market, side=side, odds=odds, line=line, is_main=main)
 
 
+_OPP = {"home": "away", "away": "home", "over": "under", "under": "over"}
+
+
+def _opp(ln: GameLine) -> GameLine:
+    """The other side of ``ln`` at the same number (openers are recorded per book as a pair)."""
+    line = -ln.line if ln.market == "spread" and ln.line is not None else ln.line
+    return replace(ln, side=_OPP[ln.side], line=line)
+
+
+def _both(*lns: GameLine) -> list[GameLine]:
+    return [x for ln in lns for x in (ln, _opp(ln))]
+
+
 class _Book:
     """Minimal StadiumBook stand-in: resolve_team via a fixed alias table."""
 
@@ -207,9 +220,9 @@ def test_consensus_is_weighted_median_with_ref_book():
     ]
     c = consensus_lines("nfl", lines)
     sp = c[(KC_BUF, "spread")]
-    # spread = simple average of pinnacle/betonline/betcris (-3.0, -2.5, -2.5); kalshi is not a member
-    assert sp.line == -2.67 and sp.n_books == 4 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
-    assert sp.src == "cris+bol+pin"
+    # spread = simple average of pinnacle/betonline (-3.0, -2.5); kalshi is not a member and betcris is display-only
+    assert sp.line == -2.75 and sp.n_books == 3 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
+    assert sp.src == "bol+pin"
     to = c[(KC_BUF, "total")]
     assert to.line == 47.5 and to.ref_book == "pinnacle" and to.n_books == 2 and to.side == "under" and to.src is None
     assert (KC_BUF, "ml") not in c
@@ -264,10 +277,13 @@ def test_cfb_total_baseline_uses_t_minus_six_and_rebuilds_consensus():
 
     consensus_key = pstate.odds_key(gid, "total", "under", "consensus")
     assert set(changed) == {pin, bol, fd, consensus_key}
-    assert op["openers"][pin]["line"] == 50.0
-    assert op["openers"][bol]["line"] == 48.0
-    assert op["openers"][fd]["line"] == 60.0
-    assert op["openers"][consensus_key] == {
+    assert op['openers'][pin]['line'] == 47.0
+    assert op['openers'][bol]['line'] == 47.5
+    refs = op['references']['t_minus_6d']
+    assert refs[pin]['line'] == 50.0
+    assert refs[bol]['line'] == 48.0
+    assert refs[fd]['line'] == 60.0
+    assert refs[consensus_key] == {
         "line": 50.0,
         "odds": -105,
         "ts": "2026-09-13T19:00:00Z",
@@ -295,7 +311,7 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
     ]
     cons = consensus_lines("nfl", lines)
     openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, [_ln("betonline", "spread", "home", -1.5, -110), _ln("betonline", "total", "under", 48.5, -110)], "t0")
+    pstate.record_openers(openers, _both(_ln("betonline", "spread", "home", -1.5, -110), _ln("betonline", "total", "under", 48.5, -110)), "t0")
     o = legacy_odds("nfl", KC_BUF, _by_game(lines), cons, openers)
     assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-2.5, -115, 47.0, -108)
     assert (o["spread_open"], o["odds_open"], o["total_open"], o["under_open"]) == (-1.5, -110, 48.5, -110)
@@ -306,7 +322,8 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
 
 
 def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
-    lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("betcris", "total", "under", 47.5, -105)]
+    lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
+             _ln("betcris", "total", "under", 60.0, -110)]
     cons = consensus_lines("nfl", lines)
     openers = pstate.migrate(None, "openers")
     pstate.record_openers(openers, build.consensus_pseudo_lines(cons, "nfl"), "t0")
@@ -314,7 +331,8 @@ def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
     assert o["ref_book"] == "consensus"
     assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-3.0, -108, 47.5, -105)
     assert (o["spread_open"], o["total_open"]) == (-3.0, 47.5)
-    assert o["spread_ref_book"] == "pinnacle" and o["total_ref_book"] == "betcris"
+    assert o["spread_ref_book"] == "pinnacle" and o["total_ref_book"] == "pinnacle"
+    assert o["total_proj"] == 47.5
 
 
 def test_cfb_legacy_odds_from_fanduel():
@@ -327,7 +345,7 @@ def test_cfb_legacy_odds_from_fanduel():
              ln("pinnacle", "total", "under", 52.0), ln("pinnacle", "spread", "home", -3.0)]
     cons = consensus_lines("cfb", lines)
     openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, [ln("fanduel", "total", "under", 50.5, -110), ln("fanduel", "spread", "home", -2.5, -110)], "t0")
+    pstate.record_openers(openers, _both(ln("fanduel", "total", "under", 50.5, -110), ln("fanduel", "spread", "home", -2.5, -110)), "t0")
     o = legacy_odds("cfb", gid, _by_game(lines), cons, openers)
     assert (o["fd_now"], o["odds_n"], o["fd_open"], o["odds_o"]) == (51.5, -112, 50.5, -110)
     assert (o["current"], o["open"]) == (-3.5, -2.5)
@@ -405,9 +423,9 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     async def fake_scrape(sport, books, raw, run_id, degrade):
         calls["n"] += 1
         spread = -2.5 if calls["n"] == 1 else -3.5
-        return {"betonline": [_ln("betonline", "spread", "home", spread, game_id=prov),
-                              _ln("betonline", "total", "under", 47.0, game_id=prov)],
-                "pinnacle": [_ln("pinnacle", "spread", "home", -3.0, game_id=prov)]}, {}
+        return {"betonline": _both(_ln("betonline", "spread", "home", spread, game_id=prov),
+                                   _ln("betonline", "total", "under", 47.0, game_id=prov)),
+                "pinnacle": _both(_ln("pinnacle", "spread", "home", -3.0, game_id=prov))}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
     # concurrent modules may or may not exist: force the built-in paths for determinism
@@ -419,7 +437,7 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     games = [_game()]
     res = build.stage_odds(ctx, "nfl", games, _Book(), NullRawStore("nfl", "r"), ["betonline", "pinnacle"], tmp_path, 2026)
     assert {ln.game_id for ln in res.lines} == {KC_BUF}
-    assert res.per_book == {"betonline": 2, "pinnacle": 1}
+    assert res.per_book == {"betonline": 4, "pinnacle": 2}
     assert (tmp_path / "openers.json").exists() and (tmp_path / "scrape_baseline.json").exists() and (tmp_path / "archive_last.json").exists()
     o1 = legacy_odds("nfl", KC_BUF, res.by_game, res.consensus, res.openers)
     assert (o1["spread_now"], o1["spread_open"]) == (-2.5, -2.5)
@@ -429,12 +447,12 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     res2 = build.stage_odds(ctx2, "nfl", games, _Book(), NullRawStore("nfl", "r"), ["betonline", "pinnacle"], tmp_path, 2026)
     o2 = legacy_odds("nfl", KC_BUF, res2.by_game, res2.consensus, res2.openers)
     assert (o2["spread_now"], o2["spread_open"]) == (-3.5, -2.5)
-    assert ctx2.counts["betonline"]["nfl"] == 2
+    assert ctx2.counts["betonline"]["nfl"] == 4
     # baseline scope keys on the weather-window games ('nfl:2026:1' once the game is
     # inside 10 days, 'nfl:2026:?' while it is only on the odds horizon)
     scope = build.baseline_scope("nfl", [g for g in games if build.in_window(g.kickoff_utc, ctx2.now_utc)], games, 2026)
     bl = pstate.load_baseline(tmp_path, scope)
-    assert bl["peaks"]["betonline|spread"] == 1
+    assert bl["peaks"]["betonline|spread"] == 2
 
 
 def test_stage_odds_tolerates_missing_merge_and_fair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -465,23 +483,24 @@ def test_external_merge_and_fair_real_modules():
     ctx = RunContext(sport="nfl", scope="full", git_sha="t")
     prov = "nfl:raw:20260913:buffalo-bills@kansas-city-chiefs"
     raw_lines = [_ln("pinnacle", "spread", "home", -3.0, -108, game_id=prov), _ln("pinnacle", "spread", "away", 3.0, -112, game_id=prov),
-                 _ln("betcris", "spread", "home", -2.5, -110, game_id=prov), _ln("betcris", "total", "under", 47.5, -105, game_id=prov),
+                 _ln("betcris", "spread", "home", -2.5, -110, game_id=prov),
+                 _ln("pinnacle", "total", "under", 47.5, -105, game_id=prov),
+                 _ln("betcris", "total", "under", 60.0, -110, game_id=prov),
                  # next week's card: outside the span, must not count as unresolved
                  _ln("betcris", "total", "under", 40.0, game_id="nfl:raw:20260927:buffalo-bills@kansas-city-chiefs")]
     openers = pstate.migrate(None, "openers")
     merged = build._external_merge(merge_mod, "nfl", [_game()], raw_lines, {}, openers, ctx)
     assert merged is not None
     lines, unresolved = merged
-    assert {ln.game_id for ln in lines} == {KC_BUF} and len(lines) == 4
+    assert {ln.game_id for ln in lines} == {KC_BUF} and len(lines) == 5
     assert unresolved == []
     cons = build._external_consensus(fair_mod, "nfl", lines, ctx)
     assert cons is not None
     sp = cons[(KC_BUF, "spread")]
-    # avg of pinnacle -3.0 and betcris -2.5; the price is the devigged consensus prob at -2.75
-    assert sp.line == -2.75 and sp.ref_book == "pinnacle" and sp.n_books == 2 and sp.src == "cris+pin"
-    assert isinstance(sp.odds, int) and sp.odds != 0
+    # BetCris -2.5 is display-only, so the spread is Pinnacle's -3.0.
+    assert sp.line == -3.0 and sp.ref_book == "pinnacle" and sp.n_books == 1 and sp.src == "pin" and sp.odds == -108
     to = cons[(KC_BUF, "total")]
-    assert to.line == 47.5 and to.odds == -105 and to.side == "under"
+    assert to.line == 47.5 and to.odds == -105 and to.side == "under" and to.n_books == 1
     assert not any(d.severity == "warn" for d in ctx.degradations)
 
 
@@ -535,15 +554,15 @@ def test_carry_forward_rejects_unavailable_or_unverifiable_quotes(fields):
     ) == []
 
 
-@pytest.mark.parametrize("remaining", [[], [_ln("fanduel", "spread", "home", -3.5)]])
+@pytest.mark.parametrize("remaining", [[], _both(_ln("fanduel", "spread", "home", -3.5))])
 def test_playwright_does_not_restore_quotes_missing_from_latest_scrape(tmp_path, monkeypatch, remaining):
     from pipeline.outputs.raw_out import NullRawStore
     from pipeline.run_context import RunContext
 
     runs = iter([
-        {"fanduel": [_ln("fanduel", "total", "under", 60.5), _ln("fanduel", "spread", "home", -3.5)]},
+        {"fanduel": _both(_ln("fanduel", "total", "under", 60.5), _ln("fanduel", "spread", "home", -3.5))},
         {"fanduel": remaining},  # failed book or withdrawn total
-        {"betonline": [_ln("betonline", "total", "under", 44.5)]},
+        {"betonline": _both(_ln("betonline", "total", "under", 44.5))},
     ])
 
     async def fake_scrape(*args):
@@ -623,15 +642,15 @@ def test_entered_window_ids_and_board_new_opener_keys():
     assert build.entered_window_ids([entering, settled], None, now) == {entering.game_id, settled.game_id}
 
     openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, [_ln("betonline", "total", "under", 47.0, game_id=entering.game_id),
-                                    _ln("betonline", "total", "under", 44.0, game_id=settled.game_id),
+    pstate.record_openers(openers, [*_both(_ln("betonline", "total", "under", 47.0, game_id=entering.game_id)),
+                                    *_both(_ln("betonline", "total", "under", 44.0, game_id=settled.game_id)),
                                     _ln("consensus", "total", "under", 47.0, game_id=entering.game_id)], "t0")
     odds = build.OddsResult([], {}, openers, {}, [], {}, new_opener_keys=[f"{settled.game_id}|spread|home|pinnacle"])
     res = build.SportResult("nfl", [], [], [], [entering, settled], {}, {}, {}, {}, odds)
     keys = build.board_new_opener_keys(res, prev, now)
     # this run's genuinely-new key + every opener of the game that just entered the window
     assert keys == sorted([f"{settled.game_id}|spread|home|pinnacle", f"{entering.game_id}|total|under|betonline",
-                           f"{entering.game_id}|total|under|consensus"])
+                           f"{entering.game_id}|total|over|betonline", f"{entering.game_id}|total|under|consensus"])
 
 
 def test_previous_run_finished_reads_state_status(tmp_path: Path):
@@ -669,9 +688,9 @@ def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp
     prov_far = f"nfl:raw:{stamp_far}:kansas-city-chiefs@buffalo-bills"
 
     async def fake_scrape(sport, books, raw, run_id, degrade):
-        return {"betonline": [_ln("betonline", "spread", "home", -2.5, game_id=prov_near), _ln("betonline", "total", "under", 47.0, game_id=prov_near),
-                              _ln("betonline", "spread", "home", 3.0, game_id=prov_far), _ln("betonline", "total", "under", 41.5, game_id=prov_far)],
-                "pinnacle": [_ln("pinnacle", "total", "under", 47.5, game_id=prov_near), _ln("pinnacle", "total", "under", 41.0, game_id=prov_far)]}, {}
+        return {"betonline": _both(_ln("betonline", "spread", "home", -2.5, game_id=prov_near), _ln("betonline", "total", "under", 47.0, game_id=prov_near),
+                                   _ln("betonline", "spread", "home", 3.0, game_id=prov_far), _ln("betonline", "total", "under", 41.5, game_id=prov_far)),
+                "pinnacle": _both(_ln("pinnacle", "total", "under", 47.5, game_id=prov_near), _ln("pinnacle", "total", "under", 41.0, game_id=prov_far))}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
@@ -725,7 +744,7 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
     prov = f"nfl:raw:{far.kickoff_utc.strftime('%Y%m%d')}:buffalo-bills@kansas-city-chiefs"
 
     async def fake_scrape(sport, books, raw, run_id, degrade):
-        return {"betonline": [_ln("betonline", "total", "under", 47.0, game_id=prov)]}, {}
+        return {"betonline": _both(_ln("betonline", "total", "under", 47.0, game_id=prov))}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
@@ -743,7 +762,7 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
     # volume baseline keeps week '?' until a game enters the window (fresh peaks for week 1)
     assert build.baseline_scope("nfl", res.games, res.odds_games) == "nfl:2026:?"
     assert build.baseline_scope("nfl", res.odds_games, res.odds_games) == "nfl:2026:1"
-    assert pstate.load_baseline(tmp_path, "nfl:2026:?")["peaks"]["betonline|total"] == 1
+    assert pstate.load_baseline(tmp_path, "nfl:2026:?")["peaks"]["betonline|total"] == 2
     # nothing scheduled anywhere -> warn, as before
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [])
     ctx2 = RunContext(sport="nfl", scope="light", git_sha="t")

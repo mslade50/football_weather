@@ -92,16 +92,42 @@ AMBIGUOUS_BANDS = {
     "cfb_alt2_home_elev_m": (976.0, 1184.0),
 }
 
+# ---- betting-process screen (docs/PROCESS_SPEC.md) ---------------------------
+# These gates drive discovery, Telegram eligibility and the Signals wind flags.
+# They do not enter compute_impact_v1. v1 rain tiers and the stitched forecast
+# that v1 consumes stay on the legacy contract.
+# Temperature is informational unless the optional gate is turned on
+# (process.temp_gate). 65°F is that gate's default threshold, strict <.
+PROCESS_TEMP_MAX_F = 65.0
+PROCESS_TEMP_GATE = False                 # default off for both leagues
+PROCESS_WIND_WATCH_MPH = 12.0             # inclusive; [12, 15) is a display watch, not a flag
+PROCESS_WIND_FLAG_MPH = 15.0              # inclusive sustained-wind flag for NFL and CFB
+PROCESS_RAIN_IGNORE_MM = 5.0              # game-window total below this is ignored
+PROCESS_RAIN_WATCH_MM = 15.0              # [5, 15) watch; [15, 23) elevated watch
+PROCESS_RAIN_SIGNAL_MM = 23.0             # ~0.30 in/hr * 3 h (22.86 mm), rounded
+PROCESS_RAIN_AGREE_TOL_MM = 10.0          # ECMWF vs another model, both at/above the signal
+PROCESS_UNDER_PROB_MOVE_MAX = 0.04        # adverse juice + adverse line drop; env override
+PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond this lead
+PROCESS_ECMWF_WIND_APART_MPH = 5.0
+PROCESS_ECMWF_TEMP_APART_F = 5.0
+PROCESS_ECMWF_RAIN_APART_MM = 5.0
+PROCESS_VERSION = "process-v5"            # v5: one book's own adverse move blocks, even if the average does not
+# Settled log of every exposed game. Not an under gate and not an alert.
+EXPOSED_FORECAST_VERSION = "exposed-forecast-v1"
+
 # ---- signals (§7.4) ----------------------------------------------------------
-LOW_RAIN_TEMP_MAX_F = 50.0  # Low rain signals/notifications require strictly colder weather.
+# Retained name: the old Low-rain path required temp < 50°F and rain > 2 mm.
+# The process screen replaced that gate; nothing in the alert path reads this.
+LOW_RAIN_TEMP_MAX_F = 50.0
 NFL_WIND_VOL_LOW_BELOW = 11.99
 CFB_HIGH_OFFSET = 7.5
-# CFB Wind is the user-facing eligibility rule shared by the Signals view and
-# Telegram: opening spread within ±10, temperature below 70°F, sustained wind
-# above 14 mph. Signal tiers describe severity after this gate; they cannot
-# suppress an otherwise qualifying wind game.
-CFB_WIND_MIN_MPH = 14.0
-CFB_WIND_MAX_TEMP_F = 70.0
+# Shared wind flag (NFL and CFB): sustained wind >= PROCESS_WIND_FLAG_MPH.
+# CFB still also requires the opening spread within ±10. Temperature is not a
+# hard gate; CFB_WIND_MAX_TEMP_F is the threshold the optional gate uses when
+# that league turns it on. Severity (High / Very High) stays at 21.5 mph.
+CFB_WIND_MIN_MPH = PROCESS_WIND_FLAG_MPH
+CFB_WIND_MAX_TEMP_F = PROCESS_TEMP_MAX_F
+CFB_HIGH_WIND_MPH = 21.5
 # Every CFB weather signal and combined-page flag is disqualified when the
 # absolute opening spread exceeds this value.
 CFB_OPEN_SPREAD_MAX = 10.0
@@ -132,10 +158,19 @@ BOOK_WEIGHTS: dict[str, float] = {
     "novig": 1.0,
     "prophetx": 0.75,
 }
+DEFAULT_BOOK_WEIGHT = 0.5   # books absent from BOOK_WEIGHTS (e.g. polymarket_us)
+# BetCris is a labeled reference of where that book is. It is not a pricing
+# source: consensus, the spread average, edges, and n_books never read it.
+# ``BOOK_WEIGHTS["betcris"]`` stays so an old lookup still resolves, and it is
+# not applied. One posted pricing book is enough for a number; thin is fewer
+# than two pricing books.
+REFERENCE_BOOKS: frozenset[str] = frozenset({"betcris"})
 # Consensus SPREAD = simple average of these books' home main lines (whichever are
-# posted); none posted -> the weighted-median fallback. ``consensus.spread_src`` labels
-# the members actually used ("cris+bol+pin", "bol+pin", ...) or "fallback".
-SPREAD_CONSENSUS_BOOKS: tuple[str, ...] = ("betcris", "betonline", "pinnacle")
+# posted); none posted -> the weighted-median fallback of the other pricing books.
+# ``consensus.spread_src`` labels the members actually used ("bol+pin", "pin", ...)
+# or "fallback". "cris" remains a label so a frozen opener that already recorded
+# BetCris still renders; new averages do not include it.
+SPREAD_CONSENSUS_BOOKS: tuple[str, ...] = ("betonline", "pinnacle")
 SPREAD_SRC_LABELS: dict[str, str] = {"betcris": "cris", "betonline": "bol", "pinnacle": "pin"}
 SPREAD_SRC_FALLBACK = "fallback"
 SPREAD_AVG_DP = 2  # rounding of the averaged spread (keeps change-only history stable)

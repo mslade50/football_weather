@@ -28,7 +28,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from pipeline.contracts import GameLine
+from pipeline.contracts import GameLine, game_line
 
 logger = logging.getLogger(__name__)
 
@@ -143,11 +143,12 @@ def parse_market(
             if handicap is None:
                 continue
             line = float(handicap)
-        out.append(GameLine(
+        out.append(game_line(
             sport=sport, game_id=game_id, book=BOOK, market=market, side=side,
             odds=odds, line=line, is_main=True,
             source_id=f"{BOOK}:{event.event_id}", scraped_at=scraped_at, run_id=run_id,
         ))
+    out = [x for x in out if x is not None]
     return out
 
 

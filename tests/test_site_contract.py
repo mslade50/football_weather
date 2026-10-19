@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
 
-JS_FILES = ["app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
+JS_FILES = ["discovery.js", "app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
 
 # variable names that hold GameCard (sub)objects in the JS, mapped to the spec section
 CARD_VARS = ("g", "wx", "st", "c", "s", "t", "o", "v1", "v2", "e", "be", "es", "et", "f", "p", "sig")
@@ -28,7 +28,7 @@ NOT_CARD_KEYS = {
     "message", "closest", "addEventListener", "stopPropagation", "remove", "getElement",
     "querySelector", "best_total", "best_spread", "edges",
     # drawer.js normalized chart points / uPlot handles
-    "ts", "destroy",
+    "ts", "destroy", "kind", "note", "probability",
 }
 
 # keys json_out._stadium_block emits beyond the ARCH §5 GameCard block (provenance / display only)
@@ -47,6 +47,8 @@ def _spec_keys() -> set[str]:
     # top-level ids referenced by the cards but declared in §4.1
     keys |= {"home_id", "away_id", "roof_state"}
     keys |= STADIUM_EXTRA_KEYS
+    # Optional backend contracts are documented in site/web/INTEGRATION.md.
+    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery", "expired"}
     return keys
 
 
@@ -68,8 +70,11 @@ def test_index_has_required_dom_ids() -> None:
     html = (WEB / "index.html").read_text(encoding="utf-8")
     for el_id in ("event", "updated", "nextrun", "bookchips", "banners", "statusbar", "table", "map",
                   "maplegend", "drawer", "drawer-body", "drawer-title", "hovercard", "sport", "week",
-                  "signal", "book", "minedge", "search", "refreshbtn", "lightrefreshbtn"):
+                  "signal", "book", "showallgames", "loadnotice", "mapnotice", "search", "refreshbtn", "lightrefreshbtn"):
         assert f'id="{el_id}"' in html, f"missing #{el_id}"
+    toggle = re.search(r'<input[^>]+id="showallgames"[^>]*>', html)
+    assert toggle and 'type="checkbox"' in toggle.group()
+    assert "checked" not in toggle.group(), "signals and near signals must be the default"
 
 
 def test_app_js_documents_shape_and_endpoints() -> None:
@@ -122,6 +127,9 @@ def test_signals_view_wiring() -> None:
     assert 'data-view="signals"' in html
     for el_id in ("signalsbar", "presetchip"):
         assert f'id="{el_id}"' in html, f"missing #{el_id}"
+    toggle = re.search(r'<input[^>]+id="showallgames"[^>]*>', html)
+    assert toggle and 'type="checkbox"' in toggle.group()
+    assert "checked" not in toggle.group(), "signals and near signals must be the default"
     sig = (WEB / "signals.js").read_text(encoding="utf-8")
     for preset in ("CFB Wind", "NFL Wind", "Heat", "Alt+Heat"):
         assert f'"{preset}"' in sig, f"signals.js must define the {preset} preset"
@@ -129,9 +137,10 @@ def test_signals_view_wiring() -> None:
         assert fn in sig
     assert "const CFB_OPEN_SPREAD_MAX = 10;" in sig
     assert "Math.abs(open) > CFB_OPEN_SPREAD_MAX" in sig
-    assert f"temp < {int(model_config.CFB_WIND_MAX_TEMP_F)} && wind > {int(model_config.CFB_WIND_MIN_MPH)}" in sig
+    assert "const WIND_FLAG_MPH = 15;" in sig
+    assert "wind >= WIND_FLAG_MPH && tempAllows(g, temp)" in sig
     assert (model_config.CFB_OPEN_SPREAD_MAX, model_config.CFB_WIND_MAX_TEMP_F,
-            model_config.CFB_WIND_MIN_MPH) == (10, 70, 14)
+            model_config.CFB_WIND_MIN_MPH) == (10, 65, 15)
     assert "CFB Wind eligibility:" in sig and "Severity tiers are extra." in sig
     assert "title=\"Weather signal severity filter" in html and ">No signal</option>" in html
     app = (WEB / "app.js").read_text(encoding="utf-8")
@@ -219,7 +228,7 @@ def test_backtest_hover_record_roi_lookup_wired() -> None:
         src = (WEB / js).read_text(encoding="utf-8")
         assert "backtestHover(g)" in src, js
     drawer = (WEB / "drawer.js").read_text(encoding="utf-8")
-    assert "function backtestRows" in drawer and "stadiumResultFor" in drawer
+    assert "function backtestRows" in drawer and "stadiumSignalEvidence" in drawer
     bt = (WEB / "backtest.js").read_text(encoding="utf-8")
     assert '"Record (under)"' in bt and '"ROI"' in bt and "function stadiumResultFor" in bt
 

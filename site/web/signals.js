@@ -9,9 +9,9 @@
 
 const PRESETS = {
   cfb_wind: { id: "cfb_wind", label: "CFB Wind", flag: "CFB Wind", sports: ["cfb"],
-    desc: "CFB wind filter (board + Telegram): spread open within ±10 · temp < 70 °F · wind > 14 mph", sort: (g) => wxNum(g, "wind_fg") },
+    desc: "CFB wind flag (board + Telegram): spread open within ±10 · sustained wind ≥ 15 mph. Temperature is shown. The optional temperature gate is off unless configured. 12–15 mph is a watch, not a flag.", sort: (g) => wxNum(g, "wind_fg") },
   nfl_wind: { id: "nfl_wind", label: "NFL Wind", flag: "NFL Wind", sports: ["nfl"],
-    desc: "wind > 15 mph · temp < 60 °F", sort: (g) => wxNum(g, "wind_fg") },
+    desc: "sustained wind ≥ 15 mph. Temperature is shown and is not a gate unless the optional temperature gate is on. 12–15 mph is a watch, not a flag. Gusts are not the gate.", sort: (g) => wxNum(g, "wind_fg") },
   heat: { id: "heat", label: "Heat", flag: "Heat", sports: ["nfl", "cfb"],
     desc: "temp > 80 °F · both teams' home avg temp < 57 °F · CFB spread within ±10", sort: (g) => wxNum(g, "temp_fg") },
   alt_heat: { id: "alt_heat", label: "Alt+Heat", flag: "Alt+Heat", sports: ["cfb"],
@@ -19,6 +19,7 @@ const PRESETS = {
 };
 const PRESET_ORDER = ["cfb_wind", "nfl_wind", "heat", "alt_heat"];
 const CFB_OPEN_SPREAD_MAX = 10;
+const WIND_FLAG_MPH = 15;
 
 const wxNum = (g, k) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
 
@@ -27,20 +28,27 @@ function activePreset() {
 }
 
 // §7.4 combined flags, evaluated locally when signal.flags is missing
+function tempAllows(g, temp) {
+  const proc = g.process || {};
+  if (proc.temp_gate !== true) return true;
+  const max = isNum(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : 65;
+  return temp != null && temp < max;
+}
 function computeFlags(g) {
   const wx = g.weather || {}, c = g.consensus || {};
-  const wind = isNum(wx.wind_fg) ? Number(wx.wind_fg) : null;
-  const temp = isNum(wx.temp_fg) ? Number(wx.temp_fg) : null;
+  const drive = typeof drivingForecast === "function" ? drivingForecast(g) : {wind: wx.wind_fg, temp: wx.temp_fg};
+  const wind = isNum(drive.wind) ? Number(drive.wind) : null;
+  const temp = isNum(drive.temp) ? Number(drive.temp) : null;
   const open = isNum(c.spread_open) ? Number(c.spread_open) : null;
   const ht = isNum(g.home_temp) ? Number(g.home_temp) : null, at = isNum(g.away_temp) ? Number(g.away_temp) : null;
   const alt = isNum(g.travel_alt) ? Number(g.travel_alt) : null;
   const out = [];
-  if (isDome(g) || wind == null || temp == null) return out;
+  if (isDome(g) || wind == null) return out;
   if (g.sport === "cfb" && (open == null || Math.abs(open) > CFB_OPEN_SPREAD_MAX)) return out;
-  if (g.sport === "cfb" && temp < 70 && wind > 14) out.push("CFB Wind");
-  if (g.sport === "nfl" && wind > 15 && temp < 60) out.push("NFL Wind");
-  if (ht != null && at != null && ht < 57 && at < 57 && temp > 80) out.push("Heat");
-  if (g.sport === "cfb" && alt != null && alt > 800 && temp > 75) out.push("Alt+Heat");
+  if (g.sport === "cfb" && wind >= WIND_FLAG_MPH && tempAllows(g, temp)) out.push("CFB Wind");
+  if (g.sport === "nfl" && wind >= WIND_FLAG_MPH && tempAllows(g, temp)) out.push("NFL Wind");
+  if (temp != null && ht != null && at != null && ht < 57 && at < 57 && temp > 80) out.push("Heat");
+  if (g.sport === "cfb" && temp != null && alt != null && alt > 800 && temp > 75) out.push("Alt+Heat");
   return out;
 }
 function gameFlags(g) {
@@ -57,14 +65,7 @@ function hasFlag(g, flag) {
 
 // games (all weeks of the selected week filter) matching a preset across its sports
 function presetGames(preset) {
-  const rows = [];
-  for (const sp of preset.sports) {
-    for (const g of DATA.games[sp] || []) {
-      if (STATE.week != null && sp === STATE.sport && String(g.week) !== String(STATE.week)) continue;
-      if (hasFlag(g, preset.flag)) rows.push(g);
-    }
-  }
-  return rows;
+  return filterDiscovery(DATA.games[STATE.sport] || [], STATE, preset);
 }
 function presetSort(rows, preset) {
   return rows.slice().sort((a, b) => preset.sort(b) - preset.sort(a));
@@ -93,7 +94,7 @@ function renderPresetBar(host) {
   const counts = {};
   for (const id of PRESET_ORDER) counts[id] = presetGames(PRESETS[id]).length;
   host.innerHTML = `<div class="presetbar">
-      <span class="sub" title="Signal severity tiers are additional context">CFB Wind eligibility: opening spread within ±10, temp &lt; 70 °F, wind &gt; 14 mph. Severity tiers are extra.</span>
+      <span class="sub" title="Signal severity tiers are additional context">CFB Wind eligibility: opening spread within ±10, sustained wind ≥ 15 mph. Temperature is shown; the optional temperature gate is off unless configured. 12–15 mph is a watch, not a flag. Severity tiers are extra.</span>
       ${PRESET_ORDER.map((id) => presetChip(PRESETS[id], counts[id], preset && preset.id === id)).join("")}
       ${preset ? `<button type="button" class="controlbtn" id="preset-clear" title="Clear preset">✕ clear</button>
         <span class="sub">${esc(preset.desc)} · sorted by ${preset.id === "heat" ? "temp" : preset.id === "alt_heat" ? "travel altitude" : "wind"}</span>
@@ -115,11 +116,11 @@ function renderSignals() {
   let rows;
   if (preset) rows = presetSort(presetGames(preset), preset);
   else {
-    rows = currentGames().filter((g) => gameFlags(g).length);
+    rows = currentGames();
     rows.sort((a, b) => wxNum(b, "wind_fg") - wxNum(a, "wind_fg"));
   }
   document.getElementById("rowcount").textContent = rows.length
-    ? `${rows.length} ${preset ? preset.label : "flagged"} game${rows.length === 1 ? "" : "s"}`
-    : (preset ? `no ${preset.label} games this week` : "no flagged games");
+    ? `${rows.length} ${preset ? preset.label : STATE.focus === "all" ? "inspected" : "signal / near-signal"} game${rows.length === 1 ? "" : "s"}`
+    : (preset ? `no ${preset.label} games this week` : "no signal / near-signal candidates");
   renderTable(rows, { keepOrder: STATE.sort == null });
 }

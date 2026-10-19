@@ -55,7 +55,8 @@ def test_best_prices_use_roi_same_side_freshness_and_all_four_exchanges(monkeypa
                                               dict(quote("wrong-side", .9), side="over")]}
     for exchange in ("novig", "kalshi", "prophetx", "polymarket_us"):
         text = A.format_edge(c, _edge())
-        assert "Best price: Betcris · Under 46.5 (+108) · est. EV +8.0%" in text
+        assert "Best price: Betcris" not in text
+        assert f"Best price: {'NoVig' if exchange == 'novig' else A._book_label(exchange)}" in text
         assert f"Best exchange: {'NoVig' if exchange == 'novig' else A._book_label(exchange)}" in text
         c["total_prices"]["quotes"] = [q for q in c["total_prices"]["quotes"] if q["book"] != exchange]
     assert "Best exchange: unavailable" in A.format_edge(c, _edge())
@@ -75,7 +76,9 @@ def test_stadium_history_is_wind_only_sport_specific_graded_and_deduplicated():
     c["stadium"]["stadium_id"] = "gillette-stadium"
     base = history_row("win")
     rows = [base, base, dict(base, game_id="loss", under_result="L"), dict(base, game_id="push", under_result="P")]
-    for i, change in enumerate([{"wind_fc": 15}, {"temp_fc": 60}, {"stadium_id": "other"}, {"sport": "cfb"},
+    # Named wind flags are sustained wind >= 15 mph. Temperature does not exclude
+    # them while the optional gate is off. The 12–15 mph watch stays out.
+    for i, change in enumerate([{"wind_fc": 14.9}, {"wind_fc": 12}, {"stadium_id": "other"}, {"sport": "cfb"},
                                {"roof_state": "closed"}, {"under_result": None}, {"total_close": None},
                                {"kickoff_utc": "2027-11-01T17:00:00Z"}, {"wind_fc": None}, {"wind_fc": 4, "wind_act": 30}]):
         rows.append(dict(base, game_id=f"excluded-{i}", **change))
@@ -86,7 +89,7 @@ def test_stadium_history_is_wind_only_sport_specific_graded_and_deduplicated():
     assert stadium_wind_history(c, None, now=NOW)["status"] == "unavailable"
     assert stadium_wind_history(c, {"games": []}, now=NOW)["status"] == "ok"
     c["sport"] = "cfb"
-    rows = [dict(base, sport="cfb", temp_fc=69, wind_fc=14.1, spread_open=-10)]
+    rows = [dict(base, sport="cfb", temp_fc=72, wind_fc=16, spread_open=-10)]
     assert stadium_wind_history(c, {"games": rows}, now=NOW)["n"] == 1
     rows[0]["spread_open"] = 40
     assert stadium_wind_history(c, {"games": rows}, now=NOW)["n"] == 0

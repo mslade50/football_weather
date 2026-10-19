@@ -321,6 +321,19 @@ class GameRow:
     signal_label: Optional[str] = None
     signal_level: Optional[str] = None
     signal_at: Optional[str] = None
+    # Exposed-game forecast log. Not an alert. Empty when the closing snapshot is covered.
+    exposed: bool = False
+    forecast_early_temp: Optional[float] = None
+    forecast_early_wind: Optional[float] = None
+    forecast_early_lead_h: Optional[float] = None
+    forecast_final_temp: Optional[float] = None
+    forecast_final_wind: Optional[float] = None
+    forecast_final_lead_h: Optional[float] = None
+    forecast_eased: bool = False
+    forecast_flag_wind: Optional[float] = None
+    forecast_flag_lead_h: Optional[float] = None
+    forecast_flag_total: Optional[float] = None
+    forecast_total_move: Optional[float] = None
 
     @property
     def spread_abs(self) -> Optional[float]:
@@ -465,7 +478,144 @@ def row_from_snapshots(game_id: str, snaps: Sequence[tuple[datetime, Mapping[str
             setattr(r, f"wind_lead{n}", _num(w.get("wind_fg")))
             setattr(r, f"temp_lead{n}", _num(w.get("temp_fg")))
             setattr(r, f"rain_lead{n}", _num(w.get("rain_fg")))
+    early, final, eased = _exposed_forecast(pre)
+    _stamp_exposed_forecast(r, early, final, eased)
     return r
+
+
+def _consensus_total(card: Mapping[str, Any]) -> Optional[float]:
+    return _num((card.get("consensus") or {}).get("total_now"))
+
+
+def _exposed_forecast(pre: Sequence[tuple[datetime, Mapping[str, Any]]]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Early, final, and forecast-eased readings for one game's pre-kickoff snapshots.
+
+    Early is the snapshot closest to 72 h among leads of at least 48 h. If none
+    of those exist, the earliest pre-kickoff snapshot is the early end. Final
+    is the last snapshot before kickoff. A covered closing roof returns empty
+    readings so the game stays out of the comparison log.
+
+    Forecast eased: some earlier exposed snapshot had sustained wind at or
+    above the wind flag, and the latest exposed forecast does not. The total
+    move is the latest consensus total minus the consensus total on the last
+    snapshot that still met the flag.
+    """
+    from pipeline.model import config as C
+    from pipeline.model.process import forecast_observation
+
+    observed = [(ts, card, forecast_observation(card)) for ts, card in pre]
+    final = observed[-1][2]
+    if not final.get("exposed"):
+        return {}, {}, {}
+    pool: list[tuple[float, datetime, dict[str, Any]]] = []
+    for ts, _card, obs in observed:
+        lead = obs.get("lead_hours")
+        if lead is not None and float(lead) >= 48:
+            pool.append((abs(float(lead) - 72.0), ts, obs))
+    if pool:
+        pool.sort(key=lambda item: (item[0], item[1]))
+        early = pool[0][2]
+    else:
+        early = observed[0][2]
+    flagged = [item for item in observed[:-1] if item[2].get("wind_flag")]
+    latest_wind = final.get("wind_mph")
+    eased_on = bool(flagged) and latest_wind is not None and float(latest_wind) < C.PROCESS_WIND_FLAG_MPH
+    eased: dict[str, Any] = {"forecast_eased": False}
+    if eased_on:
+        _ts, flag_card, flag_obs = flagged[-1]
+        flag_total = _consensus_total(flag_card)
+        latest_total = _consensus_total(observed[-1][1])
+        move = _round(latest_total - flag_total, 3) if flag_total is not None and latest_total is not None else None
+        eased = {
+            "forecast_eased": True,
+            "flag_wind": flag_obs.get("wind_mph"),
+            "flag_lead_h": flag_obs.get("lead_hours"),
+            "flag_total": flag_total,
+            "total_move": move,
+        }
+    return early, final, eased
+
+
+def _stamp_exposed_forecast(row: GameRow, early: Mapping[str, Any], final: Mapping[str, Any], eased: Mapping[str, Any]) -> None:
+    if not final.get("exposed"):
+        return
+    row.exposed = True
+    row.forecast_early_temp = _num(early.get("temp_f"))
+    row.forecast_early_wind = _num(early.get("wind_mph"))
+    row.forecast_early_lead_h = _num(early.get("lead_hours"))
+    row.forecast_final_temp = _num(final.get("temp_f"))
+    row.forecast_final_wind = _num(final.get("wind_mph"))
+    row.forecast_final_lead_h = _num(final.get("lead_hours"))
+    row.forecast_eased = bool(eased.get("forecast_eased"))
+    row.forecast_flag_wind = _num(eased.get("flag_wind"))
+    row.forecast_flag_lead_h = _num(eased.get("flag_lead_h"))
+    row.forecast_flag_total = _num(eased.get("flag_total"))
+    row.forecast_total_move = _num(eased.get("total_move"))
+
+
+def result_vs_close(under_result: Optional[str]) -> Optional[str]:
+    """Closing-total result. Under-grade W is an under; L is an over."""
+    return {"W": "under", "L": "over", "P": "push"}.get(under_result or "")
+
+
+EXPOSED_FORECAST_NOTE = (
+    "Log of every exposed game, including calm games, so they can be compared with flagged games. "
+    "Not an alert. Forecast eased means an earlier pre-kickoff forecast had sustained wind of at least "
+    "15 mph and the latest forecast does not. The total move is the latest consensus total minus the "
+    "consensus total on the last snapshot that still met that flag. A free 2018-25 check of actual weather "
+    "on outdoor games (6,377 CFB and 1,563 NFL) found no over edge for warm and windy games: CFB finished "
+    "over the close 49.4% of the time (n=578), and NFL leaned under. That is why the warm-and-wind watch "
+    "list is gone. These are observed frequencies, not a reason to take a side."
+)
+
+
+def exposed_forecast_report(rows: Sequence[GameRow]) -> dict[str, Any]:
+    """Per-game log for every exposed game. Covered roofs are omitted. Not an alert."""
+    from pipeline.model import config as C
+
+    games = []
+    for row in rows:
+        if not row.exposed:
+            continue
+        games.append({
+            "game_id": row.game_id,
+            "sport": row.sport,
+            "season": row.season,
+            "week": row.week,
+            "temp_early_f": row.forecast_early_temp,
+            "wind_early_mph": row.forecast_early_wind,
+            "lead_early_h": row.forecast_early_lead_h,
+            "temp_final_f": row.forecast_final_temp,
+            "wind_final_mph": row.forecast_final_wind,
+            "lead_final_h": row.forecast_final_lead_h,
+            "total_open": row.total_open,
+            "total_close": row.total_close,
+            "actual_total": row.actual_total,
+            "result_vs_close": result_vs_close(row.under_result),
+            "forecast_eased": bool(row.forecast_eased),
+            "flag_wind_mph": row.forecast_flag_wind,
+            "flag_lead_h": row.forecast_flag_lead_h,
+            "total_at_flag": row.forecast_flag_total,
+            "total_move_since_flag": row.forecast_total_move,
+            "alert": False,
+        })
+    eased = [g for g in games if g["forecast_eased"]]
+    return {
+        "version": C.EXPOSED_FORECAST_VERSION,
+        "note": EXPOSED_FORECAST_NOTE,
+        "alert": False,
+        "rules": {
+            "exposed_only": True,
+            "wind_flag_mph": C.PROCESS_WIND_FLAG_MPH,
+            "early": "pre-kickoff snapshot closest to 72 h among leads of at least 48 h; else the earliest",
+            "final": "last snapshot before kickoff",
+            "forecast_eased": "an earlier exposed forecast had sustained wind >= the flag and the latest does not",
+            "total_move_since_flag": "latest consensus total minus the consensus total on the last snapshot that still met the flag",
+        },
+        "n_games": len(games),
+        "n_eased": len(eased),
+        "games": games,
+    }
 
 
 # ---- D1 export / sqlite ---------------------------------------------------------------------
@@ -1333,7 +1483,8 @@ class BacktestResult:
                      "n_games": len(self.rows), "n_graded": sum(1 for r in self.rows if r.under_result is not None),
                      "sources": self.sources, "legacy": self.legacy},
             "grid": self.grid, "stadium_results": self.stadiums, "stadium_results_legacy": self.stadiums_legacy,
-            "alerts_clv": self.alerts, "postmortem": self.postmortem, "games": self.games,
+            "alerts_clv": self.alerts, "postmortem": self.postmortem,             "games": self.games,
+            "exposed_forecasts": exposed_forecast_report(self.rows),
         })
 
 

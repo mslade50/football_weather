@@ -1,7 +1,14 @@
 name: pipeline
 
 # Phase 3: schedule -> stadiums -> weather -> impact v1 -> odds (httpx books in the
-# light job, BetOnline in the Playwright job) -> board JSON + D1 SQL + legacy files.
+# light job, BetOnline in the Playwright jobs) -> board JSON + D1 SQL + legacy files.
+#
+#   * BetOnline (Chromium) is scraped by `playwright_scrape` IN PARALLEL with
+#     `light` (needs: gate only, no state, no R2 writes); it hands parsed lines
+#     (original scraped_at kept) + raw captures to the `playwright` publish job,
+#     which runs after light, ingests them with `build --ingest-lines` (lines
+#     older than ODDS_CARRY_MAX_AGE or expired are rejected) and republishes.
+#     See docs/notes/refresh-cadence.md Part 2.
 #
 #   * State (openers / history / wx_history / archive_last / wx_last / alerts /
 #     scrape_baseline / telegram_state / cf_heartbeat / closings / status) round-trips
@@ -14,7 +21,9 @@ name: pipeline
 #   * D1 (football-odds) gets data/d1_inserts.sql (change-only) via
 #     `wrangler d1 execute --file`, gated by hashFiles so an empty run is a no-op.
 #   * Self-check re-fetches board/meta.json and asserts run_id + a 50 % content
-#     floor against the previous meta (bypassed by the `force` input).
+#     floor for each sport this run rebuilt (bypassed by the `force` input).
+#     A CFB-only hour does not fail because NFL was not rebuilt. An empty
+#     rebuild of a sport that was rebuilt is still rejected.
 #   * Nothing is committed back to git (Phase 4): the legacy nfl_weather.csv /
 #     cfb_weather.xlsx are written to data/ and uploaded to R2 legacy/ in the put
 #     loop; data/state/ rides R2 board/.
@@ -31,21 +40,19 @@ name: pipeline
 #   BOOK_PROPHETX_ENABLED=0 (repo variable) skips ProphetX (sandbox-only creds).
 
 on:
-  # UTC backstop ~= old 05:15 / 10:00 / 16:20 ET cadence, off-the-minute (GitHub
-  # drops on-the-hour schedules).
+  # GitHub schedule is only a SPARSE BACKSTOP (~every 3-4h on game days, off-the-
+  # minute UTC). The Cloudflare Worker dispatches the hourly game-day cadence
+  # (shouldDispatch in site/worker/index.js); GitHub drops scheduled ticks, so
+  # the Worker is primary. The gate job skips a backstop tick when a Worker/manual
+  # dispatch started within the last 50 minutes, and the concurrency group below
+  # queues any remaining overlap, so the two never double-run.
   schedule:
     - cron: '17 9 * * *'
-    - cron: '17 14,20 * * 1'       # other days already covered below
-    # In-season cadence (ARCH §9.1, mirrored in site/worker/SETUP.md §7). UTC, EDT-based,
-    # GitHub DOW 0=Sun. Every schedule run is sport=all scope=full; pipeline.gate_check
-    # trims off-season / no-game windows so idle fires cost ~1 minute.
     - cron: '17 14,20 * * 2,3'     # Tue/Wed 10:17, 16:17 ET (openers)
-    - cron: '17 12-23/2 * * 4,5'   # Thu/Fri every 2h 08:17-19:17 ET
-    - cron: '17 10-23 * * 6'       # Sat hourly 06:17-19:17 ET (CFB)
-    - cron: '17 10-21 * * 0'       # Sun hourly 06:17-17:17 ET (NFL)
-    - cron: '47 16,19,23 * * 0'    # Sun pre-kickoff 12:47/15:47/19:47 ET
-    - cron: '17 22,23 * * 1'       # Mon night 18:17, 19:17 ET
-    - cron: '17 23 * * 4'          # Thu 22:17 already covered above
+    - cron: '17 12,16,20 * * 4,5'  # Thu/Fri every 4h
+    - cron: '17 15,18,21 * * 6'    # Sat CFB afternoon/evening
+    - cron: '17 0,3,15,18,21 * * 0'  # Sat night UTC + Sun NFL
+    - cron: '17 0,14,20,23 * * 1'  # Sun night UTC + Mon
   workflow_dispatch:
     inputs:
       sport:
@@ -118,8 +125,13 @@ env:
   D1_DATABASE: football-odds
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+  # Optional. When both are set, scripts/publish_r2.py uploads via the S3 API instead of a
+  # Wrangler process per object. Unset secrets render as empty strings, so
+  # r2.config_from_env() returns None and the Wrangler path is used.
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
   # State files that round-trip through R2 board/ (ARCH §5).
-  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points
+  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations book_health
 
 jobs:
   gate:
@@ -137,8 +149,21 @@ jobs:
           python-version: '3.11'
       - name: Install gate deps
         run: pip install httpx
+      - name: Skip backstop tick after a recent dispatch
+        id: recent
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fail-open: any error leaves skip empty and the gate runs normally.
+          SINCE="$(date -u -d '50 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20"             | jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled")] | length')" || N=0
+          echo "Recent dispatch runs: ${N:-0}"
+          if [ "${N:-0}" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - name: Kickoff-horizon gate
         id: gate
+        if: steps.recent.outputs.skip != 'true'
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           PIPELINE_FORCE: ${{ inputs.force == true && '1' || '' }}
@@ -180,7 +205,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Warm Wrangler CLI cache
+      - name: Restore npm cache (Wrangler 4)
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-wrangler-4
+      - name: Warm Wrangler CLI cache (cache miss only)
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npx --yes wrangler@4 --version
       - name: Install deps (no Playwright / Streamlit in the light job)
         run: |
@@ -193,30 +225,13 @@ jobs:
         # NoSuchKey (first run / new file) -> empty default. ANY other failure
         # (auth, 5xx, network) -> exit 1: running on blank state would re-record
         # openers and re-send every alert. This step must always fail the job.
-        run: |
-          mkdir -p data/state
-          for f in $STATE_FILES meta; do
-            DEST="data/state/$f.json"
-            [ "$f" = "meta" ] && DEST="data/state/prev_meta.json"
-            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1)"; then
-              echo "$f.json fetched"
-            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
-              echo "::notice::$f.json absent (first run) - state starts empty"
-              rm -f "$DEST"
-            else
-              echo "$OUT"
-              echo "::error::R2 state fetch failed for $f.json (not NoSuchKey) - refusing to run on blank state"
-              exit 1
-            fi
-          done
+        run: python scripts/fetch_r2.py state --dest data/state
       - name: Fetch wind-signal history
         run: |
-          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/backtest/wind-history-v1.json" --file=data/state/wind-history-v1.json --remote; then
-            echo '::warning::Historical wind archive unavailable; alerts will label the coverage gap'
-          fi
-          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote; then
-            echo '::warning::Wind history unavailable; alerts will label it unavailable'
-          fi
+          python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json \
+            --warn-message 'Historical wind archive unavailable; alerts will label the coverage gap'
+          python scripts/fetch_r2.py object board/backtest.json data/state/backtest.json \
+            --warn-message 'Wind history unavailable; alerts will label it unavailable'
       - name: Recover receipts from recent failed runs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -253,7 +268,8 @@ jobs:
           # Raw uploads can outlast feed TTLs. Revalidate current board/legacy
           # prices immediately before their put loop; consumers enforce expiry too.
           python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
-          # Reject a bad content floor before replacing any current board objects.
+          # Reject a bad or empty rebuild before replacing any current board objects.
+          # The floor counts only sports this run rebuilt (meta.sport).
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
@@ -274,9 +290,9 @@ jobs:
       - name: Self-check published board
         run: |
           mkdir -p data/check
-          npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote
+          python scripts/fetch_r2.py object board/meta.json data/check/meta.json
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
-            --meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+            --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
@@ -295,13 +311,67 @@ jobs:
             data/d1_inserts.sql
           if-no-files-found: ignore
           retention-days: 7
-  playwright:
-    # BetOnline needs Chromium (Cloudflare pass). Runs AFTER light so it re-scrapes
-    # BetOnline plus BetCRIS, merges them onto the state light just pushed to
-    # R2 (--merge-into-r2), re-writes the legacy files (NFL Spread_now/Total_now)
-    # to R2 legacy/ and republishes the board with meta.json last.
-    needs: [gate, light]
+  playwright_scrape:
+    # BetOnline needs Chromium (Cloudflare pass). Scrape-only, IN PARALLEL with
+    # light: no state fetch, no secrets, no R2 writes. Emits raw captures
+    # (data/raw_runs/) + parsed lines with their scraped_at (data/pw-lines/) as a
+    # same-run artifact for the playwright publish job.
+    needs: gate
     if: needs.gate.outputs.run == 'scrape' && needs.gate.outputs.need_playwright == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Playwright version
+        id: pw-version
+        run: echo "version=$(python -m playwright --version | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}
+      - name: Install Chromium (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: python -m playwright install --with-deps chromium
+      - name: Install Chromium system deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: python -m playwright install-deps chromium
+      - name: Scrape BetOnline (scrape-only)
+        run: |
+          # Distinct run id: the publish job's own raw captures must not share this dir.
+          SCRAPE_RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}-${{ github.run_attempt }}-pwscrape"
+          python -m pipeline.build --sport "$SPORT" --scrape-only data/pw-lines --books betonline --run-id "$SCRAPE_RUN_ID"
+      - name: Upload BetOnline handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            data/pw-lines/
+            data/raw_runs/
+          retention-days: 1
+          if-no-files-found: warn
+  playwright:
+    # Publish job. Runs AFTER light: ingests the playwright_scrape handoff
+    # (--ingest-lines; scraped_at preserved, stale lines rejected) instead of
+    # launching Chromium, re-scrapes BetCRIS (short TTL), merges onto the state
+    # light just pushed to R2 (--merge-into-r2), re-writes the legacy files (NFL
+    # Spread_now/Total_now) to R2 legacy/ and republishes with meta.json last.
+    # A failed scrape job still publishes (BetOnline reads as 0 lines + a
+    # degradation, exactly like an in-build scrape failure).
+    needs: [gate, light, playwright_scrape]
+    if: ${{ always() && needs.gate.outputs.run == 'scrape' && needs.gate.outputs.need_playwright == 'true' && needs.light.result == 'success' && (needs.playwright_scrape.result == 'success' || needs.playwright_scrape.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -317,40 +387,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Warm Wrangler CLI cache
+      - name: Restore npm cache (Wrangler 4)
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-wrangler-4
+      - name: Warm Wrangler CLI cache (cache miss only)
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npx --yes wrangler@4 --version
-      - name: Install deps + Chromium
+      - name: Install deps (no Playwright in the publish job)
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m playwright install --with-deps chromium
+          grep -viE '^(playwright|playwright-stealth|streamlit|streamlit-plotly-events|plotly|fsspec|pytz)\b' requirements.txt > requirements-light.txt
+          pip install -r requirements-light.txt
+      - name: Download BetOnline handoff
+        # Missing handoff (scrape job failed) -> BetOnline 0 lines + degradation.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/
       - name: Run id (playwright)
         run: echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}-${{ github.run_attempt }}-pw" >> "$GITHUB_ENV"
       - name: Fetch board state from R2 (playwright)
-        run: |
-          mkdir -p data/state
-          for f in $STATE_FILES meta; do
-            DEST="data/state/$f.json"
-            [ "$f" = "meta" ] && DEST="data/state/prev_meta.json"
-            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1)"; then
-              echo "$f.json fetched"
-            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
-              echo "::notice::$f.json absent (first run) - state starts empty"
-              rm -f "$DEST"
-            else
-              echo "$OUT"
-              echo "::error::R2 state fetch failed for $f.json (not NoSuchKey) - refusing to run on blank state"
-              exit 1
-            fi
-          done
+        run: python scripts/fetch_r2.py state --dest data/state
       - name: Fetch wind-signal history (playwright)
         run: |
-          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/backtest/wind-history-v1.json" --file=data/state/wind-history-v1.json --remote; then
-            echo '::warning::Historical wind archive unavailable; alerts will label the coverage gap'
-          fi
-          if ! npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote; then
-            echo '::warning::Wind history unavailable; alerts will label it unavailable'
-          fi
+          python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json \
+            --warn-message 'Historical wind archive unavailable; alerts will label the coverage gap'
+          python scripts/fetch_r2.py object board/backtest.json data/state/backtest.json \
+            --warn-message 'Wind history unavailable; alerts will label it unavailable'
       - name: Download same-workflow weather inputs
         # Absent inputs trigger fresh point fetches; state steps still fail closed.
         continue-on-error: true
@@ -364,15 +431,17 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Refresh BetCRIS here too: the light upload can outlast the short
-          # college feed TTL. Do not carry that earlier capture as current odds.
-          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2 --reuse-weather-dir data/weather-reuse ${FORCE:+--force}
+          # BetOnline comes from the parallel scrape (--ingest-lines). Refresh
+          # BetCRIS live here: the light upload can outlast the short college feed
+          # TTL. Do not carry that earlier capture as current odds.
+          python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines --reuse-weather-dir data/weather-reuse ${FORCE:+--force}
       - name: Push to R2 (playwright)
         run: |
           python scripts/publish_r2.py raw
           python scripts/publish_r2.py snapshots
           PUBLISH_GUARD_STARTED="$(date +%s)"
           python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
+          # Same floor as the light job: only sports this run rebuilt.
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
@@ -393,9 +462,9 @@ jobs:
       - name: Self-check published board (playwright)
         run: |
           mkdir -p data/check
-          npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote
+          python scripts/fetch_r2.py object board/meta.json data/check/meta.json
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
-            --meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+            --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
       - name: Notify published board (playwright)
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
@@ -415,20 +484,27 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   notify_failure:
-    # One optional page for the whole run. Disabled by default so provider
-    # fallbacks and CI failures stay on the dashboard / Actions run, not Telegram.
-    needs: [gate, light, playwright]
-    if: ${{ always() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && vars.FOOTBALL_TELEGRAM_ENABLED == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || needs.playwright.result == 'failure') }}
+    # Page when the publish is rejected or the gate or main (light) build fails.
+    # A Playwright/BetOnline failure alone (scrape or publish job) pages only when
+    # TELEGRAM_SYSTEM_ALERTS=1. The job condition is only always(): a skipped
+    # Playwright job must not skip
+    # this page (GitHub skips a dependent job when one need was skipped unless
+    # the condition is unconditional). The step decides whether to send.
+    # safe_refresh stays quiet. Cancelled runs do not page.
+    # Football Telegram stays off unless FOOTBALL_TELEGRAM_ENABLED is exactly 1.
+    needs: [gate, light, playwright_scrape, playwright]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Telegram on failure
+        if: ${{ !cancelled() && vars.FOOTBALL_TELEGRAM_ENABLED == '1' && inputs.safe_refresh != true && (needs.gate.result == 'failure' || needs.light.result == 'failure' || (needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1') || (needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1')) }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJobs: gate=%s · light=%s · BetOnline=%s\nTrigger: %s · Sport: %s\nOpen run: %s' \
-            '${{ needs.gate.result }}' '${{ needs.light.result }}' '${{ needs.playwright.result }}' \
+          MSG=$(printf '🚨 SYSTEM · Pipeline failed\nJobs: gate=%s · light=%s · BetOnline scrape=%s · BetOnline publish=%s\nTrigger: %s · Sport: %s\nOpen run: %s' \
+            '${{ needs.gate.result }}' '${{ needs.light.result }}' '${{ needs.playwright_scrape.result }}' '${{ needs.playwright.result }}' \
             '${{ github.event_name }}' "$SPORT" '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
           [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \

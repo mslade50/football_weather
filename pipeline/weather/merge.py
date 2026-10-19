@@ -49,6 +49,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from pipeline.contracts import Degradation, WeatherForecast, WeatherPoint
+from pipeline.model import process as process_screen
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.parsers import HourlyRow
@@ -118,6 +119,41 @@ def mean3(vals: Sequence[Optional[float]]) -> Optional[float]:
 
 def hour_floor(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+
+def window_summary(rows: Sequence[HourlyRow], hours: Sequence[datetime]) -> dict[str, Optional[float]]:
+    """Sustained-wind / temp means and 3-hour rain sum for one model. Gusts are omitted."""
+    idx = _index(rows)
+    picked = [idx.get(hour) for hour in hours]
+    winds = [row.wind for row in picked if row is not None]
+    temps = [row.temp for row in picked if row is not None]
+    precips = [row.precip for row in picked if row is not None and row.precip is not None]
+    dirs = [row.dir for row in picked if row is not None]
+    return {
+        "temp_f": mean3(temps),
+        "wind_mph": mean3(winds),
+        "rain_mm": sum(precips) if precips else None,
+        "wind_dir_deg": vector_mean_deg(dirs),
+    }
+
+
+def collect_model_windows(
+    om: Optional[ParsedLocation],
+    hours: Sequence[datetime],
+    nws_idx: Optional[Mapping[datetime, HourlyRow]] = None,
+) -> dict[str, dict[str, Optional[float]]]:
+    """Per-model game-window totals. Empty models are left out. Not the v1 stitch."""
+    windows: dict[str, dict[str, Optional[float]]] = {}
+    if om is not None:
+        for model, rows in om.models.items():
+            summary = window_summary(rows, hours)
+            if any(summary[key] is not None for key in ("temp_f", "wind_mph", "rain_mm")):
+                windows[model] = summary
+    if nws_idx:
+        summary = window_summary(list(nws_idx.values()), hours)
+        if any(summary[key] is not None for key in ("temp_f", "wind_mph", "rain_mm")):
+            windows[NWS] = summary
+    return windows
 
 
 def wind_components(wind: Optional[float], wind_dir_deg: Optional[float], orientation_deg: Optional[float]):
@@ -548,6 +584,16 @@ def build_forecast(
         for r in (merged[t] for t in display)
     ]
 
+    # Per-model windows and the ECMWF-first signal forecast. wind_fg/temp_fg/rain_fg
+    # above stay the stitched (v1) values; they are not replaced.
+    model_windows = collect_model_windows(om, window, nws_idx)
+    signal = process_screen.select_signal_forecast(
+        lead_hours,
+        {"temp_f": temp_fg, "wind_mph": wind_fg, "rain_mm": rain_fg, "wind_dir_deg": wind_dir_deg},
+        model_windows,
+    )
+    apart = process_screen.ecmwf_disagreement(model_windows)
+
     forecast = WeatherForecast(
         game_id=game_id,
         source=source,
@@ -577,6 +623,14 @@ def build_forecast(
         blend_w=w_wind,
         climo_wind=cell.wind_mean if cell else None,
         climo_temp=cell.temp_mean if cell else None,
+        model_windows=model_windows,
+        signal_source=signal["source"],
+        signal_temp_f=signal["temp_f"],
+        signal_wind_mph=signal["wind_mph"],
+        signal_rain_mm=signal["rain_mm"],
+        signal_wind_dir_deg=signal["wind_dir_deg"],
+        ecmwf_apart=bool(apart["apart"]),
+        ecmwf_apart_fields=tuple(apart["fields"]),
     )
     return MergeResult(
         forecast=forecast,
@@ -617,6 +671,8 @@ __all__ = [
     "mean3",
     "hour_floor",
     "wind_components",
+    "window_summary",
+    "collect_model_windows",
     "medium_weights",
     "choose_regime",
     "medium_value",

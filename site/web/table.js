@@ -1,5 +1,5 @@
 "use strict";
-// Table view: one row per GameCard. Columns: GAME (kickoff ET), LAT/LON, TEMP, WIND, GUST, RAIN,
+// Table view: one row per GameCard. Columns: GAME (kickoff ET/local), STADIUM/WIND, TEMP, WIND, GUST, RAIN,
 // GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
 // TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (baseline → now, under price
 // + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
@@ -8,6 +8,50 @@
 const MOVE_EPS = 0.05;
 const BOOK_SPREADS_KEY = "fw.bookSpreads";
 let BOOK_SPREADS = loadBookSpreads();
+
+// Only the resolved stadium zone is venue evidence. GameCard.tz can default to
+// Eastern, and kickoff_local can carry the schedule provider's zone instead.
+function tableKickoffHtml(g) {
+  const status = String(g.status || "").toLowerCase();
+  if (status === "tbd" || /^tbd$/i.test(g.kickoff_utc || ""))
+    return '<span class="sub kickoff-eastern">Kickoff TBD</span>';
+  const utc = g.kickoff_utc;
+  const date = typeof utc === "string" && /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(utc) ? parseTs(utc) : null;
+  if (!date || status === "unknown") return '<span class="sub kickoff-eastern">Kickoff unknown</span>';
+
+  const eastern = kickoffClock(date, "America/New_York");
+  let html = `<span class="sub kickoff-eastern">${esc(eastern.date + ", " + eastern.time)}</span>`;
+  const zone = typeof g.stadium?.timezone === "string" ? g.stadium.timezone.trim() : "";
+  // Reject ambiguous fixed abbreviations such as EST; require an IANA location.
+  if (!zone.includes("/") && zone !== "UTC")
+    return html + '<span class="sub kickoff-local">Local time zone unknown</span>';
+  try {
+    const local = kickoffClock(date, zone);
+    if (local.offset !== eastern.offset) {
+      const label = (local.dateKey === eastern.dateKey ? "" : local.date + ", ") + local.time;
+      html += `<span class="sub kickoff-local">Local: ${esc(label)}</span>`;
+    }
+  } catch (_) {
+    html += '<span class="sub kickoff-local">Local time zone unknown</span>';
+  }
+  return html;
+}
+function kickoffClock(date, zone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone, weekday: "short", year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short",
+  }).formatToParts(date);
+  const value = key => parts.find(part => part.type === key)?.value;
+  const offset = new Intl.DateTimeFormat("en-US", {timeZone: zone, timeZoneName: "shortOffset"})
+    .formatToParts(date).find(part => part.type === "timeZoneName").value;
+  // en-US ICU often labels London summer as GMT+1. Use its local BST/GMT names.
+  const label = zone === "Europe/London" ? (offset === "GMT+1" ? "BST" : "GMT") : value("timeZoneName");
+  return {
+    date: `${value("weekday")}, ${value("month")}/${value("day")}`,
+    dateKey: `${value("year")}-${value("month")}-${value("day")}`,
+    time: `${value("hour")}:${value("minute")} ${value("dayPeriod")} ${label}`, offset,
+  };
+}
 
 function loadBookSpreads() {
   try { return localStorage.getItem(BOOK_SPREADS_KEY) === "1"; } catch (_) { return false; }
@@ -23,7 +67,7 @@ function setupTableControls() {
   el.addEventListener("change", (e) => {
     BOOK_SPREADS = !!e.target.checked;
     saveBookSpreads(BOOK_SPREADS);
-    STATE.sort = null;   // column indexes shift when the spread columns appear
+    STATE.sort = null;   // ids are stable; reset anyway for a predictable order
     render();
   });
 }
@@ -50,11 +94,32 @@ function tierChip(e) {
   return `<span class="tierchip ${esc(tier)}" title="${esc(tip)}">${txt}</span>`;
 }
 function signalPill(sig, game) {
-  const label = signalLabel(sig);
+  if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
+  let label = signalLabel(sig);
+  const proc = (game && game.process) || {};
+  const drivers = (sig && sig.drivers) || [];
+  const rainDriven = drivers.includes("rain") || /\(Rain\)/i.test((sig && sig.label) || "");
+  const disagreed = proc.rain_agreement && proc.rain_agreement !== "agree";
+  if (rainDriven && disagreed) {
+    if (proc.wind_band === "flag") label = "Low (Wind)";
+    else label = proc.rain_agreement === "disagree" ? "Rain models disagree" : "Rain not confirmed";
+  }
   const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
     ? gameFlags(game) : ((sig && sig.flags) || []);
   const flags = matched.length ? ` · ${matched.join(", ")}` : "";
-  return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+  const muted = rainDriven && disagreed && proc.wind_band !== "flag";
+  return `<span class="sig" style="background:${muted ? "#8b949e" : signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+}
+function weatherCoverageHtml(g) {
+  const wx = g.weather || {}, issues = [];
+  const missing = ["temp_fg", "wind_fg", "rain_fg"].filter(key => !finiteValue(wx[key]));
+  if (missing.length) issues.push("Forecast incomplete");
+  if (wx.point_aged) issues.push("Point forecast aged");
+  if (wx.ensemble_status === "retained_members_degraded" || (wx.ensemble_unverified_sources || []).length) issues.push("Ensemble unverified");
+  else if (wx.ensemble_status === "partial_members_degraded") issues.push("Partial ensemble");
+  else if (wx.ensemble_status === "unavailable_degraded") issues.push("Ensemble unavailable");
+  else if (wx.ensemble_status === "aged_members") issues.push("Older ensemble");
+  return issues.length ? `<span class="coverage-note">${esc(issues.join(" · "))}</span>` : "";
 }
 function spreadSrcLabel(src) {
   if (!src) return "?";
@@ -71,6 +136,9 @@ function marketCoverage(g, market) {
   }).length;
 }
 function totalBaselineLabel(g, quote, consensus = false) {
+  const kind = quote[consensus ? "total_open_kind" : "open_kind"];
+  if (kind === "true_open") return "true opener";
+  if (kind === "first_seen") return "first seen";
   if (g.sport !== "cfb") return "first seen";
   const prefix = consensus ? "total_open" : "open";
   const seen = parseTs(quote[`${prefix}_ts`]), target = parseTs(quote[`${prefix}_target_ts`]);
@@ -94,7 +162,7 @@ function consensusSpreadCell(g) {
     ],
   };
   return `<td data-hk="${hk}" title="${esc(spreadSrcLabel(c.spread_src))}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
-    + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "no current books"}</span>` : ""}</td>`;
+    + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "0 books"}</span>` : ""}</td>`;
 }
 function consensusTotalCell(g) {
   const c = g.consensus || {};
@@ -114,10 +182,31 @@ function consensusTotalCell(g) {
   };
   return `<td data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
 }
+function quoteAgeText(ts) {
+  const age = Date.now() - Date.parse(ts);
+  if (!Number.isFinite(age) || age < 0) return "";
+  const mins = Math.round(age / 60000);
+  return mins < 1 ? "<1m old" : `${mins}m old`;
+}
+function betcrisReference(quote) {
+  const until = Date.parse(quote?.actionable_until);
+  return Number.isFinite(until) && Date.now() > until;
+}
+function betcrisAgeNote(quote) {
+  if (!quote) return "";
+  const age = quoteAgeText(quote.source_updated_at || quote.updated_at);
+  const reference = betcrisReference(quote);
+  if (!age && !reference) return "";
+  return `${age || "age unknown"}${reference ? " · reference" : ""}`;
+}
+function blankOddsCell(g, bk, market, text) {
+  const expired = Array.isArray(g.expired_markets) && g.expired_markets.includes(`${bk}/${market}`);
+  return expired ? `<td class="muted" title="quote expired">${text}</td>` : `<td class="muted">${text}</td>`;
+}
 function bookSpreadCell(g, bk) {
   const o = (g.odds || {})[bk];
   const s = o && o.spread;
-  if (!s || (!isNum(s.home_line) && !isNum(s.open_line))) return `<td class="muted">—</td>`;
+  if (!s || (!isNum(s.home_line) && !isNum(s.open_line))) return blankOddsCell(g, bk, "spread", "—");
   const e = edgeAt(g, bk, "spread");
   const hk = ++HK;
   HOVER[hk] = {
@@ -127,14 +216,16 @@ function bookSpreadCell(g, bk) {
       ["now", `${fmtLine(s.home_line)} ${fmtOdds(s.home_odds)} / ${fmtOdds(s.away_odds)}`],
       ...(e ? [["fair", `${fmtLine(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(s.updated_at ? [["updated", fmtShortET(s.updated_at)]] : []),
+      ...(bk === "betcris" && betcrisAgeNote(s) ? [["age", betcrisAgeNote(s)]] : []),
     ],
   };
-  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${tierChip(e)}</td>`;
+  const age = bk === "betcris" ? betcrisAgeNote(s) : "";
+  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${age ? `<span class="sub">${esc(age)}</span>` : ""}${tierChip(e)}</td>`;
 }
 function bookTotalCell(g, bk) {
   const o = (g.odds || {})[bk];
   const t = o && o.total;
-  if (!t || (!isNum(t.line) && !isNum(t.open_line))) return `<td class="muted">—</td>`;
+  if (!t || (!isNum(t.line) && !isNum(t.open_line) && !t.last_observed)) return blankOddsCell(g, bk, "total", "No quote");
   const e = edgeAt(g, bk, "total");
   const hk = ++HK;
   const baseline = totalBaselineLabel(g, t);
@@ -146,59 +237,96 @@ function bookTotalCell(g, bk) {
       ["now", `${fmtTotal(t.line)} o${fmtOdds(t.over)} / u${fmtOdds(t.under)}`],
       ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
+      ...(bk === "betcris" && betcrisAgeNote(t) ? [["age", betcrisAgeNote(t)]] : []),
+      ...(t.last_observed ? [["last observed (reference only)", `U ${fmtTotal(t.last_observed.line)} ${fmtOdds(t.last_observed.under)}`],
+        ["source clock", t.last_observed.updated_at || "Unknown"], ["reference status", t.last_observed.status]] : []),
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket
     ],
   };
-  return `<td class="book" data-hk="${hk}">${openNow(t.open_line, t.line, fmtTotal)}${moveTag(t.open_line, t.line)}${tierChip(e)}</td>`;
+  const evidence = HOVER[hk].lines.map(([label, value]) => `${label}: ${value}`).join("; ");
+  const ref = t.last_observed;
+  const unavailable = ref ? ({stale:'Stale reference', expired:'Expired reference', unavailable:'Source unavailable', unknown:'Unverified reference', current:'Not refreshed'}[ref.status] || 'Unavailable') : 'Unavailable';
+  return `<td class="book compact-total" data-hk="${hk}"><button type="button" class="book-total-detail" data-game="${esc(g.game_id)}"
+    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${isNum(t.line) && !t.expired ? 'U ' + fmtTotal(t.line) : unavailable}</b>
+    <span class="sub">${isNum(t.line) && !t.expired ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}${bk === "betcris" && betcrisAgeNote(t) ? ` · ${esc(betcrisAgeNote(t))}` : ""}</span></button></td>`;
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
 function totalPriceQuotes(g, side = null) {
-  if ((parseTs(g.kickoff_utc)?.getTime() || 0) <= Date.now()) return [];
-  return ((g.total_prices || {}).quotes || []).filter((quote) => {
-    const age = Date.now() - (parseTs(quote.updated_at)?.getTime() || 0);
-    return (!side || quote.side === side) && (!STATE.book || quote.book === STATE.book)
-      && age >= 0 && age <= 3600000 && isNum(quote.ev_roi);
-  }).sort((a, b) => b.ev_roi - a.ev_roi);
+  if (!(Date.parse(g.kickoff_utc) > Date.now())) return [];
+  return ((g.total_prices || {}).quotes || []).filter(q => EXCHANGE_BOOKS.has(q.book)
+    && (!side || q.side === side) && (!STATE.book || q.book === STATE.book))
+    .sort((a, b) => (Date.parse(quoteClock(b)) || 0) - (Date.parse(quoteClock(a)) || 0));
 }
 function pricePercent(value) { return isNum(value) ? `${(Number(value) * 100).toFixed(1)}%` : "—"; }
 function roiLabel(value) { return `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`; }
 function totalPriceLabel(quote) {
   return `${quote.side === "under" ? "U" : "O"} ${fmtTotal(quote.line)} · ${fmtOdds(quote.odds)}`;
 }
-function bestPriceCell(g) {
-  const quote = totalPriceQuotes(g, "under")[0];
-  if (!quote) return '<td class="muted" title="No fresh price with a usable fair total; comparison requires at least two total books">—</td>';
+function coordinateLabel(g) { return stadiumCoordinates(g); }
+function tableStadiumHtml(g) {
+  const evidence = typeof stadiumSignalEvidence === "function" ? stadiumSignalEvidence(g) : [];
   const hk = ++HK;
-  HOVER[hk] = {
-    label: `Best under price · ${gameLabel(g)}`,
-    lines: [
-      ["offer", `${bookLabel(quote.book)} · ${totalPriceLabel(quote)}`],
-      ["cost incl. vig/fees", pricePercent(quote.cost_prob)],
-      ["fair cost (excl. pushes)", pricePercent(quote.fair_cost)],
-      ["estimated win / push", `${pricePercent(quote.win_prob)} / ${pricePercent(quote.push_prob)}`],
-      ["estimated ROI", `${roiLabel(quote.ev_roi)} per dollar staked`],
-      ["model", "Discrete score estimate; exact-score probabilities are not calibrated"],
-      ["scope", "Displayed main totals; excludes slippage and size-specific fee rounding"],
-      ["updated", fmtShortET(quote.updated_at)],
-    ],
-  };
-  return `<td class="book best-price" data-hk="${hk}">${esc(bookLabel(quote.book))}<span class="sub">${totalPriceLabel(quote)}</span>`
-    + `<span class="sub">Est. EV ${roiLabel(quote.ev_roi)}${quote.ev_roi <= 0 ? " · no +EV" : ""}</span></td>`;
+  HOVER[hk] = {label: `Stadium history · ${gameLabel(g)}`, lines: evidence};
+  return `<td class="left stadium-cell" data-hk="${hk}"><button type="button" class="stadium-detail" data-game="${esc(g.game_id)}" aria-label="Stadium orientation, wind and historical signal details">
+    <span class="compass compact-compass">${typeof compassSvg === "function" ? compassSvg(g) : 'Diagram unavailable'}</span><span class="stadium-summary">${esc(g.stadium?.name || "Stadium unavailable")}
+    <span class="sub">${isNum(g.weather?.wind_fg) ? fmtNum(g.weather.wind_fg, 1) + ' mph' : 'Wind unavailable'} ${esc(g.weather?.wind_dir_fg || '')}</span>
+    ${!isNum(g.stadium?.orient_deg) ? '<span class="sub">Axis unknown</span>' : ''}${!isNum(g.weather?.wind_dir_deg) ? '<span class="sub">Direction unknown</span>' : ''}</span></button>
+    ${typeof stadiumSignalCompact === "function" ? stadiumSignalCompact(g) : ''}${typeof stadiumClimateCompact === "function" ? stadiumClimateCompact(g) : ''}${coordinateControl(g)}</td>`;
 }
 
-function coordinateLabel(g) {
-  const st = g.stadium || {};
-  return isNum(st.lat) && isNum(st.lon)
-    ? `${Number(st.lat).toFixed(2)}, ${Number(st.lon).toFixed(2)}` : "";
+// ── sorting (pure; unit-tested in site/worker/test/table-sort.test.mjs) ──────
+// Missing = null/undefined/NaN/+-Infinity/"" (sort keys use -Infinity for "no value"). Missing always
+// sorts last in either direction; ties break on kickoff then game_id so the order is deterministic.
+function sortMissing(v) {
+  return v == null || v === "" || v === -Infinity || v === Infinity || (typeof v === "number" && Number.isNaN(v));
+}
+function compareSortValues(x, y, dir) {
+  const mx = sortMissing(x), my = sortMissing(y);
+  if (mx || my) return mx && my ? 0 : mx ? 1 : -1;
+  let c;
+  if (typeof x === "string" || typeof y === "string") c = String(x).localeCompare(String(y));
+  else c = x === y ? 0 : x < y ? -1 : 1;
+  return c * (dir < 0 ? -1 : 1);
+}
+function sortGames(rows, key, dir) {
+  const kick = (g) => { const t = Date.parse(g.kickoff_utc); return Number.isNaN(t) ? Infinity : t; };
+  return rows.sort((a, b) => compareSortValues(key(a), key(b), dir)
+    || (kick(a) === kick(b) ? 0 : kick(a) < kick(b) ? -1 : 1)
+    || String(a.game_id).localeCompare(String(b.game_id)));
+}
+// column spec: [label, title, sortKey, cell, id]; STATE.sort holds the id string so the sort survives
+// the Book filter / spread-column toggle changing the column set.
+const FIXED_COLUMN_IDS = ["game", "discovery", "stadium", "temp", "wind", "gust", "rain", "gs", "away", "signal", "spread", "total"];
+function sortColumnId(cols, id) { return cols.find((c) => c[4] === id) || null; }
+function warnBookHeader(label, bk, sport) {
+  const h = typeof bookHealthFor === "function" ? bookHealthFor(DATA.meta, bk, sport) : null;
+  if (!h || !(h.consecutive_empty > 0)) return {label, tip: ""};
+  const ok = h.last_ok_utc && typeof fmtShortET === "function" ? fmtShortET(h.last_ok_utc) : "never";
+  const tip = `${bookLabel(bk)}: 0 lines for ${h.consecutive_empty} run${h.consecutive_empty === 1 ? "" : "s"}, last OK ${ok}`
+    + (h.last_error ? ` — ${h.last_error}` : "");
+  return {label: `${label} ⚠`, tip};
+}
+function gameStarted(g) {
+  const st = String(g.status || "").toLowerCase();
+  if (/final/.test(st)) return "Final";
+  if (/live|progress|in_play|half/.test(st)) return "Live";
+  if (/cancel|postpon|suspend|tbd|unknown/.test(st)) return "";
+  const t = Date.parse(g.kickoff_utc);
+  return !Number.isNaN(t) && t < Date.now() ? "Live" : "";
+}
+function gameStateBadge(g) {
+  const s = gameStarted(g);
+  return s ? ` <span class="pill ${s === "Final" ? "ok" : "warn"} game-state" title="Game ${s === "Final" ? "finished" : "started"}">${s}</span>` : "";
 }
 
 function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const w = (k) => (g) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
-    ["Game", "Away @ Home · kickoff ET. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Lat, Lon", "Venue coordinates to two decimals; select and copy into Windy", coordinateLabel],
+    ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
+    ["Discovery", "Process screen: cold + sustained wind or heavy rain. Likelihood is separate from impact severity", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
+    ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
     ["Gust", "Forecast gust mph", w("gust_fg")],
@@ -208,18 +336,17 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Signal", "Weather signal severity + matched filters", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus baseline → now. CFB targets kickoff minus 6 days, falling back to first observed if collected later; NFL uses first seen. Pinnacle-weighted.", cons("total_now")],
-    ["Best under", "Under with highest estimated return per dollar staked; accounts for price and integer-total pushes",
-      (g) => totalPriceQuotes(g, "under")[0]?.ev_roi ?? -Infinity, bestPriceCell],
   ];
+  cols.forEach((c, i) => { c[4] = FIXED_COLUMN_IDS[i]; });
   for (const bk of books) {
     if (withSpreads) {
       cols.push([`${bookLabel(bk)} S`, `${bookLabel(bk)} spread open → now; chip = edge pts vs fair`,
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
-        (g) => bookSpreadCell(g, bk)]);
+        (g) => bookSpreadCell(g, bk), `${bk}:s`]);
     }
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} total baseline → now; CFB targets kickoff minus 6 days with first-observed fallback; hover = baseline time and under price; edge chip = pts vs fair`,
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} current under total / price; baseline, movement, source time and edge in hover or details`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
-      (g) => bookTotalCell(g, bk)]);
+      (g) => bookTotalCell(g, bk), `${bk}:t`]);
   }
   return cols;
 }
@@ -234,38 +361,42 @@ function renderTable(rows, opts = {}) {
   const tbody = document.querySelector("#table tbody");
   const books = STATE.book ? [STATE.book] : BOOKS;
   const cols = tableColumns(books, BOOK_SPREADS);
-  thead.innerHTML = "<tr>" + cols.map(([label, title], i) => {
-    const arrow = STATE.sort === i ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
-    return `<th data-col="${i}" class="sortable" title="${esc(title)}">${esc(label)}${arrow}</th>`;
+  const active = sortColumnId(cols, STATE.sort);
+  thead.innerHTML = "<tr>" + cols.map(([label, title, , , id]) => {
+    const on = !!active && active[4] === id;
+    const arrow = on ? (STATE.dir < 0 ? " ▾" : " ▴") : "";
+    const bk = /:[st]$/.test(id) ? id.replace(/:[st]$/, "") : null;
+    const warn = bk ? warnBookHeader(label, bk, STATE.sport) : {label, tip: ""};
+    return `<th data-col="${esc(id)}" tabindex="0" role="button" aria-sort="${on ? (STATE.dir < 0 ? "descending" : "ascending") : "none"}" class="sortable${warn.tip ? " book-warn" : ""}" title="${esc(warn.tip ? warn.tip + "\n" + title : title)}">${esc(warn.label)}${arrow}</th>`;
   }).join("") + "</tr>";
   thead.querySelectorAll("th.sortable").forEach((th) => th.addEventListener("click", () => {
-    const c = +th.dataset.col; STATE.dir = STATE.sort === c ? -STATE.dir : -1; STATE.sort = c; render();
+    const c = th.dataset.col; STATE.dir = STATE.sort === c ? -STATE.dir : -1; STATE.sort = c; render();
   }));
 
-  rows = rows.slice();
-  if (STATE.sort != null && cols[STATE.sort]) {
-    const key = cols[STATE.sort][2];
-    rows.sort((a, b) => {
-      const x = key(a), y = key(b);
-      if (typeof x === "string" || typeof y === "string") return String(x).localeCompare(String(y)) * -STATE.dir;
-      return (x - y) * STATE.dir;
-    });
+  thead.querySelectorAll("th.sortable").forEach(th => th.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
+  }));
+  rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || hardEligible(g)));
+  const sortCol = STATE.sort != null ? sortColumnId(cols, STATE.sort) : null;
+  if (sortCol) {
+    sortGames(rows, sortCol[2], STATE.dir);
+    // started/final games sink below upcoming ones regardless of the chosen column
+    if (rows.some(gameStarted)) rows = rows.filter((g) => !gameStarted(g)).concat(rows.filter(gameStarted));
   } else if (!opts.keepOrder) {
-    rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0));
+    rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0) || String(a.game_id).localeCompare(String(b.game_id)));
   }
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">No games for this sport/week/filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">${typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[STATE.sport]) ? "Game data unavailable; reload to retry." : "No eligible candidates for these filters. Inspect low likelihood / unknown to review other open-air games."}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((g) => {
     const wx = g.weather || {};
-    const st = g.stadium || {};
     const dome = isDome(g);
     const v1 = (g.impact && g.impact.v1) || {};
-    const coordinates = coordinateLabel(g);
     const tds = [
-      `<td class="game" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}${g.neutral ? ' <span class="sub">(N)</span>' : ""}<span class="sub">${esc(kickoffLabel(g))}</span></td>`,
-      `<td class="left" title="${esc(st.name || "Coordinates unavailable")}">${coordinates ? `<span class="coordinates">${esc(coordinates)}</span>` : '<span class="muted">—</span>'}</td>`,
+      `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${gameStateBadge(g)}${tableKickoffHtml(g)}</td>`,
+      `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
+      tableStadiumHtml(g),
       `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
       `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
       `<td>${fmtNum(wx.gust_fg, 0)}</td>`,
@@ -277,7 +408,15 @@ function renderTable(rows, opts = {}) {
       consensusTotalCell(g),
     ];
     for (const col of cols) { if (typeof col[3] === "function") tds.push(col[3](g)); }
-    return `<tr class="${dome ? "dome" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
+    return `<tr class="${dome ? "dome" : ""}${gameStarted(g) ? " started" : ""}" data-game="${esc(g.game_id)}">${tds.join("")}</tr>`;
   }).join("");
-  tbody.querySelectorAll("td.game").forEach((td) => td.addEventListener("click", () => openDrawer(td.dataset.game)));
+  tbody.querySelectorAll(".game-detail").forEach((button) => button.addEventListener("click", () => openDrawer(button.dataset.game)));
+  tbody.querySelectorAll(".stadium-detail, .book-total-detail").forEach(button => button.addEventListener("click", () => {
+    openDrawer(button.dataset.game);
+    if (button.classList.contains("stadium-detail")) {
+      const history = document.querySelector("#drawer-stadium-history details");
+      if (history) { history.open = true; history.querySelector("summary").focus(); }
+    }
+    if (button.classList.contains("book-total-detail")) document.getElementById("drawer-odds-heading")?.focus();
+  }));
 }

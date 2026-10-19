@@ -71,8 +71,10 @@ import os
 import re
 import shutil
 import sys
+import threading
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -80,12 +82,15 @@ from typing import Any
 
 from pipeline import alerts as alerts_mod
 from pipeline import state as pstate
-from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
+from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast, actionable_lines
 from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
 from pipeline.model import signals
+from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
+from pipeline.odds import handoff
+from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
 from pipeline.outputs import r2 as r2_out
@@ -141,10 +146,6 @@ BOOK_ORDER = HTTPX_BOOKS + PLAYWRIGHT_BOOKS
 # Golf's SIM_BOOKS: a book at 0 rows while >=2 of these report is "dark", not "no market".
 CRITICAL_BOOKS = frozenset({"pinnacle", "betonline", "betcris", "fanduel"})
 # ARCH §7.3 consensus weights.
-BOOK_WEIGHTS: dict[str, float] = {
-    "pinnacle": 3.0, "betonline": 2.0, "betcris": 1.5, "fanduel": 1.0, "draftkings": 1.0,
-    "kalshi": 1.0, "novig": 1.0, "prophetx": 0.75,
-}
 CONSENSUS_BOOK = "consensus"
 # Legacy "now" columns: CFB = FanDuel (as before), NFL = BetOnline; fallback = consensus.
 LEGACY_NOW_BOOK = {"nfl": "betonline", "cfb": "fanduel"}
@@ -280,6 +281,14 @@ def _is_conus(st: Stadium) -> bool:
     return 24.0 <= st.lat <= 50.0 and -125.0 <= st.lon <= -66.0
 
 
+def weather_workers() -> int:
+    """Concurrent Open-Meteo batches; FOOTBALL_WEATHER_WORKERS=1 restores sequential."""
+    try:
+        return max(1, min(8, int(os.environ.get("FOOTBALL_WEATHER_WORKERS", "3"))))
+    except ValueError:
+        return 3
+
+
 def _fetch_point_batches(
     points: Sequence[tuple[float, float]],
     fetcher: Callable[..., Sequence[Any]],
@@ -298,6 +307,41 @@ def _fetch_point_batches(
     """
     fetched: dict[tuple[float, float], Any] = {}
     failures: list[tuple[int, int, Exception]] = []
+    workers = weather_workers()
+    # A callable batch_size packs against live budget headroom, so planning must
+    # stay sequential; fixed sizes can be planned up front and fetched in a pool.
+    if workers > 1 and not callable(batch_size) and len(points) > batch_size >= 1:
+        plan = [list(points[i:i + batch_size]) for i in range(0, len(points), batch_size)]
+        capture = kwargs.get("capture")
+        if capture is not None:
+            lock = threading.Lock()
+
+            def locked_capture(*args: Any, **kw: Any) -> Any:
+                with lock:  # RawStore.put mutates a shared manifest
+                    return capture(*args, **kw)
+
+            kwargs = {**kwargs, "capture": locked_capture}
+
+        def run(index: int, batch: list[tuple[float, float]]) -> list[Any]:
+            batch_kwargs = dict(kwargs)
+            if point_windows is not None:
+                batch_kwargs["start"] = min(point_windows[point][0] for point in batch)
+                batch_kwargs["end"] = max(point_windows[point][1] for point in batch)
+            parsed = list(fetcher(batch, source_prefix=f"{source_prefix}_batch{index:02d}", **batch_kwargs))
+            if len(parsed) != len(batch):
+                raise RuntimeError(f"provider returned {len(parsed)} locations for {len(batch)} points")
+            return parsed
+
+        with ThreadPoolExecutor(max_workers=min(workers, len(plan))) as pool:
+            futures = [pool.submit(run, index, batch) for index, batch in enumerate(plan)]
+        for index, (batch, future) in enumerate(zip(plan, futures, strict=True)):
+            try:
+                fetched.update(zip(batch, future.result(), strict=True))
+                if received is not None:
+                    received(batch)
+            except Exception as exc:  # noqa: BLE001 - caller records one aggregate degradation
+                failures.append((index, len(batch), exc))
+        return fetched, failures
     offset, batch_index = 0, 0
     while offset < len(points):
         remaining = list(points[offset:])
@@ -466,6 +510,7 @@ def stage_weather(
                           "not_sampled_point_unavailable" if not decision.eligible and decision.priority == 2 else
                           "not_sampled_below_signal_buffer" if not decision.eligible else
                           "unavailable_degraded" if stats is None else
+                          "retained_members_degraded" if trace.get("unverified_sources") else
                           "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
                           or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
                           else "aged_members" if trace.get("aged_sources") else "full_members")
@@ -479,6 +524,8 @@ def stage_weather(
                     ensemble_fetched_at=trace.get("fetched_at", {}), ensemble_source_versions=trace.get("source_versions", {}),
                     ensemble_cached_sources=trace.get("cached_sources", []),
                     ensemble_aged_sources=trace.get("aged_sources", []),
+                    ensemble_unverified_sources=trace.get("unverified_sources", []),
+                    ensemble_verification_errors=trace.get("errors", {}),
                 )
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")
@@ -603,6 +650,62 @@ async def scrape_books(
             detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
             degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
     return out, scrapers
+
+
+def ingest_book_lines(ctx: RunContext, sport: str, name: str, ingest_dir: Path) -> tuple[list[GameLine], Any]:
+    """Load one Playwright book's handoff. A missing file reads as a failed scrape
+    (0 lines, fetch error for book health); stale/expired lines are dropped, never
+    re-stamped, so ``scraped_at`` stays the time the book was actually seen."""
+    ing = handoff.load_lines(ingest_dir, sport, name, now=ctx.now_utc, max_age=ODDS_CARRY_MAX_AGE)
+    for problem in ing.problems:
+        ctx.degrade("odds.ingest", f"{sport}: {name} {problem}", "warn")
+    dropped = ing.rejected_stale + ing.rejected_expired + ing.rejected_invalid
+    if dropped:
+        ctx.degrade("odds.ingest", f"{sport}: {name} handoff dropped {dropped} line(s) "
+                    f"(older than {ODDS_CARRY_MAX_AGE}: {ing.rejected_stale}, expired: {ing.rejected_expired}, "
+                    f"invalid: {ing.rejected_invalid})", "warn")
+    errors = getattr(ing.scraper, "fetch_errors", {})
+    if errors and not ing.missing:
+        detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
+        ctx.degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
+    oldest = min((ln.scraped_at for ln in ing.lines if ln.scraped_at is not None), default=None)
+    age = f", oldest {int((ctx.now_utc - oldest).total_seconds())}s old" if oldest is not None else ""
+    print(f"  ingest {name:<10} {sport}: {len(ing.lines)} lines from run {ing.run_id or '-'}{age}")
+    return ing.lines, ing.scraper
+
+
+def scrape_only(sports: Sequence[str], out_dir: Path, *, books: Sequence[str] | None = None,
+                raw_dir: Path = DEFAULT_BASE, run_id: str | None = None) -> int:
+    """Parallel CI job: scrape the Playwright books and write raw captures plus a
+    ``pipeline.odds.handoff`` file per sport/book. Reads no state and writes nothing
+    to R2; the publish job ingests the handoff after the light job. A book that fails
+    still gets a (0-line) handoff carrying its fetch errors."""
+    ctx = RunContext(sport="all" if len(sports) > 1 else sports[0], scope="scrape-only", run_id=run_id or "")
+    try:
+        book_list = books_for_scope("odds", books or list(PLAYWRIGHT_BOOKS))
+    except ValueError as exc:
+        ctx.degrade("scope", str(exc), "error")
+        book_list = []
+    merge_mod = _import("pipeline.odds.merge")
+    rg_fn = getattr(merge_mod, "raw_games_from_scraper", None)
+    for sport in sports:
+        raw = RawStore(sport, ctx.run_id, raw_dir)
+        with ctx.stage(f"{sport}.scrape"):
+            per_book, scrapers = _run_async(scrape_books(sport, book_list, raw, ctx.run_id, ctx.degrade))
+        raw.finalize()
+        for name in book_list:
+            scraper = scrapers.get(name)
+            lines = per_book.get(name, [])
+            raw_games = list(rg_fn(scraper, name, sport).values()) if callable(rg_fn) and scraper is not None else []
+            errors = dict(getattr(scraper, "fetch_errors", None) or {})
+            if scraper is None:
+                errors.setdefault(sport, "scraper unavailable")
+            path = handoff.dump_lines(out_dir, sport, name, lines, run_id=ctx.run_id, raw_games=raw_games,
+                                      fetch_errors=errors)
+            print(f"  scrape-only {name:<10} {sport}: {len(lines):>4} lines / {len(raw_games):>3} games -> {path}")
+    for line in ctx.summary_lines():
+        print(line)
+    return 1 if any(d.severity == "error" for d in ctx.degradations) else 0
 
 
 def _run_async(coro: Any) -> Any:
@@ -893,7 +996,7 @@ class ConsensusLine:
     n_books: int
     ref_book: str | None
     side: str  # the side whose line/odds this is (home for spread, under for total)
-    src: str | None = None  # spread: averaged members ("cris+bol+pin" subset) or "fallback"
+    src: str | None = None  # spread: averaged members ("bol+pin" subset) or "fallback"
 
 
 def _average_spread(per_book: dict[str, float]) -> tuple[float | None, str]:
@@ -919,13 +1022,18 @@ def weighted_median(values: Sequence[tuple[float, float]]) -> float | None:
     return pts[-1][0]
 
 
-def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, float] | None = None) -> dict[tuple[str, str], ConsensusLine]:
+def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, float] | None = None,
+                    now: datetime | None = None) -> dict[tuple[str, str], ConsensusLine]:
     """``(game_id, market)`` -> weighted-median main line across books (spread: home side,
     total: under side). ``ref_book`` = heaviest book sitting on the consensus number."""
     w = weights or BOOK_WEIGHTS
     side_for = {"spread": "home", "total": "under"}
     by_key: dict[tuple[str, str], dict[str, GameLine]] = {}
     for ln in lines:
+        if ln.book in model_config.REFERENCE_BOOKS:
+            continue
+        if now is not None and ln.reference_only(now):
+            continue
         if ln.sport != sport or not ln.is_main or ln.market not in side_for or ln.side != side_for[ln.market]:
             continue
         if ln.line is None or ln.book == CONSENSUS_BOOK:
@@ -938,15 +1046,15 @@ def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, fl
         if key[1] == "spread":
             med, src = _average_spread({b: float(ln.line) for b, ln in per_book.items() if ln.line is not None})
         if med is None:
-            med = weighted_median([(ln.line, w.get(b, 0.5)) for b, ln in per_book.items()])
+            med = weighted_median([(ln.line, w.get(b, DEFAULT_BOOK_WEIGHT)) for b, ln in per_book.items()])
         if med is None:
             continue
-        on_line = [(w.get(b, 0.5), b, ln) for b, ln in per_book.items() if ln.line == med]
+        on_line = [(w.get(b, DEFAULT_BOOK_WEIGHT), b, ln) for b, ln in per_book.items() if ln.line == med]
         on_line.sort(key=lambda t: -t[0])
         ref = on_line[0] if on_line else None
         if ref is None and src not in (None, model_config.SPREAD_SRC_FALLBACK):
             # averaged spread sits between the books: heaviest member is the reference
-            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, 0.5))
+            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, DEFAULT_BOOK_WEIGHT))
             ref = (w.get(heavy, 0.5), heavy, per_book[heavy])
         out[key] = ConsensusLine(
             line=med, odds=ref[2].odds if ref else None, n_books=len(per_book),
@@ -973,7 +1081,7 @@ def _external_consensus(mod: Any, sport: str, lines: Sequence[GameLine], ctx: Ru
     try:
         for game_id, glines in by_game.items():
             for market, side in side_for.items():
-                c = fn(sport, glines, market)
+                c = fn(sport, glines, market, now=ctx.now_utc)
                 line = getattr(c, "line", None)
                 if line is None:
                     continue
@@ -1034,7 +1142,7 @@ def retarget_cfb_total_openers(
         market="total",
         excluded_books=(CONSENSUS_BOOK,),
     ))
-    store = openers.setdefault("openers", {})
+    store = openers.setdefault('references', {}).setdefault('t_minus_6d', {})
 
     for game_id, target in targets.items():
         side_rows: dict[str, dict[str, tuple[dict[str, Any], datetime]]] = {}
@@ -1068,14 +1176,14 @@ def retarget_cfb_total_openers(
         before = [row for row in rows if row[1][2] <= target]
         if before:
             rows = before
-        weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], 0.5)) for row in rows]
+        weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], DEFAULT_BOOK_WEIGHT)) for row in rows]
         line = weighted_median(weighted)
         if line is None:
             continue
         refs = [row for row in rows if float(row[1][1]["line"]) == line]
         ref_book, (ref_side, ref_val, _ref_ts) = max(
             refs,
-            key=lambda row: BOOK_WEIGHTS.get(row[0], 0.5),
+            key=lambda row: BOOK_WEIGHTS.get(row[0], DEFAULT_BOOK_WEIGHT),
         )
         source_ts = max(row[1][2] for row in rows)
         key = pstate.odds_key(game_id, "total", "under", CONSENSUS_BOOK)
@@ -1104,7 +1212,7 @@ def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
         if market != "spread" or c.line is None:
             continue
         out.append(GameLine(sport=sport, game_id=game_id, book=CONSENSUS_BOOK, market="spread", side="home",
-                            odds=int(c.odds) if c.odds is not None else 0, line=float(c.line), is_main=True,
+                            odds=None, line=float(c.line), is_main=True,
                             source_id=c.src, scraped_at=now, run_id=run_id))
     return out
 
@@ -1119,7 +1227,7 @@ def _pick(lines_by_game: dict[str, list[GameLine]], game_id: str, book: str, mar
 
 
 def _opener(openers: dict, game_id: str, market: str, side: str, book: str) -> dict | None:
-    return pstate.get_opener(openers, pstate.odds_key(game_id, market, side, book))
+    return pstate.get_baseline(openers, pstate.odds_key(game_id, market, side, book))
 
 
 def legacy_odds(
@@ -1198,6 +1306,7 @@ class OddsResult:
     new_opener_keys: list[str] = dataclasses.field(default_factory=list)
     pseudo: list[GameLine] = dataclasses.field(default_factory=list)    # consensus spread as book='consensus' rows
     opener_update_keys: list[str] = dataclasses.field(default_factory=list)  # rebased existing rows -> D1 upsert
+    last_observed: dict[str, dict] = dataclasses.field(default_factory=dict)  # descriptive only; never current lines
 
 
 def stage_odds(
@@ -1210,14 +1319,24 @@ def stage_odds(
     state_dir: Path,
     season: int | None,
     dry_run: bool = False,
+    ingest_dir: Path | None = None,
 ) -> OddsResult:
     """``games`` is the odds-horizon schedule (``split_schedule``): every game in it
     is matched and gets openers / archive_last / deltas / consensus, card or not."""
     if not books:
         return OddsResult([], {}, pstate.load_openers(state_dir), {}, [], {})
     raw_arg: RawStore | None = None if isinstance(raw, NullRawStore) else raw
+    # --ingest-lines: Playwright books were scraped by the parallel CI job; read its
+    # handoff (scraped_at preserved, stale/expired lines rejected) instead of scraping.
+    ingest_books = [b for b in books if ingest_dir is not None and b in PLAYWRIGHT_BOOKS]
+    live_books = [b for b in books if b not in ingest_books]
     with ctx.stage(f"{sport}.scrape"):
-        per_book, scrapers = _run_async(scrape_books(sport, books, raw_arg, ctx.run_id, ctx.degrade))
+        per_book, scrapers = (_run_async(scrape_books(sport, live_books, raw_arg, ctx.run_id, ctx.degrade))
+                              if live_books else ({}, {}))
+    if ingest_books and ingest_dir is not None:
+        with ctx.stage(f"{sport}.ingest"):
+            for name in ingest_books:
+                per_book[name], scrapers[name] = ingest_book_lines(ctx, sport, name, ingest_dir)
     all_lines: list[GameLine] = []
     per_book_n: dict[str, int] = {}
     for name in books:
@@ -1235,6 +1354,21 @@ def stage_odds(
         print(f"  odds {name:<10} {sport}: {len(lines):>4} lines / {n_games:>3} games {detail}")
         if not lines:
             ctx.degrade("odds", f"{sport}: {name} returned 0 lines", "warn")
+
+    # Cross-run per-book health (only books scraped this run; carried books are untouched).
+    if not dry_run:
+        try:
+            errs: dict[str, str] = {}
+            for name in books:
+                fe = getattr(scrapers.get(name), "fetch_errors", None)
+                if fe:
+                    errs[name] = "; ".join(f"{k}: {v}" if k != sport else str(v) for k, v in fe.items())
+            health = pstate.load_book_health(state_dir)
+            pstate.update_book_health(health, sport, {n: per_book_n[n] for n in books if n in scrapers}, errs,
+                                      now=utc_iso(ctx.now_utc), horizon_games=len(games))
+            pstate.save_book_health(state_dir, health)
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("odds.health", f"{sport}: book health update failed (non-fatal): {exc}", "warn")
 
     # Active volume health incident; alerts.json owns successful-delivery dedup
     # so transport failures retry without NFL/CFB scope switches re-arming it.
@@ -1289,6 +1423,10 @@ def stage_odds(
     if carried:
         n_books = len({ln.book for ln in carried})
         print(f"  carried {sport}: {len(carried)} lines from {n_books} unscraped book(s) (archive_last)")
+    # One main pair per (game, book, market): every consumer below (consensus, openers,
+    # history/D1, per-game fair + odds_block) sees the same normalized rows.
+    lines = select_main_lines(lines)
+    carried = select_main_lines(carried)
     board_lines = list(lines) + carried
 
     # consensus / fair
@@ -1300,19 +1438,23 @@ def stage_odds(
         else:
             consensus = _external_consensus(fair_mod, sport, board_lines, ctx)
         if consensus is None:
-            consensus = consensus_lines(sport, board_lines)
+            consensus = consensus_lines(sport, board_lines, now=ctx.now_utc)
 
     # state: first-seen openers except CFB totals, which use the T-6-day snapshot;
     # archive_last remains the most recently seen value per key
     with ctx.stage(f"{sport}.state"):
         now = utc_iso(ctx.now_utc)
         main_lines = [ln for ln in lines if ln.is_main]
+        # A BetCris print past the provider TTL stays on the board, but it is not
+        # an opener, a history point, or a closing used for CLV.
+        priced_lines = actionable_lines(main_lines, ctx.now_utc)
         before_keys = set(openers.get("openers") or {})
-        added = pstate.record_openers(openers, main_lines, now)
+        added = pstate.record_openers(openers, priced_lines, now)
         added += pstate.record_openers(openers, consensus_pseudo_lines(consensus, sport), now)
-        record_weekly_totals(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+        record_weekly_totals(openers, pstate.load_history(state_dir), priced_lines, games, ctx.now_utc)
+        json_out.freeze_consensus_spread_openers(openers, sorted(active_ids), now)
         opener_update_keys = (
-            retarget_cfb_total_openers(openers, pstate.load_history(state_dir), main_lines, games, ctx.now_utc)
+            retarget_cfb_total_openers(openers, pstate.load_history(state_dir), priced_lines, games, ctx.now_utc)
             if sport == "cfb" else []
         )
         new_keys = sorted(set(openers.get("openers") or {}) - before_keys)
@@ -1322,7 +1464,7 @@ def stage_odds(
         last = archive.setdefault("last", {})
         # consensus spread rides along as book='consensus' (history / D1 / closings), never carried forward
         pseudo = consensus_spread_lines(consensus, sport, ctx.now_utc, ctx.run_id)
-        deltas = d1_out.odds_deltas(main_lines + pseudo, last)  # change-only set BEFORE last is advanced
+        deltas = d1_out.odds_deltas(priced_lines + pseudo, last)  # change-only set BEFORE last is advanced
         # Keep historical observations, but an empty/partial scrape withdraws its
         # missing quotes from later jobs. Do not resurrect them from archive_last.
         for key, value in last.items():
@@ -1335,7 +1477,10 @@ def stage_odds(
                 last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
             if ln.expires_at is not None:
                 last[ln.key]["expires_at"] = utc_iso(ln.expires_at)
-        pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
+            if ln.actionable_until is not None:
+                last[ln.key]["actionable_until"] = utc_iso(ln.actionable_until)
+        if _prune_allowed(archive, sport, len(active_ids), ctx, "archive_last"):
+            pstate.prune_archive_last(archive, _active_for(last, sport, active_ids))
         if not dry_run:
             pstate.save_openers(state_dir, openers)
             pstate.save_archive_last(state_dir, archive)
@@ -1349,7 +1494,59 @@ def stage_odds(
     ctx.count("odds", sport, len(lines))
     return OddsResult(board_lines, consensus, openers, by_game, unresolved, per_book_n,
                       scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo,
-                      opener_update_keys=opener_update_keys)
+                      opener_update_keys=opener_update_keys,
+                      last_observed=last_observed_totals(archive, sport, active_ids, ctx.now_utc))
+
+
+def last_observed_totals(archive: dict, sport: str, active_ids: set[str], now: datetime) -> dict[str, dict]:
+    """Retain observed under references when partial runs cannot carry current prices.
+
+    This display-only block never enters GameLine, consensus, model or execution.
+    Preserve original book clocks, including failed-source availability evidence.
+    """
+    out: dict[str, dict] = {}
+    for key, value in (archive.get("last") or {}).items():
+        parts = key.split("|")
+        if len(parts) != 4 or not isinstance(value, dict):
+            continue
+        gid, market, side, book = parts
+        if gid not in active_ids or not gid.startswith(f"{sport}:") or market != "total" or side != "under" or book == CONSENSUS_BOOK:
+            continue
+        if value.get("line") is None or value.get("odds") is None:
+            continue
+        stamp = pstate.parse_utc(value.get("ts"))
+        expiry = pstate.parse_utc(value.get("expires_at"))
+        status = "unavailable" if value.get("available") is False else "unknown"
+        if value.get("available") is True and stamp is not None and stamp <= now:
+            status = "expired" if expiry and expiry < now else "stale" if now - stamp > ODDS_CARRY_MAX_AGE else "current"
+        out.setdefault(gid, {})[book] = {"line": value.get("line"), "under": value.get("odds"),
+            "updated_at": value.get("ts"), "source_updated_at": value.get("source_updated_at"),
+            "expires_at": value.get("expires_at"), "status": status}
+    return out
+
+
+PRUNE_SHRINK_MIN = 0.7
+
+
+def _prune_allowed(store: dict, sport: str, n_active: int, ctx: Any, label: str) -> bool:
+    """False when the schedule is empty or shrank >30% vs the last pruned run.
+
+    A failed/partial schedule fetch (e.g. ESPN current-week fallback) must not
+    delete state for games that merely dropped out of the slate. The reference
+    count resets when pruning proceeds and decays 15% per skipped run, so a
+    one-off bad fetch is guarded while a genuine slate shrink (bye weeks, CFB
+    championship week) resumes pruning after a few runs.
+    """
+    guard = store.setdefault("prune_guard", {})
+    prev = guard.get(sport)
+    prev_n = int(prev) if isinstance(prev, (int, float)) and not isinstance(prev, bool) else 0
+    if n_active <= 0 or (prev_n and n_active < prev_n * PRUNE_SHRINK_MIN):
+        ctx.degrade(f"{sport}.state", f"{sport}: {label} prune skipped (schedule {n_active} games vs {prev_n} last pruned run)", "warn")
+        if n_active > 0:
+            guard[sport] = max(n_active, int(prev_n * 0.85))
+        return False
+    guard[sport] = n_active
+    return True
 
 
 def _active_for(store: dict, sport: str, active_ids: set[str]) -> set[str]:
@@ -1386,7 +1583,8 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
                                 odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at,
                                 source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {},
-                                source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at))
+                                source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at,
+                                actionable_until=pstate.parse_utc(val.get("actionable_until"))))
         except (TypeError, ValueError):
             continue
     return out
@@ -1434,8 +1632,18 @@ def build_record(
     temp_fg = fc.temp_fg if fc else None
     wind_fg = fc.wind_fg if fc else None
     rain_fg = fc.rain_fg_mm if fc else None
+    # v1 impact stays on the stitch. The published tier follows the process
+    # forecast (ECMWF beyond 48 h) when that forecast is present.
+    if fc is not None and getattr(fc, "signal_source", None):
+        drive_temp = fc.signal_temp_f
+        drive_wind = fc.signal_wind_mph
+        drive_rain = fc.signal_rain_mm
+    else:
+        drive_temp, drive_wind, drive_rain = temp_fg, wind_fg, rain_fg
     # Keep the outside forecast for display; it cannot drive covered-field signals.
     signal_temp, signal_wind, signal_rain = (temp_fg, wind_fg, rain_fg) if exposed else (None, None, None)
+    if not exposed:
+        drive_temp = drive_wind = drive_rain = None
 
     impact = compute_impact_v1(
         sport=sport,
@@ -1457,13 +1665,13 @@ def build_record(
 
     odds = dict(odds or {})
     if sport == "nfl":
-        sig = signals.nfl_signal(signal_wind, signal_temp, signal_rain)
+        sig = signals.nfl_signal(drive_wind, drive_temp, drive_rain)
     else:
         sig = signals.cfb_signal(
-            signal_wind, signal_temp, signal_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
+            drive_wind, drive_temp, drive_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
         )
     flags = signals.combined_flags(
-        sport, signal_wind, signal_temp, signal_open_spread, travel_alt, home_temp, away_temp
+        sport, drive_wind, drive_temp, signal_open_spread, travel_alt, home_temp, away_temp
     )
 
     rec = LegacyRecord(
@@ -1557,12 +1765,12 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
     removed = [line for line in res.odds.lines if expired(line.expires_at, now)]
     if not removed:
         return
-    res.odds.lines = [line for line in res.odds.lines if not expired(line.expires_at, now)]
+    res.odds.lines = select_main_lines([line for line in res.odds.lines if not expired(line.expires_at, now)])
     res.odds.by_game = {}
     for line in res.odds.lines:
         res.odds.by_game.setdefault(line.game_id, []).append(line)
     fair_mod = _import("pipeline.model.fair")
-    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines)
+    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines, now=now)
     for book, count in Counter(line.book for line in removed).items():
         counts = ctx.counts.get(book, {})
         if res.sport in counts:
@@ -1593,10 +1801,13 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
             records[gid].odds = current
         card = cards.get(gid)
         if card is not None:
-            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers)
+            evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
+            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers, res.odds.last_observed.get(gid))
             card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
             card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
             card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
+            card["total_prices"]["quote_evidence"] = list({json.dumps(q, sort_keys=True): q for q in
+                evidence + card["total_prices"].get("quote_evidence", [])}.values())
 
 
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],
@@ -1615,6 +1826,7 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
             model_disagreement=fc.model_disagreement if fc else None,
             lead_hours=fc.lead_hours if fc else None,
             model_version=model_version,
+            now=ctx.now_utc,
         )
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("model.fair", f"{game.game_id}: evaluate_game[{model_version}] failed ({type(exc).__name__}: {exc})", "warn")
@@ -1713,7 +1925,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
     with ctx.stage(f"{sport}.history"):
         hist = pstate.load_history(state_dir)
         # book lines + the consensus spread series (book='consensus'), the drawer chart / CLV source
-        n_pts = pstate.update_history(hist, [ln for ln in res.odds.scraped if ln.is_main] + list(res.odds.pseudo), now)
+        priced = actionable_lines([ln for ln in res.odds.scraped if ln.is_main], ctx.now_utc)
+        n_pts = pstate.update_history(hist, priced + list(res.odds.pseudo), now)
         fairs: dict[str, float] = {}
         for gid, gf in res.fairs.items():
             for market, side in (("total", "over"), ("spread", "home")):
@@ -1721,7 +1934,8 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
                 if isinstance(val, (int, float)):
                     fairs[f"{gid}|{market}|{side}"] = float(val)
         n_fair = pstate.update_fair_history(hist, fairs, now)
-        pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
+        if _prune_allowed(hist, sport, len(active), ctx, "history"):
+            pstate.prune_history(hist, _active_for(hist.get("series") or {}, sport, odds_active) | _active_for(hist.get("fair_series") or {}, sport, active))
         res.board_new_opener_keys = board_new_opener_keys(res, previous_run_finished(state_dir, sport), ctx.now_utc)
         wx_hist = json_out.load_wx_history(state_dir)
         wx_last = d1_out.load_wx_last(state_dir)
@@ -1745,6 +1959,7 @@ def run_sport(
     season: int | None,
     books: Sequence[str] = (),
     state_dir: Path = DEFAULT_STATE_DIR,
+    ingest_dir: Path | None = None,
 ) -> SportResult:
     with ctx.stage(f"{sport}.stadiums"):
         book = stage_stadiums(ctx, sport)
@@ -1771,14 +1986,16 @@ def run_sport(
 
     # CFB selection uses the same current opening consensus as its signal model.
     # Capture newly arriving book openers before weather; unknowns stay eligible.
-    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run) if sport == "cfb" else None
+    odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run,
+                      ingest_dir=ingest_dir) if sport == "cfb" else None
     wx_extras: dict[str, dict[str, Any]] = {}
     with ctx.stage(f"{sport}.weather"):
         forecasts = stage_weather(ctx, sport, games, stadiums, raw, roof_states, extras=wx_extras, state_dir=state_dir,
                                   openers=odds.openers if odds is not None else None)
 
     if odds is None:
-        odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run)
+        odds = stage_odds(ctx, sport, odds_games, book, raw, books, state_dir, season, dry_run=ctx.dry_run,
+                      ingest_dir=ingest_dir)
     if books:
         carded_ids = {g.game_id for g in games}
         n_priced = len(odds.by_game)
@@ -1847,7 +2064,8 @@ def run_sport(
                 sport, g, rg.stadium if rg else None, rg.home_team if rg else None, rg.away_team if rg else None,
                 fc, impact, sig, flags, lines=game_lines, openers=odds.openers, consensus=odds.consensus, fair=gf_alert,
                 legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=rec.avg_wind,
-                run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model, **card_kwargs,
+                run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model,
+                last_observed=odds.last_observed.get(g.game_id), **card_kwargs,
             ))
             rows.append({
                 "game_id": g.game_id,
@@ -2022,10 +2240,17 @@ def write_outputs(
                                   previous=(prev_meta or {}).get("books"))
     seasons = [r.season_week for r in results if r.season_week[0] is not None]
     season, week = min(seasons) if seasons else (None, None)
-    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(line.expires_at))
-                            for result in results for line in result.odds.lines if line.expires_at is not None)
+    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
+        line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
+        for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
+    try:
+        book_health = pstate.book_health_export(pstate.load_book_health(state_dir))
+    except Exception:  # noqa: BLE001
+        book_health = {}
+    weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+                               extra={"book_health": book_health, "weeks": weeks,
+                                      "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
                                       "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
                                                          for (b, s, m, e), n in expiry_groups.items()]})
     hist = pstate.load_history(state_dir)
@@ -2133,6 +2358,7 @@ def build(
     force: bool = False,
     weather_handoff_dir: Path | None = None,
     reuse_weather_dir: Path | None = None,
+    ingest_dir: Path | None = None,
 ) -> int:
     ctx = RunContext(sport="all" if len(sports) > 1 else sports[0], scope=scope, dry_run=dry_run,
                      run_id=run_id or "", **({"started_at": started_at} if started_at else {}))
@@ -2164,7 +2390,9 @@ def build(
     raw_files: dict[str, Path] = {}
     for sport in sports:
         raw: RawStore = NullRawStore(sport, ctx.run_id) if dry_run else RawStore(sport, ctx.run_id, raw_dir, mirror=mirror)
-        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir)
+        # ingest_dir only when set: keeps run_sport's long-standing call shape otherwise.
+        res = run_sport(ctx, sport, raw, season, books=book_list, state_dir=state_dir,
+                        **({"ingest_dir": ingest_dir} if ingest_dir is not None else {}))
         results.append(res)
         if print_rows:
             print(f"== {sport} ({len(res.records)} games)")
@@ -2242,6 +2470,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--force", action="store_true", help="skip the publish content floor")
     p.add_argument("--weather-handoff-dir", type=Path, help="save raw point inputs for this workflow's dependent job")
     p.add_argument("--reuse-weather-dir", type=Path, help="reuse matching same-workflow raw point inputs only")
+    p.add_argument("--scrape-only", type=Path, metavar="DIR",
+                   help="scrape the Playwright books only (raw captures + DIR/{sport}/{book}.json handoff); "
+                        "no schedule, state, outputs or R2")
+    p.add_argument("--ingest-lines", type=Path, metavar="DIR",
+                   help="read Playwright-book lines from a --scrape-only handoff instead of scraping them")
     return p.parse_args(argv)
 
 
@@ -2250,6 +2483,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     sports = list(SPORTS_ALL) if args.sport == "all" else [args.sport]
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+    books = [b for b in args.books.split(",")] if args.books else None
+    if args.scrape_only is not None:
+        return scrape_only(sports, args.scrape_only, books=books, raw_dir=args.raw_dir, run_id=args.run_id)
     return build(
         sports,
         scope=args.scope,
@@ -2260,7 +2496,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print_rows=args.print_rows,
         run_id=args.run_id,
         season=args.season,
-        books=[b for b in args.books.split(",")] if args.books else None,
+        books=books,
         state_dir=args.state_dir,
         alerts=args.alerts,
         alerts_stdout=args.alerts_stdout,
@@ -2272,6 +2508,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         force=args.force,
         weather_handoff_dir=args.weather_handoff_dir,
         reuse_weather_dir=args.reuse_weather_dir,
+        ingest_dir=args.ingest_lines,
     )
 
 

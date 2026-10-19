@@ -61,7 +61,7 @@ test('Different contract sizes rank by fee-inclusive cost per payout dollar and 
   assert.equal(allocateDepth([venue], 500, .4).spend, 0);
   // Tiny raw orders remain visible, with conservative rounding at the budget boundary.
   const tiny = { ...venue, coefficient: 0, levels: [{ price: .4, quantity: 1 }] };
-  assert.equal(allocateDepth([tiny], 1, .99).spend, 0);
+  assert.equal(allocateDepth([tiny], 1, .99).spend, .004);
   for (let cents = 100; cents < 5000; cents += 37) {
     const r = allocateDepth([venue], cents / 100, .99);
     assert.ok(r.spend <= cents / 100);
@@ -96,7 +96,9 @@ test('Novig participates in preview and alert $500 ladders without suggesting an
   assert.equal(alert.quotes[0].liquidity_shares, 600);
   assert.equal(alert.quotes[0].contract_value, .01);
   assert.equal(alert.quotes[0].odds, 150);
-  assert.deepEqual(alert.allocations.map(a => a.spend), [2.4, 497.6]);
+  assert.deepEqual(alert.allocations.map(a => a.spend), [2.4, 1000]);
+  assert.equal(alert.cash_stake_capacity, 1002.4);
+  assert.equal(alert.cash_liquidity_verified, true);
   assert.equal(alert.unspent, 0);
   assert.equal((await alertLiquidity(game, fetcher({ event: { status: 'OPEN_INGAME' } }))).spend, 0);
   assert.equal((await alertLiquidity(game, fetcher({ book: { orders: {} } }))).quotes[0].liquidity_status, 'empty');
@@ -110,4 +112,29 @@ test('Novig participates in preview and alert $500 ladders without suggesting an
   assert.match(html, /1¢ each/);
   assert.match(html, /Pending your confirmation/);
   assert.match(html, /does not verify or save fills/);
+});
+
+test('$500 means principal cash stake; fees, native contract count and payout do not satisfy it', async () => {
+  const priced = { orders: { [over]: [{ price: '.505', qty: 101010 }] } };
+  const result = await alertLiquidity(game, fetcher({ book: priced,
+    market: { fee: { coefficient: '.03', charged: 'ALWAYS' } } }));
+  assert.equal(result.cash_stake_capacity, 499.9995);
+  assert.ok(result.debit_capacity > 500 && result.payout_capacity > 1000);
+  assert.equal(result.cash_liquidity_verified, false);
+  assert.equal(result.capacity_status, 'insufficient_cash_capacity');
+  const small = await alertLiquidity(game, fetcher({ book: { orders: { [over]: [{ price: '.5', qty: 500 }] } } }));
+  assert.equal(small.cash_stake_capacity, 2.5);
+  assert.equal(small.cash_liquidity_verified, false);
+  const enough = await alertLiquidity(game, fetcher({ book: { orders: { [over]: [{ price: '.5', qty: 100000 }] } } }));
+  assert.equal(enough.cash_stake_capacity, 500);
+  assert.equal(enough.cash_liquidity_verified, true);
+});
+
+test('Unfavorable fee-inclusive offers stay visible as quotes but cannot pad acceptable capacity', async () => {
+  const lower = { ...game, total_prices: { quotes: [{ ...game.total_prices.quotes[0], win_prob: .39 }] } };
+  const result = await alertLiquidity(lower, fetcher());
+  assert.equal(result.quotes[0].liquidity_status, 'verified');
+  assert.deepEqual(result.allocations, []);
+  assert.equal(result.cash_stake_capacity, 0);
+  assert.equal(result.cash_liquidity_verified, false);
 });

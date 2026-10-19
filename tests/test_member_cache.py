@@ -152,3 +152,34 @@ def test_old_or_unknown_dataset_initialization_cannot_reuse_distant_members(init
     current = {"ecmwf_ifs025_ensemble": versions(NOW + timedelta(hours=6))}
     cache.put("ifs", POINT, original, location(), set(HOURS), NOW)
     assert cache.previous("ifs", POINT, current, set(HOURS), now=NOW, max_age_h=12) is None
+
+
+def test_retained_evidence_preserves_original_clocks_and_matches_location_hours():
+    cache = MemberCache(None, SIG)
+    original = {"ecmwf_ifs025_ensemble": versions()}
+    cache.put("ifs", POINT, original, location(), set(HOURS), NOW)
+    assert cache.retained("ifs", POINT, set(HOURS), now=NOW + timedelta(hours=2), max_age_h=3) == (location(), NOW.isoformat(), original)
+    assert cache.retained("ifs", POINT, set(HOURS), now=NOW + timedelta(hours=3), max_age_h=3) is None
+    assert cache.retained("ifs", (33., -96.), set(HOURS), now=NOW, max_age_h=3) is None
+    assert cache.retained("ifs", POINT, {HOURS[-1] + timedelta(hours=1)}, now=NOW, max_age_h=3) is None
+
+
+@pytest.mark.parametrize("bad", ["unknown_init", "expired_init", "future_init", "future_fetch", "wrong_dataset", "corrupt"])
+def test_failed_metadata_does_not_authorize_invalid_prior_evidence(bad):
+    cache = MemberCache(None, SIG)
+    original = {"ecmwf_ifs025_ensemble": versions()}
+    cache.put("ifs", POINT, original, location(), set(HOURS), NOW)
+    entry = cache.entries[cache.key("ifs", POINT)]
+    if bad == "unknown_init":
+        original["ecmwf_ifs025_ensemble"]["last_run_initialisation_time"] = None
+    elif bad == "expired_init":
+        original["ecmwf_ifs025_ensemble"]["last_run_initialisation_time"] -= 31 * 3600
+    elif bad == "future_init":
+        original["ecmwf_ifs025_ensemble"]["last_run_initialisation_time"] = int(NOW.timestamp()) + 1
+    elif bad == "future_fetch":
+        entry["fetched_by_hour"][HOURS[0].isoformat()] = (NOW + timedelta(seconds=1)).isoformat()
+    elif bad == "wrong_dataset":
+        entry["versions"] = {"ncep_gefs025": versions()}
+    else:
+        cache.entries[cache.key("ifs", POINT)] = "corrupt"
+    assert cache.retained("ifs", POINT, set(HOURS), now=NOW, max_age_h=3) is None

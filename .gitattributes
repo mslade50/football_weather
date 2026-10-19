@@ -1,0 +1,2 @@
+# Preserve immutable audited research input bytes across Windows/Linux checkouts.
+data/raw/*_stadium_signal_history.json -text

@@ -282,6 +282,65 @@ def _snaps():
     ]
 
 
+def test_exposed_forecast_log_includes_calm_games_and_tags_eased():
+    def card(lead, wind, temp, total):
+        body = _card(lead, wind, total)
+        body["weather"]["temp_fg"] = temp
+        return body
+
+    snaps = [
+        (KICK - timedelta(hours=100), card(100, 11.0, 70.0, 51.0)),
+        (KICK - timedelta(hours=70), card(70, 18.0, 72.0, 50.0)),
+        (KICK - timedelta(hours=5), card(5, 13.0, 74.0, 47.0)),
+    ]
+    row = bt.finalize_row(bt.row_from_snapshots("cfb:2026:5:a@b", snaps))
+    row.home_score, row.away_score = 30, 24
+    bt.finalize_row(row)
+    assert row.exposed is True
+    assert row.forecast_early_lead_h == 70 and row.forecast_early_wind == 18
+    assert row.forecast_final_wind == 13 and row.forecast_final_temp == 74
+    assert row.forecast_eased is True
+    assert row.forecast_flag_wind == 18 and row.forecast_flag_total == 50
+    assert row.forecast_total_move == pytest.approx(-3)
+    calm_snaps = [
+        (KICK - timedelta(hours=70), card(70, 8.0, 60.0, 45.0)),
+        (KICK - timedelta(hours=4), card(4, 6.0, 62.0, 44.5)),
+    ]
+    calm = bt.row_from_snapshots("nfl:2026:5:c@d", calm_snaps)
+    assert calm.exposed is True and calm.forecast_eased is False
+    assert calm.forecast_early_wind == 8 and calm.forecast_final_wind == 6
+    later_flag = [
+        (KICK - timedelta(hours=70), card(70, 8.0, 55.0, 49.0)),
+        (KICK - timedelta(hours=20), card(20, 16.0, 54.0, 46.0)),
+        (KICK - timedelta(hours=3), card(3, 12.0, 53.0, 44.0)),
+    ]
+    eased_late = bt.row_from_snapshots("nfl:2026:5:e@f", later_flag)
+    assert eased_late.forecast_early_wind == 8
+    assert eased_late.forecast_eased is True
+    assert eased_late.forecast_flag_lead_h == 20 and eased_late.forecast_flag_total == 46
+    assert eased_late.forecast_total_move == pytest.approx(-2)
+    still = bt.row_from_snapshots("nfl:2026:5:g@h", [
+        (KICK - timedelta(hours=70), card(70, 18.0, 50.0, 41.0)),
+        (KICK - timedelta(hours=2), card(2, 15.0, 48.0, 40.0)),
+    ])
+    assert still.exposed is True and still.forecast_eased is False
+    report = bt.exposed_forecast_report([row, calm, eased_late, still])
+    logged = {item["game_id"]: item for item in report["games"]}
+    assert set(logged) == {row.game_id, calm.game_id, eased_late.game_id, still.game_id}
+    assert logged[row.game_id]["total_open"] == 50 and logged[row.game_id]["total_close"] == 47
+    assert logged[row.game_id]["actual_total"] == 54 and logged[row.game_id]["result_vs_close"] == "over"
+    assert logged[row.game_id]["forecast_eased"] is True and logged[row.game_id]["total_move_since_flag"] == pytest.approx(-3)
+    assert logged[row.game_id]["alert"] is False and report["alert"] is False
+    assert logged[calm.game_id]["forecast_eased"] is False
+    assert "not an alert" in report["note"].lower() and "49.4%" in report["note"]
+    covered = _card(5, 20, 47)
+    covered["weather"]["temp_fg"] = 80
+    covered["stadium"]["roof_state"] = "closed"
+    closed = bt.row_from_snapshots("cfb:2026:5:dome@home", [(KICK - timedelta(hours=5), covered)])
+    assert closed.exposed is False
+    assert bt.exposed_forecast_report([closed])["games"] == []
+
+
 def test_row_from_snapshots_close_and_leads():
     r = bt.row_from_snapshots("cfb:2026:5:a@b", _snaps())
     assert (r.wind_fc, r.total_close, r.lead_fc) == (16.0, 48.0, 1.0)
@@ -467,7 +526,7 @@ def test_main_writes_backtest_json_and_parquet(tmp_path: Path):
     # temp 55 / wind 16 / |spread| 6.5 / Positive → wind≥15, temp [50,60], spread ≤20 (Spread_l NaN→0), Positive = id 56
     assert game["game_id"] == "cfb:2026:5:a@b" and game["Signal"] == 56
     assert game["Sample"] == payload["grid"][55]["Sample"]
-    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games"}
+    assert set(payload) == {"meta", "grid", "stadium_results", "stadium_results_legacy", "alerts_clv", "postmortem", "games", "exposed_forecasts"}
     assert payload["postmortem"]["latest"]["summary"]["bets"] == 0
     # nothing graded yet: this season's columns are empty, the sheet's numbers ride along on every row
     assert payload["meta"]["legacy"] == {"source": "cfb_weather_backtest.xlsx", "seasons": "pre-2026", "n_buckets": 118}

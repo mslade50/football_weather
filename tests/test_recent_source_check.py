@@ -100,7 +100,12 @@ def test_short_check_is_not_trusted_outside_its_provenance_or_age(scenario, chan
             for v in check["versions"].values():
                 v["last_run_initialisation_time"] = int((NOW - timedelta(hours=19)).timestamp())
     locations, coverage = run(POINTS[1], "cfb")
-    assert not locations and len(state["calls"]) == 6
+    assert len(state["calls"]) == 6
+    if change == "signature":
+        assert not locations
+    else:
+        assert locations[POINTS[1]].n_members() == 82
+        assert coverage[POINTS[1]]["unverified_sources"] == ["ifs", "gefs"]
     assert set(coverage[POINTS[1]]["errors"]) == {"ifs", "gefs"}
 
 
@@ -128,11 +133,13 @@ def test_missing_source_window_requires_new_check_and_preserves_other_verified_s
 def test_changed_source_between_checks_does_not_create_a_trusted_snapshot(scenario):
     state, ctx, om, run = scenario
     state["transition"] = True
-    locations, _ = run(POINTS[0], "nfl")
-    assert not locations and not ctx.weather_state.get("verified_member_sources")
+    locations, coverage = run(POINTS[0], "nfl")
+    assert locations[POINTS[0]].n_members() == 82 and not ctx.weather_state.get("verified_member_sources")
+    assert coverage[POINTS[0]]["unverified_sources"] == ["ifs", "gefs"]
     state.update(transition=False, fail=True)
-    locations, _ = run(POINTS[1], "cfb")
-    assert not locations and len(state["calls"]) == 6
+    locations, coverage = run(POINTS[1], "cfb")
+    assert locations[POINTS[1]].n_members() == 82 and len(state["calls"]) == 6
+    assert coverage[POINTS[1]]["unverified_sources"] == ["ifs", "gefs"]
 
 
 def test_new_member_retrieval_requires_both_fresh_checks_even_inside_sixty_seconds(scenario):

@@ -91,7 +91,8 @@ def test_novig_typed_outcomes_survive_schedule_mapping_and_board_export():
 
 def _openers() -> dict:
     op = pstate.migrate({}, "openers")
-    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "total", "under", 39.0, -110),
+    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "spread", "away", 2.5, -110),
+                               _ln("betonline", "total", "under", 39.0, -110), _ln("betonline", "total", "over", 39.0, -110),
                                _ln("betonline", "ml", "home", None, -150),
                                {"game_id": GID, "market": "total", "side": "under", "book": "consensus", "line": 39.0, "odds": -110},
                                {"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -2.5, "odds": -110}],
@@ -111,7 +112,7 @@ def test_weekly_alert_opener_exports_even_without_current_betonline_quotes():
     assert card["odds"]["betonline"]["total"]["line"] is None
     assert card["odds"]["betonline"]["total"]["open_line"] == 39.0
     assert card["odds"]["betonline"]["total"]["open_under"] == -110
-    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-22T12:00:00Z"
+    assert card["odds"]["betonline"]["total"]["open_ts"] == "2026-09-26T12:00:00Z"
     assert card["odds"]["betonline"]["ml"]["home"] is None
     assert card["odds"]["betonline"]["ml"]["open_home"] == -150
     assert card["weekly_total_open"] == weekly  # weekly opening-window snapshot remains separate
@@ -164,7 +165,17 @@ def test_next_backstop_off_the_minute():
     nxt2 = json_out.next_backstop(late)
     assert (nxt2.hour, nxt2.minute) == (21, 17) and nxt2.date() == late.date()
     assert json_out.next_run_eta(now, {"NEXT_RUN_ETA": "2026-09-27T15:00:00Z"}) == "2026-09-27T15:00:00Z"
-    assert json_out.next_run_eta(now, {}) == "2026-09-27T15:17:00Z"
+    assert json_out.next_run_eta(now, {}) == "2026-09-27T15:00:00Z"  # Worker hourly tick beats the 15:17 backstop
+
+
+def test_worker_windows_mirror_index_js():
+    import re
+    from pathlib import Path
+    js = (Path(__file__).parents[1] / "site/worker/index.js").read_text(encoding="utf-8")
+    found = re.findall(r"\{ day: (\d), from: (\d+), to: (\d+)", js)
+    # JS getUTCDay (0=Sun) -> Python weekday (Mon=0)
+    mirrored = tuple(((int(d) - 1) % 7, int(a), int(b)) for d, a, b in found)
+    assert mirrored == json_out.WORKER_WINDOWS
 
 
 # ---- GameCard ----------------------------------------------------------------------------
@@ -214,9 +225,11 @@ def test_card_odds_block_uses_openers_and_derives_home_line():
     card = _card()
     bo = card["odds"]["betonline"]
     assert bo["spread"] == {"home_line": -3.0, "home_odds": -108, "away_odds": -112, "open_line": -2.5, "open_odds": -110,
-                            "updated_at": "2026-09-26T12:00:00Z"}
+                              "updated_at": "2026-09-26T12:00:00Z", 'open_ts': '2026-09-26T12:00:00Z',
+                              'open_source': 'betonline', 'open_basis': 'first_seen', 'expires_at': '2026-09-26T13:00:00Z'}
     assert bo["total"]["line"] == 38.0 and bo["total"]["open_line"] == 39.0 and bo["total"]["under"] == -110
-    assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None, "updated_at": "2026-09-26T12:00:00Z"}
+    assert bo["ml"] == {"home": -160, "away": 140, "open_home": -150, "open_away": None,
+                        "updated_at": "2026-09-26T12:00:00Z", "expires_at": "2026-09-26T13:00:00Z"}
     pin = card["odds"]["pinnacle"]
     assert pin["spread"]["home_line"] == -3.5 and pin["spread"]["home_odds"] is None and pin["spread"]["open_line"] is None
     assert "ml" not in pin
@@ -258,12 +271,16 @@ def test_consensus_spread_opener_averages_member_openers_with_fallback():
     op = pstate.migrate({}, "openers")
     pstate.record_openers(op, [{"game_id": GID, "market": "spread", "side": "home", "book": "consensus", "line": -4.0, "odds": -110}], "t0")
     assert json_out.consensus_spread_opener(GID, op) == (-4.0, "fallback")       # no member opener -> stored consensus
-    pstate.record_openers(op, [_ln("pinnacle", "spread", "away", 3.0, -110),          # away-only opener flips to -3.0
-                               _ln("betcris", "spread", "home", -2.0, -110),
-                               _ln("fanduel", "spread", "home", -9.0, -110)], "t1")   # non-member ignored
-    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+pin")
-    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110)], "t2")
-    assert json_out.consensus_spread_opener(GID, op) == (-2.5, "cris+bol+pin")
+    # a pair opener is recorded per book (pinnacle's away side is flipped to -3.0 when it is the only one kept)
+    pstate.record_openers(op, [_ln("pinnacle", "spread", "away", 3.0, -110), _ln("pinnacle", "spread", "home", -3.0, -110),
+                               _ln("betcris", "spread", "home", -2.0, -110), _ln("betcris", "spread", "away", 2.0, -110),
+                               _ln("fanduel", "spread", "home", -9.0, -110),    # non-member ignored
+                               _ln("fanduel", "spread", "away", 9.0, -110)], "t1")
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")            # betcris opener is not a member
+    del op["openers"][pstate.odds_key(GID, "spread", "home", "pinnacle")]       # away-only opener flips
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")
+    pstate.record_openers(op, [_ln("betonline", "spread", "home", -2.5, -110), _ln("betonline", "spread", "away", 2.5, -110)], "t2")
+    assert json_out.consensus_spread_opener(GID, op) == (-2.75, "bol+pin")
     assert json_out.consensus_spread_opener("nfl:2026:3:x@y", op) == (None, "fallback")
 
 
@@ -291,11 +308,12 @@ def test_total_open_provenance_is_exported_only_when_available():
     assert row["total_open_basis"] == "t_minus_6d"
 
     first_seen = pstate.migrate({}, "openers")
-    pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0)], "2026-09-21T16:45:00Z")
+    pstate.record_openers(first_seen, [_ln("betonline", "total", "under", 39.0), _ln("betonline", "total", "over", 39.0)],
+                          "2026-09-21T16:45:00Z")
     first_seen_card = _card(openers=first_seen, lines=[])
     first_seen_total = first_seen_card["odds"]["betonline"]["total"]
-    assert first_seen_total["open_ts"] == "2026-09-21T16:45:00Z"
-    assert "open_target_ts" not in first_seen_total and "open_basis" not in first_seen_total
+    assert first_seen_total["open_ts"] == "2026-09-26T12:00:00Z"
+    assert "open_target_ts" not in first_seen_total and first_seen_total['open_basis'] == 'first_seen'
     assert "total_open_target_ts" not in first_seen_card["consensus"]
     assert "total_open_basis" not in first_seen_card["consensus"]
 
@@ -306,19 +324,19 @@ def test_history_carries_consensus_spread_series(tmp_path: Path):
     cons = {(GID, "spread"): ConsensusLine(-2.75, -108, 3, "pinnacle", "home", src="bol+pin"),
             (GID, "total"): ConsensusLine(38.0, -110, 3, "betonline", "under")}
     pseudo = build.consensus_spread_lines(cons, "nfl", KICK - timedelta(days=1), "r1")
-    assert [(p.book, p.market, p.side, p.line, p.odds, p.source_id) for p in pseudo] == [("consensus", "spread", "home", -2.75, -108, "bol+pin")]
+    assert [(p.book, p.market, p.side, p.line, p.odds, p.source_id) for p in pseudo] == [("consensus", "spread", "home", -2.75, None, "bol+pin")]
     hist = pstate.load_history(tmp_path)
     key = pstate.odds_key(GID, "spread", "home", "consensus")
     assert pstate.update_history(hist, [_ln("betonline", "spread", "home", -3.0)] + pseudo, "t1") == 2
     assert pstate.update_history(hist, pseudo, "t2") == 0                      # change-only
     moved = build.consensus_spread_lines({(GID, "spread"): ConsensusLine(-3.0, -108, 3, "pinnacle", "home", src="bol+pin")}, "nfl", KICK, "r2")
     assert pstate.update_history(hist, moved, "t3") == 1
-    assert hist["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
+    assert hist["series"][key] == [["t1", -2.75, None], ["t3", -3.0, None]]
     ctx = RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK)
     meta = json_out.build_meta(ctx, {"nfl": 1, "cfb": 0}, {}, season=2026, week=3, finished_at=KICK)
     files = json_out.write_board(tmp_path / "board", {"nfl": [_card()], "cfb": []}, meta, history=hist, wx_history={"series": {}})
     hp = json.loads(files["board/history.json"].read_text(encoding="utf-8"))
-    assert hp["series"][key] == [["t1", -2.75, -108], ["t3", -3.0, -108]]
+    assert hp["series"][key] == [["t1", -2.75, None], ["t3", -3.0, None]]
 
 
 def test_card_fair_block_from_gamefair_and_legacy_derived():
@@ -342,6 +360,7 @@ def test_card_includes_fresh_total_comparisons_from_active_fair():
     from pipeline.model.fair import evaluate_game
 
     lines = [replace(ln, scraped_at=datetime.now(timezone.utc)) for ln in _lines()]
+    lines += [replace(ln, book="kalshi") for ln in list(lines) if ln.book == "pinnacle" and ln.market == "total"]
     gf = evaluate_game("nfl", GID, lines, gs_fg_pct=-2, away_fg_pct=0)
     card = _card(lines=lines, fair=gf)
     prices = card["total_prices"]
@@ -389,6 +408,23 @@ def test_build_meta_and_slim_meta():
     slim = json_out.slim_meta(meta)
     assert set(slim) == {"run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations"}
     json.dumps(meta, allow_nan=False)
+
+
+def test_current_weeks_per_sport_shape():
+    def g(week, hours, status="scheduled"):
+        return SimpleNamespace(week=week, kickoff_utc=KICK + timedelta(hours=hours), status=status)
+    now = KICK
+    weeks = json_out.current_weeks({
+        "nfl": [g(6, -50, "final"), g(7, 20), g(7, 30), g(8, 200)],
+        "cfb": [g(8, -5, "final"), g(8, -1, "in_progress"), g(9, 100)],
+        "none": [],
+    }, now)
+    assert weeks == {"nfl": 7, "cfb": 9, "none": None}
+    assert json_out.current_week([g(5, -9, "final"), g(6, -2, "final")], now) == 6   # season over -> last week
+    meta = json_out.build_meta(RunContext(sport="all", scope="light", run_id="r1", git_sha="abc", started_at=KICK),
+                               {"nfl": 1}, {}, season=2026, week=7, finished_at=KICK, extra={"weeks": weeks})
+    json.dumps(meta, allow_nan=False)
+    assert meta["weeks"]["nfl"] == 7
 
 
 # ---- wx history --------------------------------------------------------------------------
@@ -500,6 +536,27 @@ def test_get_state_skips_nosuchkey_but_raises_otherwise(tmp_path: Path):
     assert r2.is_no_such_key(SimpleNamespace(response={"ResponseMetadata": {"HTTPStatusCode": 404}}, __class__=type("ClientError", (Exception,), {})))
 
 
+@pytest.mark.parametrize('publish_method', ['put_state', 'publish'])
+def test_build_snapshot_cannot_roll_back_new_resident_delivery_receipts(tmp_path, publish_method):
+    ledgers = {
+        'alerts': {'sent': {'first': 'sent-now'}, 'routine_delivery': {'chat|date|08': 'sent-now'}, 'cleared_bets': {'bet': 'sent-now'}},
+        'telegram_state': {'queue': [{'key': 'pending-now'}]},
+        'notification_owner': {'schema_version': 1, 'kind': 'local'},
+        'alerts_live_feed': {'alerts': [{'key': 'clear-now'}]},
+    }
+    client = _FakeClient(objects={f'board/{name}.json': b'{}' for name in ledgers})
+    r2.get_state(client, 'bucket', tmp_path, names=tuple(ledgers))  # Pipeline fetched old state.
+    latest = {f'board/{name}.json': json.dumps(value).encode() for name, value in ledgers.items()}
+    client.objects.update(latest)  # Resident checkpoint interleaves during the build.
+    (tmp_path / 'openers.json').write_text('{"original":"preserved"}')
+    if publish_method == 'put_state':
+        pushed = r2.put_state(client, 'bucket', tmp_path, names=(*ledgers, 'openers'), sleep=lambda _: None)
+    else:
+        pushed = r2.publish(client, 'bucket', {f'board/{name}.json': tmp_path / f'{name}.json' for name in (*ledgers, 'openers')}, sleep=lambda _: None)
+    assert pushed == ['board/openers.json']
+    assert all(client.objects[key] == body for key, body in latest.items())
+
+
 def test_self_check_run_id_and_content_floor(tmp_path: Path):
     meta = {"run_id": "r2", "sport_counts": {"nfl": 4, "cfb": 60}}
     prev = {"run_id": "r1", "sport_counts": {"nfl": 14, "cfb": 60}}
@@ -540,3 +597,17 @@ def test_raw_store_mirror_uploads_captures_and_manifest(tmp_path: Path):
     store2 = RawStore("nfl", "r2", tmp_path, mirror=boom)
     assert store2.put("x", "text") is not None  # mirror failure never fails the capture
     assert store2.mirror_errors == 1
+
+
+def test_frozen_consensus_spread_opener_ignores_members_posting_later():
+    op = pstate.migrate({}, "openers")
+    pstate.record_openers(op, [_ln("pinnacle", "spread", "home", -3.0), _ln("pinnacle", "spread", "away", 3.0)], "t0")
+    assert json_out.freeze_consensus_spread_openers(op, [GID, "nfl:2026:3:x@y"], "t0") == 1
+    assert op["consensus_spread_open"][GID] == {"line": -3.0, "members": ["pinnacle"], "ts": "t0"}
+    pstate.record_openers(op, [_ln("betcris", "spread", "home", -5.0), _ln("betcris", "spread", "away", 5.0)], "t1")
+    assert json_out.freeze_consensus_spread_openers(op, [GID], "t1") == 0          # set-once
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")              # no phantom move
+    block = json_out.consensus_block(GID, {}, op)
+    assert block["spread_open"] == -3.0 and block["spread_open_members"] == ["pinnacle"]
+    del op["consensus_spread_open"]                                                # unfrozen -> computed
+    assert json_out.consensus_spread_opener(GID, op) == (-3.0, "pin")            # later betcris opener is not a member

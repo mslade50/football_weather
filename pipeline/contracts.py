@@ -8,11 +8,15 @@ lives in ``__post_init__`` for the few invariants that matter downstream
 
 from __future__ import annotations
 
+import logging
+import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Optional
 
 SPORTS = ("nfl", "cfb")
+CONSENSUS_BOOK = "consensus"
 MARKETS = ("ml", "spread", "total")
 SIDES = ("home", "away", "over", "under")
 ROOF_STATES = ("outdoors", "dome", "closed", "open")
@@ -58,6 +62,9 @@ class Game(_AsDict):
     roof_state: Optional[str] = None
     status: str = "scheduled"
     source: str = ""
+    venue_name: Optional[str] = None
+    venue_source_id: Optional[str] = None
+    venue_resolution: Optional[str] = None
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")
@@ -189,6 +196,18 @@ class WeatherForecast(_AsDict):
     ensemble_source_versions: dict[str, Any] = field(default_factory=dict)
     ensemble_cached_sources: list[str] = field(default_factory=list)
     ensemble_aged_sources: list[str] = field(default_factory=list)
+    ensemble_unverified_sources: list[str] = field(default_factory=list)
+    ensemble_verification_errors: dict[str, str] = field(default_factory=dict)
+    # Per-model game windows and the process-screen forecast (docs/PROCESS_SPEC.md).
+    # wind_fg / temp_fg / rain_fg_mm stay the stitched values v1 impact consumes.
+    model_windows: dict[str, Any] = field(default_factory=dict)
+    signal_source: Optional[str] = None
+    signal_temp_f: Optional[float] = None
+    signal_wind_mph: Optional[float] = None
+    signal_rain_mm: Optional[float] = None
+    signal_wind_dir_deg: Optional[float] = None
+    ecmwf_apart: bool = False
+    ecmwf_apart_fields: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:
@@ -206,7 +225,7 @@ class GameLine(_AsDict):
     book: str
     market: str
     side: str
-    odds: int
+    odds: Optional[int]  # None only for book='consensus' pseudo-rows (no price)
     line: Optional[float] = None
     prob_raw: Optional[float] = None
     is_main: bool = True
@@ -218,11 +237,31 @@ class GameLine(_AsDict):
     # Retain upstream observation time and provider expiry across publications.
     source_updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    # BetCris: display lasts until expires_at, but a price past this instant is
+    # reference-only and cannot price edges, alerts, entries, or CLV.
+    actionable_until: Optional[datetime] = None
+    # Only explicit provider original-line evidence, never first-seen/created-time inference.
+    opening_line: Optional[float] = None
+    opening_odds: Optional[int] = None
+    opened_at: Optional[datetime] = None
+    opening_source: Optional[str] = None
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")
         _check_in(self.market, MARKETS, "market")
         _check_in(self.side, SIDES, "side")
+        allowed = ("over", "under") if self.market == "total" else ("home", "away")
+        if self.side not in allowed:
+            raise ValueError(f"side={self.side!r} invalid for market {self.market}")
+        if self.odds is None:
+            if self.book != CONSENSUS_BOOK:
+                raise ValueError("odds required (None only for consensus pseudo-rows)")
+        elif (isinstance(self.odds, bool) or not isinstance(self.odds, (int, float))
+              or not math.isfinite(self.odds) or abs(self.odds) < 100):
+            raise ValueError(f"odds must be finite with |odds|>=100, got {self.odds!r}")
+        if self.line is not None and (isinstance(self.line, bool) or not isinstance(self.line, (int, float))
+                                      or not math.isfinite(self.line)):
+            raise ValueError(f"line must be finite, got {self.line!r}")
         if self.market == "ml" and self.line is not None:
             raise ValueError("moneyline has no line")
         if self.market != "ml" and self.line is None:
@@ -233,6 +272,40 @@ class GameLine(_AsDict):
     @property
     def key(self) -> str:
         return odds_key(self.game_id, self.market, self.side, self.book)
+
+    def reference_only(self, now: datetime) -> bool:
+        """True when the provider's own TTL has passed. Missing clocks fail open
+        for every book that does not set ``actionable_until``."""
+        until = self.actionable_until
+        if until is None:
+            return False
+        if until.tzinfo is None or now.tzinfo is None:
+            return True
+        return now > until
+
+
+def actionable_lines(lines: Iterable[GameLine], now: datetime) -> list[GameLine]:
+    """Lines allowed to move consensus, edges, openers, history, and CLV."""
+    return [ln for ln in lines if not ln.reference_only(now)]
+
+
+_log = logging.getLogger(__name__)
+LINE_DROPS: dict[str, int] = {}
+
+
+def game_line(**kwargs: Any) -> Optional[GameLine]:
+    """Build a GameLine, returning None (and counting the drop) when invalid.
+
+    Parsers use this so one malformed row never crashes a whole book.
+    """
+    try:
+        return GameLine(**kwargs)
+    except (ValueError, TypeError) as exc:
+        book = str(kwargs.get("book"))
+        LINE_DROPS[book] = LINE_DROPS.get(book, 0) + 1
+        _log.warning("dropped invalid %s line %s/%s/%s: %s", book, kwargs.get("game_id"),
+                     kwargs.get("market"), kwargs.get("side"), exc)
+        return None
 
 
 @dataclass(frozen=True)

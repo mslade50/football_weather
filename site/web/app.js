@@ -8,9 +8,11 @@
  *
  * /data/meta.json
  *   { run_id, last_updated, season, week, sport_counts {nfl, cfb}, git_sha, model_version,
+ *     retained_sports? { <sport>: { from_run_id, games, refreshed_at } },
  *     next_run_eta, degradations [{component, reason, severity, run_id, ts}],
  *     books { <book>: { count, baseline, status: "green"|"amber"|"red", last_ok } },
- *     weeks? { nfl: [..], cfb: [..] } }
+ *     weeks? { nfl: <current week>, cfb: <current week> } (array tolerated: first entry),
+ *     book_health? { <book>: { <sport>: { rows, last_ok_utc, consecutive_empty, last_error } } } }
  *
  * /data/games_nfl.json, /data/games_cfb.json  → [GameCard] (or {meta, games:[GameCard]})
  *   GameCard = {
@@ -54,10 +56,13 @@
 
 const DATA = { meta: {}, games: { nfl: [], cfb: [] }, history: null };
 let QUOTES = null, RAW_META = {}, RAW_GAMES = {nfl: [], cfb: []};
+let RESIDENT = null;
 let QUOTE_HEALTH = "";
+const LOAD_ERRORS = {};
+let OFFER_EXPIRY_TIMER;
 const STATE = {
   view: "table", sport: "nfl", week: null, sort: null, dir: -1, q: "",
-  signal: "", book: "", minEdge: null, showDomes: true, showWatch: true, game: null,
+  signal: "", book: "", minEdge: null, showDomes: false, showWatch: true, game: null, focus: "candidates", showAllGames: false,
   preset: null,   // Signals preset id (signals.js PRESETS) — filters Table + maps while set
   tableMode: "live", executionGame: null,
 };
@@ -158,36 +163,21 @@ function bestEdge(g, market = null, book = null) {
   for (const e of edgesOf(g)) {
     if (market && e.market !== market) continue;
     if (book && e.book !== book) continue;
+    if (e.book === "betcris") continue;
     if (!isNum(e.edge_pts)) continue;
     if (!best || Math.abs(e.edge_pts) > Math.abs(best.edge_pts)) best = e;
   }
   return best;
 }
 function edgeAt(g, book, market) {
+  if (book === "betcris") return null;
   return edgesOf(g).find((e) => e.book === book && e.market === market) || null;
 }
 
 // ── game list for the current sport/week + filters ────────────────────────
 function currentGames() {
-  let rows = (DATA.games[STATE.sport] || []).slice();
-  if (STATE.week != null) rows = rows.filter((g) => String(g.week) === String(STATE.week));
-  if (!STATE.showDomes) rows = rows.filter((g) => !isDome(g));
-  if (STATE.signal) rows = rows.filter((g) => signalTier(g.signal) === STATE.signal);
-  if (STATE.preset && typeof activePreset === "function" && activePreset()) {
-    const flag = activePreset().flag;
-    rows = rows.filter((g) => hasFlag(g, flag));
-  }
-  if (STATE.q) {
-    rows = rows.filter((g) => [gameLabel(g), g.home && g.home.name, g.away && g.away.name,
-      g.stadium && g.stadium.name].filter(Boolean).join(" ").toLowerCase().includes(STATE.q));
-  }
-  if (STATE.minEdge != null) {
-    rows = rows.filter((g) => {
-      const be = bestEdge(g, null, STATE.book || null);
-      return be && Math.abs(be.edge_pts) >= STATE.minEdge;
-    });
-  }
-  return rows;
+  return filterDiscovery(DATA.games[STATE.sport] || [], STATE,
+    typeof activePreset === "function" ? activePreset() : null);
 }
 function gamesForSport(sport) {
   return (DATA.games[sport] || []).filter((g) => STATE.week == null || String(g.week) === String(STATE.week)
@@ -218,6 +208,9 @@ function readHash() {
   if (params.get("signal")) STATE.signal = params.get("signal");
   if (params.get("book")) STATE.book = params.get("book");
   if (params.get("minEdge")) STATE.minEdge = parseFloat(params.get("minEdge"));
+  STATE.focus = "candidates";
+  STATE.showAllGames = params.get("all_games") === "1" || params.get("focus") === "all";
+  STATE.q = params.get("q") || "";
   STATE.preset = params.get("preset") || null;
   STATE.tableMode = params.get("past") === "1" ? "history" : "live";
   STATE.executionGame = params.get("execution_game") || null;
@@ -232,6 +225,8 @@ function writeHash() {
   if (STATE.signal) params.set("signal", STATE.signal);
   if (STATE.book) params.set("book", STATE.book);
   if (STATE.minEdge != null) params.set("minEdge", STATE.minEdge);
+  if (STATE.showAllGames) params.set("all_games", "1");
+  if (STATE.q) params.set("q", STATE.q);
   if (STATE.preset) params.set("preset", STATE.preset);
   if (typeof writeHistoricalHash === "function") writeHistoricalHash(params);
   const next = "#" + params.toString();
@@ -240,6 +235,16 @@ function writeHash() {
 
 // ── render dispatch ───────────────────────────────────────────────────────
 function render() {
+  clearTimeout(OFFER_EXPIRY_TIMER);
+  const expiries = Object.values(RAW_GAMES).flat().map(g => VERIFIED_OFFERS.get(g.game_id) || g.execution_preview)
+    .filter(Boolean).map(r => Math.min(Date.parse(r.expires_at), Date.parse(r.fetched_at) + 30001, Date.parse(r.depth_fetched_at) + 30001))
+    .filter(ms => Number.isFinite(ms) && ms > Date.now());
+  if (expiries.length) OFFER_EXPIRY_TIMER = setTimeout(() => { render(); if (STATE.game) refreshDrawerQuotes(); }, Math.max(1, Math.min(...expiries) - Date.now()));
+  const notice = document.getElementById("loadnotice");
+  if (notice) {
+    notice.hidden = true;
+    notice.textContent = "";
+  }
   if (QUOTES) {
     DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
     for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
@@ -252,6 +257,13 @@ function render() {
     t.classList.toggle("active", active);
   });
   document.getElementById("sport").value = STATE.sport;
+  const showAll = document.getElementById("showallgames");
+  if (showAll) { showAll.checked = STATE.showAllGames; if (showAll.parentElement) showAll.parentElement.hidden = !["table", "map"].includes(STATE.view) || STATE.tableMode === "history" && STATE.view === "table"; }
+  document.getElementById("signal").value = STATE.signal;
+  const mobileSort = document.getElementById("mobile-sort");
+  if (mobileSort) mobileSort.value = STATE.sort === "discovery" ? "discovery" : "";
+  const search = document.getElementById("search");
+  if (document.activeElement !== search && search.value !== STATE.q) search.value = STATE.q;
   const view = STATE.view;
   const isMap = view === "map", isAlerts = view === "alerts", isStatus = view === "status", isSignals = view === "signals";
   const isBacktest = view === "backtest", isExecution = view === "execution";
@@ -260,7 +272,7 @@ function render() {
   document.getElementById("tablemode").value = STATE.tableMode;
   document.getElementById("historybar").style.display = isHistorical ? "" : "none";
   document.getElementById("historyinfo").style.display = isHistorical ? "" : "none";
-  document.getElementById("statusbar").style.display = isHistorical || isExecution ? "none" : "";
+  document.getElementById("statusbar").style.display = "";
   const isGames = !isAlerts && !isStatus && !isBacktest && !isExecution;
   document.getElementById("tablewrap").style.display = isGames && !isMap ? "" : "none";
   document.getElementById("mapwrap").style.display = isMap ? "" : "none";
@@ -297,27 +309,53 @@ function switchView(view, sport) {
   populateWeeks();
   render();
 }
+function setupShowAllGames() {
+  const toggle = document.getElementById("showallgames");
+  if (toggle) toggle.addEventListener("change", e => {
+    STATE.showAllGames = e.target.checked;
+    STATE.focus = "candidates";
+    if (STATE.showAllGames) { STATE.signal = ""; STATE.preset = null; }
+    render();
+  });
+}
 function setSport(sport) {
   STATE.sport = sport; STATE.week = null; STATE.sort = null;
   populateWeeks();
   render();
 }
+// Default week for a sport: meta.weeks[sport] (number, or array -> first entry) if that week has games,
+// else the week of the earliest game not yet kicked off, else the last week. Pure; weeksList is sorted.
+function pickDefaultWeek(weeksList, games, meta, sport, now = Date.now()) {
+  if (!weeksList.length) return null;
+  let mw = meta && meta.weeks ? meta.weeks[sport] : null;
+  if (Array.isArray(mw)) mw = mw[0];
+  if (mw != null && weeksList.map(String).includes(String(mw))) return String(mw);
+  let best = null;
+  for (const g of games || []) {
+    const t = Date.parse(g.kickoff_utc);
+    if (g.week == null || Number.isNaN(t) || t <= now || /final|cancel|postpon/i.test(g.status || "")) continue;
+    if (!best || t < best.t) best = {t, week: g.week};
+  }
+  return String(best ? best.week : weeksList[weeksList.length - 1]);
+}
 function populateWeeks() {
   const sel = document.getElementById("week");
   const weeks = [...new Set((DATA.games[STATE.sport] || []).map((g) => g.week).filter((w) => w != null))].sort((a, b) => a - b);
-  const metaWeek = (DATA.meta.weeks && DATA.meta.weeks[STATE.sport]) || null;
   if (STATE.week == null || !weeks.map(String).includes(String(STATE.week))) {
-    STATE.week = weeks.length ? String(weeks.includes(DATA.meta.week) ? DATA.meta.week : weeks[0]) : null;
+    STATE.week = pickDefaultWeek(weeks, DATA.games[STATE.sport], DATA.meta, STATE.sport);
   }
   sel.innerHTML = weeks.map((w) => `<option value="${w}">Week ${w}</option>`).join("") || `<option value="">—</option>`;
   if (STATE.week != null) sel.value = String(STATE.week);
   sel.style.display = weeks.length > 1 ? "" : "none";
-  void metaWeek;
 }
 function populateBooks() {
   const sel = document.getElementById("book");
   sel.innerHTML = `<option value="">Book: all</option>` + BOOKS.map((b) => `<option value="${b}">${esc(bookLabel(b))}</option>`).join("");
   sel.value = BOOKS.includes(STATE.book) ? STATE.book : "";
+}
+
+function setupSearch() {
+  document.getElementById("search").addEventListener("input", (e) => { STATE.q = e.target.value; render(); });
 }
 
 // ── hover card ────────────────────────────────────────────────────────────
@@ -352,104 +390,154 @@ function setupHover() {
 }
 
 // ── fetch helpers ─────────────────────────────────────────────────────────
-async function fetchJson(url) {
-  const r = await fetch(url, { credentials: "same-origin" });
+async function fetchJson(url, options = {}) {
+  const r = await fetch(url, { credentials: "same-origin", ...options });
   if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
   return r.json();
 }
 function normalizeGames(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && Array.isArray(payload.games)) return payload.games;
-  return [];
+  throw new Error("Malformed games payload");
+}
+
+function acceptGames(payload, meta) {
+  const rows = normalizeGames(payload);
+  const run = payload?.meta?.run_id || payload?.run_id;
+  if (meta?.run_id && ((run && run !== meta.run_id) || rows.some(g => g.run_id !== meta.run_id)))
+    throw new Error("Publication generation mismatch");
+  if (rows.some(g => !g || typeof g.game_id !== "string")) throw new Error("Malformed game card");
+  return rows;
 }
 
 // ── refresh (admin) + poll ────────────────────────────────────────────────
+function refreshMatches(payload, request) {
+  return payload?.request_id === request.id && payload.sport === request.sport && payload.scope === request.scope
+    && Date.parse(payload.completed_at) >= request.started;
+}
+function applyRefresh(payload, request) {
+  if (!refreshMatches(payload, request) || !payload.meta?.run_id || !payload.games) return false;
+  const games = acceptGames(payload.games, payload.meta);
+  RAW_META = payload.meta;
+  RAW_GAMES[request.sport] = games;
+  const other = request.sport === "nfl" ? "cfb" : "nfl";
+  if (RAW_GAMES[other].some(g => g.run_id !== payload.meta.run_id)) LOAD_ERRORS[other] = "Retained sport snapshot is from an older publication";
+  delete LOAD_ERRORS.meta; delete LOAD_ERRORS[request.sport];
+  LAST_UPDATED = payload.meta.last_updated || LAST_UPDATED;
+  render();
+  if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
+  return true;
+}
 function setupRefresh(auth) {
   const msg = document.getElementById("refreshmsg");
   const isAdmin = !!(auth && (auth.role === "admin" || auth.can_refresh_all));
-  document.querySelectorAll("[data-admin-refresh]").forEach((btn) => { btn.hidden = !isAdmin; });
+  document.querySelectorAll("[data-admin-refresh]").forEach(btn => { btn.hidden = !isAdmin; });
   if (!isAdmin) return;
-  const buttons = [
-    { btn: document.getElementById("lightrefreshbtn"), scope: "exchanges", note: "Refreshing exchange lines… the page will reload when new data is published" },
-    { btn: document.getElementById("refreshbtn"), scope: "full", note: "Refreshing all lines… the page will reload when new data is published" },
-  ].filter((b) => b.btn);
-  const setDisabled = (v) => buttons.forEach(({ btn }) => { btn.disabled = v; });
-  buttons.forEach(({ btn, scope, note }) => {
-    btn.addEventListener("click", async () => {
-      setDisabled(true);
-      const baseline = LAST_UPDATED;
-      msg.textContent = "Triggering…";
-      try {
-        const r = await fetch("refresh", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sport: STATE.sport, scope }) });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j.ok) throw new Error(j.error || ("HTTP " + r.status));
-        msg.textContent = j.already_running ? "A run is already in progress — waiting for new data…" : note;
-        pollForNewData(baseline, () => setDisabled(false), msg);
-      } catch (e) {
-        msg.textContent = "Refresh failed: " + e.message;
-        setDisabled(false);
-        setTimeout(() => { if (msg.textContent.startsWith("Refresh failed")) msg.textContent = ""; }, 9000);
-      }
-    });
-  });
-}
-function pollForNewData(baseline, reenable, msg) {
-  let tries = 0;
-  const MAX = 80; // Up to 20 minutes for queued runs and the full board publish.
-  const iv = setInterval(async () => {
-    tries++;
+  const buttons = [{btn: document.getElementById("lightrefreshbtn"), scope: "exchanges"},
+    {btn: document.getElementById("refreshbtn"), scope: "full"}].filter(b => b.btn);
+  const setDisabled = v => buttons.forEach(({btn}) => { btn.disabled = v; });
+  buttons.forEach(({btn, scope}) => btn.addEventListener("click", async () => {
+    setDisabled(true);
+    const started = Date.now(), request = {id: `${STATE.sport}-${started}`, sport: STATE.sport, scope, started};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 28000);
+    msg.textContent = scope === "exchanges" ? "Requesting exchange quotes (30s limit). Existing data unchanged." : "Requesting full background run. Existing data unchanged.";
     try {
-      const m = await fetchJson("data/meta.json?t=" + Date.now());
-      if (m && m.last_updated && m.last_updated !== baseline) {
-        clearInterval(iv);
-        msg.textContent = "New data ready — reloading…";
-        setTimeout(() => location.reload(), 700);
-        return;
+      const response = await fetch("refresh", {method: "POST", headers: {"content-type": "application/json"}, signal: controller.signal,
+        body: JSON.stringify({sport: request.sport, scope, request_id: request.id, requested_at: new Date(started).toISOString()})});
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      if (applyRefresh(result, request)) { msg.textContent = result.delivery_mode === 'direct_public_depth'
+        ? `Requested exchange quote result loaded${result.partial ? ' (partial)' : ''}. Weather publication unchanged; check source clocks.`
+        : "Requested publication loaded. Check quote and depth clocks for freshness."; setDisabled(false); }
+      else {
+        msg.textContent = result.already_running ? "A run is already in progress. Existing quotes unchanged; awaiting this request's result."
+          : scope === "exchanges" ? "Exchange request queued; awaiting correlated result (30s limit). Existing quotes unchanged."
+          : "Full run queued. Existing data unchanged; full weather runs can take several minutes.";
+        pollForNewData(request, () => setDisabled(false), msg);
       }
-    } catch (_) { /* transient */ }
-    if (tries >= MAX) {
-      clearInterval(iv);
-      msg.textContent = "Still working (or nothing new) — reload manually later.";
-      reenable();
-      setTimeout(() => { msg.textContent = ""; }, 12000);
-    }
-  }, 15000);
+    } catch (e) {
+      msg.textContent = `Refresh failed / unavailable: ${e.message}. Existing quotes unchanged.`;
+      setDisabled(false);
+    } finally { clearTimeout(timeout); }
+  }));
+}
+function pollForNewData(request, reenable, msg) {
+  const deadline = request.started + (request.scope === "exchanges" ? 30000 : 20 * 60000);
+  const poll = async () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) { msg.textContent = "Refresh unavailable / timed out. Existing quotes unchanged; source clocks continue aging."; reenable(); return; }
+    try {
+      const response = await fetch(`data/meta.json?t=${Date.now()}`, {credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(Math.min(remaining, 5000))});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const meta = await response.json(), receipt = meta.refresh;
+      if (refreshMatches(receipt, request)) {
+        const payload = await fetchJson(`data/games_${request.sport}.json?t=${Date.now()}`, {cache: "no-store",
+          signal: AbortSignal.timeout(Math.max(1, deadline - Date.now()))});
+        if (Date.now() <= deadline && applyRefresh({...receipt, meta, games: payload}, request)) {
+          msg.textContent = "Requested publication loaded. Check quote and depth clocks for freshness."; reenable(); return;
+        }
+      }
+    } catch (_) { /* Keep the prior snapshot with its original source clocks. */ }
+    setTimeout(poll, Math.min(request.scope === "exchanges" ? 2000 : 15000, Math.max(0, deadline - Date.now())));
+  };
+  poll();
 }
 // Background poll: every 5 min check meta.json; if a new run landed, reload quietly.
 function startMetaPoll() {
   setInterval(async () => {
     try {
       const m = await fetchJson("data/meta.json?t=" + Date.now());
+      if (RESIDENT && m?.run_id === RAW_META.run_id) {
+        RAW_META.resident = m.resident;
+        for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), m.resident));
+        render();
+        if (STATE.game && !document.getElementById('drawer').hidden) refreshDrawerQuotes();
+      }
+        if (m?.run_id && m.run_id !== RAW_META.run_id) {
+          LOAD_ERRORS.meta = 'A newer publication is available. Reload to refresh this game and its model.';
+          VERIFIED_OFFERS.clear();
+          if (STATE.game) cancelStakeCheck(STATE.game, 'Publication changed. Reload before checking this game.');
+          render();
+        }
       // reload only when a newer run landed and the user isn't reading a drawer
       if (m && m.last_updated && LAST_UPDATED && m.last_updated !== LAST_UPDATED && STATE.view !== "execution" && document.getElementById("drawer").hidden) {
         location.reload();
       }
     } catch (_) { /* ignore */ }
-  }, 5 * 60 * 1000);
+  }, 15000);
 }
 
 // ── boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   QUOTES = await import("./current-quotes.mjs");
+  RESIDENT = await import('./resident-quotes.mjs');
   readHash();
   const bust = "?t=" + Date.now();
-  const [meta, nfl, cfb, auth] = await Promise.all([
-    fetchJson(`data/meta.json${bust}`).catch(() => ({})),
-    fetchJson(`data/games_nfl.json${bust}`).catch(() => []),
-    fetchJson(`data/games_cfb.json${bust}`).catch(() => []),
+  const [meta, auth] = await Promise.all([
+    fetchJson(`data/meta.json${bust}`).catch(e => { LOAD_ERRORS.meta = e.message; return {}; }),
     fetch(`auth/me${bust}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ]);
+  const generation = meta.publication?.generation ? '&generation=' + encodeURIComponent(meta.publication.generation) : '';
+  const [nfl, cfb] = await Promise.all([
+    fetchJson(`data/games_nfl.json${bust}${generation}`).catch(e => { LOAD_ERRORS.nfl = e.message; return null; }),
+    fetchJson(`data/games_cfb.json${bust}${generation}`).catch(e => { LOAD_ERRORS.cfb = e.message; return null; }),
   ]);
   DATA.meta = meta || {};
   IS_ADMIN = auth?.role === "admin";
   document.getElementById("execution-tab").hidden = !IS_ADMIN;
-  DATA.games.nfl = normalizeGames(nfl);
-  DATA.games.cfb = normalizeGames(cfb);
+  if (!meta || typeof meta !== "object" || Array.isArray(meta) || !meta.run_id) LOAD_ERRORS.meta ||= "Publication metadata missing";
+  for (const [sport, payload] of [["nfl", nfl], ["cfb", cfb]]) {
+    try { DATA.games[sport] = acceptGames(payload, meta); }
+    catch (e) { LOAD_ERRORS[sport] ||= e.message; DATA.games[sport] = []; }
+  }
   RAW_META = DATA.meta;
   RAW_GAMES = {nfl: DATA.games.nfl, cfb: DATA.games.cfb};
+  for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), meta.resident));
   // No sport in the URL and the default sport has no games on the board (NFL before its
   // 10-day window opens, CFB in January): open on the sport that does.
-  if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length) {
+  // A failed load is not "no games": never switch sport away from it (the table shows the error).
+  if (!/(^|[#?&])sport=/.test(location.hash) && !(DATA.games[STATE.sport] || []).length && !LOAD_ERRORS[STATE.sport]) {
     const alt = STATE.sport === "nfl" ? "cfb" : "nfl";
     if ((DATA.games[alt] || []).length) STATE.sport = alt;
   }
@@ -465,11 +553,10 @@ async function boot() {
   setInterval(() => {
     const health = JSON.stringify([QUOTES.expireQuoteMeta(RAW_META).quote_expiries,
       QUOTES.refreshOverdue(RAW_META), ...Object.values(RAW_GAMES).flat().map(c => QUOTES.expireCardQuotes(c).expired_markets)]);
-    if (health === QUOTE_HEALTH) return;
     QUOTE_HEALTH = health;
     for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
     if (STATE.view !== "execution") render();
-    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); }
+    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); renderStatusbar(DATA.meta); }
     if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
   }, 15000);
 
@@ -479,16 +566,13 @@ async function boot() {
   document.getElementById("tablemode").addEventListener("change", e => { STATE.tableMode = e.target.value; STATE.sort = null; render(); });
   document.getElementById("signal").addEventListener("change", (e) => { STATE.signal = e.target.value; render(); });
   document.getElementById("book").addEventListener("change", (e) => { STATE.book = e.target.value; render(); });
-  document.getElementById("minedge").addEventListener("input", (e) => {
-    const v = parseFloat(e.target.value); STATE.minEdge = Number.isFinite(v) ? v : null; render();
-  });
-  document.getElementById("showdomes").addEventListener("change", (e) => { STATE.showDomes = e.target.checked; render(); });
+  setupShowAllGames();
   document.getElementById("showwatch").addEventListener("change", (e) => { STATE.showWatch = e.target.checked; render(); });
-  document.getElementById("search").addEventListener("input", (e) => { STATE.q = e.target.value.toLowerCase().trim(); render(); });
+  setupSearch();
   const presetChipEl = document.getElementById("presetchip");
   if (presetChipEl) presetChipEl.addEventListener("click", () => setPreset(null));
   document.getElementById("signal").value = STATE.signal;
-  if (STATE.minEdge != null) document.getElementById("minedge").value = STATE.minEdge;
+
   window.addEventListener("hashchange", () => {
     const before = STATE.game;
     readHash();
@@ -496,7 +580,12 @@ async function boot() {
     render();
   });
 
+  document.getElementById("mobile-sort").addEventListener("change", e => { STATE.sort = e.target.value || null; STATE.dir = 1; render(); });
   setupHover();
+  document.addEventListener("click", e => {
+    const button = e.target.closest(".copy-coordinates");
+    if (button) { e.stopPropagation(); copyCoordinates(button); }
+  });
   if (typeof setupTableControls === "function") setupTableControls();
   setupDrawer();
   setupRefresh(auth);
@@ -509,6 +598,17 @@ async function boot() {
   if (typeof loadBacktest === "function" && STATE.view !== "backtest") {
     loadBacktest().then(() => { if (STATE.view === "table" || STATE.view === "map") render(); }).catch(() => {});
   }
+  if (typeof loadStadiumHistory === "function") loadStadiumHistory().then(() => {
+    if (["table", "map", "signals"].includes(STATE.view)) render();
+    if (DRAWER.game) {
+      const history = document.getElementById("drawer-stadium-history");
+      if (history) history.innerHTML = stadiumHistoryDetails(DRAWER.game);
+    }
+  });
+  if (typeof loadStadiumClimate === "function") loadStadiumClimate().then(() => {
+    if (["table", "map", "signals"].includes(STATE.view)) render();
+    if (typeof paintStadiumClimate === "function") paintStadiumClimate();
+  });
 }
 
 boot();

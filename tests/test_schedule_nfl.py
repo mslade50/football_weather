@@ -77,3 +77,48 @@ def test_postseason_weeks(payload: str) -> None:
 def test_week_filter(payload: str) -> None:
     games = parse_nflverse_games(payload, 2026, weeks=[11])
     assert [g.game_id for g in games] == ["nfl:2026:11:min@sf"]
+
+
+def test_explicit_international_venue_overrides_home_id_and_marketing_home(book):
+    csv = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,roof,game_id\n2026,REG,5,2026-10-11,09:30,PHI,JAX,Home,JAX00,Tottenham Hotspur Stadium,outdoors,2026_05_PHI_JAX\n"
+    game = parse_nflverse_games(csv, 2026, book=book)[0]
+    stadium = book.find_stadium("Tottenham Hotspur Stadium")
+    assert stadium and game.stadium_id == stadium.stadium_id
+    assert game.neutral and game.tz == "Europe/London"
+    assert game.kickoff_utc.isoformat() == "2026-10-11T13:30:00+00:00"
+    assert game.kickoff_local.hour == 14 and game.kickoff_local.minute == 30
+    assert game.venue_resolution == "name_overrides_conflicting_id"
+    assert game.venue_source_id == "JAX00"
+    warnings = []
+    resolved = book.resolve(game, warnings)
+    assert resolved.stadium == stadium and abs(stadium.lat - 51.604177) < .001
+    assert resolved.stadium_source == "explicit_name_overrides_source_id"
+    assert any("overrides conflicting" in d.reason for d in warnings)
+
+
+def test_source_id_is_kept_when_the_printed_name_is_not_an_alias(book):
+    csv = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,roof,game_id\n2019,REG,6,2019-10-06,09:30,CHI,OAK,Neutral,LON02,Unlisted London Ground,outdoors,2019_06_CHI_OAK\n"
+    game = parse_nflverse_games(csv, 2019, book=book)[0]
+    assert game.stadium_id == "tottenham-hotspur-stadium"
+    assert game.venue_resolution == "source_id"
+    assert game.neutral is True and game.tz == "Europe/London"
+
+
+def test_historical_names_resolve_and_a_home_id_does_not_replace_an_unknown_venue(book):
+    denver = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,roof,game_id\n2018,REG,1,2018-09-09,16:05,SEA,DEN,Home,DEN00,Sports Authority Field at Mile High,outdoors,2018_01_SEA_DEN\n"
+    game = parse_nflverse_games(denver, 2018, book=book)[0]
+    assert game.stadium_id == "empower-field-at-mile-high"
+    assert game.tz == "America/Denver"
+    azteca = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,roof,game_id\n2022,REG,4,2022-10-02,09:30,ARI,SF,Neutral,MEX00,Azteca Stadium,outdoors,2022_04_ARI_SF\n"
+    mexico = parse_nflverse_games(azteca, 2022, book=book)[0]
+    assert mexico.stadium_id == "estadio-banorte" and mexico.neutral is True
+    london = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,roof,game_id\n2019,REG,6,2019-10-06,09:30,CHI,OAK,Neutral,LON02,Tottenham Stadium,outdoors,2019_06_CHI_OAK\n"
+    tottenham = parse_nflverse_games(london, 2019, book=book)[0]
+    assert tottenham.stadium_id == "tottenham-hotspur-stadium"
+
+
+def test_unknown_explicit_venue_cannot_fall_back_to_home_weather(book):
+    csv = "season,game_type,week,gameday,gametime,away_team,home_team,location,stadium_id,stadium,game_id\n2026,REG,5,2026-10-11,09:30,PHI,JAX,Home,JAX00,Unregistered Overseas Ground,2026_05_PHI_JAX\n"
+    game = parse_nflverse_games(csv, 2026, book=book)[0]
+    assert game.stadium_id is None and game.venue_resolution == "unresolved_explicit_name"
+    assert book.resolve(game).stadium is None

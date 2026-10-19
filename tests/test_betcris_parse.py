@@ -43,7 +43,10 @@ def test_archived_public_cfb_uses_actual_prices_and_pacific_kickoff(public_cfb):
 
 def test_public_nfl_preserves_utc_date_rollover():
     payload = json.loads((FIX / "nfl_public.json").read_text(encoding="utf-8"))
-    lines = p.parse_public(payload, "nfl", now=PUBLIC_NOW, legacy_pacific_starts=True)
+    # The captured feed is older than the 30-minute display window at PUBLIC_NOW.
+    # Kickoff-date assertions only need a clock inside that window.
+    observed = datetime(2026, 9, 26, 2, 26, 2, tzinfo=timezone.utc)
+    lines = p.parse_public(payload, "nfl", now=observed + timedelta(minutes=4), legacy_pacific_starts=True)
     assert len(lines) == 12  # two full games; excludes half-game and past unavailable rows
     assert {ln.game_id for ln in lines} == {
         "nfl:raw:2026-09-27T17:00:seattle-seahawks@washington-commanders",

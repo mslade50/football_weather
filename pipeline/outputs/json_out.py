@@ -34,7 +34,14 @@ from typing import Any, Optional, Union
 
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
-from pipeline.model.config import SPREAD_AVG_DP, SPREAD_CONSENSUS_BOOKS, SPREAD_SRC_FALLBACK, SPREAD_SRC_LABELS
+from pipeline.model.config import (
+    REFERENCE_BOOKS,
+    SPREAD_AVG_DP,
+    SPREAD_CONSENSUS_BOOKS,
+    SPREAD_SRC_FALLBACK,
+    SPREAD_SRC_LABELS,
+)
+from pipeline.model.process import evaluate_card, model_rows
 from pipeline.model.total_prices import compare_totals
 from pipeline.stadiums.roofs import resolve_roof_state
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
@@ -109,26 +116,42 @@ def next_backstop(now: datetime) -> datetime:
     for day in (0, 1):
         base = (n + timedelta(days=day)).replace(minute=BACKSTOP_MINUTE, second=0, microsecond=0)
         weekday = base.weekday()
+        # Mirrors the sparse GitHub backstop in .github/workflows/pipeline.yml
+        # (pinned by test_next_backstop_is_pinned_to_workflow_schedule).
         hours = {9}
-        if weekday <= 2:
+        if weekday == 0:
+            hours.update((0, 14, 20, 23))
+        if weekday in (1, 2):
             hours.update((14, 20))
         if weekday in (3, 4):
-            hours.update(range(12, 24, 2))
-        if weekday == 3:
-            hours.add(23)
+            hours.update((12, 16, 20))
         if weekday == 5:
-            hours.update(range(10, 24))
+            hours.update((15, 18, 21))
         if weekday == 6:
-            hours.update(range(10, 22))
-        if weekday == 0:
-            hours.update((22, 23))
+            hours.update((0, 3, 15, 18, 21))
         candidates = [base.replace(hour=h) for h in hours]
-        if weekday == 6:
-            candidates.extend(base.replace(hour=h, minute=47) for h in (16, 19, 23))
         for cand in sorted(candidates):
             if cand > n:
                 return cand
     return n  # unreachable
+
+
+# Worker game-day windows (python weekday Mon=0): mirrors GAME_WINDOWS in
+# site/worker/index.js (pinned by test_worker_windows_mirror_index_js).
+WORKER_WINDOWS = ((5, 15, 4), (6, 15, 1), (3, 22, 2), (0, 22, 2))
+
+
+def next_worker_tick(now: datetime) -> Optional[datetime]:
+    """Next hourly game-day Worker dispatch (UTC :00) strictly after ``now``."""
+    n = now.astimezone(timezone.utc)
+    cand = n.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    for _ in range(72):
+        in_season = cand.month >= 8 or cand.month <= 2
+        wd, hr = cand.weekday(), cand.hour
+        if in_season and any((wd == d and hr >= a) or (wd == (d + 1) % 7 and hr <= b) for d, a, b in WORKER_WINDOWS):
+            return cand
+        cand += timedelta(hours=1)
+    return None
 
 
 def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
@@ -143,6 +166,9 @@ def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
         if midday <= now:
             midday += timedelta(days=1)
         next_time = min(next_time, midday)
+    worker = next_worker_tick(now)
+    if worker is not None:
+        next_time = min(next_time, worker)
     return utc_iso(next_time)
 
 
@@ -221,6 +247,8 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "ensemble_source_versions": fc.ensemble_source_versions,
         "ensemble_cached_sources": fc.ensemble_cached_sources,
         "ensemble_aged_sources": fc.ensemble_aged_sources,
+        "ensemble_unverified_sources": fc.ensemble_unverified_sources,
+        "ensemble_verification_errors": fc.ensemble_verification_errors,
         "wind_p10": fc.wind_p10,
         "wind_p50": fc.wind_p50,
         "wind_p90": fc.wind_p90,
@@ -238,6 +266,15 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "climo_wind": getattr(fc, "climo_wind", None),
         "climo_temp": getattr(fc, "climo_temp", None),
         "hourly": _hourly(fc),
+        # Process screen (not the v1 stitch): per-model windows + ECMWF-first fields.
+        "models": model_rows(getattr(fc, "model_windows", None) or {}),
+        "signal_source": getattr(fc, "signal_source", None),
+        "signal_temp_f": getattr(fc, "signal_temp_f", None),
+        "signal_wind_mph": getattr(fc, "signal_wind_mph", None),
+        "signal_rain_mm": getattr(fc, "signal_rain_mm", None),
+        "signal_wind_dir_deg": getattr(fc, "signal_wind_dir_deg", None),
+        "ecmwf_apart": bool(getattr(fc, "ecmwf_apart", False)),
+        "ecmwf_apart_fields": list(getattr(fc, "ecmwf_apart_fields", ()) or ()),
     }
 
 
@@ -302,7 +339,8 @@ def _signal_block(sig: Any, flags: Sequence[str], dow_base: Optional[float] = No
 
 
 def _opener(openers: dict, key: str) -> dict:
-    return pstate.get_opener(openers, key) or {}
+    row = pstate.get_baseline(openers, key) or {}
+    return {**row, 'basis': row.get('basis') or 'first_seen', 'source': row.get('source') or key.rsplit('|', 1)[-1]} if row else {}
 
 
 def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
@@ -324,7 +362,8 @@ def execution_markets(lines: Iterable[GameLine]) -> list[dict[str, Any]]:
     return [markets[k] for k in sorted(markets)]
 
 
-def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[str, dict[str, Any]]:
+def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict,
+               last_observed: Optional[dict] = None) -> dict[str, dict[str, Any]]:
     """``{book: {spread, total, ml}}`` from this game's MAIN lines + the openers store."""
     per_book: dict[str, dict[str, dict[str, GameLine]]] = {}
     for ln in lines:
@@ -352,6 +391,7 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 "open_odds": op_home.get("odds"),
                 "updated_at": getattr(ref, "scraped_at", None),
             }
+            _add_open_metadata(entry['spread'], op_home if op_home.get('line') is not None else op_away)
         to = markets.get("total") or {}
         if to:
             over, under = to.get("over"), to.get("under")
@@ -386,11 +426,18 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                     values["source_updated_at"] = ref.source_updated_at
                 if ref.expires_at is not None:
                     values["expires_at"] = ref.expires_at
+                elif ref.scraped_at is not None:
+                    # Match the existing one-hour carry/comparison ceiling.
+                    # A provider without its own TTL cannot stay current forever.
+                    values["expires_at"] = ref.scraped_at + timedelta(hours=1)
+                if ref.actionable_until is not None:
+                    values["actionable_until"] = ref.actionable_until
             out[book] = entry
 
     # Preserve historical openers when a book/market has no current quote. This
     # makes an expired or temporarily missing current price visible as open → —.
-    opener_store = (openers or {}).get("openers") or {}
+    opener_store = {**(openers.get('openers') or {}), **(openers.get('true_openers') or {}),
+                    **((openers.get('references') or {}).get('t_minus_6d') or {})}
     opener_markets: set[tuple[str, str]] = set()
     for key in opener_store:
         parts = key.split("|")
@@ -409,6 +456,7 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
                 open_line = -op_away["line"]
             quote = {"home_line": None, "home_odds": None, "away_odds": None, "open_line": open_line,
                      "open_odds": op_home.get("odds"), "updated_at": None}
+            _add_open_metadata(quote, op_home if op_home.get('line') is not None else op_away)
         elif market == "total":
             op_under = _opener(openers, pstate.odds_key(game_id, market, "under", book))
             op_over = _opener(openers, pstate.odds_key(game_id, market, "over", book))
@@ -422,21 +470,21 @@ def odds_block(game_id: str, lines: Iterable[GameLine], openers: dict) -> dict[s
             quote = {"home": None, "away": None, "open_home": op_home.get("odds"),
                      "open_away": op_away.get("odds"), "updated_at": None}
         entry[market] = quote
+    for book, reference in (last_observed or {}).items():
+        out.setdefault(book, {}).setdefault("total", {})["last_observed"] = reference
     return out
 
 
 def _add_open_metadata(quote: dict[str, Any], opener: dict[str, Any], *, prefix: str = "open") -> None:
     """Carry baseline provenance only when the persistent opener has it."""
     for source, target in (("ts", f"{prefix}_ts"), ("target_ts", f"{prefix}_target_ts"),
-                           ("basis", f"{prefix}_basis")):
+                           ("basis", f"{prefix}_basis"), ('source', f'{prefix}_source'), ('observed_at', f'{prefix}_observed_at')):
         if opener.get(source) is not None:
             quote[target] = opener[source]
 
 
-def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
-    """Consensus spread OPENER = simple average of the Betcris / BetOnline / Pinnacle
-    home-spread openers on record (an away-only opener is flipped); none on record ->
-    the stored ``book='consensus'`` opener with src ``'fallback'``. Returns ``(line, src)``."""
+def _member_spread_openers(game_id: str, openers: dict) -> dict[str, float]:
+    """Home-spread opener per SPREAD_CONSENSUS_BOOKS member on record (away-only flipped)."""
     found: dict[str, float] = {}
     for book in SPREAD_CONSENSUS_BOOKS:
         op_home = _opener(openers, pstate.odds_key(game_id, "spread", "home", book))
@@ -446,9 +494,47 @@ def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float
             line = -op_away["line"] if op_away.get("line") is not None else None
         if line is not None:
             found[book] = float(line)
+    return found
+
+
+def _spread_src(members: Iterable[str]) -> str:
+    used = set(members)
+    return "+".join(SPREAD_SRC_LABELS[b] for b in SPREAD_CONSENSUS_BOOKS if b in used)
+
+
+def freeze_consensus_spread_openers(openers: dict, game_ids: Iterable[str], now: str) -> int:
+    """Set-once ``consensus_spread_open[game_id] = {line, members, ts}`` from the member
+    openers on record, so a member posting later cannot move the opener. Games with no
+    member opener yet stay unfrozen. Returns the number frozen."""
+    store = openers.setdefault("consensus_spread_open", {})
+    added = 0
+    for gid in game_ids:
+        if gid in store:
+            continue
+        found = _member_spread_openers(gid, openers)
+        if found:
+            store[gid] = {"line": round(sum(found.values()) / len(found), SPREAD_AVG_DP),
+                          "members": [b for b in SPREAD_CONSENSUS_BOOKS if b in found], "ts": now}
+            added += 1
+    return added
+
+
+def _frozen_spread_opener(game_id: str, openers: dict) -> Optional[dict[str, Any]]:
+    rec = (openers.get("consensus_spread_open") or {}).get(game_id)
+    return rec if isinstance(rec, dict) and rec.get("line") is not None else None
+
+
+def consensus_spread_opener(game_id: str, openers: dict) -> tuple[Optional[float], str]:
+    """Consensus spread OPENER = the frozen ``consensus_spread_open`` entry, else the simple
+    average of the Betcris / BetOnline / Pinnacle home-spread openers on record (an
+    away-only opener is flipped); none on record -> the stored ``book='consensus'`` opener
+    with src ``'fallback'``. Returns ``(line, src)``."""
+    frozen = _frozen_spread_opener(game_id, openers)
+    if frozen is not None:
+        return float(frozen["line"]), _spread_src(frozen.get("members") or ())
+    found = _member_spread_openers(game_id, openers)
     if found:
-        avg = round(sum(found.values()) / len(found), SPREAD_AVG_DP)
-        return avg, "+".join(SPREAD_SRC_LABELS[b] for b in SPREAD_CONSENSUS_BOOKS if b in found)
+        return round(sum(found.values()) / len(found), SPREAD_AVG_DP), _spread_src(found)
     op_sp = _opener(openers, pstate.odds_key(game_id, "spread", "home", "consensus"))
     return op_sp.get("line"), SPREAD_SRC_FALLBACK
 
@@ -484,6 +570,31 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
         "total_thin": total_n_books < 2,
     }
     _add_open_metadata(result, op_to, prefix="total_open")
+    spread_rows = []
+    frozen = _frozen_spread_opener(game_id, openers)
+    members = list(frozen.get("members") or []) if frozen else []
+    for book in (members if frozen else SPREAD_CONSENSUS_BOOKS):
+        home = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', book))
+        away = _opener(openers, pstate.odds_key(game_id, 'spread', 'away', book))
+        row = home if home.get('line') is not None else away
+        if row.get('line') is not None:
+            spread_rows.append(row)
+    if not spread_rows:
+        fallback = _opener(openers, pstate.odds_key(game_id, 'spread', 'home', 'consensus'))
+        spread_rows = [fallback] if fallback else []
+    result['spread_open_source'] = _open_src
+    result['spread_open_members'] = members if frozen else sorted(_member_spread_openers(game_id, openers), key=SPREAD_CONSENSUS_BOOKS.index)
+    result['spread_open_basis'] = spread_rows[0].get('basis') if spread_rows and all(r.get('basis') == spread_rows[0].get('basis') for r in spread_rows) else 'mixed_reference' if spread_rows else 'unknown'
+    result['spread_open_observations'] = [{'source': r.get('source'), 'ts': r.get('ts'), 'basis': r.get('basis')} for r in spread_rows]
+    true_store = openers.get('true_openers') or {}
+    ref_book = getattr(to, 'ref_book', None)
+    genuine = true_store.get(pstate.odds_key(game_id, 'total', 'under', 'consensus'))
+    if genuine is None and ref_book:
+        genuine = true_store.get(pstate.odds_key(game_id, 'total', 'under', ref_book))
+    result['true_total_open'] = genuine.get('line') if genuine else None
+    result['true_total_open_status'] = 'attested' if genuine else 'unknown'
+    if genuine:
+        _add_open_metadata(result, genuine, prefix='true_total_open')
     return result
 
 
@@ -549,6 +660,7 @@ def build_card(
     impact_v2: Any = None,
     fair_v2: Any = None,
     model_version: Optional[str] = None,
+    last_observed: Optional[dict] = None,
 ) -> dict[str, Any]:
     """One GameCard (ARCH §5). Pure: everything comes from the arguments.
     ``impact_v2``/``fair_v2`` fill the side-by-side v2 blocks; ``model_version`` stamps
@@ -576,14 +688,23 @@ def build_card(
         "neutral": bool(game.neutral),
         "status": game.status,
         "stadium": _stadium_block(stadium, roof_state, avg_wind, avg_wind_month),
+        "venue_provenance": {"source": game.source, "source_name": game.venue_name,
+                             "source_id": game.venue_source_id, "resolution": game.venue_resolution,
+                             "resolved_id": stadium.stadium_id if stadium else None},
         "travel_alt": travel_alt,
         "home_temp": home_temp,
         "away_temp": away_temp,
         "weather": _weather_block(fc, avg_wind if avg_wind is not None else (stadium.avg_wind_static if stadium else None)),
         "impact": _impact_block(impact, impact_v2, model_version),
         "signal": _signal_block(signal, flags),
-        "odds": odds_block(game.game_id, lines, openers),
+        "odds": odds_block(game.game_id, lines, openers, last_observed),
         "weekly_total_open": (openers.get("weekly_totals") or {}).get(game.game_id),
+        'odds_baselines': {
+            'first_observed': {k: v for k, v in (openers.get('openers') or {}).items() if k.startswith(game.game_id + '|')},
+            'true_openers': {k: v for k, v in (openers.get('true_openers') or {}).items() if k.startswith(game.game_id + '|')},
+            'time_references': {basis: {k: v for k, v in rows.items() if k.startswith(game.game_id + '|')}
+                                for basis, rows in (openers.get('references') or {}).items()},
+        },
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
         "total_prices": compare_totals(sport, lines, fair),
@@ -591,6 +712,7 @@ def build_card(
         "alerts": list(alerts),
         "run_id": run_id,
     }
+    card["process"] = evaluate_card(card)
     return sanitize(card)
 
 
@@ -613,7 +735,11 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
     fair = card.get("fair") or {}
     best_t = fair.get("best_total") or {}
     best_s = fair.get("best_spread") or {}
-    expiries = [quote["expires_at"] for markets in (card.get("odds") or {}).values()
+    # A reference book's own clock (BetCris, feed time + 30 minutes) must not
+    # become the row's earliest expiry. That clock only retires the reference
+    # cell. A pricing book's expiry still clears the row's fair and best price.
+    expiries = [quote["expires_at"] for book, markets in (card.get("odds") or {}).items()
+                if book not in REFERENCE_BOOKS
                 for quote in markets.values() if quote.get("expires_at") and not quote.get("expired")]
     row = {
         "game_id": card["game_id"],
@@ -667,7 +793,9 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "lead_hours": wx.get("lead_hours"),
         "model_version": (card.get("impact") or {}).get("model_version"),
     }
-    for key in ("total_open_ts", "total_open_target_ts", "total_open_basis"):
+    for key in ('total_open_ts', 'total_open_target_ts', 'total_open_basis', 'total_open_source',
+                'spread_open_basis', 'spread_open_source', 'spread_open_observations',
+                'true_total_open', 'true_total_open_status', 'true_total_open_ts', 'true_total_open_source'):
         if key in cons:
             row[key] = cons[key]
     return row
@@ -757,6 +885,22 @@ def build_meta(
     if extra:
         meta.update(extra)
     return sanitize(meta)
+
+
+def current_week(games: Any, now: datetime) -> Optional[int]:
+    """Week of the earliest game not yet kicked off / final; else the latest week; else None."""
+    live = [g for g in games if getattr(g, "week", None) is not None]
+    if not live:
+        return None
+    open_ = [g for g in live if g.kickoff_utc > now and str(getattr(g, "status", "") or "").lower() not in ("final", "cancelled", "canceled", "postponed")]
+    if open_:
+        return int(min(open_, key=lambda g: g.kickoff_utc).week)
+    return int(max(g.week for g in live))
+
+
+def current_weeks(games_by_sport: dict[str, Any], now: datetime) -> dict[str, Optional[int]]:
+    """``meta.weeks`` = ``{sport: current week}`` so the board defaults each sport to its own week."""
+    return {sport: current_week(games, now) for sport, games in games_by_sport.items()}
 
 
 def slim_meta(meta: dict[str, Any]) -> dict[str, Any]:
@@ -944,8 +1088,8 @@ __all__ = [
     "BACKTEST_FILE",
     "REQUIRED_CARD_KEYS", "build_alerts_feed", "build_status", "status_run_row", "load_previous_status",
     "sanitize", "dump_json", "next_backstop", "next_run_eta",
-    "build_card", "odds_block", "consensus_spread_opener", "consensus_block", "fair_block", "table_row",
-    "books_status", "build_meta", "slim_meta",
+    "build_card", "odds_block", "consensus_spread_opener", "freeze_consensus_spread_openers", "consensus_block", "fair_block", "table_row",
+    "books_status", "build_meta", "current_week", "current_weeks", "slim_meta",
     "load_wx_history", "wx_point", "update_wx_history", "prune_wx_history", "save_wx_history",
     "snapshot_key", "season_week", "write_board",
 ]

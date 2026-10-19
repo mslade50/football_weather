@@ -21,10 +21,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def detect_git_sha(root: Path = REPO_ROOT) -> Optional[str]:
     env_sha = os.environ.get("GITHUB_SHA")
     if env_sha:
-        return env_sha[:12]
+        return env_sha
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--short=12", "HEAD"],
+            ['git', '-c', f'safe.directory={root.as_posix()}', 'rev-parse', 'HEAD'],
             cwd=str(root),
             capture_output=True,
             text=True,

@@ -2,7 +2,8 @@
 
 Pins (ARCH §9.2 / §13): R2 state get loop fails on anything but NoSuchKey, put loop
 pushes meta.json LAST, d1 execute gated by hashFiles, self-check after publish,
-playwright job builds with --merge-into-r2, NO git commit/push step remains (Phase 4:
+playwright_scrape runs parallel to light and hands lines to the playwright publish
+job (--ingest-lines --merge-into-r2), NO git commit/push step remains (Phase 4:
 legacy csv/xlsx go to R2 legacy/), no continue-on-error on state steps."""
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ def _step(text: str, name: str) -> str:
 
 def _job(text: str, name: str) -> str:
     start = text.index(f"\n  {name}:\n")
-    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright", "notify_failure")]
+    nxt = [text.find(f"\n  {j}:\n", start + 1) for j in ("gate", "light", "playwright_scrape", "playwright", "notify_failure")]
     ends = [i for i in nxt if i > start]
     return text[start:min(ends)] if ends else text[start:]
 
@@ -45,11 +46,22 @@ def test_schedule_in_season_cadence(text: str):
     # ARCH §9.1 mirrored as GitHub crons (site/worker/SETUP.md §7); all off-the-hour.
     import re
     crons = re.findall(r"- cron: '([^']+)'", text)
-    assert len(crons) >= 7
+    assert len(crons) >= 5
     for c in crons:
         assert c.split()[0] in ("17", "47"), c
-    assert "'17 10-23 * * 6'" in text   # Sat CFB hourly
-    assert "'17 10-21 * * 0'" in text   # Sun NFL hourly (GitHub DOW 0=Sun)
+    # Sparse backstop only: the Worker owns the hourly game-day cadence.
+    assert "'17 15,18,21 * * 6'" in text      # Sat CFB every 3h
+    assert "'17 0,3,15,18,21 * * 0'" in text  # Sun NFL every 3h (GitHub DOW 0=Sun)
+
+
+def test_backstop_defers_to_recent_worker_dispatch(text: str):
+    gate = _job(text, "gate")
+    step = _step(gate, "Skip backstop tick after a recent dispatch")
+    assert "github.event_name == 'schedule'" in step
+    assert "event=workflow_dispatch" in step and "50 minutes ago" in step
+    assert "continue-on-error: true" in step     # fail-open
+    assert "steps.recent.outputs.skip != 'true'" in _step(gate, "Kickoff-horizon gate")
+    assert "cancel-in-progress: false" in text   # overlap queues, never cancels
 
 
 def test_dispatch_inputs(text: str):
@@ -76,6 +88,8 @@ def test_concurrency_queues_rather_than_cancels(text: str):
 def test_cloudflare_env_and_state_file_list(text: str):
     assert "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}" in text
     assert "CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}" in text
+    assert "R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}" in text
+    assert "R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}" in text
     assert "R2_BUCKET: football-board" in text
     assert "D1_DATABASE: football-odds" in text
     assert "STATE_FILES: " + " ".join(STATE_FILES) in text
@@ -101,6 +115,7 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
     assert "if: needs.gate.outputs.run == 'scrape'" in light
     assert "python-version: '3.11'" in light
     assert "cache: 'pip'" in light
+    assert "path: ~/.npm" in light and "npm-wrangler-4" in light
     assert "actions/setup-node@v4" in light and "node-version: '20'" in light
     assert "playwright install" not in light
     assert "grep -viE '^(playwright|playwright-stealth" in light
@@ -113,25 +128,24 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
 
 
 @pytest.mark.parametrize("name", ["Fetch board state from R2", "Fetch board state from R2 (playwright)"])
-def test_r2_state_get_loop_fails_on_non_nosuchkey(text: str, name: str):
+def test_r2_state_fetch_fails_on_non_nosuchkey(text: str, name: str):
     step = _step(text, name)
-    assert "for f in $STATE_FILES meta; do" in step
-    assert 'DEST="data/state/prev_meta.json"' in step
-    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1' in step
-    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in step
-    assert "exit 1" in step
-    assert "::error::R2 state fetch failed" in step
-    assert "continue-on-error" not in step
+    # The fail-closed loop (NoSuchKey -> empty, anything else -> exit 1, ::error:: message) lives in
+    # scripts/fetch_r2.py and is pinned by tests/test_fetch_r2.py; the step must be a bare call.
+    assert "run: python scripts/fetch_r2.py state --dest data/state" in step
+    assert "|| true" not in step and "continue-on-error" not in step
+    assert "wrangler" not in step
 
 
 @pytest.mark.parametrize("name", ["Fetch wind-signal history", "Fetch wind-signal history (playwright)"])
 def test_alert_history_is_read_only_optional_context(text: str, name: str):
     step = _step(text, name)
-    assert 'r2 object get "$R2_BUCKET/board/backtest.json" --file=data/state/backtest.json --remote' in step
-    assert "::warning::Wind history unavailable" in step
-    assert 'r2 object get "$R2_BUCKET/backtest/wind-history-v1.json" --file=data/state/wind-history-v1.json --remote' in step
-    assert "::warning::Historical wind archive unavailable" in step
-    assert "r2 object put" not in step
+    assert "python scripts/fetch_r2.py object board/backtest.json data/state/backtest.json" in step
+    assert "--warn-message 'Wind history unavailable; alerts will label it unavailable'" in step
+    assert "python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json" in step
+    assert "--warn-message 'Historical wind archive unavailable; alerts will label the coverage gap'" in step
+    assert step.index("wind-history-v1.json") < step.index("board/backtest.json")
+    assert "r2 object put" not in step and "wrangler" not in step
 
 
 @pytest.mark.parametrize("name", ["Push to R2", "Push to R2 (playwright)"])
@@ -182,9 +196,10 @@ def test_d1_execute_gated_by_hashfiles(text: str, name: str):
 @pytest.mark.parametrize("name", ["Self-check published board", "Self-check published board (playwright)"])
 def test_self_check_after_publish(text: str, name: str):
     step = _step(text, name)
-    assert 'r2 object get "$R2_BUCKET/board/meta.json" --file=data/check/meta.json --remote' in step
+    assert "python scripts/fetch_r2.py object board/meta.json data/check/meta.json\n" in step
+    assert "--warn-message" not in step   # the self-check fetch is strict: any failure fails the step
     assert 'python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID"' in step
-    assert "--meta-file data/check/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
+    assert "--meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
     assert "continue-on-error" not in step
 
 
@@ -196,20 +211,60 @@ def test_light_step_order(text: str):
     assert idx == sorted(idx)
 
 
-def test_playwright_job_runs_betonline_odds_scope_and_merges_into_r2(text: str):
+def test_playwright_scrape_runs_parallel_to_light_without_state_or_r2(text: str):
+    job = _job(text, "playwright_scrape")
+    assert "    needs: gate\n" in job          # NOT light: the scrape overlaps the light job
+    assert "needs.gate.outputs.need_playwright == 'true'" in job
+    assert "python -m playwright install --with-deps chromium" in job
+    assert "path: ~/.cache/ms-playwright" in job
+    assert "key: ${{ runner.os }}-ms-playwright-${{ steps.pw-version.outputs.version }}" in job
+    assert "python -m playwright install-deps chromium" in job
+    assert "steps.pw-cache.outputs.cache-hit != 'true'" in job
+    scrape = _step(job, "Scrape BetOnline (scrape-only)")
+    assert 'python -m pipeline.build --sport "$SPORT" --scrape-only data/pw-lines --books betonline --run-id "$SCRAPE_RUN_ID"' in scrape
+    assert "-pwscrape" in scrape   # raw dir distinct from the publish job's -pw run
+    upload = _step(job, "Upload BetOnline handoff")
+    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in upload
+    assert "data/pw-lines/" in upload and "data/raw_runs/" in upload   # raw-first: captures travel too
+    assert "retention-days: 1" in upload
+    # Scrape-only: never touches state, R2, D1 or Telegram, and holds no secrets.
+    for token in ("fetch_r2.py", "publish_r2.py", "wrangler", "--merge-into-r2", "secrets.", "TELEGRAM", "contents: write"):
+        assert token not in job, token
+
+
+def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     pw = _job(text, "playwright")
-    assert "needs: [gate, light]" in pw
+    assert "needs: [gate, light, playwright_scrape]" in pw
     assert "needs.gate.outputs.need_playwright == 'true'" in pw
-    assert "ref: main" not in pw   # no light-job commit to pick up any more
-    assert "python -m playwright install --with-deps chromium" in pw
+    assert "needs.light.result == 'success'" in pw
+    # A failed scrape still publishes (BetOnline 0 lines + degradation); a skipped/cancelled one does not.
+    assert "needs.playwright_scrape.result == 'success' || needs.playwright_scrape.result == 'failure'" in pw
+    assert "always()" in pw
+    assert "ref: main" not in pw
+    # No Chromium in the publish job any more.
+    assert "playwright install" not in pw
+    assert "ms-playwright" not in pw
+    assert "grep -viE '^(playwright|playwright-stealth" in pw
+    download = _step(pw, "Download BetOnline handoff")
+    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    assert "path: data/" in download
+    assert "continue-on-error: true" in download
     build = _step(pw, "Build board (BetOnline)")
-    assert 'python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2' in build
+    assert ('python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts '
+            '--run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines') in build
     assert "contents: write" not in pw
-    order = ["Fetch board state from R2 (playwright)", "Build board (BetOnline)",
+    order = ["Download BetOnline handoff", "Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]
     idx = [pw.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
     assert "Telegram on failure" not in pw
+
+
+def test_publish_job_pushes_handoff_raw_captures_before_meta(text: str):
+    push = _step(_job(text, "playwright"), "Push to R2 (playwright)")
+    # The downloaded data/raw_runs/ (scrape job captures) ride the raw phase; meta stays last.
+    assert push.index("python scripts/publish_r2.py raw") < push.index("python scripts/publish_r2.py meta")
+    assert push.rstrip().endswith("python scripts/publish_r2.py meta")
 
 
 def test_no_git_commit_step_remains(text: str):
@@ -244,7 +299,7 @@ def test_same_workflow_raw_weather_handoff(text: str):
     assert "continue-on-error: true" in download
 
 
-def test_cron_union_preserved_without_duplicate_ticks(text: str):
+def test_cron_backstop_has_no_duplicate_ticks_and_is_thinner(text: str):
     import re
     from collections import Counter
 
@@ -256,33 +311,43 @@ def test_cron_union_preserved_without_duplicate_ticks(text: str):
             values.update(range(bounds[0], bounds[1] + 1, int(step or "1")))
         return values
 
-    def ticks(crons):
-        result = Counter()
-        for cron in crons:
-            minute, hour, _, _, day = cron.split()
-            for d in numbers(day, 6):
-                for h in numbers(hour, 23):
-                    for m in numbers(minute, 59):
-                        result[d, h, m] += 1
-        return result
-
-    old = ticks(["17 9,14,20 * * *", "17 14,20 * * 2,3", "17 12-23/2 * * 4,5", "17 10-23 * * 6", "17 10-21 * * 0", "47 16,19,23 * * 0", "17 22,23 * * 1,4"])
-    new = ticks(re.findall(r"- cron: '([^']+)'", text))
-    assert set(new) == set(old)
-    assert max(new.values()) == 1
+    result = Counter()
+    for cron in re.findall(r"- cron: '([^']+)'", text):
+        minute, hour, _, _, day = cron.split()
+        for d in numbers(day, 6):
+            for h in numbers(hour, 23):
+                for m in numbers(minute, 59):
+                    result[d, h, m] += 1
+    assert max(result.values()) == 1
+    # Never hourly: no two scheduled ticks closer than 2h apart on game days (Sat/Sun).
+    for d in (6, 0):
+        hours = sorted(h for (dd, h, _m) in result if dd == d)
+        assert all(b - a >= 2 or b - a == 0 for a, b in zip(hours, hours[1:], strict=False)), (d, hours)
+    assert len(result) <= 45  # was 100+ ticks/week before the Worker became primary
 
 
 def test_telegram_on_failure(text: str):
     job = _job(text, "notify_failure")
     step = _step(job, "Telegram on failure")
-    assert "needs: [gate, light, playwright]" in job
-    assert "always() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in job
+    assert "needs: [gate, light, playwright_scrape, playwright]" in job
+    # Unconditional at the job: a skipped Playwright job must not skip the page.
+    assert "\n    if: always()\n" in job
+    assert "!cancelled()" in step
+    assert "inputs.safe_refresh != true" in step
+    assert "needs.gate.result == 'failure'" in step
+    assert "needs.light.result == 'failure'" in step
+    # Playwright pages only when the system-alert switch is on. Gate, light,
+    # and a rejected publish (which fails the light job) do not need it.
+    assert "needs.playwright.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in step
+    assert "needs.playwright_scrape.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in step
+    assert "needs.light.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS" not in step
+    assert "needs.gate.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS" not in step
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
     assert "--max-time 15" in step
 
 
 def test_read_only_contents_permission(text: str):
-    for job in ("light", "playwright"):
+    for job in ("light", "playwright_scrape", "playwright"):
         assert "contents: read" in _job(text, job), job
     assert "contents: write" not in text
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in text

@@ -17,6 +17,7 @@ from pipeline.weather.member_cache import (  # noqa: F401
 )
 
 VERIFIED_SOURCE_SECONDS = 60
+FAILED_CHECK_RETENTION_HOURS = 3
 
 
 def _recent_check(ctx: Any, source: str, signature: dict[str, Any]) -> tuple[dict[str, Any], str] | None:
@@ -68,7 +69,21 @@ def members(
         ctx.weather_state["member_cache"] = MemberCache(state_dir / "ensemble_cache.json" if state_dir else None, signature)
     cache = ctx.weather_state["member_cache"]
     locations: dict[Any, list[Any]] = {point: [] for point in points}
-    coverage = {point: {"fetched_at": {}, "source_versions": {}, "cached_sources": [], "aged_sources": [], "errors": {}} for point in points}
+    coverage = {point: {"fetched_at": {}, "source_versions": {}, "cached_sources": [], "aged_sources": [], "unverified_sources": [], "errors": {}} for point in points}
+
+    def retain_unverified(source: str) -> None:
+        for point in points:
+            bound = max(FAILED_CHECK_RETENTION_HOURS, ctx.weather_state.get("member_max_age", {}).get(point, 0))
+            hit = cache.retained(source, point, hours[point], now=ctx.now_utc, max_age_h=bound)
+            if hit is None:
+                continue
+            location, stamp, original_versions = hit
+            locations[point].append(location)
+            coverage[point]["fetched_at"][source] = stamp
+            coverage[point]["source_versions"][source] = original_versions
+            coverage[point]["cached_sources"].append(source)
+            coverage[point]["aged_sources"].append(source)
+            coverage[point]["unverified_sources"].append(source)
     fetch_versions = getattr(om, "fetch_model_versions", None)
     for source, (model, _) in SOURCES.items():
         recent = _recent_check(ctx, source, signature)
@@ -91,6 +106,7 @@ def members(
             for point in points:
                 coverage[point]["errors"][source] = str(exc)
             ctx.degrade("weather", f"{sport}: {source} ensemble source cannot be verified for {len(points)} selected locations: {exc}", "warn")
+            retain_unverified(source)
             continue
         if not recent:
             hits, missing = _cache_hits(cache, ctx, source, points, before, hours)
@@ -120,6 +136,7 @@ def members(
             for point in points:
                 coverage[point]["errors"][source] = str(exc)
             ctx.degrade("weather", f"{sport}: {source} ensemble verification failed after retrieval: {exc}", "warn")
+            retain_unverified(source)
             continue
         for point, location in fetched.items():
             fetched_at = received_at[point]

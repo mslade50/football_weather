@@ -196,7 +196,10 @@ class StadiumBook:
         away = self.team(game.sport, game.away_id)
         stadium = self.find_stadium(game.stadium_id)
         source = "game.stadium_id" if stadium is not None else "none"
-        if stadium is None and home is not None and not game.neutral:
+        if game.venue_resolution == "name_overrides_conflicting_id":
+            _degrade(ctx, "stadiums", f"{game.game_id}: explicit venue {game.venue_name!r} overrides conflicting source stadium ID {game.venue_source_id!r}; resolved {game.stadium_id!r}", "warn")
+            source = "explicit_name_overrides_source_id"
+        if stadium is None and home is not None and not game.neutral and not (game.venue_resolution or "").startswith("unresolved_"):
             stadium = self.stadium_for_team(game.sport, game.home_id)
             source = "home_team" if stadium is not None else "none"
         if stadium is None:

@@ -143,6 +143,9 @@ class MemberCache:
     def previous(self, source: str, point: tuple[float, float], current: dict[str, Any], hours: set[datetime], *, now: datetime, max_age_h: float) -> tuple[EnsembleLocation, str, dict[str, Any]] | None:
         """Explicit age-bounded OLD version reuse; never relabel it as current."""
         entry = self.entries.get(self.key(source, point), {})
+        if not isinstance(entry, dict):
+            self.invalid = True
+            return None
         versions = entry.get("versions")
         if not isinstance(versions, dict) or versions == current or versions.keys() != current.keys() or max_age_h <= 0:
             return None
@@ -151,6 +154,36 @@ class MemberCache:
         initializations = [v.get("last_run_initialisation_time") if isinstance(v, dict) else None for v in versions.values()]
         if any(not isinstance(t, int) or isinstance(t, bool) or not 0 <= now.timestamp() - t <= MAX_REUSED_DATASET_AGE_H * 3600 for t in initializations):
             return None
+        hit = self.get(source, point, versions, hours, now=now)
+        if hit and 0 <= (now - datetime.fromisoformat(hit[1])).total_seconds() < max_age_h * 3600:
+            return hit[0], hit[1], versions
+        return None
+
+    def retained(self, source: str, point: tuple[float, float], hours: set[datetime], *, now: datetime, max_age_h: float) -> tuple[EnsembleLocation, str, dict[str, Any]] | None:
+        """Bounded previously verified evidence when a current check fails.
+
+        This makes no current-cycle claim. Only the original stored dataset
+        metadata and per-hour retrieval timestamps can authorize retention.
+        """
+        entry = self.entries.get(self.key(source, point), {})
+        if not isinstance(entry, dict):
+            self.invalid = True
+            return None
+        versions = entry.get("versions")
+        if not isinstance(versions, dict) or set(versions) != set(SOURCES[source][1]) or max_age_h <= 0:
+            return None
+        for metadata in versions.values():
+            if not isinstance(metadata, dict):
+                return None
+            keys = ("last_run_initialisation_time", "last_run_modification_time",
+                    "last_run_availability_time", "update_interval_seconds", "data_end_time")
+            if any(not isinstance(metadata.get(k), int) or isinstance(metadata[k], bool) or metadata[k] <= 0 for k in keys):
+                return None
+            init, modified, available = (metadata[k] for k in keys[:3])
+            if not init <= available <= now.timestamp() or modified > now.timestamp():
+                return None
+            if now.timestamp() - init > MAX_REUSED_DATASET_AGE_H * 3600:
+                return None
         hit = self.get(source, point, versions, hours, now=now)
         if hit and 0 <= (now - datetime.fromisoformat(hit[1])).total_seconds() < max_age_h * 3600:
             return hit[0], hit[1], versions

@@ -12,8 +12,9 @@ Contracts pinned by tests:
 * ``publish``: two-phase — every payload first, ``board/meta.json`` LAST, each put
   retried 3x; a failure before meta leaves old meta over old-or-new data.
 * ``self_check``: re-fetches ``board/meta.json``, asserts ``run_id`` and applies a
-  content floor (each sport's game count >= 50 % of the previous meta) unless
-  ``--force``.
+  content floor to each sport this run rebuilt (game count >= 50 % of the
+  previous meta, and not an empty board) unless ``--force``. A college-only
+  hour does not fail because NFL was left unchanged.
 
     python -m pipeline.outputs.r2 --self-check --run-id <id> [--prev-meta data/state/prev_meta.json] [--meta-file data/check/meta.json] [--force]
     python -m pipeline.outputs.r2 --get-state --dest data/state
@@ -33,6 +34,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from pipeline.publication import BUILD_PROTECTED_NAMES, rebuilt_sports, retain_unrebuilt_sports
+
 logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
@@ -49,6 +52,7 @@ RETRY_SLEEP_S = 5.0
 STATE_FILES: tuple[str, ...] = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
+    'bet_confirmations', "book_health",
 )
 
 _CONTENT_TYPES = {
@@ -95,15 +99,21 @@ def configured(env: Optional[dict[str, str]] = None) -> bool:
     return config_from_env(env) is not None
 
 
-def make_client(cfg: R2Config) -> Any:
+def make_client(cfg: R2Config, *, bounded: bool = False, config: Any = None) -> Any:
+    """S3 client for R2. ``bounded`` = short timeouts for latency-critical calls;
+    ``config`` (a botocore Config) overrides both when given."""
     import boto3  # optional dependency: only needed when publishing
+    from botocore.config import Config
 
+    if config is None and bounded:
+        config = Config(connect_timeout=3, read_timeout=5, retries={'total_max_attempts': 2})
     return boto3.client(
         "s3",
         endpoint_url=cfg.endpoint_url,
         aws_access_key_id=cfg.access_key_id,
         aws_secret_access_key=cfg.secret_access_key,
         region_name="auto",
+        **({'config': config} if config is not None else {}),
     )
 
 
@@ -185,6 +195,8 @@ def put_state(client: Any, bucket: str, state_dir: PathLike, names: Sequence[str
               prefix: str = BOARD_PREFIX, sleep: Callable[[float], None] = time.sleep) -> list[str]:
     pushed = []
     for name in names:
+        if name in BUILD_PROTECTED_NAMES:
+            continue  # Never replace another writer's receipts with build-time state.
         p = Path(state_dir) / f"{name}.json"
         if not p.is_file():
             continue
@@ -221,6 +233,33 @@ def publish(client: Any, bucket: str, files: dict[str, PathLike], sleep: Callabl
     mid-loop leaves the old meta (readers see the previous consistent run).
     Raises on the first key that fails all retries."""
     pushed: list[str] = []
+    protected = {f'board/{name}.json' for name in BUILD_PROTECTED_NAMES}
+    files = {key: path for key, path in files.items() if key not in protected}
+    if META_KEY in files and 'sport_counts' in json.loads(Path(files[META_KEY]).read_bytes()):
+        from pipeline.publication import prepare_generation, verify_generation
+        raw_prev = get_object(client, bucket, META_KEY)
+        prev_meta = None
+        if raw_prev:
+            try:
+                loaded = json.loads(raw_prev.decode("utf-8"))
+            except ValueError as exc:
+                raise RuntimeError("Previous board meta is unreadable; refusing to publish") from exc
+            if not isinstance(loaded, dict):
+                raise RuntimeError("Previous board meta is unreadable; refusing to publish")
+            prev_meta = loaded
+        files = retain_unrebuilt_sports(
+            {key: Path(path) for key, path in files.items()},
+            prev_meta,
+            lambda key: get_object(client, bucket, key),
+            Path(files[META_KEY]).parent.parent / "publication-retain",
+            floor=CONTENT_FLOOR,
+        )
+        immutable, pointer = prepare_generation(files, Path(files[META_KEY]).parent.parent / 'publication')
+        for key, path in immutable.items():
+            put_file(client, bucket, key, path, sleep=sleep)
+            pushed.append(key)
+        verify_generation(json.loads(pointer.read_bytes()), lambda key: get_object(client, bucket, key))
+        files = {**files, META_KEY: pointer}
     for key in order_keys(files.keys()):
         put_file(client, bucket, key, files[key], sleep=sleep)
         pushed.append(key)
@@ -252,32 +291,51 @@ def raw_mirror(client: Any, bucket: str) -> Callable[[str, bytes, str], None]:
 
 # ---- self-check --------------------------------------------------------------------
 
+def _count(value: Any) -> Optional[int]:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return None
+
+
 def check_meta(meta: dict[str, Any], run_id: str, prev_meta: Optional[dict[str, Any]] = None,
                floor: float = CONTENT_FLOOR, force: bool = False) -> list[str]:
-    """Problems found (empty = OK). ``run_id`` must match; each sport count must be
-    >= floor x previous count when the previous meta is known (skipped on ``force``)."""
+    """Problems found (empty = OK).
+
+    ``run_id`` must match. Unless ``force``, every sport this run rebuilt must
+    still have games and must stay at or above ``floor`` times its previous
+    count. Sports this run did not rebuild are not counted: a CFB-only hour
+    must not fail because the NFL list was left for the next NFL run.
+    """
     problems: list[str] = []
     got = meta.get("run_id")
     if got != run_id:
         problems.append(f"meta.run_id={got!r} != expected {run_id!r}")
-    counts = meta.get("sport_counts") or {}
-    if not force and prev_meta:
-        prev = prev_meta.get("sport_counts") or {}
-        for sport, before in prev.items():
-            try:
-                before_n = int(before or 0)
-            except (TypeError, ValueError):
+    if force:
+        return problems
+    counts = meta.get("sport_counts") if isinstance(meta.get("sport_counts"), dict) else {}
+    sports = rebuilt_sports(meta)
+    current = {sport: _count(counts.get(sport)) for sport in sports}
+    if any(n is None for n in current.values()) or not any((n or 0) > 0 for n in current.values()):
+        detail = ", ".join(
+            f"{sport} {0 if current[sport] is None else current[sport]}" for sport in sorted(sports)
+        )
+        problems.append(f"refusing to publish an empty board ({detail})")
+    prev = prev_meta.get("sport_counts") if isinstance(prev_meta, dict) else None
+    if isinstance(prev, dict):
+        for sport in sorted(sports):
+            before_n = _count(prev.get(sport))
+            if before_n is None or before_n <= 0:
                 continue
-            if before_n <= 0:
-                continue
-            now_n = int(counts.get(sport) or 0)
+            now_n = current.get(sport) or 0
             if now_n < floor * before_n:
                 problems.append(f"content floor: {sport} games {now_n} < {floor:.0%} of previous {before_n}")
     return problems
 
 
 def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_file: Optional[PathLike] = None,
-               floor: float = CONTENT_FLOOR, force: bool = False, cfg: Optional[R2Config] = None) -> list[str]:
+               floor: float = CONTENT_FLOOR, force: bool = False, cfg: Optional[R2Config] = None,
+               verify_immutable: bool = False) -> list[str]:
     if meta_file is not None:
         meta = json.loads(Path(meta_file).read_text(encoding="utf-8"))
     else:
@@ -294,7 +352,21 @@ def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_f
             prev = json.loads(Path(prev_meta_file).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             prev = None
-    return check_meta(meta, run_id, prev, floor=floor, force=force)
+    problems = check_meta(meta, run_id, prev, floor=floor, force=force)
+    if verify_immutable or meta_file is None:
+        from pipeline.publication import verify_generation
+        try:
+            if meta_file is not None:
+                from scripts.publish_r2 import download_one
+                def reader(key):
+                    return download_one(os.environ.get('R2_BUCKET', DEFAULT_BUCKET), key, Path(meta_file).parent / 'objects')
+            else:
+                def reader(key):
+                    return get_object(make_client(cfg), cfg.bucket, key)
+            verify_generation(meta, reader)
+        except Exception as exc:
+            problems.append(f'Immutable publication verification failed: {exc}')
+    return problems
 
 
 # ---- CLI -----------------------------------------------------------------------------
@@ -302,11 +374,12 @@ def self_check(run_id: str, *, meta_file: Optional[PathLike] = None, prev_meta_f
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m pipeline.outputs.r2")
     p.add_argument("--self-check", action="store_true")
+    p.add_argument('--verify-generation', action='store_true')
     p.add_argument("--run-id", default=None)
     p.add_argument("--meta-file", type=Path, default=None, help="local copy of board/meta.json (fetched by wrangler)")
     p.add_argument("--prev-meta", type=Path, default=None, help="meta.json as fetched BEFORE this run")
     p.add_argument("--floor", type=float, default=CONTENT_FLOOR)
-    p.add_argument("--force", action="store_true", help="skip the content floor")
+    p.add_argument("--force", action="store_true", help="skip the content floor and the empty-board refusal")
     p.add_argument("--get-state", action="store_true")
     p.add_argument("--dest", type=Path, default=Path("data/state"))
     p.add_argument("--publish", action="store_true")
@@ -321,7 +394,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not args.run_id:
             print("::error::--self-check requires --run-id")
             return 2
-        problems = self_check(args.run_id, meta_file=args.meta_file, prev_meta_file=args.prev_meta, floor=args.floor, force=args.force)
+        problems = self_check(args.run_id, meta_file=args.meta_file, prev_meta_file=args.prev_meta,
+                              floor=args.floor, force=args.force, verify_immutable=args.verify_generation)
         for pr in problems:
             print(f"::error::self-check: {pr}")
         if not problems:

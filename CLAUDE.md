@@ -40,6 +40,13 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
   after a successful send.
 - Served JSON uses `allow_nan=False`; meta.json is pushed last.
 
+## Review
+
+Read and follow `docs/REVIEW_POLICY.md` before opening a pull request.
+Run `python -m pytest tests -q` and `ruff check .`, paste the real output
+into the PR, name the risk tier, and write the rollback steps in plain
+words. Never print or commit secrets.
+
 ## Tests
 - `python -m pytest tests -q` from the repo root; `pyproject.toml` sets
   `pythonpath = ["."]`.
@@ -58,6 +65,6 @@ utils/      telegram.py state.py timeutil.py
 scripts/    recon_book.py recover_static.py extract_golden.py fixtures_scrub.py
 site/       worker/ (wrangler.toml index.js migrations/ SETUP.md test/)
             web/ (index.html app.js table.js map.js drawer.js alerts.js status.js vendor/)
-tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test` for the Worker)
+tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test/*.test.mjs` for the Worker)
 main.py     on-demand scraper CLI: --book --sport --market --output --headed
 ```
