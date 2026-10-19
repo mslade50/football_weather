@@ -292,6 +292,7 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "signal_wind_dir_deg": getattr(fc, "signal_wind_dir_deg", None),
         "ecmwf_apart": bool(getattr(fc, "ecmwf_apart", False)),
         "ecmwf_apart_fields": list(getattr(fc, "ecmwf_apart_fields", ()) or ()),
+        "ecmwf_source": getattr(fc, "ecmwf_source", None),
     }
 
 

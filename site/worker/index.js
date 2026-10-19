@@ -340,6 +340,7 @@ async function apiRoute(url, request, env, identity) {
           run_id: meta.run_id, last_updated: meta.last_updated, season: meta.season, week: meta.week,
           git_sha: meta.git_sha, next_run_eta: meta.next_run_eta,
           degradations: meta.degradations || [], books: meta.books || {},
+          ecmwf_opendata: meta.ecmwf_opendata || null,
         } : null,
         refresh: refreshStatus(meta, Date.now(), dispatch),
         runs: runs.results || [],

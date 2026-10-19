@@ -71,6 +71,8 @@ def test_dispatch_inputs(text: str):
     assert "- nfl" in text and "- cfb" in text and "- all" in text
     assert "- weather" in text and "- light" in text and "- full" in text
     assert "- exchanges" in text
+    assert "ecmwf_opendata:" in text
+    assert "ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}" in text
 
 
 def test_safe_refresh_disables_messages_without_force_or_cadence_changes(text: str):

@@ -86,6 +86,15 @@ on:
         type: boolean
         required: false
         default: false
+      ecmwf_opendata:
+        description: 'ECMWF source: auto (open data on Open-Meteo error, 429, or stale), force, or off'
+        type: choice
+        required: false
+        default: auto
+        options:
+          - auto
+          - force
+          - off
 
 # Serialize writers so two ticks can never race on the R2 put loop.
 # Queue rather than cancel so an in-flight build completes instead of leaving
@@ -101,6 +110,8 @@ env:
   # Football Telegram retirement; safe_refresh remains an independent hard stop.
   FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
   FORCE: ${{ inputs.force == true && '1' || '' }}
+  # auto uses ECMWF Open Data only after an Open-Meteo error, HTTP 429, or a stale ECMWF run.
+  ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}

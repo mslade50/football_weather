@@ -1,0 +1,340 @@
+"""ECMWF Open Data fallback: units, staleness, mocked GRIB sampling, and source markers."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from pipeline.contracts import WeatherForecast
+from pipeline.outputs import json_out
+from pipeline.run_context import RunContext
+from pipeline.weather import ecmwf_fallback, first_pass
+from pipeline.weather import ecmwf_opendata as od
+from pipeline.weather.parsers import HourlyRow
+from pipeline.weather.parsers.openmeteo import ParsedLocation
+
+RUN = datetime(2026, 10, 19, 0, tzinfo=timezone.utc)
+POINT = (39.28, -76.62)
+NOW = datetime(2026, 10, 19, 16, tzinfo=timezone.utc)
+
+
+def _grid(param: str, step: int, value: float, *, member: int | None = None) -> od.GridField:
+    return od.GridField(
+        param=param, step=step, lat0=50.0, lon0=260.0, dlat=-20.0, dlon=40.0,
+        ni=2, nj=2, values=(value, value, value, value), member=member,
+    )
+
+
+def _retriever(calls: list[od.Request]):
+    def retrieve(request: od.Request) -> list[od.GridField]:
+        calls.append(request)
+        if set(request.params) <= {"10fg", "10fg3"}:
+            if request.kind == "pf":
+                return [_grid("10fg", step, 8.0, member=number) for step in request.steps for number in request.numbers]
+            return [_grid("10fg", step, 8.0, member=0 if request.kind == "cf" else None) for step in request.steps]
+        values = {"2t": 280.0, "10u": 5.0, "10v": 0.0, "tp": None, "10u_skip": 0.0}
+        fields = []
+        for step in request.steps:
+            for param in request.params:
+                value = 0.001 * step if param == "tp" else values[param]
+                numbers = request.numbers or (None,)
+                for number in numbers:
+                    fields.append(_grid(param, step, value, member=0 if request.kind == "cf" else number))
+        return fields
+
+    return retrieve
+
+
+def _session(calls: list[od.Request]) -> od.OpenDataSession:
+    return od.OpenDataSession(retriever=_retriever(calls), fixed_run=RUN, cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"))
+
+
+def test_wind_temp_and_direction_use_meteorological_convention():
+    speed, direction = od.wind_from_uv(10.0, 0.0)
+    assert speed == pytest.approx(22.369362920544)
+    assert direction == pytest.approx(270.0)
+    assert od.wind_from_uv(0.0, 10.0)[1] == pytest.approx(180.0)
+    assert od.wind_from_uv(-10.0, 0.0)[1] == pytest.approx(90.0)
+    assert od.wind_from_uv(0.0, -10.0)[1] == pytest.approx(0.0)
+    assert od.kelvin_to_f(273.15) == pytest.approx(32.0)
+    assert od.kelvin_to_f(280.0) == pytest.approx(44.33)
+
+
+def test_precip_is_deaccumulated_across_the_native_interval():
+    samples = {0: {"tp": 0.0}, 3: {"tp": 0.003}}
+    assert od.precip_mm(samples, 1, (0, 3)) == pytest.approx(1.0)
+    assert od.precip_mm(samples, 3, (0, 3)) == pytest.approx(1.0)
+    assert od.precip_mm(samples, 0, (0, 3)) == 0.0
+
+
+def test_hourly_rows_interpolate_components_and_hold_interval_gust():
+    samples = {
+        0: {"2t": 280.0, "10u": 0.0, "10v": 0.0, "tp": 0.0, "10fg": 4.0},
+        3: {"2t": 286.0, "10u": 6.0, "10v": 0.0, "tp": 0.003, "10fg": 10.0},
+    }
+    row = od.hour_state(samples, RUN, RUN + timedelta(hours=1), gust=True)
+    assert row is not None
+    assert row.temp == pytest.approx(od.kelvin_to_f(282.0))
+    assert row.wind == pytest.approx(2.0 * od.MPS_TO_MPH)
+    assert row.dir == pytest.approx(270.0)
+    assert row.gust == pytest.approx(10.0 * od.MPS_TO_MPH)
+    assert row.precip == pytest.approx(1.0)
+
+
+def test_bilinear_sample_and_longitude_wrap():
+    field = od.GridField(
+        param="2t", step=0, lat0=40.0, lon0=270.0, dlat=-10.0, dlon=10.0, ni=2, nj=2,
+        values=(280.0, 282.0, 290.0, 292.0),
+    )
+    assert od.sample_grid(field, 40.0, -90.0) == pytest.approx(280.0)
+    assert od.sample_grid(field, 39.0, -89.0) == pytest.approx(280.0 * 0.81 + 282.0 * 0.09 + 290.0 * 0.09 + 292.0 * 0.01)
+
+
+def test_steps_cover_only_the_kickoff_window():
+    hours = [RUN + timedelta(hours=lead) for lead in range(47, 53)]
+    assert od.steps_for_hours(RUN, hours, od.native_steps("ifs", 0)) == [45, 48, 51, 54]
+    assert od.native_steps("aifs-single", 6)[1] - od.native_steps("aifs-single", 6)[0] == 6
+    assert 150 not in od.native_steps("ifs", 6)
+    assert 150 in od.native_steps("ifs", 0)
+
+
+def test_gust_short_name_follows_the_open_data_step():
+    assert od.gust_groups([0, 24, 90, 96, 144, 156]) == [
+        ("10fg", (24, 90, 156)),
+        ("10fg3", (96, 144)),
+    ]
+
+
+def test_ifs_06z_past_144h_uses_the_previous_00z_run():
+    short = datetime(2026, 10, 19, 6, tzinfo=timezone.utc)
+    extended = short - timedelta(hours=6)
+    near = short + timedelta(hours=48)
+    far = short + timedelta(hours=150)
+    plan = od.runs_for_hours("ifs", short, {near, far})
+    assert plan[0] == (short, {near})
+    assert plan[1][0] == extended and far in plan[1][1]
+    assert od.runs_for_hours("aifs-single", short, {far}) == [(short, {far})]
+    calls: list[od.Request] = []
+    session = od.OpenDataSession(
+        retriever=_retriever(calls), fixed_run=short,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+    )
+    parsed = session.point_forecasts([POINT], {POINT: {near, far}})
+    ifs_runs = {call.run for call in calls if call.model == "ifs" and call.params == od.POINT_PARAMS}
+    assert ifs_runs == {short, extended}
+    extended_steps = [call.steps for call in calls if call.model == "ifs" and call.run == extended and call.params == od.POINT_PARAMS]
+    assert extended_steps and 156 in extended_steps[0]
+    times = {row.t for row in parsed[POINT].models[od.IFS_MODEL]}
+    assert times == {near, far}
+    assert session.runs["ifs-extended"] == extended
+
+
+def test_stale_when_empty_or_a_cycle_behind_the_published_run():
+    fresh = datetime(2026, 10, 19, 6, tzinfo=timezone.utc)
+    behind = datetime(2026, 10, 19, 0, tzinfo=timezone.utc)
+    assert od.expected_published_run(NOW) == fresh
+    assert od.init_is_stale(fresh, NOW, missing=False) is False
+    assert od.init_is_stale(behind, NOW, missing=False) is True
+    assert od.init_is_stale(fresh, NOW, missing=True) is True
+    assert od.init_is_stale(None, NOW, missing=False) is False
+    assert od.init_is_stale(NOW - timedelta(hours=19), NOW, missing=False) is True
+
+
+def test_fallback_fills_ecmwf_models_and_keeps_other_models():
+    calls: list[od.Request] = []
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = _session(calls)
+    hour = RUN + timedelta(hours=48)
+    nbm = HourlyRow(t=hour, temp=70.0, wind=4.0, precip=0.0)
+    forecasts = {POINT: ParsedLocation(POINT[0], POINT[1], models={"ncep_nbm_conus": [nbm]})}
+    hours = {POINT: {hour}}
+    ecmwf_fallback.supplement_forecasts(
+        ctx, "nfl", [POINT], forecasts, [(0, 1, RuntimeError("open-meteo rate limited (HTTP 429)"))],
+        hours, None, {POINT: NOW},
+    )
+    assert "ncep_nbm_conus" in forecasts[POINT].models
+    ifs = forecasts[POINT].models[od.IFS_MODEL]
+    assert ifs[0].wind == pytest.approx(5.0 * od.MPS_TO_MPH)
+    assert ifs[0].temp == pytest.approx(od.kelvin_to_f(280.0))
+    assert ifs[0].dir == pytest.approx(270.0)
+    assert forecasts[POINT].models[od.AIFS_MODEL][0].gust is None
+    assert ctx.weather_state["point_meta"][POINT]["ecmwf_source"] == "ecmwf-opendata"
+    assert ctx.weather_state["ecmwf_opendata"]["used"] is True
+    assert ctx.weather_state["ecmwf_opendata"]["license"] == "CC-BY-4.0"
+    assert any("ECMWF window empty" in item.reason for item in ctx.degradations)
+    assert calls and calls[0].params == od.POINT_PARAMS
+
+
+def test_same_run_is_sampled_once_for_every_point():
+    calls: list[od.Request] = []
+    session = _session(calls)
+    other = (41.0, -81.0)
+    hours = {POINT: {RUN + timedelta(hours=48)}, other: {RUN + timedelta(hours=49)}}
+    session.point_forecasts([POINT, other], hours)
+    first = len(calls)
+    session.point_forecasts([POINT, other], hours)
+    assert first >= 1 and len(calls) == first
+    assert sum(1 for call in calls if call.model == "ifs" and call.params == od.POINT_PARAMS) == 1
+
+
+def test_force_replaces_a_fresh_open_meteo_ecmwf_window():
+    calls: list[od.Request] = []
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = _session(calls)
+    hour = RUN + timedelta(hours=48)
+    stale = HourlyRow(t=hour, temp=1.0, wind=1.0, precip=0.0)
+    forecasts = {POINT: ParsedLocation(POINT[0], POINT[1], models={od.IFS_MODEL: [stale], "ncep_gfs_seamless": [stale]})}
+    monkey_env = pytest.MonkeyPatch()
+    monkey_env.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+    try:
+        ecmwf_fallback.supplement_forecasts(ctx, "nfl", [POINT], forecasts, [], {POINT: {hour}}, None, {})
+    finally:
+        monkey_env.undo()
+    assert forecasts[POINT].models[od.IFS_MODEL][0].temp == pytest.approx(od.kelvin_to_f(280.0))
+    assert forecasts[POINT].models["ncep_gfs_seamless"][0].temp == 1.0
+
+
+def test_auto_keeps_a_current_open_meteo_window(monkeypatch):
+    calls: list[od.Request] = []
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = _session(calls)
+    hour = RUN + timedelta(hours=48)
+    row = HourlyRow(t=hour, temp=55.0, wind=9.0, precip=0.2)
+    forecasts = {POINT: ParsedLocation(POINT[0], POINT[1], models={od.IFS_MODEL: [row]})}
+    monkeypatch.setattr(od, "init_is_stale", lambda *args, **kwargs: False)
+    ecmwf_fallback.supplement_forecasts(ctx, "nfl", [POINT], forecasts, [], {POINT: {hour}}, None, {})
+    assert forecasts[POINT].models[od.IFS_MODEL][0].temp == 55.0
+    assert calls == []
+    assert ctx.weather_state["point_meta"][POINT]["ecmwf_source"] == "open-meteo"
+
+
+def test_off_mode_does_not_fetch(monkeypatch):
+    calls: list[od.Request] = []
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = _session(calls)
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "off")
+    ecmwf_fallback.supplement_forecasts(
+        ctx, "nfl", [POINT], {}, [(0, 1, RuntimeError("429"))], {POINT: {RUN}}, None, {},
+    )
+    assert calls == []
+    assert ctx.weather_state["ecmwf_opendata"]["used"] is False
+
+
+def test_pytest_does_not_open_the_network_without_a_retriever():
+    assert od.network_allowed() is False
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ecmwf_fallback.supplement_forecasts(
+        ctx, "nfl", [POINT], {}, [(0, 1, RuntimeError("open-meteo rate limited (HTTP 429)"))],
+        {POINT: {RUN}}, None, {},
+    )
+    assert "ecmwf_session" not in ctx.weather_state or ctx.weather_state["ecmwf_opendata"]["used"] is False
+
+
+def test_ensemble_members_match_open_meteo_labels():
+    calls: list[od.Request] = []
+    session = _session(calls)
+    hour = RUN + timedelta(hours=48)
+    locations = session.ensemble_forecasts([POINT], {POINT: {hour}})
+    members = locations[POINT].members
+    assert f"{od.ENS_MODEL}:control" in members
+    assert f"{od.ENS_MODEL}:member01" in members
+    assert members[f"{od.ENS_MODEL}:member01"].model == od.ENS_MODEL
+    assert members[f"{od.ENS_MODEL}:control"].wind[0] == pytest.approx(5.0 * od.MPS_TO_MPH)
+    assert members[f"{od.ENS_MODEL}:control"].gust[0] == pytest.approx(8.0 * od.MPS_TO_MPH)
+    assert members[f"{od.ENS_MODEL}:control"].precip[0] == pytest.approx(1.0)
+
+
+def test_collect_uses_the_fallback_when_open_meteo_fails():
+    calls: list[od.Request] = []
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = _session(calls)
+    hour = RUN + timedelta(hours=48)
+
+    class Om:
+        BATCH_SIZE = 50
+
+        def fetch_forecast(self, *args, **kwargs):
+            raise RuntimeError("open-meteo rate limited (HTTP 429)")
+
+    class Nws:
+        class PointsCache:
+            def __init__(self, path=None):
+                pass
+
+            def save(self):
+                pass
+
+    def fetch_batches(group, fetcher, **kwargs):
+        try:
+            fetcher(group)
+        except Exception as exc:  # noqa: BLE001
+            return {}, [(0, len(group), exc)]
+        return {}, []
+
+    monkey = pytest.MonkeyPatch()
+    monkey.setenv("ECMWF_OPENDATA_FALLBACK", "auto")
+    try:
+        forecasts, _, stamps, meta = first_pass.collect(
+            ctx, "nfl", Om(), Nws(), {POINT: []}, [], {POINT: {hour}}, {},
+            hour - timedelta(hours=1), hour + timedelta(hours=4), None, fetch_batches, None, {},
+        )
+    finally:
+        monkey.undo()
+    assert od.IFS_MODEL in forecasts[POINT].models
+    assert meta[POINT]["stage"] == "ecmwf_opendata"
+    assert meta[POINT]["ecmwf_source"] == "ecmwf-opendata"
+    assert abs((stamps[POINT] - ctx.now_utc).total_seconds()) < 2
+    assert any("429" in item.reason for item in ctx.degradations)
+
+
+def test_weather_block_and_markers_name_the_open_data_source():
+    fc = WeatherForecast(game_id="g", source="medium:aifs+ifs", ecmwf_source="ecmwf-opendata")
+    block = json_out._weather_block(fc, None)
+    assert block["ecmwf_source"] == "ecmwf-opendata"
+    source, updated = ecmwf_fallback.forecast_markers(
+        {"updated_at": "2026-10-19T12:00:00+00:00", "ecmwf_run": "2026-10-19T06:00:00+00:00", "ecmwf_source": "open-meteo"},
+        {"ecmwf_source": "ecmwf-opendata"},
+    )
+    assert source == "ecmwf-opendata"
+    assert updated["nws"].startswith("2026-10-19T12:00:00")
+    assert "ecmwf_opendata" in updated
+
+
+def test_build_flag_sets_the_fallback_mode(monkeypatch):
+    from pipeline.build import parse_args
+
+    args = parse_args(["--sport", "nfl", "--scope", "weather", "--ecmwf-opendata", "force"])
+    assert args.ecmwf_opendata == "force"
+    monkeypatch.delenv("ECMWF_OPENDATA_FALLBACK", raising=False)
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", args.ecmwf_opendata)
+    assert od.fallback_mode() == "force"
+
+
+def test_decode_round_trip_of_a_small_grib(tmp_path):
+    from eccodes import codes_grib_new_from_samples, codes_release, codes_set, codes_set_values, codes_write
+
+    gid = codes_grib_new_from_samples("regular_ll_sfc_grib2")
+    try:
+        codes_set(gid, "Ni", 4)
+        codes_set(gid, "Nj", 3)
+        codes_set(gid, "latitudeOfFirstGridPointInDegrees", 40.0)
+        codes_set(gid, "longitudeOfFirstGridPointInDegrees", 270.0)
+        codes_set(gid, "iDirectionIncrementInDegrees", 1.0)
+        codes_set(gid, "jDirectionIncrementInDegrees", 1.0)
+        codes_set(gid, "iScansNegatively", 0)
+        codes_set(gid, "jScansPositively", 0)
+        codes_set(gid, "shortName", "2t")
+        codes_set(gid, "step", 6)
+        codes_set_values(gid, [280.0] * 12)
+        path = tmp_path / "tiny.grib2"
+        with path.open("wb") as handle:
+            codes_write(gid, handle)
+    finally:
+        codes_release(gid)
+    fields = list(od.decode_grib(path))
+    assert len(fields) == 1
+    assert fields[0].param == "2t"
+    assert fields[0].step == 6
+    assert fields[0].ni == 4 and fields[0].nj == 3
+    assert od.sample_grid(fields[0], 39.2, -89.2) == pytest.approx(280.0)
