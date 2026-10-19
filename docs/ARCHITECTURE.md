@@ -638,8 +638,11 @@ warnings; recovered fields do not inherit an obsolete failure warning. The
 drawer lists missing fields. Existing signal/model thresholds remain unchanged.
 
 Health treats warning degradations, thin books and a missed expected refresh
-(90-minute grace) as degraded. ETAs mirror existing UTC GitHub schedules plus
-the existing in-season 17:15 UTC Cloudflare dispatch; no triggers are added.
+(90-minute grace) as degraded. In season, `next_run_eta` is the sooner of the
+next game-day Worker hour and the next odd ET hour from 7 AM through 11 PM.
+The GitHub backstop is not advertised. No cron triggers were added: both
+cadences ride the existing two Worker crons. `/api/status` and `meta.refresh`
+report `ok`, `overdue`, or `missed`.
 The Worker owns `cf_heartbeat.json` and `cf_dispatch.json`; builds never upload
 old heartbeat ticks. Dispatch receipts survive heartbeat-only ticks and record
 missing token, rejected dispatch or GitHub acceptance. Acceptance does not prove

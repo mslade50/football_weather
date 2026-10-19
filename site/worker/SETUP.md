@@ -137,7 +137,7 @@ worker unit tests → `wrangler d1 migrations apply football-odds --remote` →
 
 | Cron (UTC) | Purpose | scheduled() behaviour |
 |---|---|---|
-| `*/30 * * * *` | heartbeat | writes `board/cf_heartbeat.json` `{ts, cron}`; `:30` ticks never dispatch, `:00` ticks dispatch `scope=full` hourly in the game-day windows (`shouldDispatch`: CFB Sat 15Z-Sun 04Z, NFL Sun 15Z-Mon 01Z, Thu/Mon night 22Z-02Z). `pipeline.build` alerts when it is >20 h stale |
+| `*/30 * * * *` | heartbeat | writes `board/cf_heartbeat.json` `{ts, cron}`; `:00` ticks dispatch `scope=full` hourly in the game-day windows (`shouldDispatch`: CFB Sat 15Z-Sun 04Z, NFL Sun 15Z-Mon 01Z, Thu/Mon night 22Z-02Z) and, outside those windows, on odd America/New_York hours from 7 AM through 11 PM (`refreshSlotPlan`, in season). A `:30` tick dispatches only when the last accepted dispatch is at least 2.5 h old (missed-slot catch-up). A dispatch inside the last 90 min, or an already-active pipeline run, is skipped. `pipeline.build` alerts when the heartbeat is >20 h stale |
 | `15 17 * * *` | mid-day dispatch (13:15 EDT / 12:15 EST) | `sport=all scope=full` Aug–Jan, `nfl` in Feb, trimmed Mar–Jul; skipped when the 17:00Z game-day tick already dispatched |
 
 Every fire writes the heartbeat first, then `resolveCron(cron, time)` maps the

@@ -1,5 +1,37 @@
 # Refresh cadence: Worker-primary dispatch and Playwright parallelism
 
+## Part 3 - All-week 2h ET cadence (implemented)
+
+Problem: GitHub dropped the Mon 2026-10-19 09:17Z and 14:17Z `schedule` ticks
+entirely (no workflow run). The 00:17Z Monday backstop was delayed until
+04:36Z and did publish. The Worker heartbeat only dispatched inside game-day
+windows, so Monday daytime had no reliable trigger. McKinley needs fresh odds
+and forecasts about every 2 hours from 7 AM through midnight ET, all week,
+especially early in the week.
+
+Design (no new cron; free plan still has the same two triggers):
+- `refreshSlotPlan` in `site/worker/index.js`: odd America/New_York hours
+  7, 9, 11, 13, 15, 17, 19, 21, 23, in season (`sportForMonth`), `scope=full`.
+  The existing `*/30` heartbeat dispatches those `:00` ticks when
+  `shouldDispatch` did not already take the tick (game-day hourly stays).
+- Catch-up: a `:30` tick inside 7 AM–11 PM ET dispatches when the last
+  accepted `board/cf_dispatch.json` receipt is at least 150 minutes old, or
+  when a failed attempt is at least 90 minutes old. A missing receipt does
+  not catch up, so a failed R2 read cannot dispatch every half hour.
+- Dedupe: an accepted dispatch newer than 90 minutes suppresses the slot and
+  the 17:15Z midday duplicate. An in-progress pipeline run suppresses the
+  cadence dispatch (`boardRunActive`). Game-day hourly ticks are unchanged.
+  The GitHub backstop gate skips when a `workflow_dispatch` started within
+  100 minutes.
+- `next_run_eta` advertises the sooner of the next game-day hour and the next
+  ET slot. It does not advertise the GitHub backstop during the season.
+- `/api/status` `refresh` and `meta.refresh` are `ok`, `overdue` (ETA + 90
+  min, no newer publish), or `missed` (dispatch failed, or accepted and still
+  unpublished after 30 min). The header and the status pill show that state.
+
+Rollback: revert the commit. The two wrangler crons are unchanged. Unset
+`GH_DISPATCH_TOKEN` to stop Worker dispatches; the GitHub backstop remains.
+
 ## Part 1 - Worker cron as primary trigger (implemented)
 
 Problem: GitHub drops `schedule:` ticks (Sat 2026-10-10: 5 runs vs an hourly
