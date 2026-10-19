@@ -324,6 +324,9 @@ def test_same_workflow_raw_point_handoff_preserves_time_reweights_and_ordinary_c
 def test_cached_members_and_handoff_recompute_climatology_weights_at_current_clock(weather, tmp_path, monkeypatch):
     cell = SimpleNamespace(wind_mean=4, wind_p10=2, wind_p50=4, wind_p90=6, gust_mean=8, temp_mean=50, rain_freq=0)
     monkeypatch.setattr(M, "_default_climo", lambda: SimpleNamespace(lookup=lambda *a, **k: cell))
+    # Climatology shrinks a 12 mph raw wind under the 12 mph sampling buffer.
+    # Keep the raw wind at the flag so members are still requested.
+    weather["wind"] = 20
     monkeypatch.setenv("GITHUB_RUN_ID", "123")
     weather["clock"] = NOW - timedelta(hours=24)
     handoff = tmp_path / "handoff"
@@ -372,7 +375,7 @@ def test_cfb_uses_current_consensus_opener_and_preserves_active_alert(weather, t
     gid = group[0].game_id
     openers = {"openers": {}}
     if spread is not None:
-        openers["openers"][f"{gid}|spread|home|betcris"] = {"line": spread}
+        openers["openers"][f"{gid}|spread|home|pinnacle"] = {"line": spread}
     ctx = RunContext("cfb", git_sha="test-sha")
     result = build.stage_weather(ctx, "cfb", group, stadiums, NullRawStore("cfb", ctx.run_id), {},
                                  state_dir=tmp_path, openers=openers)

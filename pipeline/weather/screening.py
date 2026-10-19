@@ -13,11 +13,12 @@ from typing import Any
 
 from pipeline.contracts import WeatherForecast
 from pipeline.model import config as C
+from pipeline.model.process import temp_gate
 from pipeline.weather import climatology_blend as CB
 from pipeline.weather.merge import hour_floor
 
-VERSION = "nws-first-joint-v7"
-RAIN_TAIL_MM = 0.25  # Small model-window amounts can coexist with >2 mm member tails.
+VERSION = "nws-first-joint-v9"
+RAIN_TAIL_MM = 0.25  # Member tails can still be wet when the deterministic window is light.
 
 
 @dataclass(frozen=True)
@@ -51,10 +52,16 @@ def screen(
     lead = forecast.lead_hours
     if not finite(lead) or lead < 0:
         return Decision(False, ("unknown_horizon",), 2)
-    base_wind = 8.0 if sport == "nfl" else C.CFB_WIND_MIN_MPH
-    base_temp = 60.0 if sport == "nfl" else C.CFB_WIND_MAX_TEMP_F
-    wind_threshold = base_wind - (4.0 if for_refinement else 3.0)
-    temp_threshold = base_temp + (5.0 if for_refinement else 2.0)
+    # Wind sampling uses the 15 mph flag. The 3 mph buffer (4 mph before
+    # detail) still reaches the 12 mph watch. Temperature is not a hard gate;
+    # the optional gate is off by default, so a warm windy hour can be sampled.
+    # When the gate is on, the temperature buffer sits above that league's max.
+    # Rain sampling stays at the historical 1.5 mm game-window total. The
+    # betting ignore floor is 5 mm; raising the sampler to that floor would
+    # skip light deterministic rain that can still have a wet member tail.
+    gate_on, gate_max = temp_gate(sport)
+    wind_threshold = C.PROCESS_WIND_FLAG_MPH - (4.0 if for_refinement else 3.0)
+    temp_threshold = gate_max + (5.0 if for_refinement else 2.0)
     rain_threshold = 1.5
     window = {hour_floor(kickoff) + timedelta(hours=i) for i in range(3)}
     reasons = []
@@ -79,10 +86,7 @@ def screen(
         for row in rows:
             if finite(row.wind) and finite(row.temp):
                 wind, temp = pair(row.wind, row.temp)
-                if sport == "cfb":
-                    reaches_signal = wind > C.CFB_WIND_MIN_MPH and temp < C.CFB_WIND_MAX_TEMP_F
-                else:
-                    reaches_signal = wind >= base_wind and temp <= base_temp
+                reaches_signal = wind >= C.PROCESS_WIND_FLAG_MPH and (not gate_on or temp < gate_max)
                 if reaches_signal:
                     pairs.append((wind, temp))
     if finite(forecast.wind_fg) and finite(forecast.temp_fg):
@@ -96,11 +100,14 @@ def screen(
     if unreliable or stale or lead > 15 * 24:
         return Decision(False, ("unreliable_point_coverage" if unreliable else "stale_or_unknown_point_time" if stale else
                                 "outside_documented_horizon",), 2)
-    if any(wind >= wind_threshold and temp <= temp_threshold for wind, temp in pairs):
+    def sampled(wind: float, temp: float) -> bool:
+        if wind < wind_threshold:
+            return False
+        return (not gate_on) or temp <= temp_threshold
+
+    if any(sampled(wind, temp) for wind, temp in pairs):
         reasons.append("joint_wind_temperature")
-    if sport == "cfb" and any(wind >= C.CFB_WIND_MIN_MPH - (4.0 if for_refinement else 3.0)
-                               and temp <= C.CFB_WIND_MAX_TEMP_F + (5.0 if for_refinement else 2.0)
-                               for wind, temp in pairs):
+    if sport == "cfb" and any(sampled(wind, temp) for wind, temp in pairs):
         reasons.append("joint_cfb_wind_flag")
     if any(rain >= rain_threshold for rain in rain_totals):
         reasons.append("game_window_rain")

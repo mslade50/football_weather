@@ -163,12 +163,14 @@ function bestEdge(g, market = null, book = null) {
   for (const e of edgesOf(g)) {
     if (market && e.market !== market) continue;
     if (book && e.book !== book) continue;
+    if (e.book === "betcris") continue;
     if (!isNum(e.edge_pts)) continue;
     if (!best || Math.abs(e.edge_pts) > Math.abs(best.edge_pts)) best = e;
   }
   return best;
 }
 function edgeAt(g, book, market) {
+  if (book === "betcris") return null;
   return edgesOf(g).find((e) => e.book === book && e.market === market) || null;
 }
 

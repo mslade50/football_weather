@@ -1,12 +1,31 @@
 "use strict";
 // UI discovery is independent of prices and liquidity. Unknown is never zero.
+// Process screen (docs/PROCESS_SPEC.md). Keep in lockstep with pipeline/model/config.py.
+const PROCESS_TEMP_MAX_F = 65;
+const PROCESS_TEMP_GATE = false;
+const PROCESS_WIND_WATCH_MPH = 12;
+const PROCESS_WIND_FLAG_MPH = 15;
+const PROCESS_RAIN_IGNORE_MM = 5;
+const PROCESS_RAIN_WATCH_MM = 15;
+const PROCESS_RAIN_SIGNAL_MM = 23;
+const PROCESS_RAIN_AGREE_TOL_MM = 10;
+const PROCESS_UNDER_PROB_MOVE_MAX = 0.04;
+const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
 const EXCHANGE_BOOKS = new Set(["kalshi", "novig", "prophetx", "polymarket_us", "4cx"]);
 const VERIFIED_OFFERS = new Map();
 const finiteValue = v => typeof v === "number" && Number.isFinite(v);
-function hardEligible(g) {
+function roofExposed(g) {
+  // Same rule as pipeline/stadiums/roofs.py weather_exposed: a retractable roof
+  // counts only when the game says it is open. Dome, closed, and indoor do not.
   const st = g.stadium || {};
-  const roof = String(st.roof_state || g.roof_state || st.roof_type || "").toLowerCase();
-  return !["dome", "closed", "indoor"].includes(roof)
+  const type = String(st.roof_type || "").toLowerCase();
+  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
+  if (type === "dome" || roof === "dome" || roof === "closed" || roof === "indoor") return false;
+  if (type === "retractable") return roof === "open";
+  return true;
+}
+function hardEligible(g) {
+  return roofExposed(g)
     && !(g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10);
 }
 function upcomingGame(g) {
@@ -16,11 +35,73 @@ function showAllBoardGames(state) {
   return !!state.showAllGames && (state.view === "map" || (state.view === "table" && state.tableMode !== "history"));
 }
 function ineligibleReason(g) {
-  const roof = String(g.stadium?.roof_state || g.roof_state || g.stadium?.roof_type || "").toLowerCase(), reasons = [];
-  if (["dome", "closed", "indoor"].includes(roof)) reasons.push(roof === "closed" ? "Closed roof" : "Indoor / dome");
+  const st = g.stadium || {};
+  const type = String(st.roof_type || "").toLowerCase();
+  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
+  const reasons = [];
+  if (type === "dome" || roof === "dome" || roof === "indoor") reasons.push("Indoor / dome");
+  else if (roof === "closed") reasons.push("Closed roof");
+  else if (type === "retractable" && roof !== "open") reasons.push("Retractable roof not confirmed open");
   if (g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10)
     reasons.push("Opening spread outside ±10");
   return reasons.join(" · ");
+}
+function crosswindFactor(dir, orient) {
+  if (!finiteValue(dir) || !finiteValue(orient)) return null;
+  return Math.abs(Math.sin((Number(dir) - Number(orient)) * Math.PI / 180));
+}
+function drivingForecast(g) {
+  const w = g.weather || {};
+  const source = String(w.signal_source || "");
+  if (source.startsWith("ecmwf")) {
+    return {temp: w.signal_temp_f, wind: w.signal_wind_mph, rain: w.signal_rain_mm, dir: w.signal_wind_dir_deg, source};
+  }
+  return {temp: w.temp_fg, wind: w.wind_fg, rain: w.rain_fg, dir: w.wind_dir_deg, source: source || "stitched"};
+}
+function modelRain(row) {
+  const rain = row && (row.rain_mm ?? row.rain_fg);
+  return finiteValue(rain) ? Number(rain) : null;
+}
+function ecmwfRainMm(models) {
+  // IFS rain when that model has one; AIFS only when IFS has none. Not the stitch.
+  if (!Array.isArray(models)) return null;
+  let ifs = null, aifs = null, sawIfs = false;
+  for (const row of models) {
+    if (!row) continue;
+    if (row.id === "ecmwf_ifs025") { sawIfs = true; ifs = modelRain(row); }
+    else if (row.id === "ecmwf_aifs025_single") aifs = modelRain(row);
+  }
+  if (sawIfs && ifs != null) return ifs;
+  return aifs;
+}
+function rainAgreement(models) {
+  // Same partner rule as pipeline/model/process.py rain_agreement. The comparison
+  // total is ECMWF's own window, not the short-range stitch.
+  const ecmwfMm = ecmwfRainMm(models);
+  if (!Array.isArray(models) || !models.length) return ecmwfMm == null ? "missing_ecmwf" : "unverified";
+  if (ecmwfMm == null) return "missing_ecmwf";
+  let best = null;
+  let sawOther = false;
+  for (const row of models) {
+    if (!row || ECMWF_MODELS.has(row.id)) continue;
+    const rain = modelRain(row);
+    if (rain == null) continue;
+    sawOther = true;
+    if (rain < PROCESS_RAIN_SIGNAL_MM) continue;
+    const gap = Math.abs(rain - Number(ecmwfMm));
+    if (!best || gap < best.gap) best = {gap, rain};
+  }
+  if (!sawOther) return "unverified";
+  if (!best) return "disagree";
+  return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
+}
+function activeTempGate(g) {
+  const proc = g.process || {};
+  if (proc.temp_gate === true) {
+    const max = finiteValue(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : PROCESS_TEMP_MAX_F;
+    return {on: true, max};
+  }
+  return {on: PROCESS_TEMP_GATE, max: PROCESS_TEMP_MAX_F};
 }
 function discoveryState(g) {
   if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};
@@ -28,25 +109,66 @@ function discoveryState(g) {
     return {kind: "ineligible", label: "Not an upcoming scheduled game"};
   const w = g.weather || {}, cfb = g.sport === "cfb";
   if (cfb && !finiteValue(g.consensus?.spread_open)) return {kind: "unknown", label: "Opening spread unknown"};
-  const wind = w.wind_fg, temp = w.temp_fg, rain = w.rain_fg;
-  if (!finiteValue(wind) || !finiteValue(temp)) return {kind: "unknown", label: "Forecast incomplete"};
-  const windCut = cfb ? 14 : 8, tempCut = cfb ? 70 : 60;
-  const heat = finiteValue(g.home_temp) && finiteValue(g.away_temp) && g.home_temp < 57 && g.away_temp < 57;
-  const altitude = cfb && finiteValue(g.travel_alt) && g.travel_alt > 800;
-  const signal = (wind > windCut && temp < tempCut) || (finiteValue(rain) && rain > 2 && temp < 50)
-    || (heat && temp > 80) || (altitude && temp > 75);
-  const near = (wind >= windCut - 3 && temp <= tempCut + 2)
-    || (finiteValue(w.wind_p90) && w.wind_p90 > windCut && temp <= tempCut + 2)
-    || (finiteValue(rain) && rain >= 1.5 && temp <= 52)
-    || (heat && temp >= 78) || (altitude && temp >= 73);
+  const drive = drivingForecast(g);
+  const wind = drive.wind, temp = drive.temp, rain = drive.rain;
+  if (!finiteValue(wind)) return {kind: "unknown", label: "Forecast incomplete"};
+  const proc = g.process || {};
+  const gate = activeTempGate(g);
+  const tempKnown = finiteValue(temp);
+  const tempPasses = !gate.on || (tempKnown && Number(temp) < gate.max);
+  let windBand = "none";
+  if (tempPasses && finiteValue(wind)) {
+    const mph = Number(wind);
+    windBand = mph >= PROCESS_WIND_FLAG_MPH ? "flag" : mph >= PROCESS_WIND_WATCH_MPH ? "watch" : "none";
+  }
+  let rainTier = "ignore";
+  if (tempPasses && finiteValue(rain)) {
+    const mm = Number(rain);
+    rainTier = mm < PROCESS_RAIN_IGNORE_MM ? "ignore" : mm < PROCESS_RAIN_WATCH_MM ? "watch"
+      : mm < PROCESS_RAIN_SIGNAL_MM ? "elevated" : "signal_amount";
+  }
+  const storedAgree = proc.rain_agreement;
+  const agree = ["agree", "disagree", "unverified", "missing_ecmwf"].includes(storedAgree)
+    ? storedAgree : rainAgreement(w.models);
+  const rainSignal = rainTier === "signal_amount" && agree === "agree";
+  if (rainTier === "signal_amount" && !rainSignal) rainTier = agree === "disagree" ? "disagree" : "unverified";
+  const weatherHit = tempPasses && (windBand === "flag" || rainSignal);
+  const rainNear = ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
+  const watch = tempPasses && !weatherHit && (windBand === "watch" || rainNear);
+  // under_prob_move is the adverse sum (dropped total and shorter juice, neither cancelling).
+  const move = finiteValue(proc.under_prob_move) ? Math.max(Number(proc.under_prob_move), 0) : null;
+  const lineAdverse = finiteValue(proc.line_prob_move) ? Math.max(Number(proc.line_prob_move), 0) : 0;
+  const bookAdverse = finiteValue(proc.book_adverse_max) ? Math.max(Number(proc.book_adverse_max), 0) : 0;
+  const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
+  const juiceConsensus = ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis);
+  // One book's own adverse move blocks even when the cross-book average does not.
+  const priceBlocked = proc.price_blocked === true || (weatherHit && (
+    (juiceConsensus && move != null && move > moveMax) || lineAdverse > moveMax || bookAdverse > moveMax));
   // Probability is optional explicit backend evidence, never inferred from impact/confidence/PoP.
   const probability = finiteValue(g.discovery?.signal_probability) && g.discovery.signal_probability >= 0
     && g.discovery.signal_probability <= 1 ? g.discovery.signal_probability : null;
-  const kind = probability !== null && probability < .05 ? "quiet" : signal ? "signal" : near ? "near" : "quiet";
-  const label = kind === "signal" ? "Signal" : kind === "near" ? "Near signal" : probability !== null && probability < .05
-    ? "Very low signal likelihood" : "Below screening margin";
-  return {kind, label, probability, note: probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
-    : `Signal likelihood ${(probability * 100).toFixed(1)}%`};
+  let kind = "quiet", label = "Below screening margin";
+  if (probability !== null && probability < .05) {
+    kind = "quiet"; label = "Very low signal likelihood";
+  } else if (priceBlocked && weatherHit) {
+    kind = "moved"; label = "Under moved vs opener";
+  } else if (weatherHit) {
+    kind = "signal";
+    label = rainSignal && windBand === "flag" ? "Signal · wind ≥15 mph · heavy rain"
+      : rainSignal ? "Signal · heavy rain" : "Signal · wind ≥15 mph";
+  } else if (watch) {
+    kind = "near";
+    const windNote = windBand === "watch" ? "Watch · 12–15 mph wind · not a flag" : "";
+    const rainNote = rainTier === "watch" ? "Watch · rain 5–15 mm" : rainTier === "elevated" ? "Watch · rain 15–23 mm"
+      : rainNear ? "Heavy rain, model agreement unverified" : "";
+    label = windNote && rainNote ? `${windNote} · ${rainNote.replace(/^Watch · /, "")}` : (windNote || rainNote);
+  }
+  if (w.ecmwf_apart && (kind === "signal" || kind === "near")) label += " · ECMWF stands apart";
+  if (proc.line_open_missing === true && (kind === "signal" || kind === "near" || kind === "moved"))
+    label += " · opener line unknown";
+  const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
+    : `Signal likelihood ${(probability * 100).toFixed(1)}%`;
+  return {kind, label, probability, note, windBand, rainTier};
 }
 function discoveryHtml(g) {
   const s = discoveryState(g);

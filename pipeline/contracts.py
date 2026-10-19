@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Optional
@@ -197,6 +198,16 @@ class WeatherForecast(_AsDict):
     ensemble_aged_sources: list[str] = field(default_factory=list)
     ensemble_unverified_sources: list[str] = field(default_factory=list)
     ensemble_verification_errors: dict[str, str] = field(default_factory=dict)
+    # Per-model game windows and the process-screen forecast (docs/PROCESS_SPEC.md).
+    # wind_fg / temp_fg / rain_fg_mm stay the stitched values v1 impact consumes.
+    model_windows: dict[str, Any] = field(default_factory=dict)
+    signal_source: Optional[str] = None
+    signal_temp_f: Optional[float] = None
+    signal_wind_mph: Optional[float] = None
+    signal_rain_mm: Optional[float] = None
+    signal_wind_dir_deg: Optional[float] = None
+    ecmwf_apart: bool = False
+    ecmwf_apart_fields: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:
@@ -226,6 +237,9 @@ class GameLine(_AsDict):
     # Retain upstream observation time and provider expiry across publications.
     source_updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    # BetCris: display lasts until expires_at, but a price past this instant is
+    # reference-only and cannot price edges, alerts, entries, or CLV.
+    actionable_until: Optional[datetime] = None
     # Only explicit provider original-line evidence, never first-seen/created-time inference.
     opening_line: Optional[float] = None
     opening_odds: Optional[int] = None
@@ -258,6 +272,21 @@ class GameLine(_AsDict):
     @property
     def key(self) -> str:
         return odds_key(self.game_id, self.market, self.side, self.book)
+
+    def reference_only(self, now: datetime) -> bool:
+        """True when the provider's own TTL has passed. Missing clocks fail open
+        for every book that does not set ``actionable_until``."""
+        until = self.actionable_until
+        if until is None:
+            return False
+        if until.tzinfo is None or now.tzinfo is None:
+            return True
+        return now > until
+
+
+def actionable_lines(lines: Iterable[GameLine], now: datetime) -> list[GameLine]:
+    """Lines allowed to move consensus, edges, openers, history, and CLV."""
+    return [ln for ln in lines if not ln.reference_only(now)]
 
 
 _log = logging.getLogger(__name__)

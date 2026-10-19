@@ -95,11 +95,20 @@ function tierChip(e) {
 }
 function signalPill(sig, game) {
   if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
-  const label = signalLabel(sig);
+  let label = signalLabel(sig);
+  const proc = (game && game.process) || {};
+  const drivers = (sig && sig.drivers) || [];
+  const rainDriven = drivers.includes("rain") || /\(Rain\)/i.test((sig && sig.label) || "");
+  const disagreed = proc.rain_agreement && proc.rain_agreement !== "agree";
+  if (rainDriven && disagreed) {
+    if (proc.wind_band === "flag") label = "Low (Wind)";
+    else label = proc.rain_agreement === "disagree" ? "Rain models disagree" : "Rain not confirmed";
+  }
   const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
     ? gameFlags(game) : ((sig && sig.flags) || []);
   const flags = matched.length ? ` · ${matched.join(", ")}` : "";
-  return `<span class="sig" style="background:${signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+  const muted = rainDriven && disagreed && proc.wind_band !== "flag";
+  return `<span class="sig" style="background:${muted ? "#8b949e" : signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];
@@ -173,6 +182,23 @@ function consensusTotalCell(g) {
   };
   return `<td data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
 }
+function quoteAgeText(ts) {
+  const age = Date.now() - Date.parse(ts);
+  if (!Number.isFinite(age) || age < 0) return "";
+  const mins = Math.round(age / 60000);
+  return mins < 1 ? "<1m old" : `${mins}m old`;
+}
+function betcrisReference(quote) {
+  const until = Date.parse(quote?.actionable_until);
+  return Number.isFinite(until) && Date.now() > until;
+}
+function betcrisAgeNote(quote) {
+  if (!quote) return "";
+  const age = quoteAgeText(quote.source_updated_at || quote.updated_at);
+  const reference = betcrisReference(quote);
+  if (!age && !reference) return "";
+  return `${age || "age unknown"}${reference ? " · reference" : ""}`;
+}
 function blankOddsCell(g, bk, market, text) {
   const expired = Array.isArray(g.expired_markets) && g.expired_markets.includes(`${bk}/${market}`);
   return expired ? `<td class="muted" title="quote expired">${text}</td>` : `<td class="muted">${text}</td>`;
@@ -190,9 +216,11 @@ function bookSpreadCell(g, bk) {
       ["now", `${fmtLine(s.home_line)} ${fmtOdds(s.home_odds)} / ${fmtOdds(s.away_odds)}`],
       ...(e ? [["fair", `${fmtLine(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(s.updated_at ? [["updated", fmtShortET(s.updated_at)]] : []),
+      ...(bk === "betcris" && betcrisAgeNote(s) ? [["age", betcrisAgeNote(s)]] : []),
     ],
   };
-  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${tierChip(e)}</td>`;
+  const age = bk === "betcris" ? betcrisAgeNote(s) : "";
+  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${age ? `<span class="sub">${esc(age)}</span>` : ""}${tierChip(e)}</td>`;
 }
 function bookTotalCell(g, bk) {
   const o = (g.odds || {})[bk];
@@ -209,6 +237,7 @@ function bookTotalCell(g, bk) {
       ["now", `${fmtTotal(t.line)} o${fmtOdds(t.over)} / u${fmtOdds(t.under)}`],
       ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
+      ...(bk === "betcris" && betcrisAgeNote(t) ? [["age", betcrisAgeNote(t)]] : []),
       ...(t.last_observed ? [["last observed (reference only)", `U ${fmtTotal(t.last_observed.line)} ${fmtOdds(t.last_observed.under)}`],
         ["source clock", t.last_observed.updated_at || "Unknown"], ["reference status", t.last_observed.status]] : []),
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket
@@ -219,7 +248,7 @@ function bookTotalCell(g, bk) {
   const unavailable = ref ? ({stale:'Stale reference', expired:'Expired reference', unavailable:'Source unavailable', unknown:'Unverified reference', current:'Not refreshed'}[ref.status] || 'Unavailable') : 'Unavailable';
   return `<td class="book compact-total" data-hk="${hk}"><button type="button" class="book-total-detail" data-game="${esc(g.game_id)}"
     title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${isNum(t.line) && !t.expired ? 'U ' + fmtTotal(t.line) : unavailable}</b>
-    <span class="sub">${isNum(t.line) && !t.expired ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}</span></button></td>`;
+    <span class="sub">${isNum(t.line) && !t.expired ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}${bk === "betcris" && betcrisAgeNote(t) ? ` · ${esc(betcrisAgeNote(t))}` : ""}</span></button></td>`;
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
@@ -296,7 +325,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Discovery", "Weather signal and screening margin; likelihood is separate from impact severity", g => ({signal: 0, near: 1, unknown: 2, quiet: 3})[discoveryState(g).kind]],
+    ["Discovery", "Process screen: cold + sustained wind or heavy rain. Likelihood is separate from impact severity", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
     ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],

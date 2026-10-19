@@ -6,25 +6,27 @@ import {expireCardQuotes, expireQuoteMeta, expirePayload, quoteExpired, refreshO
 import {handleScheduled, HEARTBEAT_CRON, MIDDAY_CRON, handleFetch} from "../index.js";
 
 const expiry = "2026-10-05T02:28:02Z", now = Date.parse("2026-10-05T02:39:00Z");
-test("consumer expiry preserves openers and source clocks, invalidates derived prices", () => {
+test("a BetCris expiry drops only that cell and keeps a fresh book's fair price", () => {
   const original = {odds: {betcris: {total: {line: 48, under: -110, open_line: 47, expires_at: expiry,
     source_updated_at: "2026-10-05T02:23:02Z"}}, pinnacle: {total: {line: 49, under: -111}}},
-    consensus: {total_now: 48, total_open: 47}, fair: {edges: [{book: "betcris"}], fair_total: 45},
-    total_prices: {best: "betcris"}, weather: {rain_fg: null}};
+    consensus: {total_now: 49, total_open: 47, n_books: 1},
+    fair: {edges: [{book: "pinnacle", market: "total", edge_pts: 4}], fair_total: 45,
+      best_total: {book: "pinnacle", market: "total", edge_pts: 4}},
+    weather: {rain_fg: null}};
   assert.equal(quoteExpired(expiry, Date.parse(expiry)), false);
   assert.equal(quoteExpired("invalid", now), true);
   const c = expireCardQuotes(original, now);
   assert.equal(c.odds.betcris.total.line, undefined);
+  assert.equal(c.odds.betcris.total.expired, true);
   assert.equal(c.odds.betcris.total.open_line, 47);
   assert.equal(c.odds.betcris.total.source_updated_at, original.odds.betcris.total.source_updated_at);
+  assert.deepEqual(c.expired_markets, ["betcris/total"]);
   assert.equal(c.odds.pinnacle.total.line, 49);
-  assert.equal(c.consensus.total_now, null);
+  assert.equal(c.consensus.total_now, 49);
   assert.equal(c.consensus.total_open, 47);
-  assert.equal(c.consensus.spread_n_books, 0);
-  assert.equal(c.consensus.spread_thin, true);
-  assert.equal(c.consensus.total_n_books, 1);
-  assert.equal(c.consensus.total_thin, true);
-  assert.deepEqual(c.fair.edges, []);
+  assert.equal(c.fair.fair_total, 45);
+  assert.equal(c.fair.best_total.book, "pinnacle");
+  assert.deepEqual(c.fair.edges, [{book: "pinnacle", market: "total", edge_pts: 4}]);
   assert.equal(c.weather.rain_fg, null);
   assert.equal(original.odds.betcris.total.line, 48);
 });
@@ -42,18 +44,26 @@ test("consumer preserves server-recomputed comparisons for quotes already marked
   assert.deepEqual(c.fair.edges, [{book: "pinnacle"}]);
   assert.equal(c.odds.betcris.total.open_line, 47);
 });
-test("consumer expiry reports fresh book coverage independently per market", () => {
+test("a pricing book expiry still clears derived prices and recounts fresh books", () => {
   const original = {odds: {
-    betcris: {spread: {home_line: -2.5, expires_at: expiry}, total: {line: 48, open_line: 47, expires_at: expiry}},
-    pinnacle: {spread: {home_line: -3}, total: {line: 50}},
+    betcris: {spread: {home_line: -2.5}, total: {line: 48, open_line: 47}},
+    pinnacle: {spread: {home_line: -3, expires_at: expiry}, total: {line: 50, expires_at: expiry}},
     fanduel: {total: {line: 49}}, draftkings: {total: {line: 51}},
-  }, consensus: {spread_now: -2.7, total_now: 49, spread_n_books: 2, total_n_books: 4}};
+  }, consensus: {spread_now: -2.7, total_now: 49, spread_n_books: 2, total_n_books: 4},
+    fair: {fair_total: 45, edges: [{book: "pinnacle"}]}};
   const c = expireCardQuotes(original, now);
+  assert.equal(c.odds.pinnacle.spread.expired, true);
+  assert.equal(c.odds.pinnacle.total.expired, true);
+  assert.equal(c.odds.betcris.spread.home_line, -2.5);
+  assert.equal(c.consensus.spread_now, null);
+  assert.equal(c.consensus.total_now, null);
   assert.equal(c.consensus.spread_n_books, 1);
   assert.equal(c.consensus.spread_thin, true);
   assert.equal(c.consensus.total_n_books, 3);
   assert.equal(c.consensus.total_thin, false);
-  assert.equal(c.consensus.n_books, 0); // legacy current-comparison invalidation stays conservative
+  assert.equal(c.consensus.n_books, 0); // current-comparison invalidation stays conservative
+  assert.equal(c.fair.fair_total, null);
+  assert.deepEqual(c.fair.edges, []);
 });
 test("runtime metadata shows expired quotes rather than green counts", () => {
   const m = {books: {betcris: {count: 2, status: "green"}}, counts: {betcris: {nfl: 2}},
