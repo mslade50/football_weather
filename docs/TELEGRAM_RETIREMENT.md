@@ -21,11 +21,19 @@ acceptance harness is separate and is not represented as its production runtime.
 - `pipeline.alerts`: disabled planner skips liquidity/dispatch/persistence; digest and
   flush CLI delivery exits successfully without initiating SMTP fallback. Explicit
   dry-run rendering remains available.
-- `pipeline.yml`: both post-publication notifications and its direct failure job.
-- `backtest.yml`: weekly delivery and direct failure message. Backtest generation,
-  upload, archives and grading continue; deliberate retirement does not cause email.
-- `deploy.yml`, `calibrate.yml`, `build-stadiums.yml`: direct Telegram failure messages.
-- Worker `notifyTelegram`: token/dispatch-failure messages gated before HTTP.
+- `pipeline.yml`: post-publication pick alerts. The failure/recovery page is not
+  behind this switch.
+- `backtest.yml`: weekly delivery. The direct failure message is not behind this switch.
+  Backtest generation, upload, archives and grading continue; deliberate retirement
+  does not cause email.
+- `deploy.yml`, `calibrate.yml`, `build-stadiums.yml`, `stadium-climate.yml`: direct
+  failure messages are not behind this switch.
+- Worker `notifyTelegram`: dispatch-failure messages are not behind this switch.
+
+Failure and recovery pages use `FOOTBALL_FAILURE_ALERTS`. A missing value is on.
+Exact `0` silences them. Pipeline gate/light failures page without
+`TELEGRAM_SYSTEM_ALERTS`. Playwright-only failures, the other workflows' failure
+pages, and Worker dispatch failures still require `TELEGRAM_SYSTEM_ALERTS=1`.
 
 The GitHub repository variable defaults to `0`; Worker `wrangler.toml` sets `0`.
 Authenticated `/api/status` reports the effective Worker master flag without exposing
@@ -65,6 +73,8 @@ dispatch on failures. Workflow contracts enumerate and gate each Telegram sender
    `TELEGRAM_SYSTEM_ALERTS=1`; do not change that opt-in without a request.
 4. Verify non-secret effective status and a normal published run. Keep collection
    crons intact. To retire again, restore both master settings to `0`.
+   `FOOTBALL_FAILURE_ALERTS` is separate: set that repository variable to `0`
+   to silence failure and recovery pages without turning pick alerts on.
 
 Reverting this notification-only commit is an alternative rollback, but must still
 avoid replaying stale queue entries and must preserve any later unrelated changes.

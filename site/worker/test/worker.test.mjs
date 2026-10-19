@@ -18,6 +18,7 @@ import worker, {
   handleFetch,
   handleScheduled,
   notifyTelegram,
+  failureAlertsEnabled,
 } from "../index.js";
 
 const basic = (user, pass) => ({ Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}` });
@@ -169,7 +170,7 @@ test("api/runs clamps limit; api/alerts filters; api/status includes heartbeat",
   const body = await status.json();
   assert.equal(body.heartbeat.cron, "*/30 * * * *");
   assert.equal(body.meta, null);
-  assert.deepEqual(body.notifications, { football_telegram_enabled: false });
+  assert.deepEqual(body.notifications, { football_telegram_enabled: false, failure_alerts_enabled: true });
   const nf = await handleFetch(req("/api/nope", { headers: basic("a", "viewer-pw") }), env);
   assert.equal(nf.status, 404);
 });
@@ -221,12 +222,25 @@ test("dispatchBoard posts to pipeline.yml on main with sport/scope/force inputs"
   assert.match(fail.detail, /boom/);
 });
 
-test("retired Worker sender never fetches even if SYSTEM alerts are enabled", async () => {
+test("failure alerts default on and ignore the pick switch", async () => {
+  assert.equal(failureAlertsEnabled({}), true);
+  assert.equal(failureAlertsEnabled({ FOOTBALL_FAILURE_ALERTS: "0" }), false);
+  assert.equal(failureAlertsEnabled({ FOOTBALL_FAILURE_ALERTS: "1" }), true);
   for (const flag of [undefined, "", "0", "true", "invalid"]) {
+    let fetched = false;
     const env = { FOOTBALL_TELEGRAM_ENABLED: flag, TELEGRAM_SYSTEM_ALERTS: "1",
       TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture" };
-    await notifyTelegram(env, "fixture", async () => assert.fail("retired sender must not fetch"));
+    await notifyTelegram(env, "fixture", async () => { fetched = true; return new Response(null, { status: 200 }); });
+    assert.equal(fetched, true, String(flag));
   }
+  await notifyTelegram({
+    FOOTBALL_TELEGRAM_ENABLED: "1", FOOTBALL_FAILURE_ALERTS: "0", TELEGRAM_SYSTEM_ALERTS: "1",
+    TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture",
+  }, "fixture", async () => assert.fail("failure switch off must not fetch"));
+  await notifyTelegram({
+    FOOTBALL_FAILURE_ALERTS: "1", TELEGRAM_SYSTEM_ALERTS: "0",
+    TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture",
+  }, "fixture", async () => assert.fail("system alerts stay opt-in"));
 });
 
 test("retired scheduled failure still records heartbeat and dispatch", async () => {
@@ -239,7 +253,8 @@ test("retired scheduled failure still records heartbeat and dispatch", async () 
       return new Response("fixture failure", { status: 500 });
     };
     const env = fakeEnv({ GH_DISPATCH_TOKEN: "fixture", TELEGRAM_SYSTEM_ALERTS: "1",
-      TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture", FOOTBALL_TELEGRAM_ENABLED: "0" });
+      TELEGRAM_BOT_TOKEN: "fixture", TELEGRAM_CHAT_ID: "fixture", FOOTBALL_TELEGRAM_ENABLED: "0",
+      FOOTBALL_FAILURE_ALERTS: "0" });
     // Wednesday 17:15 UTC still dispatches. Saturday 17:15 is skipped because the
     // 17:00 game-day tick already covers it.
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, env);
@@ -262,7 +277,7 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
     assert.equal(sent.length, 0);
 
     const blockedEnv = fakeEnv({
-      FOOTBALL_TELEGRAM_ENABLED: "1", TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
+      FOOTBALL_TELEGRAM_ENABLED: "0", TELEGRAM_SYSTEM_ALERTS: "1", TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, blockedEnv);
     assert.equal(sent.length, 1);
@@ -277,7 +292,7 @@ test("scheduled SYSTEM notices are opt-in and concise", async () => {
       return new Response(null, { status: 200 });
     };
     const failedEnv = fakeEnv({
-      GH_DISPATCH_TOKEN: "tok", FOOTBALL_TELEGRAM_ENABLED: "1", TELEGRAM_SYSTEM_ALERTS: "1",
+      GH_DISPATCH_TOKEN: "tok", FOOTBALL_TELEGRAM_ENABLED: "0", TELEGRAM_SYSTEM_ALERTS: "1",
       TELEGRAM_BOT_TOKEN: "bot", TELEGRAM_CHAT_ID: "chat",
     });
     await handleScheduled({ cron: MIDDAY_CRON, scheduledTime: Date.parse("2026-10-14T17:15:00Z") }, failedEnv);

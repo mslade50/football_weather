@@ -363,6 +363,8 @@ the card; the message did not grow a second impact line.
 
 Football Telegram delivery is off unless `FOOTBALL_TELEGRAM_ENABLED` is
 exactly `1`. When delivery is on, these thresholds are the send gate.
+Pipeline failure and recovery pages are a separate switch and stay on unless
+`FOOTBALL_FAILURE_ALERTS` is exactly `0`.
 
 ## Context for the cuts
 
