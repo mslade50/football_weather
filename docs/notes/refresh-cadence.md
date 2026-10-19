@@ -32,6 +32,63 @@ Design (no new cron; free plan still has the same two triggers):
 Rollback: revert the commit. The two wrangler crons are unchanged. Unset
 `GH_DISPATCH_TOKEN` to stop Worker dispatches; the GitHub backstop remains.
 
+### Open-Meteo weight at this cadence
+
+Published free-tier limits are 10,000 weighted calls/day, 5,000/hour, and
+600/minute. A call with many variables, models, or ensemble members counts as
+more than one call. `pipeline/weather/rate_limit.py` `query_weight` is that
+formula: locations × max(1, variables × models-or-members / 10), and a window
+under 14 days does not multiply further. The weather window is 10 days, so
+measured requests stayed in the flat band. `static/meta.json` is not forecast
+quota. The publish job reuses the light-job point handoff, so a pipeline run
+is billed once, on light.
+
+Weights below were computed from the forecast and ensemble URLs in successful
+light-job logs. GEFS member HTTP was missing on the both-league runs because
+verification failed (dataset stale, or still inside the provider's 10-minute
+settling window). The GEFS column is those same locations at 31/51 of the IFS
+weight, which is the cost when both models succeed.
+
+| Run | Board | Points | IFS members | GEFS | All models |
+| --- | --- | ---: | ---: | ---: | ---: |
+| [39200298913](https://github.com/mslade50/football_weather/actions/runs/39200298913) Mon 2026-10-19 04:36Z | NFL+CFB, 15+60 locations | 60.5 | 137.7 (9 locations) | 83.7 | 282 |
+| [39055629976](https://github.com/mslade50/football_weather/actions/runs/39055629976) Sat 2026-10-17 17:52Z | NFL+CFB, 23+96 locations | 152.0 | 290.7 (19 locations) | 176.7 | 619 |
+| [39143062710](https://github.com/mslade50/football_weather/actions/runs/39143062710) Sun 2026-10-18 16:00Z | NFL only | 38.5 | 76.5 | 9.3 (one location fetched) | 124 |
+| [39147611746](https://github.com/mslade50/football_weather/actions/runs/39147611746) Sun 2026-10-18 17:00Z | NFL only, next hour | 41.0 | 0 | 0 | 41 |
+
+Steady-state dispatches that spend quota, October EDT. Game-day `:00` ticks
+replace the odd ET slot on that hour. The 17:15Z midday cron is inside the
+90-minute dedupe. The daily 09:17Z GitHub backstop is more than 100 minutes
+after the 11 PM ET slot, so it does run (`sport=all`).
+
+- Tue/Wed/Fri: 10 both-league runs.
+- Mon/Thu: 8 both-league + 5 NFL.
+- Sat: 3 both-league + 13 CFB.
+- Sun: 4 both-league + 11 NFL + the 04:00Z CFB tail.
+
+Member pulls are already cached by verified dataset version
+(`ensemble_cache.json` in the R2 state set). The Sunday 17:00Z run paid 0
+member weight one hour after 16:00Z paid 85.8. ECMWF and GFS update about
+every 6 hours, so a day pays about four member cycles. Point forecasts are
+fetched on every run; NWS covers most CONUS games inside seven days, which is
+why the Monday both-league point bill was 60.5 rather than a full-stadium pull.
+
+Projected weighted calls per ET day when that cache holds and both ensembles
+succeed:
+
+- Early-week board (Monday's slate), 10 both-league runs: 10 × 60.5 points + 4 × 221 member cycles ≈ **1,500**.
+- Heavy 10-day slate (Saturday's board) on a 10-run weekday: 10 × 152 + 4 × 467 ≈ **3,400**.
+- Heavy Saturday, 3 both-league + 13 CFB, charging every model cycle as both leagues: about 1,800 points + 4 × 467 ≈ **3,700**.
+- Same heavy Saturday if the member cache misses on every run: 3 × 619 + 13 × 350 ≈ **6,400**.
+
+The largest measured run is 619, under 5,000/hour and 600/minute. Local
+ceilings stay 4,500/hour and 500/minute, and the concurrency group runs one
+pipeline at a time. A separate assistant using a few dozen calls a day fits in
+the remainder (about 3,500 calls left on the cache-miss Saturday, about 8,500
+on a normal early-week day). Odds stay on the 2-hour cadence. Member forecasts
+stay on the model-run cache that is already shipping. The published
+non-commercial term of the free tier is unchanged.
+
 ## Part 1 - Worker cron as primary trigger (implemented)
 
 Problem: GitHub drops `schedule:` ticks (Sat 2026-10-10: 5 runs vs an hourly
