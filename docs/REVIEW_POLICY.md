@@ -64,8 +64,8 @@ must fill it in.
 
 That workflow also runs `scripts/check_test_weakening.py` on the pull request
 diff and fails when tests get weaker and the body has no real `## Test changes`
-note. It flags a deleted test file, a removed test, a new skip or xfail, a new
-or wider exclusion (`--ignore`, `--deselect`, `-k`, or a conftest
+note. It flags a deleted test file, a removed test, a new skip, xfail, or
+importorskip, a new or wider exclusion (`--ignore`, `--deselect`, `-k`, or a conftest
 `collect_ignore` list), or a looser assertion. A rename, an equivalent assert
 rewrite, and a tighter check are left alone. The match is a heuristic, so a
 weaker check hidden in a helper or a variable can slip through, and `N/A` does

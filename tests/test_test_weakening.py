@@ -223,6 +223,33 @@ def test_pytest_skip_marker_and_call_and_unittest_skip_are_flagged():
     assert any("unittest.skip marker" in reason for reason in _reasons(unit))
 
 
+def test_new_importorskip_is_flagged_and_an_unchanged_one_is_not():
+    added = udiff(
+        "tests/test_a.py",
+        "def test_a():\n    assert 1 == 1\n",
+        "def test_a():\n    " + _call("pytest.importorskip", '("pandas")') + "\n    assert 1 == 1\n",
+    )
+    bare = udiff(
+        "tests/test_a.py",
+        "def test_a():\n    assert 1 == 1\n",
+        "def test_a():\n    " + _call("importorskip", '("pandas")') + "\n    assert 1 == 1\n",
+    )
+    unchanged = udiff(
+        "tests/test_a.py",
+        "def test_a():\n    " + _call("pytest.importorskip", '("pandas")') + "\n    assert total == 1\n",
+        "def test_a():\n    " + _call("pytest.importorskip", '("pandas")') + "\n    assert total == 2\n",
+    )
+    edited = udiff(
+        "tests/test_a.py",
+        "def test_a():\n    " + _call("pytest.importorskip", '("pandas")') + "\n    assert 1 == 1\n",
+        "def test_a():\n    " + _call("pytest.importorskip", '("pyarrow")') + "\n    assert 1 == 1\n",
+    )
+    assert any("added pytest.importorskip marker" in reason for reason in _reasons(added))
+    assert any("added pytest.importorskip marker" in reason for reason in _reasons(bare))
+    assert find_weakening(unchanged) == []
+    assert any("changed pytest.importorskip condition" in reason for reason in _reasons(edited))
+
+
 def test_reason_only_skip_edit_is_not_flagged_but_condition_change_is():
     same = udiff(
         "tests/test_a.py",

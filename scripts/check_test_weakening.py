@@ -20,8 +20,10 @@ Catches (added or removed diff lines only):
   or SequenceMatcher ratio is at least 0.8.
 - A removed pytest parametrize list entry in a hunk that mentions parametrize.
 - A new or edited pytest/unittest skip, skipif, or xfail, including
-  pytest.skip(), unittest.skip/skipIf/skipUnless, self.skipTest, and
-  add_marker(skip). Reason-only edits are ignored.
+  pytest.skip(), pytest.importorskip(), a bare importorskip() call,
+  unittest.skip/skipIf/skipUnless, self.skipTest, and add_marker(skip).
+  Reason-only edits are ignored. Changing the module passed to
+  importorskip is an edit.
 - In JS/TS tests: .skip(, .only(, xit/xtest/xdescribe/xcontext, and
   ``skip: true`` / ``only: true``.
 - A new or broader ``--ignore``, ``--ignore-glob``, ``--deselect``, or
@@ -40,8 +42,7 @@ Misses (on purpose, to keep false positives down):
 - A weaker check moved into a helper, or a tolerance stored in a variable.
 - An expected value that changes while the assert shape stays as strong.
 - Inverting assertTrue/assertFalse or assert.ok/assert.notOk.
-- Multi-line asserts, pytest.importorskip, and pytest.param calls with nested
-  parentheses.
+- Multi-line asserts and pytest.param calls with nested parentheses.
 - Fixture and golden-file deletions.
 - Exclusions that live only in a Makefile, a shell variable, or a CI system
   other than GitHub Actions workflow files.
@@ -155,6 +156,10 @@ _PY_SKIP_RULES = (
     (
         "pytest.mark.skip",
         re.compile(r"(?:@pytest\.mark\.skip\b|\bpytest\.skip\s*\(|\bpytest\.mark\.skip\b|\.add_marker\(\s*skip\b)"),
+    ),
+    (
+        "pytest.importorskip",
+        re.compile(r"(?:\bpytest\.importorskip\s*\(|(?<!\.)\bimportorskip\s*\()"),
     ),
     (
         "unittest.skip",
