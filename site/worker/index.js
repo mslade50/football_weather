@@ -13,7 +13,7 @@ import { exchangeRefresh } from './exchange-refresh.js';
 import { residentEvidence } from '../web/resident-quotes.mjs';
 import { pinPublication } from './publication.js';
 import { betConfirmationsRoute } from './bet-confirmations.js';
-import { expirePayload, expireQuoteMeta } from "../web/current-quotes.mjs";
+import { expirePayload, expireQuoteMeta, refreshStatus } from "../web/current-quotes.mjs";
 import { stadiumHistoryPayload } from './stadium-history.js';
 import { stadiumClimatePayload } from './stadium-climate.js';
 
@@ -57,6 +57,36 @@ const GAME_WINDOWS = [
   { day: 4, from: 22, to: 2, kind: "nfl" },
   { day: 1, from: 22, to: 2, kind: "nfl" },
 ];
+
+// Weekday refresh window, America/New_York. The free plan has no spare cron
+// trigger, so the existing */30 heartbeat owns this cadence: exact odd ET
+// hours from 7 AM through 11 PM, every day in season. Game-day shouldDispatch
+// still wins on its :00 ticks. A :30 tick dispatches only as catch-up when the
+// last accepted dispatch is older than REFRESH_CATCHUP_MS.
+export const REFRESH_SLOT_HOURS = [7, 9, 11, 13, 15, 17, 19, 21, 23];
+export const REFRESH_MIN_GAP_MS = 90 * 60 * 1000;
+export const REFRESH_CATCHUP_MS = 150 * 60 * 1000;
+
+export function isInRefreshWindow(date) {
+  const p = etParts(date);
+  if (!sportForMonth(p.month)) return false;
+  return p.hour >= 7 && p.hour <= 23;
+}
+
+// Pure: Date -> {sport, scope:"full"} | null. Exact ET slot hours only.
+export function refreshSlotPlan(date) {
+  if (!isInRefreshWindow(date)) return null;
+  const p = etParts(date);
+  if (p.minute !== 0 || !REFRESH_SLOT_HOURS.includes(p.hour)) return null;
+  const sport = sportForMonth(p.month);
+  return sport ? { sport, scope: "full" } : null;
+}
+
+function receiptAgeMs(receipt, now) {
+  const ts = Date.parse(receipt?.ts || "");
+  if (!Number.isFinite(ts)) return null;
+  return now.getTime() - ts;
+}
 
 // Pure: Date -> {sport, scope:"full"} | null. Only exact :00 ticks qualify.
 export function shouldDispatch(date) {
@@ -311,6 +341,7 @@ async function apiRoute(url, request, env, identity) {
           git_sha: meta.git_sha, next_run_eta: meta.next_run_eta,
           degradations: meta.degradations || [], books: meta.books || {},
         } : null,
+        refresh: refreshStatus(meta, Date.now(), dispatch),
         runs: runs.results || [],
       });
     }
@@ -521,7 +552,9 @@ async function handleFetchInner(request, env) {
     if (/^(games_(nfl|cfb)|meta|status|board)\.json$/.test(name)) {
         const payload = expirePayload(name, await obj.json());
       if (name === 'meta.json') {
+          const dispatch = await readR2Json(env, 'board/cf_dispatch.json');
           return jsonResponse({ ...payload, publication_status: env.PUBLICATION_META?.publication_status || 'legacy_unverified',
+            refresh: refreshStatus(payload, Date.now(), dispatch),
             resident: residentEvidence(payload, await readR2Json(env, 'board/live_quotes.json')) });
       }
       return jsonResponse(payload);
@@ -559,10 +592,17 @@ export async function handleScheduled(event, env) {
     console.log(`heartbeat write failed: ${err}`);
   }
 
-  const plan = resolveCron(event.cron, fired);
+  let plan = resolveCron(event.cron, fired);
+  const cadence = !plan && event.cron === HEARTBEAT_CRON;
+  if (cadence) plan = await cadencePlan(env, fired);
   if (!plan) {
     console.log(`scheduled: trimmed ${event.cron} at ${fired.toISOString()} (no dispatch)`);
     return { dispatched: false, trimmed: true };
+  }
+  if (event.cron === MIDDAY_CRON && await acceptedDispatchRecently(env, fired)) {
+    // The 2h ET slot already covered this hour. Keep the midday cron itself.
+    console.log(`scheduled: skip ${event.cron} at ${fired.toISOString()} (recent dispatch)`);
+    return { dispatched: false, trimmed: true, plan, reason: "recent dispatch" };
   }
   if (!env.GH_DISPATCH_TOKEN) {
     console.log("scheduled: GH_DISPATCH_TOKEN not set — skipping pipeline dispatch");
@@ -573,6 +613,11 @@ export async function handleScheduled(event, env) {
     const result = { dispatched: false, trimmed: false, plan, status: null, reason: "dispatch token missing" };
     await recordDispatch(env, event.cron, fired, result);
     return result;
+  }
+  if (cadence && await boardRunActive(env)) {
+    // Queueing a second full run spends Actions minutes without newer odds.
+    console.log(`scheduled: skip cadence at ${fired.toISOString()} (pipeline already active)`);
+    return { dispatched: false, trimmed: true, plan, reason: "already running" };
   }
   const { ok, status, detail } = await dispatchBoard(env, plan);
   console.log(`scheduled: pipeline.yml dispatch ${plan.sport}/${plan.scope} -> ${status || "exception"}`
@@ -587,6 +632,29 @@ export async function handleScheduled(event, env) {
     reason: ok ? "GitHub accepted dispatch; workflow completion unverified" : "GitHub dispatch failed" };
   await recordDispatch(env, event.cron, fired, result);
   return result;
+}
+
+// Slot, or catch-up when a slot was missed / the last attempt failed.
+// A missing receipt does not catch up: a failed R2 read must not dispatch
+// every 30 minutes. Returns {sport, scope} or null.
+async function cadencePlan(env, fired) {
+  const slot = refreshSlotPlan(fired);
+  const receipt = await readR2Json(env, "board/cf_dispatch.json");
+  const age = receiptAgeMs(receipt, fired);
+  const acceptedRecently = !!(receipt && receipt.dispatched === true && age != null && age < REFRESH_MIN_GAP_MS);
+  if (slot) return acceptedRecently ? null : slot;
+  if (!isInRefreshWindow(fired) || !receipt || age == null) return null;
+  const failed = receipt.dispatched === false && receipt.trimmed !== true;
+  const due = (failed && age >= REFRESH_MIN_GAP_MS) || (receipt.dispatched === true && age >= REFRESH_CATCHUP_MS);
+  if (!due) return null;
+  const sport = sportForMonth(etParts(fired).month);
+  return sport ? { sport, scope: "full" } : null;
+}
+
+async function acceptedDispatchRecently(env, fired) {
+  const receipt = await readR2Json(env, "board/cf_dispatch.json");
+  const age = receiptAgeMs(receipt, fired);
+  return !!(receipt && receipt.dispatched === true && age != null && age < REFRESH_MIN_GAP_MS);
 }
 
 async function recordDispatch(env, cron, fired, result) {

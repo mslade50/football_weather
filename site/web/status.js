@@ -2,6 +2,17 @@
 // Header: sport/week label, Eastern update / next-run times, book chips
 // from meta.books, degradation banners, run-health statusbar.
 
+// Server `meta.refresh` wins when the Worker computed it. Otherwise the
+// published ETA plus 90 minutes is the same rule /api/status uses.
+function refreshLate(meta) {
+  const flag = meta && meta.refresh;
+  if (flag && (flag.overdue || flag.missed)) return flag;
+  if (typeof QUOTES !== "undefined" && QUOTES && typeof QUOTES.refreshOverdue === "function" && QUOTES.refreshOverdue(meta)) {
+    return { overdue: true, missed: false, reason: "Expected refresh is overdue; trigger outcome unknown" };
+  }
+  return null;
+}
+
 function renderHeader(meta) {
   const ev = document.getElementById("event");
   const parts = [];
@@ -23,7 +34,14 @@ function renderHeader(meta) {
     upd.textContent = "";
   }
   const nr = document.getElementById("nextrun");
-  nr.textContent = meta.next_run_eta ? `· next run ~${fmtET(meta.next_run_eta)}` : "";
+  const late = refreshLate(meta);
+  if (late) {
+    const when = meta.next_run_eta ? ` (expected ${fmtET(meta.next_run_eta)})` : "";
+    nr.textContent = late.missed ? `· refresh missed${when}` : `· refresh overdue${when}`;
+  } else {
+    nr.textContent = meta.next_run_eta ? `· next run ~${fmtET(meta.next_run_eta)}` : "";
+  }
+  if (nr.classList) nr.classList.toggle("overdue", !!late);
 
   renderBookChips(meta.books || {});
 }
@@ -91,16 +109,17 @@ function boardDiagnostics(meta) {
   };
   for (const d of meta.degradations || []) if (d && (d.severity || "warn") !== "info")
     add(d.component || "pipeline", d.severity || "warn", d.reason, d.ts);
-  if (QUOTES?.refreshOverdue(meta)) add("scheduler", "warn", "Expected refresh is overdue; trigger outcome unknown");
+  const late = refreshLate(meta);
+  if (late) add("scheduler", "warn", late.reason || "Expected refresh is overdue; trigger outcome unknown");
   const loads = typeof LOAD_ERRORS !== "undefined" ? Object.entries(LOAD_ERRORS).filter(([, reason]) => reason) : [];
   for (const [source, reason] of loads) add("load", "error", `${source}: ${reason}`);
   const books = meta.books || {}, names = Object.keys(books).filter(b => b !== "consensus");
   const red = names.filter(b => (books[b].status || "green") === "red"), amber = names.filter(b => books[b].status === "amber");
   // Preserve the existing health predicate. This changes presentation, not price qualification or validation.
-  const ok = !red.length && !amber.length && !QUOTES?.refreshOverdue(meta) && !loads.length
+  const ok = !red.length && !amber.length && !late && !loads.length
     && meta.resident?.status === "fresh" && meta.publication_status === "manifest_verified"
     && !(meta.degradations || []).some(d => (d.severity || "warn") !== "info");
-  return {ok, names, red, amber, loads, items: [...grouped.values()].map(d => ({...d, stamps: [...d.stamps]}))};
+  return {ok, late, names, red, amber, loads, items: [...grouped.values()].map(d => ({...d, stamps: [...d.stamps]}))};
 }
 function renderStatusbar(meta) {
   const el = document.getElementById("statusbar");
@@ -122,7 +141,9 @@ function renderStatusbar(meta) {
   for (const d of health.items) (grouped.get(d.component) || grouped.set(d.component, []).get(d.component)).push(d);
   const diagnostics = [...grouped].map(([component, items]) => `<section class="health-group"><h3>${esc(component)}</h3><ul>${items.map(d =>
     `<li class="${["error", "critical"].includes(d.severity) ? "health-error" : ""}">${esc(d.reason)}${d.count > 1 ? ` <span class="sub">(${d.count} reports)</span>` : ""}${d.stamps.length ? `<span class="sub">Reported ${d.stamps.map(stamp => esc(fmtShortET(stamp))).join(", ")}</span>` : ""}</li>`).join("")}</ul></section>`).join("");
-  el.innerHTML = `<div class="health-overview"><span class="pill ${health.ok ? "ok" : "warn"}">${state}</span>
+  const late = refreshLate(meta);
+  const latePill = late ? `<span class="pill warn">${late.missed ? "Refresh missed" : "Refresh overdue"}</span>` : "";
+  el.innerHTML = `<div class="health-overview"><span class="pill ${health.ok ? "ok" : "warn"}">${state}</span>${latePill}
       <span class="health-fact ${meta.publication_status === "manifest_verified" ? "" : "health-error"}">${publication}</span>
       <span class="health-fact ${meta.resident?.status === "fresh" ? "" : "health-error"}">${esc(quotes)}</span>
       ${errors.length ? `<b class="health-error">${errors.length} ${errors.length === 1 ? "failure" : "failures"}</b><span class="health-error health-critical">${esc(errors[0].component)}: ${esc(errors[0].reason.length > 96 ? errors[0].reason.slice(0, 96) + "…" : errors[0].reason)}</span>` : ""}</div>
@@ -191,7 +212,7 @@ async function loadStatus(force = false) {
         const m = j.meta || {};
         data = { ...(data || {}), run_id: m.run_id, last_updated: m.last_updated, git_sha: m.git_sha, next_run_eta: m.next_run_eta,
           degradations: m.degradations || [], books: m.books || {}, runs: j.runs || [], heartbeat: j.heartbeat || null,
-          dispatch: j.dispatch || null, source: "api" };
+          dispatch: j.dispatch || null, refresh: j.refresh || null, source: "api" };
       }
     } catch (_) { /* neither */ }
   }
@@ -296,13 +317,15 @@ async function renderStatus() {
   const hbAge = ageHours(hbTs);
   const hbClass = hbAge == null || hbAge > 20 ? "warn" : "ok";
   const dataAge = ageHours(lastUpdated);
-  const dataClass = dataAge == null || dataAge > 20 || QUOTES?.refreshOverdue(meta) ? "warn" : "ok";
+  const refresh = sd.refresh || meta.refresh || (QUOTES?.refreshStatus ? QUOTES.refreshStatus(meta, Date.now(), sd.dispatch) : null);
+  const refreshLateNow = (refresh && (refresh.overdue || refresh.missed)) || QUOTES?.refreshOverdue(meta);
+  const dataClass = dataAge == null || dataAge > 20 || refreshLateNow ? "warn" : "ok";
   const timings = sd.stage_timings || latest.stage_timings || latest.stage_timings_json || null;
   const currentMeta = meta.run_id && meta.run_id === (sd.run_id || sd.meta?.run_id);
   const degs = [...((currentMeta ? meta.degradations : sd.degradations)
     || meta.degradations || parseMaybeJson(latest.degradations_json) || [])];
-  if (QUOTES?.refreshOverdue(meta)) degs.push({component: "scheduler", severity: "warn",
-    reason: "Expected refresh is overdue; trigger outcome unknown"});
+  if (refreshLateNow) degs.push({component: "scheduler", severity: "warn",
+    reason: (refresh && refresh.reason) || "Expected refresh is overdue; trigger outcome unknown"});
   const unresolved = sd.unresolved_names || meta.unresolved_names || parseMaybeJson(latest.unresolved_json) || [];
   const books = (currentMeta ? meta.books : sd.books) || meta.books || {};
   const unresolvedList = Array.isArray(unresolved) ? unresolved
@@ -320,6 +343,9 @@ async function renderStatus() {
           ["Git", `<span class="sub">${esc(String(sd.git_sha || meta.git_sha || "—").slice(0, 7))}</span>`],
           ["Model", esc(sd.model_version || meta.model_version || "—")],
           ["Next run", nextEta ? esc(fmtET(nextEta)) : "—"],
+          ["Refresh", refreshLateNow
+            ? `<span class="pill warn">${refresh && refresh.missed ? "Missed" : "Overdue"}</span> <span class="sub">${esc((refresh && refresh.reason) || "Expected refresh is overdue; trigger outcome unknown")}</span>`
+            : `<span class="pill ok">On time</span>`],
           ["Scope", esc(latest.scope || sd.scope || "—")],
           ["Duration", fmtSecs(latest.duration_s ?? sd.duration_s)],
         ])}

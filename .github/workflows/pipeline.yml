@@ -43,9 +43,10 @@ name: pipeline
 on:
   # GitHub schedule is only a SPARSE BACKSTOP (~every 3-4h on game days, off-the-
   # minute UTC). The Cloudflare Worker dispatches the hourly game-day cadence
-  # (shouldDispatch in site/worker/index.js); GitHub drops scheduled ticks, so
-  # the Worker is primary. The gate job skips a backstop tick when a Worker/manual
-  # dispatch started within the last 50 minutes, and the concurrency group below
+  # and every odd ET hour from 7 AM through 11 PM (site/worker/index.js);
+  # GitHub drops scheduled ticks, so the Worker is primary. The gate job skips
+  # a backstop tick when a Worker/manual dispatch started within the last 100
+  # minutes, and the concurrency group below
   # queues any remaining overlap, so the two never double-run.
   schedule:
     - cron: '17 9 * * *'
@@ -158,7 +159,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Fail-open: any error leaves skip empty and the gate runs normally.
-          SINCE="$(date -u -d '50 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          SINCE="$(date -u -d '100 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
           N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20"             | jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled")] | length')" || N=0
           echo "Recent dispatch runs: ${N:-0}"
           if [ "${N:-0}" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi

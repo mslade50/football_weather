@@ -176,6 +176,9 @@ def test_worker_windows_mirror_index_js():
     # JS getUTCDay (0=Sun) -> Python weekday (Mon=0)
     mirrored = tuple(((int(d) - 1) % 7, int(a), int(b)) for d, a, b in found)
     assert mirrored == json_out.WORKER_WINDOWS
+    hours = re.search(r"REFRESH_SLOT_HOURS = \[([^\]]+)\]", js)
+    assert hours is not None
+    assert tuple(int(n) for n in re.findall(r"\d+", hours.group(1))) == json_out.CADENCE_ET_HOURS
 
 
 # ---- GameCard ----------------------------------------------------------------------------
@@ -404,7 +407,7 @@ def test_build_meta_and_slim_meta():
                                season=2026, week=3, finished_at=KICK + timedelta(minutes=2))
     assert meta["run_id"] == "r1" and meta["duration_s"] == 120.0 and meta["sport_counts"] == {"nfl": 14, "cfb": 60}
     assert meta["degradations"][0]["component"] == "odds" and meta["books"]["pinnacle"]["status"] == "green"
-    assert meta["next_run_eta"] == "2026-09-27T17:15:00Z" and meta["last_updated"] == "2026-09-27T17:02:00Z"
+    assert meta["next_run_eta"] == "2026-09-27T18:00:00Z" and meta["last_updated"] == "2026-09-27T17:02:00Z"
     slim = json_out.slim_meta(meta)
     assert set(slim) == {"run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations"}
     json.dumps(meta, allow_nan=False)

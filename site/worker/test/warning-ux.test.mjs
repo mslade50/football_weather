@@ -112,6 +112,7 @@ test('Historical and execution views retain the compact health area for pipeline
     assert.equal(nodes.get('statusbar').style.display, '');
     assert.match(nodes.get('statusbar').innerHTML, /Verification failed/);
     assert.match(nodes.get('statusbar').innerHTML, /Expected refresh is overdue/);
+    assert.match(nodes.get('statusbar').innerHTML, /Refresh overdue/);
     assert.equal(nodes.get('loadnotice').hidden, true, 'shared warnings have one home');
   }
 });

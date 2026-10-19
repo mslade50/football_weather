@@ -140,6 +140,9 @@ def next_backstop(now: datetime) -> datetime:
 # site/worker/index.js (pinned by test_worker_windows_mirror_index_js).
 WORKER_WINDOWS = ((5, 15, 4), (6, 15, 1), (3, 22, 2), (0, 22, 2))
 
+# Odd ET hours, 7 AM through 11 PM. Mirrors REFRESH_SLOT_HOURS in index.js.
+CADENCE_ET_HOURS = (7, 9, 11, 13, 15, 17, 19, 21, 23)
+
 
 def next_worker_tick(now: datetime) -> Optional[datetime]:
     """Next hourly game-day Worker dispatch (UTC :00) strictly after ``now``."""
@@ -154,22 +157,36 @@ def next_worker_tick(now: datetime) -> Optional[datetime]:
     return None
 
 
+def next_cadence_tick(now: datetime) -> Optional[datetime]:
+    """Next ET refresh slot (UTC) strictly after ``now``, in season.
+
+    Slots are the odd America/New_York hours from 7 through 23. The Worker
+    heartbeat dispatches those hours; this is the ETA the board advertises.
+    """
+    n = now.astimezone(timezone.utc)
+    cand = n.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    for _ in range(48):
+        et = to_et(cand)
+        if (et.month >= 8 or et.month <= 2) and et.hour in CADENCE_ET_HOURS:
+            return cand
+        cand += timedelta(hours=1)
+    return None
+
+
 def next_run_eta(now: datetime, env: Optional[dict[str, str]] = None) -> str:
     env = os.environ if env is None else env
     raw = (env.get("NEXT_RUN_ETA") or "").strip()
     if raw:
         return raw
-    next_time = next_backstop(now)
-    # Existing free-plan Cloudflare dispatch; no new trigger is introduced.
-    if now.month >= 8 or now.month <= 2:
-        midday = now.astimezone(timezone.utc).replace(hour=17, minute=15, second=0, microsecond=0)
-        if midday <= now:
-            midday += timedelta(days=1)
-        next_time = min(next_time, midday)
-    worker = next_worker_tick(now)
-    if worker is not None:
-        next_time = min(next_time, worker)
-    return utc_iso(next_time)
+    n = now.astimezone(timezone.utc)
+    # In season the Worker heartbeat is the schedule. The GitHub backstop is
+    # best-effort and is not advertised, so a dropped tick does not page as
+    # overdue an hour before the Worker slot. Off-season falls back to it.
+    if n.month >= 8 or n.month <= 2:
+        candidates = [t for t in (next_worker_tick(now), next_cadence_tick(now)) if t is not None]
+        if candidates:
+            return utc_iso(min(candidates))
+    return utc_iso(next_backstop(now))
 
 
 # ---- GameCard -----------------------------------------------------------------------
@@ -1087,7 +1104,7 @@ __all__ = [
     "BOARD_DIRNAME", "SNAPSHOT_DIRNAME", "META_FILE", "BOARD_FILE", "WX_HISTORY_FILE", "ALERTS_FEED_FILE", "STATUS_FILE",
     "BACKTEST_FILE",
     "REQUIRED_CARD_KEYS", "build_alerts_feed", "build_status", "status_run_row", "load_previous_status",
-    "sanitize", "dump_json", "next_backstop", "next_run_eta",
+    "sanitize", "dump_json", "next_backstop", "next_cadence_tick", "next_run_eta",
     "build_card", "odds_block", "consensus_spread_opener", "freeze_consensus_spread_openers", "consensus_block", "fair_block", "table_row",
     "books_status", "build_meta", "current_week", "current_weeks", "slim_meta",
     "load_wx_history", "wx_point", "update_wx_history", "prune_wx_history", "save_wx_history",

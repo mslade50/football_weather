@@ -271,6 +271,42 @@ export function expirePayload(name, value, now = Date.now()) {
 }
 
 export function refreshOverdue(meta, now = Date.now()) {
-  const eta = Date.parse(meta.next_run_eta), updated = Date.parse(meta.last_updated);
+  const eta = Date.parse(meta?.next_run_eta), updated = Date.parse(meta?.last_updated);
   return Number.isFinite(eta) && Number.isFinite(updated) && updated < eta && now > eta + 90 * 60000;
+}
+
+function refreshIso(ms) {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+// Live scheduler health for /api/status and the status pill. `overdue` is the
+// published ETA plus 90 minutes with no newer board. `missed` is a dispatch
+// that failed, or was accepted, and still has not published.
+export function refreshStatus(meta, now = Date.now(), dispatch = null) {
+  const eta = Date.parse(meta?.next_run_eta ?? "");
+  const updated = Date.parse(meta?.last_updated ?? "");
+  const overdue = refreshOverdue(meta || {}, now);
+  const dispatchTs = Date.parse(dispatch?.ts ?? "");
+  const afterPublish = Number.isFinite(dispatchTs) && (!Number.isFinite(updated) || dispatchTs >= updated);
+  const failed = !!(dispatch && dispatch.dispatched === false && dispatch.trimmed !== true);
+  const acceptedStale = !!(dispatch && dispatch.dispatched === true && afterPublish
+    && Number.isFinite(updated) && now > dispatchTs + 30 * 60000);
+  const missed = (!!failed && afterPublish && now > dispatchTs + 20 * 60000) || acceptedStale;
+  let reason = null;
+  if (failed && afterPublish && now > dispatchTs + 20 * 60000) {
+    reason = `Scheduled refresh failed: ${dispatch.reason || "dispatch failed"}`;
+  } else if (acceptedStale) {
+    reason = "Refresh was dispatched but the board was not published";
+  } else if (overdue) {
+    reason = "Expected refresh is overdue; trigger outcome unknown";
+  }
+  return {
+    state: missed ? "missed" : overdue ? "overdue" : "ok",
+    overdue: !!overdue,
+    missed: !!missed,
+    expected_at: Number.isFinite(eta) ? refreshIso(eta) : null,
+    last_updated: Number.isFinite(updated) ? refreshIso(updated) : null,
+    grace_minutes: 90,
+    reason,
+  };
 }
