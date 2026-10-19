@@ -247,6 +247,17 @@ function bookCountsHtml(books, runCounts) {
   }).join("")}</table>`;
 }
 
+function ecmwfSourceHtml(info) {
+  if (!info || typeof info !== "object") return `<span class="muted">Open-Meteo</span>`;
+  if (!info.used) {
+    const mode = info.mode || "auto";
+    return `Open-Meteo <span class="sub">(${esc(mode)}; open data on error, 429, or stale)</span>`;
+  }
+  const mb = info.bytes ? `${(Number(info.bytes) / 1e6).toFixed(1)} MB` : "";
+  const run = info.runs && (info.runs.ifs || info.runs["aifs-single"]);
+  return `ECMWF Open Data <span class="sub">CC BY 4.0${mb ? " · " + esc(mb) : ""}${run ? " · " + esc(run) : ""}</span>`;
+}
+
 function degradationsHtml(degs) {
   const list = parseMaybeJson(degs);
   if (!Array.isArray(list) || !list.length) return `<div class="banner ok">✓ no degradations</div>`;
@@ -342,6 +353,7 @@ async function renderStatus() {
           ["Season / week", `${esc(sd.season ?? meta.season ?? "—")} · wk ${esc(sd.week ?? meta.week ?? "—")}`],
           ["Git", `<span class="sub">${esc(String(sd.git_sha || meta.git_sha || "—").slice(0, 7))}</span>`],
           ["Model", esc(sd.model_version || meta.model_version || "—")],
+          ["ECMWF", ecmwfSourceHtml(meta.ecmwf_opendata || sd.ecmwf_opendata || sd.meta?.ecmwf_opendata)],
           ["Next run", nextEta ? esc(fmtET(nextEta)) : "—"],
           ["Refresh", refreshLateNow
             ? `<span class="pill warn">${refresh && refresh.missed ? "Missed" : "Overdue"}</span> <span class="sub">${esc((refresh && refresh.reason) || "Expected refresh is overdue; trigger outcome unknown")}</span>`

@@ -208,6 +208,8 @@ class WeatherForecast(_AsDict):
     signal_wind_dir_deg: Optional[float] = None
     ecmwf_apart: bool = False
     ecmwf_apart_fields: tuple[str, ...] = ()
+    # ``open-meteo`` or ``ecmwf-opendata`` when ECMWF fields were filled this run.
+    ecmwf_source: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:

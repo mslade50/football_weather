@@ -389,9 +389,12 @@ def stage_weather(
     om_mod = _import("pipeline.weather.openmeteo")
     nws_mod = _import("pipeline.weather.nws")
     merge_mod = _import("pipeline.weather.merge")
+    fallback_mod = _import("pipeline.weather.ecmwf_fallback")
     if om_mod is None or merge_mod is None or nws_mod is None:
         ctx.degrade("weather", "pipeline.weather modules not importable", "error")
         return {}
+    if fallback_mod is not None:
+        fallback_mod.prepare(ctx)
     games = [g for g in games if g.game_id in stadiums]
     if not games:
         return {}
@@ -514,10 +517,15 @@ def stage_weather(
                           "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
                           or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
                           else "aged_members" if trace.get("aged_sources") else "full_members")
+                ecmwf_source, source_updated = (fallback_mod.forecast_markers(point_meta.get(point), trace)
+                                                if fallback_mod is not None else (None, {}))
+                if not source_updated and point_meta.get(point, {}).get("updated_at"):
+                    source_updated = {"nws": point_meta[point]["updated_at"]}
                 fc[game.game_id] = dataclasses.replace(
                     result.forecast, run_time=point_stamps[point],
                     point_stage=point_meta.get(point, {}).get("stage", "unavailable"),
-                    point_source_updated_at={"nws": point_meta[point]["updated_at"]} if point_meta.get(point, {}).get("updated_at") else {},
+                    point_source_updated_at=source_updated,
+                    ecmwf_source=ecmwf_source,
                     point_aged=point_meta.get(point, {}).get("aged", True),
                     ensemble_status=status, ensemble_eligible=decision.eligible, ensemble_screen_reasons=list(decision.reasons),
                     ensemble_models=stats.models if stats else [], ensemble_members=stats.n_members if stats else 0,
@@ -2277,11 +2285,14 @@ def write_outputs(
     except Exception:  # noqa: BLE001
         book_health = {}
     weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
-    meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished,
-                               extra={"book_health": book_health, "weeks": weeks,
-                                      "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
-                                      "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
-                                                         for (b, s, m, e), n in expiry_groups.items()]})
+    extra = {"book_health": book_health, "weeks": weeks,
+             "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
+             "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
+                                for (b, s, m, e), n in expiry_groups.items()]}
+    ecmwf_status = ctx.weather_state.get("ecmwf_opendata")
+    if ecmwf_status:
+        extra["ecmwf_opendata"] = ecmwf_status
+    meta = json_out.build_meta(ctx, sport_counts, books, season=season, week=week, finished_at=finished, extra=extra)
     hist = pstate.load_history(state_dir)
     wx_hist = json_out.load_wx_history(state_dir)
     alerts_state = alerts_run.alerts if alerts_run is not None else pstate.load_alerts(state_dir)
@@ -2497,6 +2508,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--merge-into-r2", dest="merge_into_r2", action="store_true",
                    help="Playwright job: fetch R2 state first, then build + publish (meta last)")
     p.add_argument("--force", action="store_true", help="skip the publish content floor")
+    p.add_argument("--ecmwf-opendata", choices=("auto", "force", "off"), default=None,
+                   help="ECMWF source: auto falls back to ECMWF Open Data on Open-Meteo error, 429, or stale data; force always uses it; off disables it")
     p.add_argument("--weather-handoff-dir", type=Path, help="save raw point inputs for this workflow's dependent job")
     p.add_argument("--reuse-weather-dir", type=Path, help="reuse matching same-workflow raw point inputs only")
     p.add_argument("--scrape-only", type=Path, metavar="DIR",
@@ -2510,6 +2523,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     load_repo_dotenv()
     args = parse_args(argv)
+    if args.ecmwf_opendata:
+        os.environ["ECMWF_OPENDATA_FALLBACK"] = args.ecmwf_opendata
     sports = list(SPORTS_ALL) if args.sport == "all" else [args.sport]
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
     books = [b for b in args.books.split(",")] if args.books else None

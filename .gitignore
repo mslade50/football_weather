@@ -32,6 +32,7 @@ data/raw_runs/
 # Phase 3; pipeline.yml fetches it before the build and never commits it.
 data/state/
 data/weather-points/
+data/cache/
 data/weather-reuse/
 data/state.json
 data/board/
