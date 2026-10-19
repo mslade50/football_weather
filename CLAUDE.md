@@ -40,6 +40,13 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
   after a successful send.
 - Served JSON uses `allow_nan=False`; meta.json is pushed last.
 
+## Review
+
+Read and follow `docs/REVIEW_POLICY.md` before opening a pull request.
+Run `python -m pytest tests -q` and `ruff check .`, paste the real output
+into the PR, name the risk tier, and write the rollback steps in plain
+words. Never print or commit secrets.
+
 ## Tests
 - `python -m pytest tests -q` from the repo root; `pyproject.toml` sets
   `pythonpath = ["."]`.
