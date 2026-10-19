@@ -346,6 +346,13 @@ def test_telegram_on_failure(text: str):
     assert "--max-time 15" in step
 
 
+def test_novig_nbx_secrets_reach_only_the_light_build(text: str):
+    job = _job(text, "light")
+    assert "NOVIG_CLIENT_ID: ${{ secrets.NOVIG_CLIENT_ID }}" in job
+    assert "NOVIG_CLIENT_SECRET: ${{ secrets.NOVIG_CLIENT_SECRET }}" in job
+    assert "NOVIG_CLIENT" not in _job(text, "playwright_scrape")
+
+
 def test_read_only_contents_permission(text: str):
     for job in ("light", "playwright_scrape", "playwright"):
         assert "contents: read" in _job(text, job), job

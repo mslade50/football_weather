@@ -409,6 +409,37 @@ def test_cfb_signal_gate_uses_the_consensus_opener_argument():
     assert eligible.drivers == ("altitude_warmth",) and flags == ["Alt+Heat"]
 
 
+def test_zero_lines_warns_only_when_the_league_has_games(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    async def fake_scrape(sport, books, raw, run_id, degrade):
+        del raw, run_id, degrade
+        return {name: [] for name in books}, {
+            name: SimpleNamespace(fetch_errors={sport: "HTTP 403"}) for name in books
+        }
+
+    monkeypatch.setattr(build, "scrape_books", fake_scrape)
+    monkeypatch.setattr(build, "_import", lambda _name: None)
+    ctx = RunContext(sport="nfl", scope="light", git_sha="t", run_id="empty-league")
+    build.stage_odds(ctx, "nfl", [], _Book(), NullRawStore("nfl", "r"), ["novig"], tmp_path, 2026, dry_run=True)
+    assert not any("returned 0 lines" in d.reason for d in ctx.degradations)
+    assert "::warning::" not in capsys.readouterr().out
+
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    ctx2 = RunContext(sport="nfl", scope="light", git_sha="t", run_id="dark-book")
+    build.stage_odds(
+        ctx2, "nfl", [_game()], _Book(), NullRawStore("nfl", "r2"), ["novig"], tmp_path / "state", 2026, dry_run=True,
+    )
+    assert any(
+        d.severity == "warn" and d.reason.startswith("nfl: novig returned 0 lines") and "HTTP 403" in d.reason
+        for d in ctx2.degradations
+    )
+    assert "::warning::nfl: novig returned 0 lines" in capsys.readouterr().out
+    assert "HTTP 403" in summary.read_text(encoding="utf-8")
+
+
 def test_legacy_odds_empty_when_no_lines():
     o = legacy_odds("nfl", KC_BUF, {}, {}, pstate.migrate(None, "openers"))
     assert o["spread_now"] is None and o["total_proj"] is None and o["ref_book"] is None

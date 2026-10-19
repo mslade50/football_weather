@@ -257,46 +257,12 @@ def test_fanduel_competition_pages_stay_on_curl_after_fallback(curl: type[FakeCu
     assert payload == {"attachments": {"competitions": {}, "events": {}, "markets": {}}}
 
 
-def test_novig_auto_fallback_parses_and_captures(curl: type[FakeCurlSession], httpx_status: Any) -> None:
-    log = httpx_status(403)
-    curl.payload = _load("novig", "cfb_markets")["main"]
-    captured: list[tuple[str, Any, str | None]] = []
-    s = nv.NovigScraper()
-    lines = _run(s.scrape("cfb", capture=lambda src, data, url: captured.append((src, data, url)), run_id="r1"))
-    assert lines and s.last_transport == "curl"
-    assert len(log.requests) == 2 and all(r.method == "POST" for r in log.requests)
-    assert len(curl.calls) == 2
-    call = curl.calls[0]
-    assert call["method"] == "POST" and call["url"] == nv.GRAPHQL_URL
-    assert call["json"]["query"] == nv.MARKETS_QUERY
-    assert call["json"]["operationName"] == "MarketScreen_Query"
-    assert call["json"]["variables"]["where"]["event"]["league"] == {"_eq": "NCAAF"}
-    assert call["headers"]["Origin"] == "https://novig.com" and call["headers"]["Sec-Fetch-Site"] == "cross-site"
-    assert call["headers"]["Content-Type"] == "application/json" and "sec-ch-ua" in call["headers"]
-    assert captured == [("novig_cfb", {"main": curl.payload, "alternate": curl.payload}, nv.GRAPHQL_URL)]
-
-
-def test_novig_httpx_public_query(curl: type[FakeCurlSession], httpx_status: Any) -> None:
-    log = httpx_status(200, _load("novig", "nfl_markets")["main"])
-    s = nv.NovigScraper()
-    lines = _run(s.scrape("nfl"))
-    assert lines and s.last_transport == "httpx" and curl.calls == []
-    req = log.requests[0]
-    assert req.headers["origin"] == "https://novig.com"
-    assert json.loads(req.content)["variables"]["where"]["event"]["league"] == {"_eq": "NFL"}
-
-
-def test_novig_env_curl_first(monkeypatch: pytest.MonkeyPatch, curl: type[FakeCurlSession], httpx_status: Any) -> None:
-    monkeypatch.setenv("BOOK_NOVIG_TRANSPORT", "curl")
-    log = httpx_status(200, _load("novig", "nfl_markets")["main"])
-    curl.payload = _load("novig", "nfl_markets")["main"]
-    s = nv.NovigScraper()
-    lines = _run(s.scrape("nfl"))
-    assert lines and s.last_transport == "curl" and log.requests == []
-
-
-def test_novig_curl_block_propagates_for_retry(curl: type[FakeCurlSession], httpx_status: Any) -> None:
-    httpx_status(403)
-    curl.status = 403
-    with pytest.raises(base.TransportError):
-        _run(nv.NovigScraper().fetch_raw("nfl"))
+def test_novig_does_not_impersonate_a_browser() -> None:
+    source = Path(nv.__file__).read_text(encoding="utf-8")
+    assert "fetch_json_with_fallback" not in source
+    assert "curl_cffi" not in source
+    # curl_cffi's browser TLS switch is the keyword ``impersonate=``. The
+    # module may say, in prose, that browser impersonation is not used.
+    assert "impersonate=" not in source
+    assert '"https://api.novig.us/v1/graphql"' not in source
+    assert "'https://api.novig.us/v1/graphql'" not in source

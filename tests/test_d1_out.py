@@ -210,6 +210,9 @@ def test_run_row_and_statement_order_and_write_sql(tmp_path: Path):
     ctx.count("pinnacle", "nfl", 5)
     run = d1_out.run_row(ctx, season=2026, week=3, finished_at=KICK + timedelta(seconds=90), n_games=14, n_lines=300)
     assert set(run) == set(d1_out.RUN_COLS) and run["status"] == "ok" and run["duration_s"] == 90.0
+    ctx.degrade("odds", "nfl: novig returned 0 lines", "warn")
+    assert d1_out.run_row(ctx, season=2026, week=3, finished_at=KICK, n_games=1, n_lines=0)["status"] == "warn"
+    ctx.degradations.pop()
     assert json.loads(run["degradations_json"])[0]["component"] == "odds" and json.loads(run["counts_json"]) == {"pinnacle": {"nfl": 5}}
     ctx.degrade("schedule", "boom", "error")
     assert d1_out.run_row(ctx, season=None, week=None, finished_at=KICK, n_games=0, n_lines=0)["status"] == "error"
