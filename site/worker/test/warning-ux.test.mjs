@@ -62,6 +62,17 @@ test('Repeated updates retain expanded panels and focus; changing diagnostics pr
   assert.equal(f.details.open, true); assert.equal(f.books.open, true);
   assert.equal(f.ctx.document.activeElement, f.bookSummary);
 });
+test('A league board older than 3h during active hours is a status warning', () => {
+  const f = fixture();
+  f.ctx.meta.refresh = { leagues: [{ sport: 'cfb', reason: 'CFB board is 14h old during active hours (older than 3h)' }] };
+  f.run('renderStatusbar(meta)');
+  assert.match(f.el.innerHTML, /Degraded/);
+  assert.match(f.el.innerHTML, /League board stale/);
+  assert.match(f.el.innerHTML, /CFB board is 14h old during active hours/);
+  f.ctx.meta.refresh = { leagues: [] };
+  f.run('renderStatusbar(meta)');
+  assert.match(f.el.innerHTML, />OK</);
+});
 test('Book failures and provider reasons remain accessible; OK still requires the existing evidence', () => {
   const f = fixture(); f.run('renderStatusbar(meta)'); assert.match(f.el.innerHTML, />OK</);
   f.ctx.meta.books.kalshi = {status: 'red', reason: 'Provider rate limited', count: 0};

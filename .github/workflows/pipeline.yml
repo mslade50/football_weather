@@ -1,4 +1,7 @@
 name: pipeline
+# display_title carries the sport so the schedule gate can tell an nfl-only
+# dispatch from a both-league one. Schedule ticks have no inputs, so they read as all.
+run-name: pipeline sport=${{ inputs.sport || 'all' }} scope=${{ inputs.scope || 'full' }}
 
 # Phase 3: schedule -> stadiums -> weather -> impact v1 -> odds (httpx books in the
 # light job, BetOnline in the Playwright jobs) -> board JSON + D1 SQL + legacy files.
@@ -45,8 +48,10 @@ on:
   # minute UTC). The Cloudflare Worker dispatches the hourly game-day cadence
   # and every odd ET hour from 7 AM through 11 PM (site/worker/index.js);
   # GitHub drops scheduled ticks, so the Worker is primary. The gate job skips
-  # a backstop tick when a Worker/manual dispatch started within the last 100
-  # minutes, and the concurrency group below
+  # a backstop tick when a both-league (sport=all) dispatch, or a dispatch
+  # whose title does not name a sport, started within the last 100 minutes.
+  # An nfl-only or cfb-only dispatch does not skip the all-sport backstop.
+  # The concurrency group below
   # queues any remaining overlap, so the two never double-run.
   schedule:
     - cron: '17 9 * * *'
@@ -173,9 +178,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Fail-open: any error leaves skip empty and the gate runs normally.
+          # sport=all covers this backstop. A title with no sport= is an older
+          # run and still counts. sport=nfl and sport=cfb do not.
           SINCE="$(date -u -d '100 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
-          N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20"             | jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled")] | length')" || N=0
-          echo "Recent dispatch runs: ${N:-0}"
+          N="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?event=workflow_dispatch&created=%3E%3D$SINCE&per_page=20" \
+            | jq '[.workflow_runs[]
+                | select(.conclusion != "failure" and .conclusion != "cancelled")
+                | select((((.display_title // "") | test("sport=")) | not) or ((.display_title // "") | test("sport=all( |$)")))]
+                | length')" || N=0
+          echo "Recent both-league dispatch runs: ${N:-0}"
           if [ "${N:-0}" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - name: Kickoff-horizon gate
         id: gate

@@ -3,9 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   handleScheduled, handleFetch, HEARTBEAT_CRON, MIDDAY_CRON,
-  refreshSlotPlan, isInRefreshWindow, REFRESH_SLOT_HOURS,
+  refreshSlotPlan, isInRefreshWindow, REFRESH_SLOT_HOURS, chooseHeartbeat,
 } from "../index.js";
-import { refreshStatus } from "../../web/current-quotes.mjs";
+import { refreshStatus, leagueBoardWarnings } from "../../web/current-quotes.mjs";
 
 function fakeEnv(extra = {}) {
   const store = new Map();
@@ -27,11 +27,13 @@ function fakeEnv(extra = {}) {
   };
 }
 
-function receipt(store, iso, dispatched = true) {
-  store.set("board/cf_dispatch.json", JSON.stringify({
+function receipt(store, iso, dispatched = true, sport = null) {
+  const body = {
     schema_version: 1, ts: iso, dispatched, trimmed: false, cron: HEARTBEAT_CRON,
     reason: dispatched ? "GitHub accepted dispatch; workflow completion unverified" : "GitHub dispatch failed",
-  }));
+  };
+  if (sport) body.plan = { sport, scope: "full" };
+  store.set("board/cf_dispatch.json", JSON.stringify(body));
 }
 
 test("ET slots are the odd hours from 7 through 23, including across DST", () => {
@@ -134,6 +136,87 @@ test("mid-day cron still fires without a receipt and skips when a slot just disp
   } finally {
     globalThis.fetch = orig;
   }
+});
+
+test("Monday night slot hours dispatch both leagues even after an nfl-only run", async () => {
+  const orig = globalThis.fetch;
+  const bodies = [];
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (String(url).includes("/dispatches")) {
+        bodies.push(JSON.parse(init.body));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
+    };
+    const env = fakeEnv({ GH_DISPATCH_TOKEN: "tok" });
+    // 6:00 PM EDT is the NFL window and not a slot.
+    const six = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-19T22:00:00Z") }, env);
+    assert.deepEqual(six.plan, { sport: "nfl", scope: "full" });
+    // 7:00 PM EDT is both a slot and the NFL window. The nfl receipt must not eat it.
+    const seven = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-19T23:00:00Z") }, env);
+    assert.equal(seven.dispatched, true);
+    assert.deepEqual(seven.plan, { sport: "all", scope: "full" });
+    // 8:00 PM stays the hourly NFL tick.
+    const eight = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-20T00:00:00Z") }, env);
+    assert.deepEqual(eight.plan, { sport: "nfl", scope: "full" });
+    // 11:00 PM EDT is outside the NFL window. A 10:00 PM nfl receipt is only 60 min old.
+    receipt(env.ODDS._store, "2026-10-20T02:00:00Z", true, "nfl");
+    const eleven = await handleScheduled({ cron: HEARTBEAT_CRON, scheduledTime: Date.parse("2026-10-20T03:00:00Z") }, env);
+    assert.equal(eleven.dispatched, true);
+    assert.deepEqual(eleven.plan, { sport: "all", scope: "full" });
+    assert.deepEqual(bodies.map((body) => body.inputs.sport), ["nfl", "all", "nfl", "all"]);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test("a recent both-league receipt still suppresses the slot and leaves the game-day tick", () => {
+  const covered = chooseHeartbeat(new Date("2026-10-19T23:00:00Z"), {
+    dispatched: true, ts: "2026-10-19T22:10:00Z", plan: { sport: "all", scope: "full" },
+  });
+  assert.deepEqual(covered, { plan: { sport: "nfl", scope: "full" }, kind: "game" });
+  const quiet = chooseHeartbeat(new Date("2026-10-19T15:00:00Z"), {
+    dispatched: true, ts: "2026-10-19T14:00:00Z", plan: { sport: "all", scope: "full" },
+  });
+  assert.equal(quiet, null);
+  // Saturday 11:00 AM EDT is inside the CFB window and is also a both-league slot.
+  assert.deepEqual(chooseHeartbeat(new Date("2026-10-10T15:00:00Z"), null), {
+    plan: { sport: "all", scope: "full" }, kind: "slot",
+  });
+});
+
+test("a missed both-league slot is caught up after a single-sport run", () => {
+  const caught = chooseHeartbeat(new Date("2026-10-20T03:30:00Z"), {
+    dispatched: true, ts: "2026-10-20T02:00:00Z", plan: { sport: "nfl", scope: "full" },
+  });
+  assert.deepEqual(caught, { plan: { sport: "all", scope: "full" }, kind: "catchup" });
+  const soon = chooseHeartbeat(new Date("2026-10-20T02:30:00Z"), {
+    dispatched: true, ts: "2026-10-20T02:00:00Z", plan: { sport: "nfl", scope: "full" },
+  });
+  assert.equal(soon, null);
+});
+
+test("a league board older than 3h warns during active hours only", () => {
+  const meta = {
+    last_updated: "2026-10-20T01:00:00Z",
+    sport_counts: { nfl: 14, cfb: 60 },
+    retained_sports: {
+      cfb: { from_run_id: "20261019T210051Z-gh1", games: 60, refreshed_at: "2026-10-19T21:10:00Z" },
+    },
+  };
+  const evening = Date.parse("2026-10-20T02:30:00Z"); // 10:30 PM EDT
+  const warnings = leagueBoardWarnings(meta, evening);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].sport, "cfb");
+  assert.match(warnings[0].reason, /CFB board is .* old during active hours/);
+  assert.equal(leagueBoardWarnings(meta, Date.parse("2026-10-20T06:30:00Z")).length, 0); // 2:30 AM EDT
+  assert.equal(leagueBoardWarnings(meta, Date.parse("2026-10-19T22:00:00Z")).length, 0); // 50 min, under 3h
+  const overnight = refreshStatus(meta, Date.parse("2026-10-20T06:30:00Z"));
+  assert.deepEqual(overnight.leagues, []);
+  const live = refreshStatus(meta, evening);
+  assert.equal(live.state, "ok");
+  assert.equal(live.leagues.length, 1);
 });
 
 test("status refresh distinguishes overdue from a failed dispatch", () => {

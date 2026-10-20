@@ -639,11 +639,14 @@ warnings; recovered fields do not inherit an obsolete failure warning. The
 drawer lists missing fields. Existing signal/model thresholds remain unchanged.
 
 Health treats warning degradations, thin books and a missed expected refresh
-(90-minute grace) as degraded. In season, `next_run_eta` is the sooner of the
+(90-minute grace) as degraded. During 7 AM–11 PM ET in season, a league board
+older than 3 hours is a separate warning (`refresh.leagues`), including when
+the other league was just rebuilt. In season, `next_run_eta` is the sooner of the
 next game-day Worker hour and the next odd ET hour from 7 AM through 11 PM.
 The GitHub backstop is not advertised. No cron triggers were added: both
-cadences ride the existing two Worker crons. `/api/status` and `meta.refresh`
-report `ok`, `overdue`, or `missed`.
+cadences ride the existing two Worker crons. Odd ET hours dispatch both
+leagues in season even inside a single-sport game window. `/api/status` and
+`meta.refresh` report `ok`, `overdue`, or `missed`, plus per-league age.
 The Worker owns `cf_heartbeat.json` and `cf_dispatch.json`; builds never upload
 old heartbeat ticks. Dispatch receipts survive heartbeat-only ticks and record
 missing token, rejected dispatch or GitHub acceptance. Acceptance does not prove

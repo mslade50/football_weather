@@ -60,9 +60,11 @@ const GAME_WINDOWS = [
 
 // Weekday refresh window, America/New_York. The free plan has no spare cron
 // trigger, so the existing */30 heartbeat owns this cadence: exact odd ET
-// hours from 7 AM through 11 PM, every day in season. Game-day shouldDispatch
-// still wins on its :00 ticks. A :30 tick dispatches only as catch-up when the
-// last accepted dispatch is older than REFRESH_CATCHUP_MS.
+// hours from 7 AM through 11 PM, every day in season. Those slots dispatch
+// sportForMonth (both leagues in Oct–Jan) even when a game-day window would
+// have sent only nfl or cfb. A single-sport receipt does not consume the slot.
+// A :30 tick catches up a missed slot, a failed attempt, or a league the last
+// dispatch left behind.
 export const REFRESH_SLOT_HOURS = [7, 9, 11, 13, 15, 17, 19, 21, 23];
 export const REFRESH_MIN_GAP_MS = 90 * 60 * 1000;
 export const REFRESH_CATCHUP_MS = 150 * 60 * 1000;
@@ -86,6 +88,43 @@ function receiptAgeMs(receipt, now) {
   const ts = Date.parse(receipt?.ts || "");
   if (!Number.isFinite(ts)) return null;
   return now.getTime() - ts;
+}
+
+// sport=all covers nfl and cfb. A single-sport dispatch covers only that sport.
+export function dispatchCovers(dispatched, needed) {
+  if (!needed) return true;
+  if (dispatched === "all") return true;
+  return dispatched === needed;
+}
+
+// Heartbeat decision. Game-day hours still dispatch on non-slot :00 ticks.
+// On a slot hour the both-league plan wins unless a recent dispatch already
+// covered that sport; the game-day plan then runs instead of a second full run.
+export function chooseHeartbeat(date, receipt) {
+  const game = shouldDispatch(date);
+  const slot = refreshSlotPlan(date);
+  const age = receiptAgeMs(receipt, date);
+  const accepted = !!(receipt && receipt.dispatched === true && age != null);
+  const failed = !!(receipt && receipt.dispatched === false && receipt.trimmed !== true && age != null);
+  const recentSport = receipt && receipt.plan && receipt.plan.sport ? String(receipt.plan.sport) : null;
+  if (slot) {
+    // No sport on the receipt: an older Worker. Treat it as covering so a
+    // deploy does not double-dispatch every slot inside the 90-minute gap.
+    const covered = accepted && age < REFRESH_MIN_GAP_MS
+      && (recentSport == null || dispatchCovers(recentSport, slot.sport));
+    if (!covered) return { plan: slot, kind: "slot" };
+    return game ? { plan: game, kind: "game" } : null;
+  }
+  if (game) return { plan: game, kind: "game" };
+  if (!isInRefreshWindow(date) || age == null) return null;
+  const sport = sportForMonth(etParts(date).month);
+  if (!sport) return null;
+  const uncovered = accepted && recentSport != null && !dispatchCovers(recentSport, sport);
+  const due = (failed && age >= REFRESH_MIN_GAP_MS)
+    || (accepted && age >= REFRESH_CATCHUP_MS)
+    || (uncovered && age >= REFRESH_MIN_GAP_MS);
+  if (!due) return null;
+  return { plan: { sport, scope: "full" }, kind: "catchup" };
 }
 
 // Pure: Date -> {sport, scope:"full"} | null. Only exact :00 ticks qualify.
@@ -113,8 +152,8 @@ export function shouldDispatch(date) {
 // Paid-plan expressions (ARCH §9.1) with in-handler ET trimming. Free-plan
 // entries first; expand wrangler.toml with PAID_CRONS on Workers Paid.
 export const CRON_PLAN = {
-  // The 30-min heartbeat doubles as the hourly game-day dispatcher (the free
-  // plan has no spare trigger): only the :00 tick can dispatch.
+  // resolveCron still reports the game-day window. handleScheduled uses
+  // chooseHeartbeat for this cron so odd ET hours dispatch both leagues.
   [HEARTBEAT_CRON]: (_p, date) => shouldDispatch(date),
   [MIDDAY_CRON]: (p, date) => {
     const sport = sportForMonth(p.month);
@@ -602,9 +641,18 @@ export async function handleScheduled(event, env) {
     console.log(`heartbeat write failed: ${err}`);
   }
 
-  let plan = resolveCron(event.cron, fired);
-  const cadence = !plan && event.cron === HEARTBEAT_CRON;
-  if (cadence) plan = await cadencePlan(env, fired);
+  // The heartbeat's CRON_PLAN entry is still the single-sport game window.
+  // chooseHeartbeat upgrades odd ET hours to both leagues and ignores a
+  // single-sport receipt when deciding that slot.
+  let decision = null;
+  if (event.cron === HEARTBEAT_CRON) {
+    decision = chooseHeartbeat(fired, await readR2Json(env, "board/cf_dispatch.json"));
+  } else {
+    const planned = resolveCron(event.cron, fired);
+    if (planned) decision = { plan: planned, kind: "cron" };
+  }
+  const plan = decision ? decision.plan : null;
+  const cadence = !!(decision && (decision.kind === "slot" || decision.kind === "catchup"));
   if (!plan) {
     console.log(`scheduled: trimmed ${event.cron} at ${fired.toISOString()} (no dispatch)`);
     return { dispatched: false, trimmed: true };
@@ -642,23 +690,6 @@ export async function handleScheduled(event, env) {
     reason: ok ? "GitHub accepted dispatch; workflow completion unverified" : "GitHub dispatch failed" };
   await recordDispatch(env, event.cron, fired, result);
   return result;
-}
-
-// Slot, or catch-up when a slot was missed / the last attempt failed.
-// A missing receipt does not catch up: a failed R2 read must not dispatch
-// every 30 minutes. Returns {sport, scope} or null.
-async function cadencePlan(env, fired) {
-  const slot = refreshSlotPlan(fired);
-  const receipt = await readR2Json(env, "board/cf_dispatch.json");
-  const age = receiptAgeMs(receipt, fired);
-  const acceptedRecently = !!(receipt && receipt.dispatched === true && age != null && age < REFRESH_MIN_GAP_MS);
-  if (slot) return acceptedRecently ? null : slot;
-  if (!isInRefreshWindow(fired) || !receipt || age == null) return null;
-  const failed = receipt.dispatched === false && receipt.trimmed !== true;
-  const due = (failed && age >= REFRESH_MIN_GAP_MS) || (receipt.dispatched === true && age >= REFRESH_CATCHUP_MS);
-  if (!due) return null;
-  const sport = sportForMonth(etParts(fired).month);
-  return sport ? { sport, scope: "full" } : null;
 }
 
 async function acceptedDispatchRecently(env, fired) {

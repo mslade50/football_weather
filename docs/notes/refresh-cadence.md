@@ -12,17 +12,24 @@ especially early in the week.
 Design (no new cron; free plan still has the same two triggers):
 - `refreshSlotPlan` in `site/worker/index.js`: odd America/New_York hours
   7, 9, 11, 13, 15, 17, 19, 21, 23, in season (`sportForMonth`), `scope=full`.
-  The existing `*/30` heartbeat dispatches those `:00` ticks when
-  `shouldDispatch` did not already take the tick (game-day hourly stays).
+  The existing `*/30` heartbeat dispatches those `:00` ticks as
+  `sportForMonth` (both leagues, Aug–Jan) even when `shouldDispatch` would
+  have sent only `nfl` or `cfb`. Non-slot `:00` ticks inside a game window
+  stay single-sport.
 - Catch-up: a `:30` tick inside 7 AM–11 PM ET dispatches when the last
-  accepted `board/cf_dispatch.json` receipt is at least 150 minutes old, or
-  when a failed attempt is at least 90 minutes old. A missing receipt does
+  accepted `board/cf_dispatch.json` receipt is at least 150 minutes old, when
+  a failed attempt is at least 90 minutes old, or when that receipt names a
+  single sport and is at least 90 minutes old. A missing receipt does
   not catch up, so a failed R2 read cannot dispatch every half hour.
-- Dedupe: an accepted dispatch newer than 90 minutes suppresses the slot and
-  the 17:15Z midday duplicate. An in-progress pipeline run suppresses the
-  cadence dispatch (`boardRunActive`). Game-day hourly ticks are unchanged.
-  The GitHub backstop gate skips when a `workflow_dispatch` started within
-  100 minutes.
+- Dedupe: an accepted dispatch newer than 90 minutes suppresses a slot only
+  when it covers that slot's sport (`all` covers both; `nfl` does not). A
+  receipt with no sport still suppresses, so an older Worker does not
+  double-fire during the deploy. The 17:15Z midday duplicate uses the same
+  90-minute gap. An in-progress pipeline run suppresses the slot and the
+  catch-up (`boardRunActive`). Game-day hourly ticks on non-slot hours are
+  unchanged. The GitHub backstop gate skips when a `workflow_dispatch` whose
+  title is `sport=all`, or whose title does not name a sport, started within
+  100 minutes. `sport=nfl` and `sport=cfb` do not skip the all-sport backstop.
 - `next_run_eta` advertises the sooner of the next game-day hour and the next
   ET slot. It does not advertise the GitHub backstop during the season.
 - `/api/status` `refresh` and `meta.refresh` are `ok`, `overdue` (ETA + 90
@@ -56,15 +63,21 @@ weight, which is the cost when both models succeed.
 | [39143062710](https://github.com/mslade50/football_weather/actions/runs/39143062710) Sun 2026-10-18 16:00Z | NFL only | 38.5 | 76.5 | 9.3 (one location fetched) | 124 |
 | [39147611746](https://github.com/mslade50/football_weather/actions/runs/39147611746) Sun 2026-10-18 17:00Z | NFL only, next hour | 41.0 | 0 | 0 | 41 |
 
-Steady-state dispatches that spend quota, October EDT. Game-day `:00` ticks
-replace the odd ET slot on that hour. The 17:15Z midday cron is inside the
-90-minute dedupe. The daily 09:17Z GitHub backstop is more than 100 minutes
-after the 11 PM ET slot, so it does run (`sport=all`).
+Steady-state dispatches that spend quota, October EDT. Odd ET hours are
+both-league even when they sit inside a game window. The other game-day `:00`
+ticks stay single-sport. The 17:15Z midday cron is inside the 90-minute
+dedupe. The daily 09:17Z GitHub backstop is more than 100 minutes after the
+11 PM ET slot, so it does run (`sport=all`).
 
-- Tue/Wed/Fri: 10 both-league runs.
-- Mon/Thu: 8 both-league + 5 NFL.
-- Sat: 3 both-league + 13 CFB.
-- Sun: 4 both-league + 11 NFL + the 04:00Z CFB tail.
+Slot hours are both-league even inside a game window, so a Monday-night or
+Saturday-afternoon hourly tick cannot leave the other league stale. Counted
+in October EDT, with the 09:17Z backstop included when it is more than 100
+minutes after the last both-league run:
+
+- Tue/Wed/Fri: 10 both-league runs (9 slots + the backstop).
+- Mon/Thu: 10 both-league + 3 NFL (6 PM, 8 PM, 10 PM ET stay NFL-only).
+- Sat: 10 both-league + 7 CFB (even ET hours inside the Saturday window).
+- Sun: 10 both-league + 5 NFL + the 04:00Z CFB tail.
 
 Member pulls are already cached by verified dataset version
 (`ensemble_cache.json` in the R2 state set). The Sunday 17:00Z run paid 0
@@ -78,16 +91,20 @@ succeed:
 
 - Early-week board (Monday's slate), 10 both-league runs: 10 × 60.5 points + 4 × 221 member cycles ≈ **1,500**.
 - Heavy 10-day slate (Saturday's board) on a 10-run weekday: 10 × 152 + 4 × 467 ≈ **3,400**.
-- Heavy Saturday, 3 both-league + 13 CFB, charging every model cycle as both leagues: about 1,800 points + 4 × 467 ≈ **3,700**.
-- Same heavy Saturday if the member cache misses on every run: 3 × 619 + 13 × 350 ≈ **6,400**.
+- Heavy Saturday with the cache holding: 10 both-league point pulls at the measured 152, plus about four member cycles, 10 × 152 + 4 × 467 ≈ **3,400**. The 7 CFB-only hours add point weight and no extra member cycle while the cache hits.
+- Same heavy Saturday if the member cache misses on every run: 10 × 619 for the both-league hours + 7 × 350 for the CFB-only hours ≈ **8,600**. 350 is the earlier CFB-only miss estimate, not a new measurement.
 
 The largest measured run is 619, under 5,000/hour and 600/minute. Local
 ceilings stay 4,500/hour and 500/minute, and the concurrency group runs one
-pipeline at a time. A separate assistant using a few dozen calls a day fits in
-the remainder (about 3,500 calls left on the cache-miss Saturday, about 8,500
-on a normal early-week day). Odds stay on the 2-hour cadence. Member forecasts
-stay on the model-run cache that is already shipping. The published
-non-commercial term of the free tier is unchanged.
+pipeline at a time. Making the odd ET hours both-league adds the other
+league's locations on those hours; it does not add a second run, and it does
+not change the per-run member cache. The cache-miss Saturday above is about
+8,600 weighted calls, under the 10,000/day published cap, with about 1,400
+left. A normal early-week day stays near the 10 both-league projection
+(about 1,500) plus three short NFL-only hours. Odds stay on the 2-hour
+cadence for both leagues. Member forecasts stay on the model-run cache that
+is already shipping. The published non-commercial term of the free tier is
+unchanged.
 
 ## Part 1 - Worker cron as primary trigger (implemented)
 
