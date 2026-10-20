@@ -59,6 +59,7 @@ def test_backstop_defers_to_recent_worker_dispatch(text: str):
     step = _step(gate, "Skip backstop tick after a recent dispatch")
     assert "github.event_name == 'schedule'" in step
     assert "event=workflow_dispatch" in step and "100 minutes ago" in step
+    assert 'test("sport="' in step and 'test("sport=all( |$)"' in step
     assert "continue-on-error: true" in step     # fail-open
     assert "steps.recent.outputs.skip != 'true'" in _step(gate, "Kickoff-horizon gate")
     assert "cancel-in-progress: false" in text   # overlap queues, never cancels

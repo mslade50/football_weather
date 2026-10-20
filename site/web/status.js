@@ -98,6 +98,18 @@ function renderBanners(meta) {
     `<div class="banner carried" title="${esc(notice.from_run_id)}">${esc(notice.text)}</div>`).join("");
 }
 const HEALTH_RENDER = new WeakMap();
+function leagueWarningList(meta, refresh) {
+  const rich = meta && (meta.retained_sports || meta.sport_counts);
+  if (rich && typeof QUOTES !== "undefined" && QUOTES && typeof QUOTES.leagueBoardWarnings === "function") {
+    return QUOTES.leagueBoardWarnings(meta) || [];
+  }
+  if (refresh && Array.isArray(refresh.leagues)) return refresh.leagues;
+  if (meta && meta.refresh && Array.isArray(meta.refresh.leagues)) return meta.refresh.leagues;
+  if (typeof QUOTES !== "undefined" && QUOTES && typeof QUOTES.leagueBoardWarnings === "function") {
+    return QUOTES.leagueBoardWarnings(meta) || [];
+  }
+  return [];
+}
 function boardDiagnostics(meta) {
   const grouped = new Map();
   const add = (component, severity, reason, stamp = null) => {
@@ -111,15 +123,17 @@ function boardDiagnostics(meta) {
     add(d.component || "pipeline", d.severity || "warn", d.reason, d.ts);
   const late = refreshLate(meta);
   if (late) add("scheduler", "warn", late.reason || "Expected refresh is overdue; trigger outcome unknown");
+  const leagues = leagueWarningList(meta, meta && meta.refresh);
+  for (const warning of leagues) add("scheduler", "warn", warning.reason || `${String(warning.sport || "league").toUpperCase()} board is older than 3h`);
   const loads = typeof LOAD_ERRORS !== "undefined" ? Object.entries(LOAD_ERRORS).filter(([, reason]) => reason) : [];
   for (const [source, reason] of loads) add("load", "error", `${source}: ${reason}`);
   const books = meta.books || {}, names = Object.keys(books).filter(b => b !== "consensus");
   const red = names.filter(b => (books[b].status || "green") === "red"), amber = names.filter(b => books[b].status === "amber");
   // Preserve the existing health predicate. This changes presentation, not price qualification or validation.
-  const ok = !red.length && !amber.length && !late && !loads.length
+  const ok = !red.length && !amber.length && !late && !leagues.length && !loads.length
     && meta.resident?.status === "fresh" && meta.publication_status === "manifest_verified"
     && !(meta.degradations || []).some(d => (d.severity || "warn") !== "info");
-  return {ok, late, names, red, amber, loads, items: [...grouped.values()].map(d => ({...d, stamps: [...d.stamps]}))};
+  return {ok, late, leagues, names, red, amber, loads, items: [...grouped.values()].map(d => ({...d, stamps: [...d.stamps]}))};
 }
 function renderStatusbar(meta) {
   const el = document.getElementById("statusbar");
@@ -143,7 +157,8 @@ function renderStatusbar(meta) {
     `<li class="${["error", "critical"].includes(d.severity) ? "health-error" : ""}">${esc(d.reason)}${d.count > 1 ? ` <span class="sub">(${d.count} reports)</span>` : ""}${d.stamps.length ? `<span class="sub">Reported ${d.stamps.map(stamp => esc(fmtShortET(stamp))).join(", ")}</span>` : ""}</li>`).join("")}</ul></section>`).join("");
   const late = refreshLate(meta);
   const latePill = late ? `<span class="pill warn">${late.missed ? "Refresh missed" : "Refresh overdue"}</span>` : "";
-  el.innerHTML = `<div class="health-overview"><span class="pill ${health.ok ? "ok" : "warn"}">${state}</span>${latePill}
+  const leaguePill = (health.leagues || []).length ? `<span class="pill warn">League board stale</span>` : "";
+  el.innerHTML = `<div class="health-overview"><span class="pill ${health.ok ? "ok" : "warn"}">${state}</span>${latePill}${leaguePill}
       <span class="health-fact ${meta.publication_status === "manifest_verified" ? "" : "health-error"}">${publication}</span>
       <span class="health-fact ${meta.resident?.status === "fresh" ? "" : "health-error"}">${esc(quotes)}</span>
       ${errors.length ? `<b class="health-error">${errors.length} ${errors.length === 1 ? "failure" : "failures"}</b><span class="health-error health-critical">${esc(errors[0].component)}: ${esc(errors[0].reason.length > 96 ? errors[0].reason.slice(0, 96) + "…" : errors[0].reason)}</span>` : ""}</div>
@@ -330,6 +345,8 @@ async function renderStatus() {
   const dataAge = ageHours(lastUpdated);
   const refresh = sd.refresh || meta.refresh || (QUOTES?.refreshStatus ? QUOTES.refreshStatus(meta, Date.now(), sd.dispatch) : null);
   const refreshLateNow = (refresh && (refresh.overdue || refresh.missed)) || QUOTES?.refreshOverdue(meta);
+  const boardMeta = typeof DATA !== "undefined" && DATA && DATA.meta ? DATA.meta : meta;
+  const leagueWarnings = leagueWarningList(boardMeta, refresh);
   const dataClass = dataAge == null || dataAge > 20 || refreshLateNow ? "warn" : "ok";
   const timings = sd.stage_timings || latest.stage_timings || latest.stage_timings_json || null;
   const currentMeta = meta.run_id && meta.run_id === (sd.run_id || sd.meta?.run_id);
@@ -337,6 +354,8 @@ async function renderStatus() {
     || meta.degradations || parseMaybeJson(latest.degradations_json) || [])];
   if (refreshLateNow) degs.push({component: "scheduler", severity: "warn",
     reason: (refresh && refresh.reason) || "Expected refresh is overdue; trigger outcome unknown"});
+  for (const warning of leagueWarnings) degs.push({component: "scheduler", severity: "warn",
+    reason: warning.reason || `${String(warning.sport || "league").toUpperCase()} board is older than 3h`});
   const unresolved = sd.unresolved_names || meta.unresolved_names || parseMaybeJson(latest.unresolved_json) || [];
   const books = (currentMeta ? meta.books : sd.books) || meta.books || {};
   const unresolvedList = Array.isArray(unresolved) ? unresolved
@@ -358,6 +377,9 @@ async function renderStatus() {
           ["Refresh", refreshLateNow
             ? `<span class="pill warn">${refresh && refresh.missed ? "Missed" : "Overdue"}</span> <span class="sub">${esc((refresh && refresh.reason) || "Expected refresh is overdue; trigger outcome unknown")}</span>`
             : `<span class="pill ok">On time</span>`],
+          ["League boards", leagueWarnings.length
+            ? leagueWarnings.map((warning) => `<span class="pill warn">${esc(warning.reason || warning.sport)}</span>`).join(" ")
+            : `<span class="pill ok">No league board older than 3h</span>`],
           ["Scope", esc(latest.scope || sd.scope || "—")],
           ["Duration", fmtSecs(latest.duration_s ?? sd.duration_s)],
         ])}
