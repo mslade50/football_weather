@@ -135,22 +135,23 @@ def test_betonline_all_leagues_dark_in_season_records_fetch_error(monkeypatch):
 
 def test_betcris_stale_feed_reports_age_and_logs_it(monkeypatch, caplog):
     now = datetime(2026, 10, 2, 20, 29, tzinfo=timezone.utc)
-    # Past the provider TTL but inside 30 minutes: keep the print, log the age, do not fail the book.
-    reference = json.dumps(_public_payload("nfl", now, 339, ttl=300))
+    # CFB: past the provider TTL but inside 30 minutes. Keep the print, log the age.
+    reference = json.dumps(_public_payload("cfb", now, 339, ttl=300))
     _public_client(monkeypatch, [reference], now)
     shown = BC.BetcrisScraper()
     with caplog.at_level(logging.INFO):
-        rows = _run(shown.scrape("nfl"))
+        rows = _run(shown.scrape("cfb"))
     assert rows and all(r.reference_only(now) for r in rows)
     assert shown.fetch_errors == {}
     assert any("age 339s vs wall clock" in r.getMessage() for r in caplog.records)
 
     caplog.clear()
-    stale = json.dumps(_public_payload("nfl", now, 1801, ttl=300))
+    # NFL hard ceiling is min(provider TTL, one hour). 3601s with TTL 9000 is rejected.
+    stale = json.dumps(_public_payload("nfl", now, 3601, ttl=9000))
     _public_client(monkeypatch, [stale], now)
     rejected = BC.BetcrisScraper()
     with caplog.at_level(logging.INFO):
         assert _run(rejected.scrape("nfl")) == []
     err = rejected.fetch_errors[BC.PAGES["nfl"][0]]
-    assert "age 1801s" in err and "age_seconds=1801" in err
-    assert any("age 1801s vs wall clock" in r.getMessage() for r in caplog.records)
+    assert "age 3601s" in err and "age_seconds=3601" in err and "effective_ttl_seconds=3600" in err
+    assert any("age 3601s vs wall clock" in r.getMessage() for r in caplog.records)

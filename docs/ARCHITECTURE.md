@@ -602,8 +602,10 @@ alerts and board output; historical openers and captured line history are kept.
 After raw uploads, a publication guard rechecks board and legacy current fields.
 BetCRIS CFB may revalidate the same public league URL once with `Cache-Control:
 no-cache` when a valid observation is stale. Both responses are captured separately.
-Recovery requires a genuinely fresh league observation. BetCris is shown for 30
-minutes from `feed_fetched_at` (1800s). A price older than 30 minutes is rejected.
+Recovery requires a genuinely fresh league observation. CFB is shown for 30
+minutes from `feed_fetched_at` (1800s). NFL is shown until the earlier of the
+provider TTL and one hour (`ODDS_CARRY_MAX_AGE`, 3600s), because league/1.json
+refreshes about once an hour. A price older than that sport's ceiling is rejected.
 The cell shows the age (`20m old`). A price older than the provider's own
 `stale_after_seconds` adds `reference`. BetCris never contributes to consensus,
 the fair line, edges, `n_books`, or the spread average, including while it is
@@ -615,10 +617,11 @@ the other books on the publication guard and on the Worker read; best price
 falls through to the next book. Catalog generation and download
 times do not renew prices. An unchanged stale response, invalid payload or denied
 request remains unavailable. Stale diagnostics include the observation time, age
-and both the 30-minute ceiling and the provider TTL. The 120-second publication
+and both the display ceiling and the provider TTL. The 120-second publication
 reserve still withholds other books that would expire during upload; it does not
-hide a BetCris print that is still inside the 30-minute window. The read-time
-guard then marks that BetCris cell expired at `feed_fetched_at + 1800s`. That
+hide a BetCris print that is still inside its display window. The read-time
+guard then marks that BetCris cell expired at its `expires_at` (`feed_fetched_at`
+plus 30 minutes for CFB, or plus `min(provider TTL, 3600s)` for NFL). That
 clock is not the compact row's earliest expiry, and it does not clear the
 game's fair line, edges, or best price while a pricing book is still fresh.
 The workflow reserves 120 seconds for the remaining board/state puts: quotes
