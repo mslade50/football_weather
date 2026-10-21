@@ -37,9 +37,14 @@ from bs4 import BeautifulSoup
 from pipeline.contracts import GameLine, game_line
 
 BOOK = "betcris"
-# Board reference window. The provider TTL still decides whether a price may
-# create an edge; this ceiling only decides whether the price is shown.
+# How long a public print stays on the board, measured from feed_fetched_at.
+# CFB refreshes every few minutes and uses DISPLAY_MAX_AGE_S. The provider TTL
+# still decides whether that price may create an edge; this ceiling only
+# decides whether it is shown. NFL league/1.json (tier "later") refreshes about
+# once an hour, so its ceiling is min(provider TTL, NFL_CARRY_MAX_AGE_S).
+# NFL_CARRY_MAX_AGE_S matches pipeline.build.ODDS_CARRY_MAX_AGE.
 DISPLAY_MAX_AGE_S = 1800
+NFL_CARRY_MAX_AGE_S = 3600
 DEFAULT_JUICE = -110
 PT = ZoneInfo("America/Los_Angeles")
 
@@ -339,15 +344,17 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
     if observed is None or ttl is None or ttl <= 0 or now < observed:
         raise ValueError("Betcris public feed has a stale or invalid observation timestamp")
     age = (now - observed).total_seconds()
-    # Show the print for 30 minutes from the feed clock. A tighter provider TTL
-    # does not hide it; it only marks the price reference-only downstream.
-    effective_ttl = float(DISPLAY_MAX_AGE_S)
+    # A run at :01 can see an NFL file 30-60 minutes old. Keep that print until
+    # the earlier of the provider TTL and the one-hour carry window. CFB stays
+    # on the 30-minute ceiling; a tighter provider TTL does not hide it.
+    max_age = min(ttl, float(NFL_CARRY_MAX_AGE_S)) if sport == "nfl" else float(DISPLAY_MAX_AGE_S)
+    effective_ttl = max_age
     if age > effective_ttl:
         raise StaleObservationError(
             "Betcris public feed has a stale or invalid observation timestamp: "
             f"observed={observed.isoformat()}, age_seconds={age:.0f}, "
             f"effective_ttl_seconds={effective_ttl:g}, provider_ttl_seconds={ttl:g}")
-    display_until = observed + timedelta(seconds=DISPLAY_MAX_AGE_S)
+    display_until = observed + timedelta(seconds=max_age)
     actionable_until = observed + timedelta(seconds=ttl)
     games = payload.get("games")
     if not isinstance(games, list):

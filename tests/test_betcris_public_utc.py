@@ -121,7 +121,7 @@ def test_source_expiry_survives_neutral_home_away_flip():
     result = merge.merge_odds("nfl", [game], rows, now=NOW, save=False)
     assert len(result.lines) == 6 and not result.unmatched
     assert {r.source_updated_at for r in result.lines} == {rows[0].source_updated_at}
-    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(seconds=1800)}
+    assert {r.expires_at for r in result.lines} == {rows[0].scraped_at + timedelta(seconds=betcris.NFL_CARRY_MAX_AGE_S)}
     assert next(r for r in result.lines if r.market == "ml" and r.side == "home").odds == raw["markets"]["moneyline"]["visitor"]["price"]
 
 
@@ -180,19 +180,44 @@ def test_current_aware_timestamps_respect_offsets_dst_and_dates(sport, stamp, ex
 
 
 @pytest.mark.parametrize("sport,ttl,age,accepted", [
-    ("nfl", 9000, 1800, True), ("nfl", 9000, 1801, False),
+    ("nfl", 9000, 3600, True), ("nfl", 9000, 3601, False),
+    ("nfl", 300, 300, True), ("nfl", 300, 301, False),
     ("cfb", 750, 750, True), ("cfb", 750, 1800, True), ("cfb", 750, 1801, False),
     ("nfl", 9000, 0, True), ("nfl", 9000, -1, False),
 ])
 def test_freshness_ceiling_is_thirty_minutes(sport, ttl, age, accepted):
-    assert build.ODDS_CARRY_MAX_AGE == timedelta(seconds=3600)
+    """CFB stays at 30 minutes. NFL is min(provider TTL, the one-hour carry window)."""
+    assert build.ODDS_CARRY_MAX_AGE == timedelta(seconds=betcris.NFL_CARRY_MAX_AGE_S)
     data = payload(sport)
-    data.update(stale_after_seconds=ttl, feed_fetched_at=(NOW - timedelta(seconds=age)).isoformat())
+    observed = NOW - timedelta(seconds=age)
+    data.update(stale_after_seconds=ttl, feed_fetched_at=observed.isoformat())
     if accepted:
-        assert len(betcris.parse_public(data, sport, now=NOW)) == 12
+        rows = betcris.parse_public(data, sport, now=NOW)
+        assert len(rows) == 12
+        max_age = min(ttl, betcris.NFL_CARRY_MAX_AGE_S) if sport == "nfl" else betcris.DISPLAY_MAX_AGE_S
+        assert {r.expires_at for r in rows} == {observed + timedelta(seconds=max_age)}
     else:
         with pytest.raises(ValueError, match="stale or invalid observation"):
             betcris.parse_public(data, sport, now=NOW)
+
+
+def test_forty_five_minute_nfl_feed_is_accepted_and_cfb_feed_is_rejected():
+    """Hourly NFL file at :01 is 30-60 minutes old. CFB still drops at 30 minutes."""
+    age = timedelta(minutes=45)
+    observed = NOW - age
+    nfl = payload("nfl")
+    nfl.update(stale_after_seconds=9000, feed_fetched_at=observed.isoformat())
+    rows = betcris.parse_public(nfl, "nfl", now=NOW)
+    assert len(rows) == 12
+    assert {r.expires_at for r in rows} == {observed + timedelta(seconds=betcris.NFL_CARRY_MAX_AGE_S)}
+    assert all(r.actionable_until == observed + timedelta(seconds=9000) for r in rows)
+    cfb = payload("cfb")
+    cfb.update(stale_after_seconds=9000, feed_fetched_at=observed.isoformat())
+    with pytest.raises(
+        betcris.StaleObservationError,
+        match=f"age_seconds={int(age.total_seconds())}, effective_ttl_seconds={betcris.DISPLAY_MAX_AGE_S}, provider_ttl_seconds=9000",
+    ):
+        betcris.parse_public(cfb, "cfb", now=NOW)
 
 
 def test_production_nfl_drop_was_age_gate_not_schedule_mapping():
