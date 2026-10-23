@@ -440,6 +440,48 @@ def test_zero_lines_warns_only_when_the_league_has_games(tmp_path: Path, monkeyp
     assert "HTTP 403" in summary.read_text(encoding="utf-8")
 
 
+def test_stale_betcris_warns_and_stays_off_the_dark_and_down_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from pipeline.outputs import d1_out
+    from pipeline.outputs.raw_out import NullRawStore
+    from pipeline.run_context import RunContext
+
+    def lines(book: str) -> list[GameLine]:
+        return [_ln(book, "total", "under", 47.0) for _ in range(12)]
+
+    class Stale:
+        BOOK_NAME = "betcris"
+        fetch_errors = {"nfl": "upstream stale, age 3774s: Betcris public feed has a stale observation"}
+
+    async def fake_scrape(sport, books, raw, run_id, degrade):
+        del sport, books, raw, run_id, degrade
+        return {"pinnacle": lines("pinnacle"), "fanduel": lines("fanduel"), "betcris": []}, {
+            "pinnacle": SimpleNamespace(BOOK_NAME="pinnacle", fetch_errors={}),
+            "fanduel": SimpleNamespace(BOOK_NAME="fanduel", fetch_errors={}),
+            "betcris": Stale(),
+        }
+
+    monkeypatch.setattr(build, "scrape_books", fake_scrape)
+    monkeypatch.setattr(build, "_import", lambda _name: None)
+    ctx = RunContext(sport="nfl", scope="light", git_sha="t", run_id="stale-betcris")
+    build.stage_odds(
+        ctx, "nfl", [_game()], _Book(), NullRawStore("nfl", "r"),
+        ["pinnacle", "fanduel", "betcris"], tmp_path, 2026,
+    )
+    reasons = [item.reason for item in ctx.degradations]
+    assert any("betcris upstream stale" in reason and "age 3774s" in reason for reason in reasons)
+    assert not any("fetch failed" in reason or "returned 0 lines" in reason or "DARK|betcris" in reason for reason in reasons)
+    assert all(item.severity != "error" for item in ctx.degradations)
+    assert d1_out.run_status(ctx) == "warn"
+    entry = pstate.load_book_health(tmp_path)["books"]["betcris"]["nfl"]
+    assert entry["rows"] == 0 and entry["consecutive_empty"] == 0 and entry["last_error"] == "upstream stale"
+    borrowed = SimpleNamespace(BOOK_NAME="pinnacle", fetch_errors={"nfl": "upstream stale: borrowed phrase"})
+    mixed = SimpleNamespace(
+        BOOK_NAME="betcris", fetch_errors={"nfl": "upstream stale: old", "extra": "ConnectTimeout"},
+    )
+    assert build.upstream_stale_detail(borrowed) is None
+    assert build.upstream_stale_detail(mixed) is None
+
+
 def test_legacy_odds_empty_when_no_lines():
     o = legacy_odds("nfl", KC_BUF, {}, {}, pstate.migrate(None, "openers"))
     assert o["spread_now"] is None and o["total_proj"] is None and o["ref_book"] is None

@@ -820,10 +820,16 @@ def update_book_health(
             entry["consecutive_empty"] = 0
             entry["last_error"] = None
         else:
-            entry["consecutive_empty"] = int(entry.get("consecutive_empty") or 0) + 1
             entry.setdefault("last_ok_utc", None)
             err = str((errors or {}).get(book) or "returned 0 lines")
-            entry["last_error"] = err[:BOOK_HEALTH_ERROR_MAX]
+            # Betcris stamps this when the public file is old. Reject the lines,
+            # but do not walk the book toward the 3-empty down alert.
+            if "upstream stale" in err.lower():
+                entry["consecutive_empty"] = 0
+                entry["last_error"] = "upstream stale"
+            else:
+                entry["consecutive_empty"] = int(entry.get("consecutive_empty") or 0) + 1
+                entry["last_error"] = err[:BOOK_HEALTH_ERROR_MAX]
     if horizon_games is not None:
         health.setdefault("horizon", {})[sport] = int(horizon_games)
     return health

@@ -55,6 +55,26 @@ def test_health_counters_and_untouched_books(tmp_path):
     assert set(exp["a"]["nfl"]) == {"rows", "last_ok_utc", "consecutive_empty", "last_error"}
 
 
+def test_upstream_stale_resets_the_empty_streak():
+    h: dict = {"books": {"betcris": {"nfl": {
+        "rows": 0, "last_ok_utc": "earlier", "consecutive_empty": 2, "last_error": "boom",
+    }}}, "horizon": {"nfl": 4}}
+    stale = "upstream stale, age 90000s: Betcris public feed has a stale observation"
+    pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": stale}, now="t1", horizon_games=4)
+    pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": stale}, now="t2")
+    entry = h["books"]["betcris"]["nfl"]
+    assert entry["rows"] == 0 and entry["consecutive_empty"] == 0
+    assert entry["last_error"] == "upstream stale" and entry["last_ok_utc"] == "earlier"
+    prefixed = "college-football: upstream stale, age 3774s: still old"
+    pstate.update_book_health(h, "cfb", {"betcris": 0}, {"betcris": prefixed}, now="t3", horizon_games=2)
+    cfb = h["books"]["betcris"]["cfb"]
+    assert cfb["consecutive_empty"] == 0 and cfb["last_error"] == "upstream stale"
+    pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": "boom"}, now="t4")
+    assert h["books"]["betcris"]["nfl"]["consecutive_empty"] == 1
+    assert h["books"]["betcris"]["nfl"]["last_error"] == "boom"
+    assert A.send_book_health(h, {}, lambda text, chat: True, A.Config(chat_default="1", book_health=True), NOW) == 0
+
+
 def test_alert_fires_once_then_recovery_once():
     h = {"books": {"bk": {"nfl": {"rows": 0, "last_ok_utc": None, "consecutive_empty": 2, "last_error": None}}},
          "horizon": {"nfl": 4}}

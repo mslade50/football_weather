@@ -149,6 +149,7 @@ def test_cfb_revalidation_is_bounded_and_never_renews_stale_prices(monkeypatch, 
     scraper = B.BetcrisScraper()
     assert asyncio.run(scraper.scrape("cfb")) == []
     assert client.calls == 2 and scraper.fetch_errors["college-football"]
+    assert scraper.fetch_errors["college-football"].startswith("upstream stale")
     if response_kind in ("same", "global_clock"):
         assert "age_seconds=3774" in scraper.fetch_errors["college-football"]
 
@@ -164,6 +165,24 @@ def test_normal_nfl_and_nonstale_cfb_errors_do_not_add_requests(monkeypatch, spo
     client = _public_client(monkeypatch, [json.dumps(data)], now)
     rows = asyncio.run(B.BetcrisScraper().scrape(sport))
     assert len(rows) == (12 if age == 60 and not invalid else 0) and client.calls == 1
+
+
+def test_stale_nfl_feed_is_upstream_stale_and_makes_no_second_request(monkeypatch):
+    now = datetime(2026, 10, 2, 20, 29, tzinfo=timezone.utc)
+    client = _public_client(monkeypatch, [json.dumps(_public_payload("nfl", now, 3774))], now)
+    scraper = B.BetcrisScraper()
+    assert asyncio.run(scraper.scrape("nfl")) == []
+    assert client.calls == 1
+    assert scraper.fetch_errors["nfl"].startswith("upstream stale")
+    assert "age 3774s" in scraper.fetch_errors["nfl"]
+
+
+def test_fresh_nfl_feed_is_not_marked_upstream_stale(monkeypatch):
+    now = datetime(2026, 10, 2, 20, 29, tzinfo=timezone.utc)
+    client = _public_client(monkeypatch, [json.dumps(_public_payload("nfl", now, 3600))], now)
+    scraper = B.BetcrisScraper()
+    rows = asyncio.run(scraper.scrape("nfl"))
+    assert rows and client.calls == 1 and scraper.fetch_errors == {}
 
 
 def test_book_failure_reaches_board_diagnostics(monkeypatch):

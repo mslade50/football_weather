@@ -26,13 +26,23 @@ def _grid(param: str, step: int, value: float, *, member: int | None = None) -> 
     )
 
 
+def _member_id(request: od.Request, number: int | None) -> int | None:
+    """Post-50r1 control is oper/fc (member unset in the GRIB). Label it as member 0."""
+    if request.role == "control" or request.kind == "cf":
+        return 0
+    return number
+
+
 def _retriever(calls: list[od.Request]):
     def retrieve(request: od.Request) -> list[od.GridField]:
         calls.append(request)
         if set(request.params) <= {"10fg", "10fg3"}:
-            if request.kind == "pf":
-                return [_grid("10fg", step, 8.0, member=number) for step in request.steps for number in request.numbers]
-            return [_grid("10fg", step, 8.0, member=0 if request.kind == "cf" else None) for step in request.steps]
+            if request.kind == "pf" and request.role != "control":
+                return [
+                    _grid("10fg", step, 8.0, member=number)
+                    for step in request.steps for number in request.numbers
+                ]
+            return [_grid("10fg", step, 8.0, member=_member_id(request, None)) for step in request.steps]
         values = {"2t": 280.0, "10u": 5.0, "10v": 0.0, "tp": None, "10u_skip": 0.0}
         fields = []
         for step in request.steps:
@@ -40,7 +50,7 @@ def _retriever(calls: list[od.Request]):
                 value = 0.001 * step if param == "tp" else values[param]
                 numbers = request.numbers or (None,)
                 for number in numbers:
-                    fields.append(_grid(param, step, value, member=0 if request.kind == "cf" else number))
+                    fields.append(_grid(param, step, value, member=_member_id(request, number)))
         return fields
 
     return retrieve
@@ -338,3 +348,139 @@ def test_decode_round_trip_of_a_small_grib(tmp_path):
     assert fields[0].step == 6
     assert fields[0].ni == 4 and fields[0].nj == 3
     assert od.sample_grid(fields[0], 39.2, -89.2) == pytest.approx(280.0)
+
+
+def test_control_follows_the_50r1_stream_and_filename_type():
+    cut = od.IFS_CONTROL_CUTOVER
+    assert od.control_candidates(cut) == (("oper", "fc"), ("enfo", "cf"))
+    assert od.control_candidates(cut - timedelta(hours=6)) == (("enfo", "cf"), ("oper", "fc"))
+    assert od.perturbed_candidates() == (("enfo", "pf"), ("enfo", "ef"))
+    assert od.filename_type("cf", "ifs") == "ef"
+    assert od.filename_type("pf", "ifs") == "ef"
+    assert od.filename_type("fc", "ifs") == "fc"
+    assert od.filename_type("cf", "aifs-ens") == "cf"
+    names = [
+        "20261023/00z/ifs/0p25/enfo/20261023000000-0h-enfo-ef.index",
+        "20261023/00z/ifs/0p25/enfo/20261023000000-48h-enfo-ef.index",
+        "20261023/00z/ifs/0p25/oper/20261023000000-48h-oper-fc.index",
+        "20261023/00z/ifs/0p25/enfo/20261023000000-6h-enfo-cf.index",
+    ]
+    assert od.parse_published_steps(names, "enfo", "ef") == [0, 48]
+    assert od.parse_published_steps(names, "oper", "fc") == [48]
+    assert od.parse_published_steps(names, "enfo", "cf") == [6]
+
+
+def test_missing_steps_snap_to_the_nearest_published_hours():
+    available = list(range(0, 361, 6))
+    assert od.cover_with_available([45, 48, 51], available) == [42, 48, 54]
+    assert od.cover_with_available([48], available) == [48]
+    assert od.cover_with_available([400], available) == []
+
+
+def test_ensemble_requests_oper_control_and_enfo_perturbed_members():
+    calls: list[od.Request] = []
+    session = _session(calls)
+    hour = RUN + timedelta(hours=48)
+    session.ensemble_forecasts([POINT], {POINT: {hour}})
+    base = [call for call in calls if set(call.params) == set(od.ENS_PARAMS)]
+    assert any(
+        call.stream == "oper" and call.kind == "fc" and call.role == "control" and call.numbers == ()
+        for call in base
+    )
+    assert any(
+        call.stream == "enfo" and call.kind == "pf" and call.role == "perturbed"
+        and call.numbers == tuple(range(1, 51))
+        for call in base
+    )
+    assert not any(call.kind == "cf" for call in calls)
+
+
+def test_pre_cutover_control_still_uses_enfo_cf():
+    calls: list[od.Request] = []
+    old = datetime(2026, 5, 11, 0, tzinfo=timezone.utc)
+    session = od.OpenDataSession(
+        retriever=_retriever(calls), fixed_run=old,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+    )
+    locations = session.ensemble_forecasts([POINT], {POINT: {old + timedelta(hours=48)}})
+    assert calls[0].stream == "enfo" and calls[0].kind == "cf" and calls[0].role == "control"
+    assert f"{od.ENS_MODEL}:control" in locations[POINT].members
+
+
+def test_ensemble_keeps_perturbed_members_when_control_index_entries_are_missing():
+    calls: list[od.Request] = []
+    base = _retriever(calls)
+
+    def retrieve(request: od.Request) -> list[od.GridField]:
+        if request.role == "control":
+            raise od.OpenDataError("no control index entries")
+        return base(request)
+
+    session = od.OpenDataSession(
+        retriever=retrieve, fixed_run=RUN,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+    )
+    locations = session.ensemble_forecasts([POINT], {POINT: {RUN + timedelta(hours=48)}})
+    members = locations[POINT].members
+    assert f"{od.ENS_MODEL}:control" not in members
+    assert f"{od.ENS_MODEL}:member01" in members
+    assert members[f"{od.ENS_MODEL}:member01"].wind[0] == pytest.approx(5.0 * od.MPS_TO_MPH)
+
+
+def test_missing_native_steps_retry_the_nearest_published_steps(caplog):
+    calls: list[od.Request] = []
+    base = _retriever(calls)
+
+    def retrieve(request: od.Request) -> list[od.GridField]:
+        if any(step % 6 for step in request.steps):
+            raise od.OpenDataError(f"steps {list(request.steps)} are not in the index")
+        return base(request)
+
+    session = od.OpenDataSession(
+        retriever=retrieve, fixed_run=RUN,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+        step_catalog=lambda _request: list(range(0, 145, 6)),
+    )
+    with caplog.at_level("WARNING"):
+        locations = session.ensemble_forecasts([POINT], {POINT: {RUN + timedelta(hours=48)}})
+    assert f"{od.ENS_MODEL}:control" in locations[POINT].members
+    assert calls and all(step % 6 == 0 for call in calls for step in call.steps)
+    assert any(48 in call.steps and 42 in call.steps for call in calls)
+    assert "nearest published steps" in caplog.text
+
+
+def test_ensemble_with_no_published_fields_returns_empty_and_logs(caplog):
+    def retrieve(_request: od.Request) -> list[od.GridField]:
+        raise od.OpenDataError("Cannot find index entries matching 10u/10v/tp")
+
+    session = od.OpenDataSession(
+        retriever=retrieve, fixed_run=RUN,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+        step_catalog=lambda _request: [],
+    )
+    with caplog.at_level("WARNING"):
+        locations = session.ensemble_forecasts([POINT], {POINT: {RUN + timedelta(hours=48)}})
+    assert locations == {}
+    assert "found no control or perturbed fields" in caplog.text
+    assert "10u/10v/tp" in caplog.text
+
+
+def test_supplement_ensemble_degrades_when_no_fields_are_published(monkeypatch):
+    def retrieve(_request: od.Request) -> list[od.GridField]:
+        raise od.OpenDataError("Cannot find index entries matching 10u/10v/tp")
+
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = od.OpenDataSession(
+        retriever=retrieve, fixed_run=RUN,
+        cache_dir=__import__("pathlib").Path("/tmp/ecmwf-test"),
+        step_catalog=lambda _request: [],
+    )
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+    hour = RUN + timedelta(hours=48)
+    ecmwf_fallback.supplement_ensemble(ctx, "nfl", [POINT], {POINT: {hour}}, {}, {}, None)
+    assert not any(item.severity == "error" for item in ctx.degradations)
+    assert any(
+        item.severity == "warn" and "found no fields" in item.reason and "index entries" in item.reason
+        for item in ctx.degradations
+    )
+    assert "error" not in ctx.weather_state["ecmwf_opendata"]

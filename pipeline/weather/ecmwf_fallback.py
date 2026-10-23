@@ -236,6 +236,18 @@ def supplement_ensemble(
         ctx.degrade("weather", f"{sport}: ECMWF Open Data ensemble fallback failed ({exc})", "warn")
         status["error"] = f"{type(exc).__name__}: {exc}"
         return
+    if not filled:
+        log.warning(
+            "%s ECMWF open-data ensemble fallback found no fields; the Open-Meteo ensemble is unchanged",
+            sport,
+        )
+        ctx.degrade(
+            "weather",
+            f"{sport}: ECMWF Open Data ensemble fallback found no fields "
+            "(no control or perturbed index entries at the requested steps)",
+            "warn",
+        )
+        return
     run = session.runs.get("ifs")
     used = 0
     for point, location in filled.items():

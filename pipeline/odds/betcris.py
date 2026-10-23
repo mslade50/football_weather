@@ -133,11 +133,12 @@ class BetcrisScraper(BaseScraper):
         logger.info("[betcris] %s: feed observed %s, age %.0fs vs wall clock (ttl %s)",
                     sport, observed.isoformat(), age, f"{ttl:g}s" if ttl else "n/a")
 
-    def _stale_prefix(self, raw: str) -> str:
+    def _upstream_stale(self, raw: str, exc: BaseException) -> str:
+        """Health marker. A stale public file is a warning, not a scrape failure."""
         info = self._feed_age(raw)
         if info is None:
-            return "stale feed: "
-        return f"stale upstream feed, age {info[1]:.0f}s: "
+            return f"upstream stale: {exc}"
+        return f"upstream stale, age {info[1]:.0f}s: {exc}"
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
         if sport not in PAGES:
@@ -162,12 +163,14 @@ class BetcrisScraper(BaseScraper):
                                             market=market, run_id=self.run_id)
             except parser.StaleObservationError as original:
                 if sport != "cfb":
-                    self.fetch_errors[slug] = f"{self._stale_prefix(raw)}{original}"
+                    self.fetch_errors[slug] = self._upstream_stale(raw, original)
                     return []
                 logger.warning("[betcris] cfb: %s; revalidating once", original)
                 refreshed = await self._revalidate_public(client, slug, url)
                 if refreshed is None:
-                    self.fetch_errors[slug] = f"{self._stale_prefix(raw)}{original}; {self.fetch_errors[slug]}"
+                    self.fetch_errors[slug] = (
+                        f"{self._upstream_stale(raw, original)}; {self.fetch_errors[slug]}"
+                    )
                     return []
                 if self.raw_store is not None:
                     self.raw_store.put("betcris_public_cfb_revalidation", refreshed, url=url, ext="json")
@@ -175,8 +178,9 @@ class BetcrisScraper(BaseScraper):
                     lines = parser.parse_public(json.loads(refreshed), sport, now=datetime.now(timezone.utc),
                                                 market=market, run_id=self.run_id)
                 except ValueError as exc:
-                    self.fetch_errors[slug] = (f"{self._stale_prefix(refreshed)}revalidation did not recover "
-                                               f"fresh CFB observations: {exc}")
+                    self.fetch_errors[slug] = self._upstream_stale(
+                        refreshed, ValueError(f"revalidation did not recover fresh CFB observations: {exc}"),
+                    )
                     return []
                 self.fetch_errors.pop(slug, None)
                 logger.info("[betcris] cfb: same-URL revalidation recovered a fresh league observation")
