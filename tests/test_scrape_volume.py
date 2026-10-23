@@ -156,6 +156,25 @@ def test_unrequested_books_are_never_judged():
     assert "DARK|betonline" not in bl["alerted"]
 
 
+def test_excused_stale_betcris_is_not_dark_and_a_real_outage_still_is():
+    bl = _fresh()
+    check_scrape_volume(_healthy(30), bl, BOOKS)
+    counts = _healthy(30)
+    for market in ("spread", "total", "ml"):
+        counts[f"betcris|{market}"] = 0
+        counts[f"betonline|{market}"] = 0
+    excused = check_scrape_volume(counts, bl, BOOKS, excused=frozenset({"betcris"}))
+    keys = [item[0] for item in excused]
+    assert "DARK|betcris" not in keys and "betcris|total" not in keys
+    assert "DARK|betonline" in keys
+    assert "DARK|betcris" not in bl["alerted"]
+
+    real = _fresh()
+    check_scrape_volume(_healthy(30), real, BOOKS)
+    outage = check_scrape_volume(counts, real, BOOKS)
+    assert "DARK|betcris" in [item[0] for item in outage]
+
+
 def test_scrape_counts_keys_and_ignores_alternates():
     def ln(book: str, market: str, side: str, line: float | None, main: bool = True) -> GameLine:
         return GameLine(sport="nfl", game_id="nfl:2026:1:buf@kc", book=book, market=market, side=side,

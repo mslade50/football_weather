@@ -654,7 +654,8 @@ async def scrape_books(
         # Page-based books can return partial/empty data after handling a network
         # error internally. Surface the cause on the board, not only in CI logs.
         errors = getattr(scrapers[name], "fetch_errors", {})
-        if errors:
+        # A stale Betcris file is one warning from note_empty_book, not a fetch failure.
+        if errors and upstream_stale_detail(scrapers[name]) is None:
             detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
             degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
     return out, scrapers
@@ -673,7 +674,7 @@ def ingest_book_lines(ctx: RunContext, sport: str, name: str, ingest_dir: Path) 
                     f"(older than {ODDS_CARRY_MAX_AGE}: {ing.rejected_stale}, expired: {ing.rejected_expired}, "
                     f"invalid: {ing.rejected_invalid})", "warn")
     errors = getattr(ing.scraper, "fetch_errors", {})
-    if errors and not ing.missing:
+    if errors and not ing.missing and upstream_stale_detail(ing.scraper, name) is None:
         detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
         ctx.degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
     oldest = min((ln.scraped_at for ln in ing.lines if ln.scraped_at is not None), default=None)
@@ -740,6 +741,21 @@ def scrape_counts(lines: Sequence[Any]) -> dict[str, int]:
 
 # ---- odds: scrape-volume alert (golf build.py L2255-2357, keys book|market) ---------
 
+def upstream_stale_detail(scraper: Any, book: str | None = None) -> str | None:
+    """Betcris public feed only. Other books are never excused by this marker."""
+    if book is not None and book != "betcris":
+        return None
+    if book is None and getattr(scraper, "BOOK_NAME", None) != "betcris":
+        return None
+    errors = getattr(scraper, "fetch_errors", None)
+    if not isinstance(errors, dict) or not errors:
+        return None
+    texts = [str(value) for value in errors.values() if str(value).strip()]
+    if not texts or not all("upstream stale" in text.lower() for text in texts):
+        return None
+    return "; ".join(texts)
+
+
 def check_scrape_volume(
     counts: dict[str, int],
     baseline: dict,
@@ -747,6 +763,7 @@ def check_scrape_volume(
     critical: frozenset[str] | set[str] = CRITICAL_BOOKS,
     drop_frac: float = VOLUME_DROP_FRAC,
     min_peak: int = VOLUME_MIN_PEAK,
+    excused: frozenset[str] | set[str] = frozenset(),
 ) -> list[tuple[str, int, int | None]]:
     """Active volume-drop detector. Mutates ``baseline`` (peaks/alerted/seen_books)
     and returns current ``[(key, current, peak)]`` incidents; ``peak=None`` marks
@@ -777,14 +794,17 @@ def check_scrape_volume(
         baseline["alerted"] = sorted(alerted)
         return []
 
+    excused_books = set(excused)
     dark: set[str] = set()
     for b in books:
-        if b not in critical:
+        if b in excused_books or b not in critical:
             continue
         peers = sum(1 for o in critical if o != b and book_total.get(o, 0) >= VOLUME_DARK_MIN_ROWS)
         if book_total.get(b, 0) == 0 and peers >= 2:
             dark.add(b)
     for b in books:
+        if b in excused_books:
+            continue
         if int(seen_books.get(b, 0)) >= VOLUME_DARK_MIN_ROWS and book_total.get(b, 0) == 0:
             dark.add(b)
 
@@ -795,8 +815,8 @@ def check_scrape_volume(
         peaks[key] = max(int(peaks.get(key, 0)), cur)  # peaks only ratchet up
         if book not in books:
             continue  # not scraped this run: neither drop nor recovery
-        if book in dark:
-            continue  # covered by the DARK line
+        if book in dark or book in excused_books:
+            continue  # DARK covers a real outage; a stale Betcris feed is not one
         peak = peaks[key]
         if peak >= min_peak and cur < drop_frac * peak:
             drops.append((key, cur, peak))
@@ -1312,13 +1332,17 @@ def note_empty_book(
     """
     if n_lines or not games:
         return
-    detail = ""
-    errors = getattr(scraper, "fetch_errors", None)
-    if isinstance(errors, dict) and errors:
-        detail = "; ".join(f"{key}: {value}" if key != sport else str(value) for key, value in errors.items())
-    reason = f"{sport}: {name} returned 0 lines"
-    if detail:
-        reason = f"{reason} ({detail})"
+    stale = upstream_stale_detail(scraper, name)
+    if stale is not None:
+        reason = f"{sport}: {name} upstream stale ({stale})"
+    else:
+        detail = ""
+        errors = getattr(scraper, "fetch_errors", None)
+        if isinstance(errors, dict) and errors:
+            detail = "; ".join(f"{key}: {value}" if key != sport else str(value) for key, value in errors.items())
+        reason = f"{sport}: {name} returned 0 lines"
+        if detail:
+            reason = f"{reason} ({detail})"
     ctx.degrade("odds", reason, "warn")
     print(f"::warning::{reason}")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -1413,7 +1437,10 @@ def stage_odds(
         try:
             scope = baseline_scope(sport, [g for g in games if in_window(g.kickoff_utc, ctx.now_utc)], games, season)
             baseline = pstate.load_baseline(state_dir, scope)
-            drops = check_scrape_volume(scrape_counts(all_lines), baseline, books)
+            excused = frozenset(
+                name for name in books if upstream_stale_detail(scrapers.get(name), name)
+            )
+            drops = check_scrape_volume(scrape_counts(all_lines), baseline, books, excused=excused)
             if not dry_run:
                 pstate.save_baseline(state_dir, baseline)
             if drops:

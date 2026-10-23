@@ -25,6 +25,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
@@ -62,6 +63,72 @@ UNITS = {
 }
 POINT_PARAMS = ("2t", "10u", "10v", "tp")
 ENS_PARAMS = ("10u", "10v", "tp")
+# IFS cycle 50r1 (operational 2026-05-12) stopped publishing stream=enfo type=cf.
+# The ensemble control is the high-resolution forecast (oper/fc). Perturbed
+# members stay type=pf inside files named enfo-ef; the index records are still pf.
+IFS_CONTROL_CUTOVER = datetime(2026, 5, 12, tzinfo=timezone.utc)
+_STEP_NAME = re.compile(r"-(\d+)h-([A-Za-z0-9]+)-([A-Za-z0-9]+)\.index$")
+
+
+def filename_type(kind: str, model: str) -> str:
+    """GRIB filename type. IFS ``cf``/``pf`` files were renamed to ``ef``."""
+    if model != "aifs-ens" and kind in ("cf", "pf"):
+        return "ef"
+    return kind
+
+
+def control_candidates(run: datetime) -> tuple[tuple[str, str], ...]:
+    """Stream/type pairs for the ensemble control, preferred pair first."""
+    if aware(run) >= IFS_CONTROL_CUTOVER:
+        return (("oper", "fc"), ("enfo", "cf"))
+    return (("enfo", "cf"), ("oper", "fc"))
+
+
+def perturbed_candidates() -> tuple[tuple[str, str], ...]:
+    """Perturbed members. ``pf`` matches the index; ``ef`` is the filename fallback."""
+    return (("enfo", "pf"), ("enfo", "ef"))
+
+
+def parse_published_steps(names: Iterable[str], stream: str, url_type: str) -> list[int]:
+    """Forecast steps whose index files are actually on the mirror."""
+    found: set[int] = set()
+    for name in names:
+        match = _STEP_NAME.search(str(name).rsplit("/", 1)[-1])
+        if match and match.group(2) == stream and match.group(3) == url_type:
+            found.add(int(match.group(1)))
+    return sorted(found)
+
+
+def cover_with_available(requested: Sequence[int], available: Sequence[int]) -> list[int]:
+    """Published steps that bracket each requested step.
+
+    An exact step is kept. A step the index does not have is replaced by the
+    nearest published steps on either side (at most 6 h away), so wind can
+    still be interpolated and accumulated ``tp`` can still be turned into an
+    hourly amount. ``tp`` in the open catalogue is still metres since step 0;
+    ``tprate`` is a rate and is not used.
+    """
+    avail = sorted({int(step) for step in available})
+    if not avail:
+        return []
+    needed: set[int] = set()
+    for raw in requested:
+        step = int(raw)
+        if step in avail:
+            needed.add(step)
+            continue
+        if step < avail[0] or step > avail[-1]:
+            nearest = min(avail, key=lambda item: (abs(item - step), item))
+            if abs(nearest - step) <= 6:
+                needed.add(nearest)
+            continue
+        prev = max(item for item in avail if item < step)
+        nxt = min(item for item in avail if item > step)
+        if step - prev <= 6:
+            needed.add(prev)
+        if nxt - step <= 6:
+            needed.add(nxt)
+    return sorted(needed)
 
 
 def gust_groups(steps: Sequence[int]) -> list[tuple[str, tuple[int, ...]]]:
@@ -384,6 +451,9 @@ class Request:
     steps: tuple[int, ...]
     params: tuple[str, ...]
     numbers: tuple[int, ...] = ()
+    # ``control`` labels oper/fc (or legacy enfo/cf) as the ensemble control.
+    # ``perturbed`` labels enfo/pf members. Empty for deterministic point fields.
+    role: str = ""
 
     @property
     def key(self) -> str:
@@ -396,6 +466,7 @@ class Request:
                 "steps": list(self.steps),
                 "params": list(self.params),
                 "numbers": list(self.numbers),
+                "role": self.role,
             },
             sort_keys=True,
         )
@@ -404,6 +475,15 @@ class Request:
     def cache_name(self) -> str:
         stamp = aware(self.run).strftime("%Y%m%d%H")
         return f"{self.model}-{stamp}-{self.stream}-{self.kind}-{self.key}.grib2"
+
+
+def member_label(request: Request, grid: GridField) -> Optional[str]:
+    """Open-Meteo member id for one decoded field. Deterministic rows stay unlabeled."""
+    if request.role == "control" or request.kind == "cf":
+        return CONTROL
+    if grid.member is None or int(grid.member) <= 0:
+        return None
+    return f"member{int(grid.member):02d}"
 
 
 def _part_bytes(result: Any) -> int:
@@ -494,6 +574,8 @@ class OpenDataSession:
         part.strip() for part in os.environ.get("ECMWF_OD_SOURCES", ",".join(MIRRORS)).split(",") if part.strip()
     ))
     fixed_run: Optional[datetime] = None
+    # Test hook: ``(Request) -> steps`` that are really in the index. ``None`` lists the mirror.
+    step_catalog: Optional[Any] = None
     downloaded_bytes: int = 0
     seconds: float = 0.0
     mirror: Optional[str] = None
@@ -655,9 +737,7 @@ class OpenDataSession:
         member_bucket = self._members.setdefault(request.key, {})
         for grid in self._fields(request):
             param = "10fg" if grid.param in ("10fg", "10fg3") else grid.param
-            label = CONTROL if grid.member in (None, 0) and request.kind == "cf" else (
-                f"member{grid.member:02d}" if grid.member else None
-            )
+            label = member_label(request, grid)
             for point in missing:
                 value = sample_grid(grid, point[0], point[1])
                 if value is None:
@@ -734,6 +814,131 @@ class OpenDataSession:
                     raise
         return out
 
+    def published_steps(self, request: Request) -> Optional[list[int]]:
+        """Steps the mirror actually published for this request's stream and filename type."""
+        if self.step_catalog is not None:
+            found = self.step_catalog(request)
+            return None if found is None else sorted(int(step) for step in found)
+        if not network_allowed():
+            return None
+        run = aware(request.run)
+        prefix = f"{run:%Y%m%d}/{run:%H}z/{request.model}/0p25/{request.stream}/"
+        names = self._list_index_names(prefix)
+        if not names:
+            return None
+        direct = parse_published_steps(names, request.stream, request.kind)
+        if direct:
+            return direct
+        renamed = filename_type(request.kind, request.model)
+        if renamed != request.kind:
+            renamed_steps = parse_published_steps(names, request.stream, renamed)
+            if renamed_steps:
+                return renamed_steps
+        return []
+
+    def _list_index_names(self, prefix: str) -> list[str]:
+        """Index object names under ``prefix``. AWS is the layout source; other mirrors mirror it."""
+        import xml.etree.ElementTree as ET
+
+        import httpx
+
+        bases = {
+            "aws": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+            "google": "https://storage.googleapis.com/ecmwf-open-data",
+        }
+        ns = {"s": "http://s3.amazonaws.com/doc/2006-03-01/"}
+        for source in self.sources:
+            base = bases.get(source)
+            if base is None:
+                continue
+            found: list[str] = []
+            token: Optional[str] = None
+            try:
+                with httpx.Client(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
+                    while True:
+                        params = {"list-type": "2", "prefix": prefix, "max-keys": "1000"}
+                        if token:
+                            params["continuation-token"] = token
+                        response = client.get(base, params=params)
+                        response.raise_for_status()
+                        root = ET.fromstring(response.content)
+                        for el in root.findall("s:Contents/s:Key", ns):
+                            if el.text and el.text.endswith(".index"):
+                                found.append(el.text)
+                        nxt = root.find("s:NextContinuationToken", ns)
+                        if nxt is None or not nxt.text:
+                            break
+                        token = nxt.text
+            except Exception as exc:  # noqa: BLE001 - the next mirror, or no catalog
+                log.info("ECMWF open data step list via %s failed: %s", source, exc)
+                continue
+            if found:
+                return found
+        return []
+
+    def _nearest_request(self, request: Request) -> Optional[Request]:
+        available = self.published_steps(request)
+        if available is None and network_allowed() and self.step_catalog is None:
+            # The index listing itself failed. 6 h is the other open-data cadence.
+            available = list(range(0, 361, 6))
+        if not available:
+            return None
+        snapped = tuple(cover_with_available(request.steps, available))
+        if not snapped or snapped == tuple(request.steps):
+            return None
+        return replace(request, steps=snapped)
+
+    def _ensure_available(self, request: Request, points: Sequence[tuple[float, float]]) -> Optional[Request]:
+        """Fetch ``request``. On a missing index entry, retry the nearest published steps."""
+        try:
+            self._ensure(request, points)
+            return request
+        except OpenDataError as exc:
+            first = exc
+        alt = self._nearest_request(request)
+        if alt is None:
+            log.warning(
+                "ECMWF open data has no %s/%s index entries for %s at steps %s: %s",
+                request.stream, request.kind, ",".join(request.params), list(request.steps), first,
+            )
+            return None
+        log.warning(
+            "ECMWF open data %s/%s steps %s are not in the index; using nearest published steps %s",
+            request.stream, request.kind, list(request.steps), list(alt.steps),
+        )
+        try:
+            self._ensure(alt, points)
+            return alt
+        except OpenDataError as exc:
+            log.warning(
+                "ECMWF open data %s/%s still has no index entries for %s at nearest steps %s: %s",
+                alt.stream, alt.kind, ",".join(alt.params), list(alt.steps), exc,
+            )
+            return None
+
+    def _load_member_product(
+        self,
+        run: datetime,
+        candidates: Sequence[tuple[str, str]],
+        steps: Sequence[int],
+        params: tuple[str, ...],
+        numbers: tuple[int, ...],
+        points: Sequence[tuple[float, float]],
+        role: str,
+    ) -> Optional[Request]:
+        for stream, kind in candidates:
+            request = Request("ifs", run, stream, kind, tuple(steps), params, numbers, role)
+            loaded = self._ensure_available(request, points)
+            if loaded is not None:
+                return loaded
+        log.warning(
+            "ECMWF open data ensemble %s unavailable for run %s (%s); no %s index entries at steps %s",
+            role, aware(run).strftime("%Y%m%d%H"),
+            ", ".join(f"{stream}/{kind}" for stream, kind in candidates),
+            ",".join(params), list(steps),
+        )
+        return None
+
     def ensemble_forecasts(
         self, points: Sequence[tuple[float, float]], hours_by_point: dict[tuple[float, float], set[datetime]],
     ) -> dict[tuple[float, float], EnsembleLocation]:
@@ -748,22 +953,36 @@ class OpenDataSession:
             steps = tuple(steps_for_hours(run, covered, native_steps("ifs", aware(run).hour)))
             if not steps:
                 continue
-            control = Request("ifs", run, "enfo", "cf", steps, ENS_PARAMS)
-            perturbed = Request("ifs", run, "enfo", "pf", steps, ENS_PARAMS, tuple(range(1, 51)))
-            self._ensure(control, points)
-            self._ensure(perturbed, points)
+            control = self._load_member_product(
+                run, control_candidates(run), steps, ENS_PARAMS, (), points, "control",
+            )
+            perturbed = self._load_member_product(
+                run, perturbed_candidates(), steps, ENS_PARAMS, tuple(range(1, 51)), points, "perturbed",
+            )
+            if control is None and perturbed is None:
+                log.warning(
+                    "ECMWF open data ensemble found no control or perturbed fields for %s "
+                    "(10u/10v/tp index entries missing at steps %s)",
+                    aware(run).strftime("%Y%m%d%H"), list(steps),
+                )
+                continue
             gust_keys: list[str] = []
-            for name, gust_steps in gust_groups(steps):
-                for kind, numbers in (("cf", ()), ("pf", tuple(range(1, 51)))):
-                    gust_request = Request("ifs", run, "enfo", kind, gust_steps, (name,), numbers)
-                    try:
-                        self._ensure(gust_request, points)
-                        gust_keys.append(gust_request.key)
-                    except OpenDataError as exc:
-                        log.warning("ECMWF ensemble gust skipped: %s", exc)
+            for base in (control, perturbed):
+                if base is None:
+                    continue
+                for name, gust_steps in gust_groups(base.steps):
+                    gust_request = Request(
+                        "ifs", run, base.stream, base.kind, gust_steps, (name,), base.numbers, base.role,
+                    )
+                    loaded = self._ensure_available(gust_request, points)
+                    if loaded is None:
+                        continue
+                    gust_keys.append(loaded.key)
             for point in points:
                 by_member: dict[str, dict[int, dict[str, float]]] = {}
                 for request in (control, perturbed):
+                    if request is None:
+                        continue
                     for label, samples in self._members.get(request.key, {}).get(point, {}).items():
                         slot = by_member.setdefault(label, {})
                         for step, values in samples.items():
@@ -905,15 +1124,21 @@ __all__ = [
     "Request",
     "TooLarge",
     "compare_points",
+    "control_candidates",
+    "cover_with_available",
     "decode_grib",
     "expected_published_run",
     "fallback_mode",
+    "filename_type",
     "gust_groups",
     "hour_state",
     "init_is_stale",
     "kelvin_to_f",
+    "member_label",
     "native_steps",
     "network_allowed",
+    "parse_published_steps",
+    "perturbed_candidates",
     "runs_for_hours",
     "precip_mm",
     "rows_for_hours",
