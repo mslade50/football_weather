@@ -27,6 +27,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import sys
 import time
 from collections.abc import Callable, Iterable, Sequence
@@ -47,6 +48,14 @@ META_KEY = f"{BOARD_PREFIX}/meta.json"
 CONTENT_FLOOR = 0.5
 RETRIES = 3
 RETRY_SLEEP_S = 5.0
+# boto3 standard mode retries InternalError / SlowDown with its own full jitter.
+# 6 is inside the 5-8 attempt band; R2_MAX_ATTEMPTS can lower it (min 1, max 8).
+BOTO_MAX_ATTEMPTS = 6
+# Extra attempts after boto3 gives up, only for InternalError / SlowDown.
+EXPLICIT_ATTEMPTS = 3
+BACKOFF_BASE_S = 0.5
+BACKOFF_CAP_S = 8.0
+_EXPLICIT_CODES = frozenset({"InternalError", "SlowDown", "ServiceUnavailable"})
 
 # State files fetched before a run and pushed after (ARCH §5 state row).
 STATE_FILES: tuple[str, ...] = (
@@ -99,14 +108,120 @@ def configured(env: Optional[dict[str, str]] = None) -> bool:
     return config_from_env(env) is not None
 
 
+def _bounded_int(raw: str, default: int, low: int, high: int) -> int:
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(low, min(high, value))
+
+
+def boto_max_attempts(env: Optional[dict[str, str]] = None) -> int:
+    """SDK attempts per call, including the first. Default 6; clamped to 1..8."""
+    source = os.environ if env is None else env
+    return _bounded_int(str(source.get("R2_MAX_ATTEMPTS", BOTO_MAX_ATTEMPTS)).strip(), BOTO_MAX_ATTEMPTS, 1, 8)
+
+
+def explicit_attempts(env: Optional[dict[str, str]] = None) -> int:
+    """Application retries for InternalError / SlowDown after the SDK gives up."""
+    source = os.environ if env is None else env
+    return _bounded_int(str(source.get("R2_EXPLICIT_ATTEMPTS", EXPLICIT_ATTEMPTS)).strip(), EXPLICIT_ATTEMPTS, 1, 6)
+
+
+def boto_config_kwargs(*, bounded: bool = False, env: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    """botocore Config fields. Standard mode adds exponential backoff and jitter."""
+    if bounded:
+        # The commit marker has a 15s freshness budget, so it stays at two attempts.
+        return {
+            "connect_timeout": 3, "read_timeout": 5,
+            "retries": {"mode": "standard", "total_max_attempts": 2},
+        }
+    return {
+        "connect_timeout": 5, "read_timeout": 30,
+        "retries": {"mode": "standard", "total_max_attempts": boto_max_attempts(env)},
+        "max_pool_connections": 32,
+    }
+
+
+def jitter() -> float:
+    """Uniform 0..1 roll. Tests replace this to pin backoff delays."""
+    return random.random()
+
+
+def backoff_delay(attempt: int, rng: Optional[Callable[[], float]] = None, *,
+                  base: float = BACKOFF_BASE_S, cap: float = BACKOFF_CAP_S) -> float:
+    """Equal jitter: half the exponential window is fixed, half is random.
+
+    ``attempt`` is 1 for the first retry. The window doubles each attempt and
+    stops at ``cap`` seconds.
+    """
+    window = min(cap, base * (2 ** max(0, attempt - 1)))
+    roll = jitter() if rng is None else rng()
+    if roll < 0.0:
+        roll = 0.0
+    elif roll > 1.0:
+        roll = 1.0
+    return window * 0.5 + window * 0.5 * roll
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def error_code(exc: BaseException) -> str:
+    resp = getattr(exc, "response", None)
+    if isinstance(resp, dict):
+        return str(((resp.get("Error") or {}).get("Code")) or "")
+    return ""
+
+
+def is_explicit_r2_retry(exc: BaseException) -> bool:
+    """InternalError and SlowDown are retried even when the SDK already gave up."""
+    if is_no_such_key(exc):
+        return False
+    code = error_code(exc)
+    if code in ("NoSuchBucket", "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch"):
+        return False
+    if code in _EXPLICIT_CODES:
+        return True
+    text = f"{type(exc).__name__}: {exc}"
+    return "InternalError" in text or "SlowDown" in text
+
+
+def call_with_explicit_retry(
+    fn: Callable[[], Any], what: str, *, attempts: Optional[int] = None,
+    sleep: Optional[Callable[[float], None]] = None,
+    on_retry: Optional[Callable[[BaseException, int, int, float], None]] = None,
+) -> Any:
+    """Call ``fn``. On InternalError/SlowDown, sleep with jitter and try again.
+
+    Any other exception propagates on the first failure. ``attempts`` counts the
+    first call. The sleep between attempt ``n`` and ``n+1`` is ``backoff_delay(n)``.
+    """
+    tries = explicit_attempts() if attempts is None else attempts
+    sleep_fn = _sleep if sleep is None else sleep
+    for attempt in range(1, tries + 1):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            if not is_explicit_r2_retry(exc) or attempt >= tries:
+                raise
+            delay = backoff_delay(attempt)
+            logger.warning(f"{what} failed ({exc}); retry {attempt}/{tries} in {delay:.2f}s")
+            if on_retry is not None:
+                on_retry(exc, attempt, tries, delay)
+            sleep_fn(delay)
+    raise RuntimeError(f"{what} failed after {tries} attempts")  # pragma: no cover
+
+
 def make_client(cfg: R2Config, *, bounded: bool = False, config: Any = None) -> Any:
     """S3 client for R2. ``bounded`` = short timeouts for latency-critical calls;
     ``config`` (a botocore Config) overrides both when given."""
     import boto3  # optional dependency: only needed when publishing
     from botocore.config import Config
 
-    if config is None and bounded:
-        config = Config(connect_timeout=3, read_timeout=5, retries={'total_max_attempts': 2})
+    if config is None:
+        config = Config(**boto_config_kwargs(bounded=bounded))
     return boto3.client(
         "s3",
         endpoint_url=cfg.endpoint_url,
@@ -141,21 +256,33 @@ def _retry(fn: Callable[[], Any], what: str, attempts: int = RETRIES, sleep: Cal
             last = exc
             logger.warning(f"{what} failed (attempt {i}/{attempts}): {exc}")
             if i < attempts:
-                sleep(RETRY_SLEEP_S)
+                # InternalError and SlowDown are included: every put error is retried,
+                # and the delay is exponential with jitter rather than a fixed sleep.
+                sleep(backoff_delay(i))
     raise RuntimeError(f"{what} failed after {attempts} attempts: {last}") from last
 
 
-def get_object(client: Any, bucket: str, key: str) -> Optional[bytes]:
-    """Bytes of ``key`` or None when it does not exist. Any other error propagates."""
-    try:
-        resp = client.get_object(Bucket=bucket, Key=key)
-    except Exception as exc:  # noqa: BLE001
-        if is_no_such_key(exc):
-            return None
-        raise
-    body = resp["Body"]
-    data = body.read()
-    return data if isinstance(data, bytes) else bytes(data)
+def get_object(client: Any, bucket: str, key: str, *,
+               sleep: Optional[Callable[[float], None]] = None) -> Optional[bytes]:
+    """Bytes of ``key`` or None when it does not exist.
+
+    NoSuchKey is a fresh state file. InternalError and SlowDown are retried
+    with exponential backoff and jitter. Any other error propagates immediately
+    so a run never continues on blank state.
+    """
+
+    def once() -> Optional[bytes]:
+        try:
+            resp = client.get_object(Bucket=bucket, Key=key)
+        except Exception as exc:  # noqa: BLE001
+            if is_no_such_key(exc):
+                return None
+            raise
+        body = resp["Body"]
+        data = body.read()
+        return data if isinstance(data, bytes) else bytes(data)
+
+    return call_with_explicit_retry(once, f"R2 get {key}", sleep=sleep)
 
 
 def put_bytes(client: Any, bucket: str, key: str, data: bytes, content_type: Optional[str] = None,

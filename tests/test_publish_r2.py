@@ -200,16 +200,51 @@ def test_boto3_missing_package_falls_back_to_wrangler(monkeypatch):
     assert publish_r2.s3_config() is None
 
 
-def test_boto3_retry_then_success(tmp_path, capsys):
+def test_boto3_retry_then_success(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(publish_r2.r2, "jitter", lambda: 0.0)
     fake = FakeS3(fail_first=2)
     sleeps = []
     src = tmp_path / "a"
     src.write_bytes(b"x")
     publish_r2.upload_one("b", "raw/a", src, "application/octet-stream", client=fake, sleep=sleeps.append, run=_no_wrangler)
-    assert len(fake.puts) == 3 and sleeps == [publish_r2.RETRY_DELAY_SECONDS] * 2
+    assert len(fake.puts) == 3
+    assert sleeps == [publish_r2.r2.backoff_delay(1), publish_r2.r2.backoff_delay(2)]
+    assert sleeps[1] == sleeps[0] * 2
     err = capsys.readouterr().err
     assert "::warning::R2 put raw/a failed (attempt 1/3): ConnectionError: boom" in err
     assert "attempt 2/3" in err
+    assert "retrying in" in err
+
+
+def test_put_retries_slowdown_and_internal_error_with_full_jitter_window(tmp_path, monkeypatch):
+    monkeypatch.setattr(publish_r2.r2, "jitter", lambda: 1.0)
+
+    class Boom(Exception):
+        def __init__(self, code: str):
+            super().__init__(code)
+            self.response = {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": 503}}
+
+    class Flaky:
+        def __init__(self):
+            self.puts: list[dict] = []
+
+        def put_object(self, **kwargs):
+            self.puts.append(kwargs)
+            if len(self.puts) == 1:
+                raise Boom("SlowDown")
+            if len(self.puts) == 2:
+                raise Boom("InternalError")
+            return {}
+
+    sleeps: list[float] = []
+    src = tmp_path / "a"
+    src.write_bytes(b"x")
+    publish_r2.upload_one("b", "board/wx_last.json", src, "application/json", client=Flaky(), sleep=sleeps.append)
+    assert sleeps == [
+        publish_r2.r2.backoff_delay(1, rng=lambda: 1.0),
+        publish_r2.r2.backoff_delay(2, rng=lambda: 1.0),
+    ]
+    assert sleeps[1] == sleeps[0] * 2
 
 
 def test_boto3_final_failure_message(tmp_path):
@@ -328,4 +363,5 @@ def test_boto3_bulk_client_has_bounded_timeouts(monkeypatch):
     (bulk_bounded, bulk_cfg), (meta_bounded, meta_cfg) = seen
     assert bulk_bounded is False and meta_bounded is True and meta_cfg is None
     assert bulk_cfg == {"connect_timeout": 5, "read_timeout": 30,
-                        "retries": {"total_max_attempts": 2}, "max_pool_connections": 32}
+                        "retries": {"mode": "standard", "total_max_attempts": 6},
+                        "max_pool_connections": 32}

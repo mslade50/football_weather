@@ -53,15 +53,44 @@ def _is_missing_boto3(exc: BaseException) -> bool:
     return r2.is_no_such_key(exc)
 
 
+def _sleep(seconds: float) -> None:
+    r2._sleep(seconds)
+
+
+def _warn_retry(key: str, exc: BaseException, attempt: int, tries: int, delay: float) -> None:
+    print(
+        f"::warning::R2 get {key} failed ({type(exc).__name__}: {exc}); "
+        f"retry {attempt}/{tries} in {delay:.2f}s",
+        file=sys.stderr,
+    )
+
+
 def fetch_bytes_boto3(client: Any, bucket: str, key: str) -> bytes | None:
-    """Object bytes, None when the key is absent, FetchError for anything else."""
+    """Object bytes, None when the key is absent, FetchError for anything else.
+
+    InternalError and SlowDown are retried with exponential backoff and jitter
+    (``R2_EXPLICIT_ATTEMPTS``, default 3) on top of the client's boto3 standard
+    retry mode. AccessDenied, NoSuchBucket, and other errors fail immediately.
+    """
+
+    def once() -> bytes | None:
+        try:
+            data = client.get_object(Bucket=bucket, Key=key)["Body"].read()
+        except Exception as exc:  # noqa: BLE001 - botocore/OS errors
+            if _is_missing_boto3(exc):
+                return None
+            raise
+        return data if isinstance(data, bytes) else bytes(data)
+
     try:
-        data = client.get_object(Bucket=bucket, Key=key)["Body"].read()
-    except Exception as exc:  # noqa: BLE001 - botocore/OS errors
-        if _is_missing_boto3(exc):
-            return None
+        return r2.call_with_explicit_retry(
+            once, f"R2 get {key}", sleep=_sleep,
+            on_retry=lambda exc, attempt, tries, delay: _warn_retry(key, exc, attempt, tries, delay),
+        )
+    except FetchError:
+        raise
+    except Exception as exc:  # noqa: BLE001
         raise FetchError(f"{type(exc).__name__}: {exc}") from exc
-    return data if isinstance(data, bytes) else bytes(data)
 
 
 def fetch_bytes_wrangler(bucket: str, key: str, *, run=None) -> bytes | None:

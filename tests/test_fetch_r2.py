@@ -86,19 +86,29 @@ def test_state_boto3_missing_key_removes_dest_and_present_keys_written(tmp_path,
     assert not list(dest.glob("*.tmp"))
 
 
-@pytest.mark.parametrize("exc", [
-    ClientError("AccessDenied", 403), ClientError("InternalError", 500), ConnectionError("reset"),
-    TimeoutError("slow"), ClientError("NoSuchBucket", 404),
+@pytest.mark.parametrize("exc,calls", [
+    (ClientError("AccessDenied", 403), 1),
+    (ClientError("InternalError", 500), 3),
+    (ClientError("SlowDown", 503), 3),
+    (ConnectionError("reset"), 1),
+    (TimeoutError("slow"), 1),
+    (ClientError("NoSuchBucket", 404), 1),
 ])
-def test_state_boto3_other_error_fails_closed_and_writes_nothing(tmp_path, monkeypatch, capsys, exc):
+def test_state_boto3_other_error_fails_closed_and_writes_nothing(tmp_path, monkeypatch, capsys, exc, calls):
+    monkeypatch.setattr(fetch_r2.r2, "_sleep", lambda _s: None)
+    monkeypatch.setattr(fetch_r2.r2, "jitter", lambda: 0.0)
     monkeypatch.setenv("STATE_FILES", "openers history alerts")
     dest = tmp_path / "state"
     fake = FakeS3({"board/openers.json": b"{}", "board/alerts.json": b"{}", "board/meta.json": b"{}"},
                   errors={"board/history.json": exc})
     assert fetch_r2.fetch_state("b", dest, client=fake) == 1
     assert list(dest.iterdir()) == []  # no half-written state for a later step to trust
+    assert fake.gets.count("board/history.json") == calls
     cap = capsys.readouterr()
     assert "::error::R2 state fetch failed for history.json (not NoSuchKey) - refusing to run on blank state" in cap.out
+    if calls > 1:
+        assert "retry 1/3 in 0.25s" in cap.err
+        assert "retry 2/3 in 0.50s" in cap.err
 
 
 def test_state_failure_does_not_delete_or_replace_existing_files(tmp_path, monkeypatch):
@@ -213,6 +223,51 @@ def test_object_wrangler_fallback_and_no_secrets_in_output(tmp_path, monkeypatch
     assert fetch_r2.main(["object", "board/meta.json", str(tmp_path / "m2.json")]) == 0
     out = capsys.readouterr().out
     assert "R2 transport: boto3" in out and "sekret-value" not in out
+
+
+def test_explicit_retry_is_internal_error_and_slowdown_with_jittered_backoff():
+    from pipeline.outputs import r2
+
+    assert r2.is_explicit_r2_retry(ClientError("InternalError", 500))
+    assert r2.is_explicit_r2_retry(ClientError("SlowDown", 503))
+    assert r2.is_explicit_r2_retry(ClientError("ServiceUnavailable", 503))
+    assert not r2.is_explicit_r2_retry(ClientError("AccessDenied", 403))
+    assert not r2.is_explicit_r2_retry(ClientError("NoSuchBucket", 404))
+    assert not r2.is_explicit_r2_retry(ConnectionError("reset"))
+    assert r2.backoff_delay(1, rng=lambda: 0.0) == 0.25
+    assert r2.backoff_delay(1, rng=lambda: 1.0) == 0.5
+    assert r2.backoff_delay(2, rng=lambda: 0.0) == 0.5
+    assert r2.backoff_delay(8, rng=lambda: 1.0) == r2.BACKOFF_CAP_S
+    assert r2.boto_max_attempts({"R2_MAX_ATTEMPTS": "2"}) == 2
+    assert r2.boto_max_attempts({"R2_MAX_ATTEMPTS": "99"}) == 8
+    assert r2.boto_config_kwargs(bounded=False)["retries"] == {"mode": "standard", "total_max_attempts": 6}
+    assert r2.boto_config_kwargs(bounded=True)["retries"]["total_max_attempts"] == 2
+
+
+def test_state_fetch_retries_internal_error_then_writes(tmp_path, monkeypatch, capsys):
+    sleeps: list[float] = []
+    monkeypatch.setattr(fetch_r2.r2, "_sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(fetch_r2.r2, "jitter", lambda: 0.0)
+    monkeypatch.setenv("STATE_FILES", "openers")
+
+    class Flaky(FakeS3):
+        def __init__(self):
+            super().__init__({"board/openers.json": b'{"ok":1}', "board/meta.json": b"{}"})
+            self.left = 2
+
+        def get_object(self, Bucket, Key):  # noqa: N803
+            if Key == "board/openers.json" and self.left:
+                self.left -= 1
+                with self._lock:
+                    self.gets.append(Key)
+                raise ClientError("InternalError", 500)
+            return super().get_object(Bucket, Key)
+
+    dest = tmp_path / "state"
+    assert fetch_r2.fetch_state("b", dest, client=Flaky()) == 0
+    assert (dest / "openers.json").read_bytes() == b'{"ok":1}'
+    assert sleeps == [0.25, 0.5]
+    assert "InternalError" in capsys.readouterr().err
 
 
 def test_main_state_cli_reads_bucket_and_workers(tmp_path, monkeypatch):
