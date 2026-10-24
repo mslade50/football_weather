@@ -25,6 +25,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import re
 import time
 from collections.abc import Iterable, Iterator, Sequence
@@ -53,6 +54,23 @@ PUBLICATION_LAG_H = 8.0
 STALE_INIT_H = 18.0
 CYCLE_H = 6.0
 DEFAULT_MAX_BYTES = 120 * 1024 * 1024
+# One open-data entry point (point forecast or ensemble) and the whole session.
+# A SlowDown crawl of 90 MB GRIB files used the entire 30 minute light job
+# (runs 40037160951 and 40038054554). These caps leave the rest of the job
+# room under that timeout. 503 SlowDown backs off, then the fetch stops and
+# Open-Meteo / the other models stay in place.
+FETCH_BUDGET_S = 90.0
+TOTAL_BUDGET_S = 180.0
+SLOWDOWN_ATTEMPTS = 3
+SLOWDOWN_EVENT_LIMIT = 4
+SLOWDOWN_BASE_S = 1.0
+SLOWDOWN_CAP_S = 8.0
+HTTP_CONNECT_TIMEOUT_S = 5.0
+HTTP_READ_TIMEOUT_S = 20.0
+_TRANSIENT_TRANSPORT = frozenset({
+    "ConnectionError", "ConnectTimeout", "ReadTimeout", "Timeout",
+    "ChunkedEncodingError", "ProxyError",
+})
 MIRRORS = ("aws", "azure", "ecmwf")
 UNITS = {
     "temperature_2m": "°F",
@@ -151,8 +169,76 @@ class OpenDataError(RuntimeError):
     """The open-data subset could not be retrieved or decoded."""
 
 
+class OpenDataBudget(OpenDataError):
+    """The fetch or session time budget ran out. Callers keep Open-Meteo."""
+
+
+class OpenDataSlowDown(OpenDataError):
+    """ECMWF returned 503 SlowDown and the fetch is not going to keep crawling."""
+
+
 class TooLarge(OpenDataError):
     """The indexed byte ranges exceed the per-request cap."""
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int, low: int, high: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(low, min(high, value))
+
+
+def slowdown_give_up_enabled() -> bool:
+    """``ECMWF_OD_SLOWDOWN_GIVEUP=0`` keeps trying mirrors after a 503."""
+    raw = os.environ.get("ECMWF_OD_SLOWDOWN_GIVEUP", "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def slowdown_backoff(attempt: int, rng: Optional[Any] = None) -> float:
+    """Equal-jitter exponential delay. ``attempt`` is 1 for the first retry."""
+    window = min(SLOWDOWN_CAP_S, SLOWDOWN_BASE_S * (2 ** max(0, attempt - 1)))
+    roll = random.random() if rng is None else rng()
+    if roll < 0.0:
+        roll = 0.0
+    elif roll > 1.0:
+        roll = 1.0
+    return window * 0.5 + window * 0.5 * roll
+
+
+def is_slowdown_response(response: Any) -> bool:
+    """503 SlowDown (and 429) from an ECMWF mirror. Other statuses are not."""
+    status = getattr(response, "status_code", None)
+    if status == 429:
+        return True
+    return status == 503
+
+
+def is_slowdown_error(exc: BaseException) -> bool:
+    if isinstance(exc, OpenDataSlowDown):
+        return True
+    response = getattr(exc, "response", None)
+    if response is not None and is_slowdown_response(response):
+        return True
+    text = str(exc)
+    return "SlowDown" in text or "Slow Down" in text
+
+
+def _transient_transport(exc: BaseException) -> bool:
+    return type(exc).__name__ in _TRANSIENT_TRANSPORT
 
 
 def fallback_mode() -> str:
@@ -544,19 +630,25 @@ def decode_grib(path: Path) -> Iterator[GridField]:
                 codes_release(gid)
 
 
-def _client(source: str, model: str) -> Any:
+def _client(source: str, model: str, owner: Optional[OpenDataSession] = None) -> Any:
     from ecmwf.opendata import Client
 
+    # maximum_retries=1: multiurl must not sleep 2s per byte-range on 503.
+    # SlowDown backoff lives in OpenDataSession.guarded_http, which also
+    # enforces the fetch budget. A 120s read timeout is what let one file
+    # crawl until the workflow was cancelled.
     client = Client(
         source=source, model=model, resol="0p25",
-        maximum_retries=2, retry_after=2, use_server_retry_after=False,
+        maximum_retries=1, retry_after=1, use_server_retry_after=False,
     )
     client.session.headers["User-Agent"] = USER_AGENT
     original = client.session.request
 
     def request(method: str, url: str, **kwargs: Any) -> Any:
-        kwargs.setdefault("timeout", (10, 120))
-        return original(method, url, **kwargs)
+        if owner is None:
+            kwargs["timeout"] = (HTTP_CONNECT_TIMEOUT_S, HTTP_READ_TIMEOUT_S)
+            return original(method, url, **kwargs)
+        return owner.guarded_http(original, method, url, **kwargs)
 
     client.session.request = request
     return client
@@ -581,8 +673,136 @@ class OpenDataSession:
     mirror: Optional[str] = None
     runs: dict[str, datetime] = field(default_factory=dict)
     manifests: list[dict[str, Any]] = field(default_factory=list)
+    # Tests inject these. Production uses time.monotonic, time.sleep, and random.random.
+    clock: Optional[Any] = None
+    sleeper: Optional[Any] = None
+    jitter: Optional[Any] = None
+    fetch_budget_s: float = field(default_factory=lambda: _env_float("ECMWF_OD_FETCH_BUDGET_S", FETCH_BUDGET_S))
+    total_budget_s: float = field(default_factory=lambda: _env_float("ECMWF_OD_TOTAL_BUDGET_S", TOTAL_BUDGET_S))
+    slowdown_attempts: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_ATTEMPTS", SLOWDOWN_ATTEMPTS, 1, 6))
+    slowdown_event_limit: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_LIMIT", SLOWDOWN_EVENT_LIMIT, 1, 20))
+    give_up_on_slowdown: bool = field(default_factory=slowdown_give_up_enabled)
     _samples: dict[str, dict[tuple[float, float], dict[int, dict[str, float]]]] = field(default_factory=dict)
     _members: dict[str, dict[tuple[float, float], dict[str, dict[int, dict[str, float]]]]] = field(default_factory=dict)
+    _total_started: Optional[float] = field(default=None, init=False, repr=False)
+    _fetch_started: Optional[float] = field(default=None, init=False, repr=False)
+    _abandoned: Optional[str] = field(default=None, init=False, repr=False)
+    _slowdown_events: int = field(default=0, init=False, repr=False)
+
+    def _now(self) -> float:
+        return time.monotonic() if self.clock is None else self.clock()
+
+    def _sleep(self, seconds: float) -> None:
+        (time.sleep if self.sleeper is None else self.sleeper)(seconds)
+
+    def _roll(self) -> float:
+        return random.random() if self.jitter is None else self.jitter()
+
+    def begin_fetch(self) -> None:
+        """Start the per-fetch clock. The session clock keeps running across fetches."""
+        now = self._now()
+        if self._total_started is None:
+            self._total_started = now
+        self._fetch_started = now
+        self._slowdown_events = 0
+        self._abandoned = None
+
+    def _remaining(self) -> float:
+        now = self._now()
+        limits: list[float] = []
+        if self._total_started is not None and self.total_budget_s >= 0:
+            limits.append(self.total_budget_s - (now - self._total_started))
+        if self._fetch_started is not None and self.fetch_budget_s >= 0:
+            limits.append(self.fetch_budget_s - (now - self._fetch_started))
+        if not limits:
+            return HTTP_READ_TIMEOUT_S
+        return max(0.0, min(limits))
+
+    def check_budget(self) -> None:
+        """Raise when this fetch should stop and the caller should keep Open-Meteo."""
+        now = self._now()
+        if self._total_started is None:
+            self._total_started = now
+        if self._fetch_started is None:
+            self._fetch_started = now
+        if self.total_budget_s >= 0 and now - self._total_started >= self.total_budget_s:
+            self._abandoned = "budget"
+            raise OpenDataBudget(
+                f"ECMWF open-data total budget of {self.total_budget_s:.0f}s exceeded"
+            )
+        if self.fetch_budget_s >= 0 and now - self._fetch_started >= self.fetch_budget_s:
+            self._abandoned = "budget"
+            raise OpenDataBudget(
+                f"ECMWF open-data fetch budget of {self.fetch_budget_s:.0f}s exceeded"
+            )
+        if self._abandoned == "slowdown":
+            raise OpenDataSlowDown("ECMWF open data gave up after 503 SlowDown")
+        if self._abandoned == "budget":
+            raise OpenDataBudget("ECMWF open-data budget already exceeded")
+
+    def _note_slowdown(self, url: str) -> None:
+        self._slowdown_events += 1
+        if self.give_up_on_slowdown and self._slowdown_events >= self.slowdown_event_limit:
+            self._abandoned = "slowdown"
+            log.warning(
+                "ECMWF 503 SlowDown on %s (%d events); giving up this fetch and keeping other models",
+                url, self._slowdown_events,
+            )
+            raise OpenDataSlowDown(f"503 SlowDown for {url}")
+
+    def guarded_http(self, original: Any, method: str, url: str, **kwargs: Any) -> Any:
+        """One HTTP call with a short timeout, SlowDown backoff, and the fetch budget.
+
+        multiurl treats a returned 503 as a reason to keep downloading the rest
+        of a multi-megabyte GRIB. Raising here stops that crawl.
+        """
+        self.check_budget()
+        remaining = self._remaining()
+        read = min(HTTP_READ_TIMEOUT_S, max(1.0, remaining))
+        kwargs["timeout"] = (min(HTTP_CONNECT_TIMEOUT_S, read), read)
+        attempts = max(1, self.slowdown_attempts)
+        for attempt in range(1, attempts + 1):
+            self.check_budget()
+            try:
+                response = original(method, url, **kwargs)
+            except OpenDataBudget:
+                raise
+            except OpenDataSlowDown:
+                raise
+            except Exception as exc:  # noqa: BLE001 - transport blips only
+                if not _transient_transport(exc) or attempt >= attempts:
+                    raise
+                delay = slowdown_backoff(attempt, self._roll)
+                log.warning(
+                    "ECMWF %s %s (%s); backing off %.2fs (attempt %d/%d)",
+                    method, url, type(exc).__name__, delay, attempt, attempts,
+                )
+                if delay >= self._remaining():
+                    self._abandoned = "budget"
+                    raise OpenDataBudget("ECMWF open-data budget exceeded during transport backoff") from exc
+                self._sleep(delay)
+                continue
+            if not is_slowdown_response(response):
+                return response
+            self._note_slowdown(url)
+            if attempt >= attempts:
+                if self.give_up_on_slowdown:
+                    self._abandoned = "slowdown"
+                log.warning(
+                    "ECMWF 503 SlowDown persisted for %s after %d attempts; falling back",
+                    url, attempts,
+                )
+                raise OpenDataSlowDown(f"503 SlowDown for {url}")
+            delay = slowdown_backoff(attempt, self._roll)
+            log.warning(
+                "ECMWF 503 SlowDown for %s; backing off %.2fs (attempt %d/%d)",
+                url, delay, attempt, attempts,
+            )
+            if delay >= self._remaining():
+                self._abandoned = "budget"
+                raise OpenDataBudget("ECMWF open-data budget exceeded during SlowDown backoff")
+            self._sleep(delay)
+        raise OpenDataSlowDown(f"503 SlowDown for {url}")
 
     def can_fetch(self) -> bool:
         return self.retriever is not None or network_allowed()
@@ -599,7 +819,15 @@ class OpenDataSession:
         last: Optional[Exception] = None
         for source in self.sources:
             try:
-                found = aware(_client(source, model).latest(stream="oper", type="fc", step=0, param="2t"))
+                self.check_budget()
+                found = aware(_client(source, model, self).latest(stream="oper", type="fc", step=0, param="2t"))
+            except OpenDataBudget:
+                raise
+            except OpenDataSlowDown as exc:
+                last = exc
+                if self._abandoned == "slowdown":
+                    raise
+                continue
             except Exception as exc:  # noqa: BLE001 - try the next mirror
                 last = exc
                 continue
@@ -645,9 +873,10 @@ class OpenDataSession:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         last: Optional[Exception] = None
         for source in self.sources:
+            self.check_budget()
             partial = path.with_suffix(".partial")
             try:
-                client = _client(source, request.model)
+                client = _client(source, request.model, self)
                 payload = {
                     "date": aware(request.run).strftime("%Y-%m-%d"),
                     "time": aware(request.run).hour,
@@ -682,10 +911,30 @@ class OpenDataSession:
             except TooLarge:
                 partial.unlink(missing_ok=True)
                 raise
+            except OpenDataBudget:
+                partial.unlink(missing_ok=True)
+                raise
+            except OpenDataSlowDown as exc:
+                partial.unlink(missing_ok=True)
+                log.warning("ECMWF open data %s via %s hit 503 SlowDown: %s", request.model, source, exc)
+                if self.give_up_on_slowdown:
+                    self._abandoned = "slowdown"
+                    raise
+                last = exc
             except Exception as exc:  # noqa: BLE001 - next mirror
+                if is_slowdown_error(exc):
+                    partial.unlink(missing_ok=True)
+                    self._abandoned = "slowdown" if self.give_up_on_slowdown else self._abandoned
+                    log.warning("ECMWF open data %s via %s hit 503 SlowDown: %s", request.model, source, exc)
+                    if self.give_up_on_slowdown:
+                        raise OpenDataSlowDown(str(exc)) from exc
+                    last = exc
+                    continue
                 last = exc
                 partial.unlink(missing_ok=True)
                 log.warning("ECMWF open data %s via %s failed: %s", request.model, source, exc)
+        if isinstance(last, (OpenDataSlowDown, OpenDataBudget)):
+            raise last
         raise OpenDataError(f"{request.model} {request.kind} {request.params} unavailable: {last}")
 
     def _fields(self, request: Request) -> list[GridField]:
@@ -761,6 +1010,7 @@ class OpenDataSession:
     ) -> dict[tuple[float, float], ParsedLocation]:
         if not points:
             return {}
+        self.begin_fetch()
         union = {hour for point in points for hour in hours_by_point.get(point, ())}
         out: dict[tuple[float, float], ParsedLocation] = {}
         products = (
@@ -854,12 +1104,30 @@ class OpenDataSession:
             found: list[str] = []
             token: Optional[str] = None
             try:
-                with httpx.Client(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
+                self.check_budget()
+                timeout = min(20.0, max(1.0, self._remaining()))
+                with httpx.Client(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
                     while True:
+                        self.check_budget()
                         params = {"list-type": "2", "prefix": prefix, "max-keys": "1000"}
                         if token:
                             params["continuation-token"] = token
                         response = client.get(base, params=params)
+                        if is_slowdown_response(response):
+                            self._note_slowdown(base)
+                            delay = slowdown_backoff(1, self._roll)
+                            log.warning("ECMWF 503 SlowDown listing %s; backing off %.2fs", base, delay)
+                            if delay >= self._remaining():
+                                self._abandoned = "budget"
+                                raise OpenDataBudget("ECMWF open-data budget exceeded during index SlowDown")
+                            self._sleep(delay)
+                            self.check_budget()
+                            response = client.get(base, params=params)
+                            if is_slowdown_response(response):
+                                self._note_slowdown(base)
+                                if self.give_up_on_slowdown:
+                                    self._abandoned = "slowdown"
+                                raise OpenDataSlowDown(f"503 SlowDown listing {base}")
                         response.raise_for_status()
                         root = ET.fromstring(response.content)
                         for el in root.findall("s:Contents/s:Key", ns):
@@ -869,6 +1137,13 @@ class OpenDataSession:
                         if nxt is None or not nxt.text:
                             break
                         token = nxt.text
+            except OpenDataBudget:
+                raise
+            except OpenDataSlowDown:
+                if self._abandoned == "slowdown":
+                    raise
+                log.info("ECMWF open data step list via %s hit 503 SlowDown", source)
+                continue
             except Exception as exc:  # noqa: BLE001 - the next mirror, or no catalog
                 log.info("ECMWF open data step list via %s failed: %s", source, exc)
                 continue
@@ -893,6 +1168,12 @@ class OpenDataSession:
         try:
             self._ensure(request, points)
             return request
+        except OpenDataBudget:
+            raise
+        except OpenDataSlowDown:
+            if self._abandoned == "slowdown":
+                raise
+            return None
         except OpenDataError as exc:
             first = exc
         alt = self._nearest_request(request)
@@ -909,6 +1190,12 @@ class OpenDataSession:
         try:
             self._ensure(alt, points)
             return alt
+        except OpenDataBudget:
+            raise
+        except OpenDataSlowDown:
+            if self._abandoned == "slowdown":
+                raise
+            return None
         except OpenDataError as exc:
             log.warning(
                 "ECMWF open data %s/%s still has no index entries for %s at nearest steps %s: %s",
@@ -944,6 +1231,7 @@ class OpenDataSession:
     ) -> dict[tuple[float, float], EnsembleLocation]:
         if not points:
             return {}
+        self.begin_fetch()
         union = {hour for point in points for hour in hours_by_point.get(point, ())}
         plan = self._plan("ifs", union)
         if not plan:

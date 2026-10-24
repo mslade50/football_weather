@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -484,3 +485,167 @@ def test_supplement_ensemble_degrades_when_no_fields_are_published(monkeypatch):
         for item in ctx.degradations
     )
     assert "error" not in ctx.weather_state["ecmwf_opendata"]
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.t = 0.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+class _Resp:
+    def __init__(self, status: int) -> None:
+        self.status_code = status
+        self.reason = "Slow Down" if status == 503 else "OK"
+        self.text = "<Code>SlowDown</Code>" if status == 503 else ""
+
+
+class _Transport:
+    def __init__(self, codes: list[int]) -> None:
+        self.codes = list(codes)
+        self.calls: list[tuple] = []
+
+    def __call__(self, method: str, url: str, **kwargs):
+        self.calls.append(kwargs.get("timeout"))
+        return _Resp(self.codes.pop(0))
+
+
+def _budget_session(tmp_path, **kwargs) -> od.OpenDataSession:
+    sleeps = kwargs.pop("sleeps", [])
+    values = dict(
+        cache_dir=tmp_path, fetch_budget_s=90, total_budget_s=180,
+        slowdown_attempts=3, slowdown_event_limit=4, give_up_on_slowdown=True,
+        sleeper=sleeps.append, jitter=lambda: 0.0,
+    )
+    values.update(kwargs)
+    session = od.OpenDataSession(**values)
+    session.begin_fetch()
+    return session
+
+
+def test_fetch_and_total_budgets_stop_the_open_data_call(tmp_path):
+    clock = _Clock()
+    session = _budget_session(tmp_path, clock=clock, fetch_budget_s=90, total_budget_s=180)
+    clock.t = 89
+    session.check_budget()
+    clock.t = 90
+    with pytest.raises(od.OpenDataBudget, match="fetch budget of 90s"):
+        session.check_budget()
+    clock.t = 0
+    session.begin_fetch()
+    clock.t = 180
+    with pytest.raises(od.OpenDataBudget, match="total budget of 180s"):
+        session.check_budget()
+
+
+def test_slowdown_backs_off_then_gives_up_the_rest_of_the_fetch(tmp_path):
+    sleeps: list[float] = []
+    session = _budget_session(tmp_path, sleeps=sleeps)
+    transport = _Transport([503, 503, 503, 200])
+    with pytest.raises(od.OpenDataSlowDown, match="SlowDown"):
+        session.guarded_http(transport, "GET", "https://ecmwf.example/a.grib2")
+    assert len(transport.calls) == 3
+    assert sleeps == [od.slowdown_backoff(1, lambda: 0.0), od.slowdown_backoff(2, lambda: 0.0)]
+    assert sleeps == [0.5, 1.0]
+    assert session._abandoned == "slowdown"
+    connect, read = transport.calls[0]
+    assert connect <= od.HTTP_CONNECT_TIMEOUT_S
+    assert read <= od.HTTP_READ_TIMEOUT_S
+    with pytest.raises(od.OpenDataSlowDown):
+        session.guarded_http(transport, "GET", "https://ecmwf.example/b.grib2")
+    assert len(transport.calls) == 3
+
+
+def test_recovered_slowdown_still_gives_up_once_the_event_limit_is_hit(tmp_path):
+    sleeps: list[float] = []
+    session = _budget_session(tmp_path, sleeps=sleeps, slowdown_event_limit=2)
+    transport = _Transport([503, 200, 503])
+    assert session.guarded_http(transport, "GET", "https://ecmwf.example/ok.grib2").status_code == 200
+    assert sleeps == [0.5]
+    with pytest.raises(od.OpenDataSlowDown):
+        session.guarded_http(transport, "GET", "https://ecmwf.example/next.grib2")
+    assert len(transport.calls) == 3
+    assert session._abandoned == "slowdown"
+
+
+def test_download_stops_on_slowdown_and_does_not_start_the_next_mirror(tmp_path, monkeypatch):
+    seen: list[str] = []
+
+    def fake_client(source, model, owner=None):
+        class Client:
+            def _get_urls(self, payload, target=None, use_index=True):
+                self.target = target
+                return type("Indexed", (), {"urls": ()})()
+
+            def _download(self, indexed):
+                seen.append(source)
+                raise od.OpenDataSlowDown("503 Server Error: Slow Down")
+
+        return Client()
+
+    monkeypatch.setattr(od, "_client", fake_client)
+    session = _budget_session(tmp_path, sources=("aws", "azure", "ecmwf"))
+    request = od.Request("ifs", RUN, "oper", "fc", (48,), ("2t",))
+    with pytest.raises(od.OpenDataSlowDown):
+        session._download(request)
+    assert seen == ["aws"]
+    later = od.Request("ifs", RUN, "enfo", "pf", (51,), ("10u",))
+    with pytest.raises(od.OpenDataSlowDown):
+        session._download(later)
+    assert seen == ["aws"]
+
+
+def test_budget_expiry_does_not_open_a_download(tmp_path, monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(od, "_client", lambda *a, **k: pytest.fail("client"))
+    session = _budget_session(tmp_path, clock=clock, fetch_budget_s=10, total_budget_s=10)
+    clock.t = 10
+    with pytest.raises(od.OpenDataBudget):
+        session._download(od.Request("ifs", RUN, "oper", "fc", (48,), ("2t",)))
+
+
+def test_other_mirror_errors_still_fall_through(tmp_path, monkeypatch):
+    seen: list[str] = []
+
+    def fake_client(source, model, owner=None):
+        class Client:
+            def _get_urls(self, payload, target=None, use_index=True):
+                self.target = target
+                return type("Indexed", (), {"urls": ()})()
+
+            def _download(self, indexed):
+                seen.append(source)
+                if source != "ecmwf":
+                    raise RuntimeError("404")
+                Path(self.target).write_bytes(b"GRIB")
+
+        return Client()
+
+    monkeypatch.setattr(od, "_client", fake_client)
+    session = _budget_session(tmp_path, sources=("aws", "azure", "ecmwf"))
+    path = session._download(od.Request("ifs", RUN, "oper", "fc", (48,), ("2t",)))
+    assert seen == ["aws", "azure", "ecmwf"]
+    assert path.read_bytes() == b"GRIB"
+
+
+def test_slowdown_keeps_open_meteo_models(monkeypatch, tmp_path):
+    ctx = RunContext(sport="nfl", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = od.OpenDataSession(
+        retriever=lambda _request: [], fixed_run=RUN, cache_dir=tmp_path,
+    )
+    hour = RUN + timedelta(hours=48)
+    row = HourlyRow(t=hour, temp=55.0, wind=9.0, precip=0.2)
+    forecasts = {POINT: ParsedLocation(POINT[0], POINT[1], models={od.IFS_MODEL: [row], "ncep_gfs_seamless": [row]})}
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+
+    def boom(self, points, hours_by_point):
+        raise od.OpenDataSlowDown("503 SlowDown")
+
+    monkeypatch.setattr(od.OpenDataSession, "point_forecasts", boom)
+    ecmwf_fallback.supplement_forecasts(ctx, "nfl", [POINT], forecasts, [], {POINT: {hour}}, None, {})
+    assert forecasts[POINT].models[od.IFS_MODEL][0].temp == 55.0
+    assert forecasts[POINT].models["ncep_gfs_seamless"][0].wind == 9.0
+    assert any("fallback failed" in item.reason and "SlowDown" in item.reason for item in ctx.degradations)
+    assert "SlowDown" in ctx.weather_state["ecmwf_opendata"]["error"]

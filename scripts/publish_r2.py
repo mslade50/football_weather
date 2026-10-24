@@ -35,7 +35,6 @@ from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, reta
 ROOT = Path("data")
 MAX_WORKERS = 8
 ATTEMPTS = 3
-RETRY_DELAY_SECONDS = 2
 STATE_FILES = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status",
@@ -82,13 +81,15 @@ def get_client(cfg: r2.R2Config, *, bounded: bool = False) -> Any:
 
 
 def _upload_config() -> Any:
-    """Bulk uploads: bounded per call so one stalled connection cannot hold the publish
-    step for minutes (botocore's defaults are 60s connect/read plus its own retries).
-    Each put is retried ATTEMPTS times by _upload_boto3; the pool covers --workers' max."""
+    """Bulk uploads, including state puts. Standard mode retries InternalError and
+    SlowDown with exponential backoff and jitter (default 6 attempts, cap 8).
+
+    Each put is also retried ATTEMPTS times by ``_upload_boto3``. Connect/read
+    timeouts stay short so one stalled connection cannot hold the publish step.
+    """
     from botocore.config import Config
 
-    return Config(connect_timeout=5, read_timeout=30, retries={'total_max_attempts': 2},
-                  max_pool_connections=32)
+    return Config(**r2.boto_config_kwargs(bounded=False))
 
 
 def reset_clients() -> None:
@@ -108,7 +109,9 @@ def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: 
         if attempt < attempts:
             if deadline is not None and time.monotonic() >= deadline:
                 break  # the commit marker must not outlast its freshness budget
-            sleep(RETRY_DELAY_SECONDS)
+            delay = r2.backoff_delay(attempt)
+            print(f"::warning::R2 put {key} retrying in {delay:.2f}s after {detail}", file=sys.stderr)
+            sleep(delay)
     raise RuntimeError(f"R2 put {key} failed after {attempts} attempts")
 
 
@@ -155,7 +158,9 @@ def upload_one(bucket: str, key: str, path: Path, content_type: str, *, run=subp
             detail = (result.stderr or result.stdout or "no CLI output").strip()
         print(f"::warning::R2 put {key} failed (attempt {attempt}/{attempts}): {detail}", file=sys.stderr)
         if attempt < attempts:
-            sleep(RETRY_DELAY_SECONDS)
+            delay = r2.backoff_delay(attempt)
+            print(f"::warning::R2 put {key} retrying in {delay:.2f}s after {detail}", file=sys.stderr)
+            sleep(delay)
     raise RuntimeError(f"R2 put {key} failed after {attempts} attempts")
 
 
