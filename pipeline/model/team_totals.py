@@ -13,8 +13,9 @@ Pure functions, no I/O. Two halves:
   v2 weather shade is applied on top in ``pipeline.model.fair``.
 
 Only the relative signal is used: ``pipeline.teamstats.relative_to_slate`` removes the slate's
-median (ours - line) gap first, because our level drifts by a point or two a season.
-How much of the remaining gap the fair total takes is ``blend_weight(sport, lead_hours)``
+median (ours - line) gap first, because our level drifts by a point or two a season, and freezes
+the remaining per-game gap in points (``gap_rel``). How much of it the fair total takes is
+``blend_weight(sport, lead_hours)``
 (CFB 0.35 three days out, 0.15 at the close; NFL 0.05, i.e. shown but barely trusted).
 Evidence and method: ``docs/notes/team-style-weather-study.md``.
 """

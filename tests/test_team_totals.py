@@ -105,10 +105,10 @@ def test_blend_weight_by_lead():
 
 
 def test_fair_blend_moves_only_the_total():
-    assert F.blend_team_total(45.0, 47.0, 52.0, 0.4) == pytest.approx(47.0)
-    assert F.blend_team_total(45.0, 47.0, None, 0.4) == 45.0
-    assert F.blend_team_total(45.0, 47.0, 52.0, 0.0) == 45.0
-    assert F.blend_team_total(None, 47.0, 52.0, 0.4) is None
+    assert F.blend_team_gap(45.0, 5.0, 0.4) == pytest.approx(47.0)
+    assert F.blend_team_gap(45.0, None, 0.4) == 45.0
+    assert F.blend_team_gap(45.0, 5.0, 0.0) == 45.0
+    assert F.blend_team_gap(None, 5.0, 0.4) is None
 
 
 def test_shipped_model_has_both_sports():
@@ -368,10 +368,10 @@ def test_evaluate_game_blends_team_total_into_fair_total_only():
 
     lines = two("pinnacle", "total", 56.0) + two("fanduel", "total", 56.0) + two("pinnacle", "spread", -7.0)
     base = F.evaluate_game("cfb", gid, lines, -5.0, 0.0, lead_hours=72.0)
-    blended = F.evaluate_game("cfb", gid, lines, -5.0, 0.0, lead_hours=72.0, team_total=62.0, team_weight=0.35)
-    assert blended.fair_total == pytest.approx(base.fair_total + 0.35 * (62.0 - 56.0))
+    blended = F.evaluate_game("cfb", gid, lines, -5.0, 0.0, lead_hours=72.0, team_gap=6.0, team_weight=0.35)
+    assert blended.fair_total == pytest.approx(base.fair_total + 0.35 * 6.0)
     assert blended.fair_spread == base.fair_spread
-    assert F.evaluate_game("cfb", gid, lines, -5.0, 0.0, team_total=62.0, team_weight=0.0).fair_total == base.fair_total
+    assert F.evaluate_game("cfb", gid, lines, -5.0, 0.0, team_gap=6.0, team_weight=0.0).fair_total == base.fair_total
 
 
 def test_card_and_drawer_carry_team_total():
@@ -389,17 +389,17 @@ def test_relative_to_slate_removes_level_and_needs_a_slate():
     totals = {f"g{i}": {"total": 50.0 + i + 3.0} for i in range(10)}          # ours runs 3 pts high everywhere
     lines = {f"g{i}": 50.0 + i for i in range(10)}
     rel = TS.relative_to_slate(totals, lines)
-    assert all(v["slate_offset"] == 3.0 and v["total_rel"] == lines[g] for g, v in rel.items())
+    assert all(v["slate_offset"] == 3.0 and v["gap_rel"] == 0.0 for v in rel.values())
     lines["g0"] -= 4.0                                                          # one game where we're 4 pts more over
     rel = TS.relative_to_slate(totals, lines)
-    assert rel["g0"]["total_rel"] - lines["g0"] == pytest.approx(4.0)
+    assert rel["g0"]["gap_rel"] == pytest.approx(4.0)
     few = TS.relative_to_slate({"a": {"total": 60.0}}, {"a": 50.0})
-    assert "total_rel" not in few["a"] and few["a"]["total"] == 60.0
-    nolines = TS.relative_to_slate(totals, {k: v for k, v in list(lines.items())[:8]} | {})
-    assert "total_rel" not in nolines["g9"] and "total_rel" in nolines["g1"]
+    assert "gap_rel" not in few["a"] and few["a"]["total"] == 60.0
+    nolines = TS.relative_to_slate(totals, {k: v for k, v in list(lines.items())[:8]})
+    assert "gap_rel" not in nolines["g9"] and "gap_rel" in nolines["g1"]
 
 
-def test_evaluate_fair_blends_toward_total_rel_only():
+def test_evaluate_fair_blends_the_frozen_gap_only():
     from types import SimpleNamespace
 
     from pipeline import build as B  # noqa: N812
@@ -415,11 +415,11 @@ def test_evaluate_fair_blends_toward_total_rel_only():
     impact = SimpleNamespace(gs_fg_pct=-2.0, away_fg_pct=0.0, rain_c=0.0)
     ctx = _Ctx()
     B._evaluate_fair(fair_mod, ctx, "cfb", game, ["line"], impact, None, None, "v2",
-                     team_total={"total": 60.0, "total_rel": 57.5, "weight": 0.35})
+                     team_total={"total": 60.0, "gap_rel": 2.5, "weight": 0.35})
     B._evaluate_fair(fair_mod, ctx, "cfb", game, ["line"], impact, None, None, "v2",
                      team_total={"total": 60.0, "weight": 0.35})                    # no slate offset -> no blend
-    assert seen[0]["team_total"] == 57.5 and seen[0]["team_weight"] == 0.35
-    assert "team_total" not in seen[1]
+    assert seen[0]["team_gap"] == 2.5 and seen[0]["team_weight"] == 0.35
+    assert "team_gap" not in seen[1]
 
 
 def test_expiry_repricing_keeps_the_team_blend():
@@ -436,7 +436,7 @@ def test_expiry_repricing_keeps_the_team_blend():
     impact = SimpleNamespace(gs_fg_pct=0.0, away_fg_pct=0.0, rain_c=0.0)
     ctx = SimpleNamespace(now_utc=NOW, counts={}, degrade=lambda *a: None)
     game = SimpleNamespace(game_id=gid)
-    tt = {"total": 64.0, "total_rel": 62.0, "weight": 0.35}
+    tt = {"total": 64.0, "gap_rel": 6.0, "weight": 0.35}
     base = B._evaluate_fair(F, ctx, "cfb", game, lines, impact, None, None, "v2", team_total=tt)
     odds = B.OddsResult(lines, {}, {"openers": {}}, {gid: lines}, [], {})
     res = B.SportResult("cfb", [], [], [], [game], {}, {}, {}, {gid: impact}, odds, impacts_v2={gid: impact},
@@ -452,7 +452,7 @@ def test_published_card_repricing_keeps_the_team_blend():
     from pipeline import current_quotes as CQ  # noqa: N812
 
     src = inspect.getsource(CQ._recompute_card)
-    assert 'card.get("team_total")' in src and '"team_total": tt["total_rel"]' in src and "**blend" in src
+    assert 'card.get("team_total")' in src and '"team_gap": tt["gap_rel"]' in src and "**blend" in src
 
 
 def test_malformed_returning_payload_keeps_rows(monkeypatch):
@@ -469,3 +469,20 @@ def test_malformed_returning_payload_keeps_rows(monkeypatch):
     assert TS.fetch_season("cfb", 2025, get=get_bad_shape)["rows"]
 
 
+
+
+def test_expired_quotes_cannot_leak_back_through_the_blend():
+    """Codex F6: eight identical games, ours 60 vs consensus 55 -> no relative edge. After Pinnacle
+    expires the consensus moves; the published v2 fair must still carry no team edge."""
+    from pipeline import current_quotes as CQ  # noqa: N812
+
+    raw = {f"g{i}": {"total": 60.0, "weight": 0.35} for i in range(8)}
+    norm = TS.relative_to_slate(raw, {g: 55.0 for g in raw})
+    assert all(v["gap_rel"] == 0.0 for v in norm.values())
+    for gid, tt in norm.items():
+        odds = {book: {"total": {"line": line, "under": -110, "over": -110,
+                                 "expires_at": (NOW - timedelta(seconds=1)).isoformat() if book == "pinnacle" else None}}
+                for book, line in (("pinnacle", 60), ("fanduel", 50), ("betonline", 50))}
+        impact = {"model_version": "v2", "v1": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}, "v2": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}}
+        card = CQ.expire_card({"sport": "cfb", "game_id": gid, "team_total": tt, "impact": impact, "odds": odds}, NOW)
+        assert card["fair"]["fair_total_v2"] == pytest.approx(card["consensus"]["total_now"])

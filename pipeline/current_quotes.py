@@ -133,8 +133,8 @@ def _recompute_card(card: dict, now: datetime) -> bool:
     if isinstance(v2, dict) and any(v2.get(key) is not None for key in ("gs_fg_pct", "away_fg_pct")):
         v2_components = v2.get("components") or {}
         tt = card.get("team_total") or {}
-        blend = ({"team_total": tt["total_rel"], "team_weight": tt.get("weight") or 0.0}
-                 if isinstance(tt, dict) and tt.get("total_rel") is not None else {})
+        blend = ({"team_gap": tt["gap_rel"], "team_weight": tt.get("weight") or 0.0}
+                 if isinstance(tt, dict) and tt.get("gap_rel") is not None else {})
         fair_v2 = fair_mod.evaluate_game(
             sport, game_id, lines, v2.get("gs_fg_pct"), v2.get("away_fg_pct"),
             rain_c=v2_components.get("rain"), model_version="v2", now=now, **args, **blend,

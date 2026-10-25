@@ -339,11 +339,11 @@ def consensus(sport: str, lines: Iterable[GameLine], market: str, now: datetime 
 
 
 # ---- fair lines --------------------------------------------------------------
-def blend_team_total(fair: float | None, line: float | None, team_total: float | None, weight: float) -> float | None:
-    """``fair + weight * (team_total - line)``; unchanged when any input is missing or weight is 0."""
-    if fair is None or line is None or team_total is None or not weight or team_total != team_total:
+def blend_team_gap(fair: float | None, gap: float | None, weight: float) -> float | None:
+    """``fair + weight * gap``; unchanged when any input is missing or weight is 0."""
+    if fair is None or gap is None or not weight or gap != gap:
         return fair
-    return fair + weight * (team_total - line)
+    return fair + weight * gap
 
 
 def fair_total(consensus_total: float | None, gs_fg_pct: float | None) -> float | None:
@@ -471,15 +471,16 @@ def evaluate_game(
     lead_hours: float | None = None,
     model_version: str = C.MODEL_VERSION_V1,
     now: datetime | None = None,
-    team_total: float | None = None,
+    team_gap: float | None = None,
     team_weight: float = 0.0,
 ) -> GameFair:
-    """``team_total`` (our own expected total from team ratings, no weather) pulls the fair total
-    by ``team_weight`` x (team_total - consensus total); the weather shade still applies on top."""
+    """``team_gap`` = our team-rating total minus the line, relative to the slate (points, frozen when
+    the card was built; see ``pipeline.teamstats.relative_to_slate``). The fair total moves by
+    ``team_weight`` x ``team_gap`` on top of the weather-shaded consensus."""
     rows = _pricing_lines((gl for gl in lines if gl.game_id == game_id), now)
     cons = {m: consensus(sport, rows, m, now) for m in ("total", "spread")}
     fairs = {m: fair_line(m, cons[m], gs_fg_pct, away_fg_pct) for m in ("total", "spread")}
-    fairs["total"] = blend_team_total(fairs["total"], cons["total"].line, team_total, team_weight)
+    fairs["total"] = blend_team_gap(fairs["total"], team_gap, team_weight)
     conf = confidence(wind_vol_fc, model_disagreement, lead_hours, wind_vol_static)
     wd = weather_driven(gs_fg_pct, rain_c, away_fg_pct)
     edges: list[Edge] = []

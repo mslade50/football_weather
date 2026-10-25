@@ -1911,8 +1911,8 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
     fn = getattr(fair_mod, "evaluate_game", None) if fair_mod is not None else None
     if not callable(fn) or not lines or impact is None:
         return None
-    extra = ({"team_total": team_total["total_rel"], "team_weight": team_total["weight"]}
-             if team_total and team_total.get("total_rel") is not None else {})
+    extra = ({"team_gap": team_total["gap_rel"], "team_weight": team_total["weight"]}
+             if team_total and team_total.get("gap_rel") is not None else {})
     try:
         return fn(
             sport, game.game_id, list(lines), impact.gs_fg_pct, impact.away_fg_pct,
