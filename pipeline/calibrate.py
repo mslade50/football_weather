@@ -644,6 +644,20 @@ def validate_calibration(data: dict[str, Any]) -> list[str]:
     return errs
 
 
+# blocks calibrate itself owns; every other top-level block (forecast_blend, ...) belongs to
+# another fitter and must survive a refit untouched
+OWN_BLOCKS = ("schema_version", "note", "v2", "fit", "promotion")
+
+
+def carry_other_blocks(data: dict[str, Any], existing: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """``data`` plus every top-level block of ``existing`` that calibrate does not own."""
+    out = dict(data)
+    for k, v in (existing or {}).items():
+        if k not in OWN_BLOCKS and k not in out:
+            out[k] = v
+    return out
+
+
 def write_calibration(path: Path, data: dict[str, Any]) -> Path:
     errs = validate_calibration(data)
     if errs:
@@ -732,7 +746,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.dry_run:
         print("  dry-run: nothing written")
     else:
-        write_calibration(args.out, data)
+        write_calibration(args.out, carry_other_blocks(data, _load_json(args.out) or _load_json(start_path)))
         print(f"  wrote {args.out}")
     assert config_fingerprint() == fp_before, "pipeline/model/config.py changed during calibrate — v1 is frozen"
     return 0

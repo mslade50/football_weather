@@ -375,3 +375,16 @@ def test_constant_shade_keeps_prior():
                                "actual_total": 50.0}) for _ in range(60)]
     f = CAL.fit_scale(rows, "cfb", dict(C.V2_DEFAULTS))
     assert f.slope is None and f.posterior == CAL.RESULT_PRIOR["cfb"][0]
+
+
+def test_refit_keeps_blocks_owned_by_other_fitters(tmp_path: Path):
+    """forecast_blend (scripts/fit_forecast_blend.py) must survive a monthly refit of the same file."""
+    out = tmp_path / "calibration.json"
+    shipped = json.loads(SHIPPED.read_text(encoding="utf-8"))
+    out.write_text(json.dumps(shipped), encoding="utf-8")
+    (tmp_path / "bt.json").write_text(json.dumps({"games": synth_result_rows(240, {"nfl": 0.9, "cfb": 0.5}, noise=2.0)}),
+                                      encoding="utf-8")
+    assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out)]) == 0
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["forecast_blend"] == shipped["forecast_blend"]
+    assert data["fit"]["target"] == "result"
