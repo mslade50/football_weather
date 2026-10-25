@@ -1,0 +1,26 @@
+[
+ {
+  "id": 401756846,
+  "season": 2025,
+  "week": 1,
+  "seasonType": "regular",
+  "homeTeam": "Kansas State",
+  "homeClassification": "fbs",
+  "homePoints": 21,
+  "awayTeam": "Iowa State",
+  "awayClassification": "fbs",
+  "awayPoints": 24
+ },
+ {
+  "id": 401760371,
+  "season": 2025,
+  "week": 1,
+  "seasonType": "regular",
+  "homeTeam": "UNLV",
+  "homeClassification": "fbs",
+  "homePoints": 38,
+  "awayTeam": "Idaho State",
+  "awayClassification": "fcs",
+  "awayPoints": 31
+ }
+]

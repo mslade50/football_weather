@@ -61,7 +61,7 @@ _EXPLICIT_CODES = frozenset({"InternalError", "SlowDown", "ServiceUnavailable"})
 STATE_FILES: tuple[str, ...] = (
     "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
-    'bet_confirmations', "book_health",
+    'bet_confirmations', "book_health", "team_stats",
 )
 
 _CONTENT_TYPES = {

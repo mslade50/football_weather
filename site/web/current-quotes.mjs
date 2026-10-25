@@ -55,6 +55,16 @@ function consensusFromOdds(card, market) {
   return {line: weightedMedian(posts), src: null, n: posts.length};
 }
 
+// v2 total with a team-rating blend (pipeline.model.fair.blend_team_total): the weather-shaded
+// consensus plus weight x (total_rel - consensus). Proportional scaling would carry the old line's
+// blend over, so rebuild it from the new consensus. null when the card has no blend.
+export function teamBlendedTotal(card, nextConsensus) {
+  const tt = card.team_total, line = finite(nextConsensus), pct = finite(card.impact?.v2?.gs_fg_pct);
+  const rel = finite(tt?.total_rel), w = finite(tt?.weight);
+  if (line == null || rel == null || w == null || pct == null) return null;
+  return line * (1 + pct / 100) + w * (rel - line);
+}
+
 function scaleFair(oldFair, oldConsensus, nextConsensus, pct) {
   if (nextConsensus == null) return null;
   const fair = finite(oldFair), old = finite(oldConsensus), impact = finite(pct);
@@ -119,7 +129,9 @@ function applyMarket(card, market) {
     const fairKey = market === "total" ? "fair_total" : "fair_spread";
     const fairV2Key = market === "total" ? "fair_total_v2" : "fair_spread_v2";
     card.fair[fairKey] = scaleFair(card.fair[fairKey], old, next.line, card.impact?.v1?.[pctKey]);
-    if (card.fair[fairV2Key] != null) card.fair[fairV2Key] = scaleFair(card.fair[fairV2Key], old, next.line, card.impact?.v2?.[pctKey]);
+    if (card.fair[fairV2Key] != null) card.fair[fairV2Key] = market === "total"
+      ? teamBlendedTotal(card, next.line) ?? scaleFair(card.fair[fairV2Key], old, next.line, card.impact?.v2?.[pctKey])
+      : scaleFair(card.fair[fairV2Key], old, next.line, card.impact?.v2?.[pctKey]);
     retargetEdges(card.fair.edges, market, card.fair[fairKey], next.n);
   }
   consensus[nowKey] = next.line;
