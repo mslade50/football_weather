@@ -233,6 +233,37 @@ def expire_card(card: dict, now: datetime, *, lookahead: timedelta = timedelta(0
     return card
 
 
+def renormalize_team_blend(cards: list[dict], now: datetime) -> list[dict]:
+    """After expiry, recompute the team-total slate offset from raw team totals and the SURVIVING
+    consensus of every card in the slate, and re-price the cards whose relative gap changed (an
+    expired quote must not keep moving the v2 fair through a stale offset)."""
+    from pipeline.teamstats import relative_to_slate
+
+    raw = {c["game_id"]: c["team_total"] for c in cards if isinstance(c.get("team_total"), dict)}
+    if not raw:
+        return cards
+    lines = {c["game_id"]: (c.get("consensus") or {}).get("total_now") for c in cards}
+    fresh = relative_to_slate(raw, {g: v for g, v in lines.items() if v is not None})
+    out = []
+    for card in cards:
+        gid = card["game_id"]
+        old = card.get("team_total")
+        if gid not in fresh or not isinstance(old, dict) or old.get("gap_rel") == fresh[gid].get("gap_rel"):
+            out.append(card)
+            continue
+        card = deepcopy(card)
+        card["team_total"] = fresh[gid]
+        try:
+            ok = _recompute_card(card, now)
+        except Exception:  # noqa: BLE001 - same fail-closed rule as expire_card
+            ok = False
+        if not ok:
+            card["fair"] = {k: [] if k == "edges" else None for k in card.get("fair", {})}
+            card["total_prices"] = None
+        out.append(card)
+    return out
+
+
 def expire_meta(meta: dict, now: datetime, *, lookahead: timedelta = timedelta(0)) -> dict:
     meta = deepcopy(meta)
     if "quote_expiries" not in meta:
@@ -345,7 +376,8 @@ def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0
         if not path.exists():
             continue
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["games"] = [demote_reference_card(expire_card(c, now, lookahead=lookahead), now) for c in payload["games"]]
+        payload["games"] = renormalize_team_blend(
+            [demote_reference_card(expire_card(c, now, lookahead=lookahead), now) for c in payload["games"]], now)
         payload["meta"] = {**payload.get("meta", {}), "degradations": meta.get("degradations", [])}
         cards.extend(payload["games"])
         path.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")

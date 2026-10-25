@@ -310,12 +310,12 @@ def relative_to_slate(totals: Mapping[str, Mapping[str, Any]], lines: Mapping[st
     Our level drifts by +-1-2 pts a season against the market (2025 CFB: +2.2 with results on
     the line), while the game-to-game differences carry the information (2024-25 archive, 72 h
     out: slope 0.43 de-meaned vs 0.36 raw). Adds ``slate_offset`` and ``gap_rel`` = total - offset -
-    line, in points, frozen now: later re-pricing (expired quotes) adds this same gap to whatever
-    the consensus becomes, so a quote that has since expired cannot leak back in through a stale
-    offset. Games without a line, or a slate too small to estimate the offset, get no ``gap_rel``
-    and therefore no blend."""
+    line (points). Any previous ``gap_rel``/``slate_offset`` is dropped first, so re-pricing after
+    quotes expire must call this again with the SURVIVING consensus for the whole slate (build
+    expiry and the publication guard both do). Games without a line, or a slate too small to
+    estimate the offset, get no ``gap_rel`` and therefore no blend."""
     gaps = sorted(v["total"] - lines[g] for g, v in totals.items() if g in lines and v.get("total") is not None)
-    out = {g: dict(v) for g, v in totals.items()}
+    out = {g: {k: x for k, x in v.items() if k not in ("gap_rel", "slate_offset")} for g, v in totals.items()}
     if len(gaps) < min_games:
         return out
     n = len(gaps)

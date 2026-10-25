@@ -423,28 +423,34 @@ def test_evaluate_fair_blends_the_frozen_gap_only():
 
 
 def test_expiry_repricing_keeps_the_team_blend():
-    """refresh_expired_quotes re-prices v2 after a reference quote expires: the blend must survive."""
+    """refresh_expired_quotes re-prices v2 after an unrelated reference quote expires: the blend survives."""
     from types import SimpleNamespace
 
     from pipeline import build as B  # noqa: N812
     from pipeline.contracts import GameLine
 
-    gid = "cfb:2026:9:a@h"
-    lines = [GameLine("cfb", gid, book, "total", side, -110, line=56, expires_at=exp)
-             for book, exp in (("pinnacle", None), ("fanduel", None), ("betcris", NOW - timedelta(minutes=1)))
-             for side in ("over", "under")]
+    games, lines, raw = [], [], {}
+    for i in range(8):
+        gid = f"cfb:2026:9:a{i}@h{i}"
+        games.append(SimpleNamespace(game_id=gid))
+        raw[gid] = {"total": 64.0 if i == 0 else 58.0, "weight": 0.35}
+        for book, exp in (("pinnacle", None), ("fanduel", None), ("betcris", NOW - timedelta(minutes=1))):
+            lines += [GameLine("cfb", gid, book, "total", side, -110, line=56, expires_at=exp) for side in ("over", "under")]
+    by_game: dict = {}
+    for ln in lines:
+        by_game.setdefault(ln.game_id, []).append(ln)
+    tts = TS.relative_to_slate(raw, {g: 56.0 for g in raw})
+    g0 = games[0].game_id
+    assert tts[g0]["gap_rel"] == pytest.approx(6.0)
     impact = SimpleNamespace(gs_fg_pct=0.0, away_fg_pct=0.0, rain_c=0.0)
     ctx = SimpleNamespace(now_utc=NOW, counts={}, degrade=lambda *a: None)
-    game = SimpleNamespace(game_id=gid)
-    tt = {"total": 64.0, "gap_rel": 6.0, "weight": 0.35}
-    base = B._evaluate_fair(F, ctx, "cfb", game, lines, impact, None, None, "v2", team_total=tt)
-    odds = B.OddsResult(lines, {}, {"openers": {}}, {gid: lines}, [], {})
-    res = B.SportResult("cfb", [], [], [], [game], {}, {}, {}, {gid: impact}, odds, impacts_v2={gid: impact},
-                        fairs_v2={gid: base}, team_totals={gid: tt})
+    base = B._evaluate_fair(F, ctx, "cfb", games[0], by_game[g0], impact, None, None, "v2", team_total=tts[g0])
+    odds = B.OddsResult(lines, {}, {"openers": {}}, by_game, [], {})
+    res = B.SportResult("cfb", [], [], [], games, {}, {}, {}, {g.game_id: impact for g in games}, odds,
+                        impacts_v2={g.game_id: impact for g in games}, team_totals=tts)
     B.refresh_expired_quotes(ctx, res)
     assert base.fair_total == pytest.approx(56.0 + 0.35 * 6.0)
-    assert res.fairs_v2[gid].fair_total == pytest.approx(base.fair_total)
-
+    assert res.fairs_v2[g0].fair_total == pytest.approx(base.fair_total)
 
 def test_published_card_repricing_keeps_the_team_blend():
     import inspect
@@ -486,3 +492,56 @@ def test_expired_quotes_cannot_leak_back_through_the_blend():
         impact = {"model_version": "v2", "v1": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}, "v2": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}}
         card = CQ.expire_card({"sport": "cfb", "game_id": gid, "team_total": tt, "impact": impact, "odds": odds}, NOW)
         assert card["fair"]["fair_total_v2"] == pytest.approx(card["consensus"]["total_now"])
+
+
+def test_expired_quote_with_a_real_gap_is_renormalised_in_publication():
+    """Codex F6 round 7: g0 had a real -5 gap only because Pinnacle priced it at 60. Once Pinnacle
+    expires every line is 50, every current relative gap is 0, so the published fair must be 50."""
+    from pipeline import current_quotes as CQ  # noqa: N812
+
+    raw = {f"g{i}": {"total": 60.0, "weight": 0.35} for i in range(8)}
+    built = NOW - timedelta(minutes=1)
+    exp = NOW - timedelta(seconds=1)
+    initial = {g: (55.0 if g == "g0" else 50.0) for g in raw}
+    norm = TS.relative_to_slate(raw, initial)
+    assert norm["g0"]["gap_rel"] == pytest.approx(-5.0)
+    impact = {"model_version": "v2", "v1": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}, "v2": {"gs_fg_pct": 0.0, "away_fg_pct": 0.0}}
+    cards = []
+    for g in raw:
+        odds = {b: {"total": {"line": n, "under": -110, "over": -110, "expires_at": e.isoformat() if e else None}}
+                for b, n, e in (("pinnacle", 60 if g == "g0" else 50, exp), ("fanduel", 50, None), ("betonline", 50, None))}
+        cards.append(CQ.expire_card({"sport": "cfb", "game_id": g, "team_total": norm[g], "impact": impact, "odds": odds}, NOW))
+    cards = CQ.renormalize_team_blend(cards, NOW)
+    assert all(c["consensus"]["total_now"] == 50 for c in cards)
+    assert all(c["team_total"]["gap_rel"] == 0.0 for c in cards)
+    assert cards[0]["fair"]["fair_total_v2"] == pytest.approx(50.0)
+    assert built < NOW
+
+
+def test_build_expiry_renormalises_the_slate():
+    from types import SimpleNamespace
+
+    from pipeline import build as B  # noqa: N812
+    from pipeline.contracts import GameLine
+
+    exp = NOW - timedelta(seconds=1)
+    games, lines = [], []
+    for i in range(8):
+        gid = f"cfb:2026:9:a{i}@h{i}"
+        games.append(SimpleNamespace(game_id=gid))
+        for book, n, e in (("pinnacle", 60 if i == 0 else 50, exp), ("fanduel", 50, None), ("betonline", 50, None)):
+            lines += [GameLine("cfb", gid, book, "total", side, -110, line=n, expires_at=e) for side in ("over", "under")]
+    by_game: dict = {}
+    for ln in lines:
+        by_game.setdefault(ln.game_id, []).append(ln)
+    initial = {g.game_id: (55.0 if g.game_id.endswith("a0@h0") else 50.0) for g in games}
+    tts = TS.relative_to_slate({g.game_id: {"total": 60.0, "weight": 0.35} for g in games}, initial)
+    impact = SimpleNamespace(gs_fg_pct=0.0, away_fg_pct=0.0, rain_c=0.0)
+    ctx = SimpleNamespace(now_utc=NOW, counts={}, degrade=lambda *a: None)
+    odds = B.OddsResult(lines, {}, {"openers": {}}, by_game, [], {})
+    res = B.SportResult("cfb", [], [], [], games, {}, {}, {}, {g.game_id: impact for g in games}, odds,
+                        impacts_v2={g.game_id: impact for g in games}, team_totals=tts)
+    B.refresh_expired_quotes(ctx, res)
+    g0 = games[0].game_id
+    assert res.team_totals[g0]["gap_rel"] == 0.0
+    assert res.fairs_v2[g0].fair_total == pytest.approx(50.0)
