@@ -303,27 +303,29 @@ def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: 
 MIN_SLATE_GAMES = 8   # fewer priced games than this -> no blend (the level bias cannot be removed)
 
 
-def relative_to_slate(totals: Mapping[str, Mapping[str, Any]], lines: Mapping[str, float],
+def relative_to_slate(totals: Mapping[str, Mapping[str, Any]], open_lines: Mapping[str, float],
                       min_games: int = MIN_SLATE_GAMES) -> dict[str, dict[str, Any]]:
-    """Keep only the RELATIVE signal: subtract this slate's median (ours - consensus) gap.
+    """Keep only the RELATIVE signal: subtract this slate's median (ours - OPENING consensus total).
 
     Our level drifts by +-1-2 pts a season against the market (2025 CFB: +2.2 with results on
     the line), while the game-to-game differences carry the information (2024-25 archive, 72 h
-    out: slope 0.43 de-meaned vs 0.36 raw). Adds ``slate_offset`` and ``gap_rel`` = total - offset -
-    line (points). Any previous ``gap_rel``/``slate_offset`` is dropped first, so re-pricing after
-    quotes expire must call this again with the SURVIVING consensus for the whole slate (build
-    expiry and the publication guard both do). Games without a line, or a slate too small to
-    estimate the offset, get no ``gap_rel`` and therefore no blend."""
-    gaps = sorted(v["total"] - lines[g] for g, v in totals.items() if g in lines and v.get("total") is not None)
-    out = {g: {k: x for k, x in v.items() if k not in ("gap_rel", "slate_offset")} for g, v in totals.items()}
+    out: slope 0.43 de-meaned vs 0.36 raw). The offset uses opening totals because openers are
+    never overwritten and never expire: no later quote expiry can move it, so every card can be
+    re-priced on its own (``total_rel`` against that card's current consensus) with no
+    cross-card dependency. Adds ``slate_offset`` and ``total_rel`` = total - offset; with fewer
+    than ``min_games`` openers the offset cannot be estimated and nothing gets ``total_rel``
+    (no blend)."""
+    gaps = sorted(v["total"] - open_lines[g] for g, v in totals.items()
+                  if open_lines.get(g) is not None and v.get("total") is not None)
+    out = {g: {k: x for k, x in v.items() if k not in ("total_rel", "slate_offset", "gap_rel")} for g, v in totals.items()}
     if len(gaps) < min_games:
         return out
     n = len(gaps)
     offset = gaps[n // 2] if n % 2 else 0.5 * (gaps[n // 2 - 1] + gaps[n // 2])
-    for g, v in out.items():
-        v["slate_offset"] = round(offset, 2)
-        if g in lines and v.get("total") is not None:
-            v["gap_rel"] = round(v["total"] - offset - lines[g], 2)
+    for v in out.values():
+        if v.get("total") is not None:
+            v["slate_offset"] = round(offset, 2)
+            v["total_rel"] = round(v["total"] - offset, 2)
     return out
 
 

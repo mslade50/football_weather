@@ -726,8 +726,9 @@ def build_card(
         },
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
-        # our own expected total from team ratings (no weather), its gap to the line relative to
-        # the slate (gap_rel, points) and the share of that gap the v2 fair takes
+        # our own expected total from team ratings (no weather), the same with the slate's level
+        # offset (vs opening totals) removed (total_rel), and the share of (total_rel - line) the
+        # v2 fair takes
         "team_total": dict(team_total) if team_total else None,
         "total_prices": compare_totals(sport, lines, fair),
         "execution_markets": execution_markets(lines),

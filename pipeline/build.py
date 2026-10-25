@@ -1863,10 +1863,6 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
         res.odds.by_game.setdefault(line.game_id, []).append(line)
     fair_mod = _import("pipeline.model.fair")
     res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines, now=now)
-    if res.team_totals:   # the slate offset must come from the SURVIVING consensus, never the expired quotes
-        ts_mod = _import("pipeline.teamstats")
-        cons_totals = {gid: c.line for (gid, m), c in res.odds.consensus.items() if m == "total" and c.line is not None}
-        res.team_totals = ts_mod.relative_to_slate(res.team_totals, cons_totals) if ts_mod is not None else {}
     for book, count in Counter(line.book for line in removed).items():
         counts = ctx.counts.get(book, {})
         if res.sport in counts:
@@ -1902,8 +1898,6 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
             card["odds"] = json_out.odds_block(gid, lines, res.odds.openers, res.odds.last_observed.get(gid))
             card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
             card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
-            if "team_total" in card:
-                card["team_total"] = dict(res.team_totals[gid]) if gid in res.team_totals else None
             card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
             card["total_prices"]["quote_evidence"] = list({json.dumps(q, sort_keys=True): q for q in
                 evidence + card["total_prices"].get("quote_evidence", [])}.values())
@@ -1917,8 +1911,8 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
     fn = getattr(fair_mod, "evaluate_game", None) if fair_mod is not None else None
     if not callable(fn) or not lines or impact is None:
         return None
-    extra = ({"team_gap": team_total["gap_rel"], "team_weight": team_total["weight"]}
-             if team_total and team_total.get("gap_rel") is not None else {})
+    extra = ({"team_total": team_total["total_rel"], "team_weight": team_total["weight"]}
+             if team_total and team_total.get("total_rel") is not None else {})
     try:
         return fn(
             sport, game.game_id, list(lines), impact.gs_fg_pct, impact.away_fg_pct,
@@ -2123,8 +2117,9 @@ def run_sport(
     alert_model = model_config.alert_model()
     if team_totals:
         ts_mod = _import("pipeline.teamstats")
-        cons_totals = {gid: c.line for (gid, m), c in (odds.consensus or {}).items() if m == "total" and c.line is not None}
-        team_totals = ts_mod.relative_to_slate(team_totals, cons_totals) if ts_mod is not None else {}
+        open_totals = {gid: json_out.consensus_block(gid, odds.consensus, odds.openers).get("total_open")
+                       for gid in team_totals}
+        team_totals = ts_mod.relative_to_slate(team_totals, open_totals) if ts_mod is not None else {}
     with ctx.stage(f"{sport}.impact"):
         for g in games:
             rg = resolved[g.game_id]

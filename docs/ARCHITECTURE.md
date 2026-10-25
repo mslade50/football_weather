@@ -294,7 +294,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
             spread_n_books, spread_thin, total_n_books, total_thin, total_open_ts?, total_open_target_ts?, total_open_basis?},
  fair {my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
        edges [Edge...], best_total, best_spread},
- team_total? {total, gap_rel, slate_offset, weight, n_games, model},   # our total from team ratings (no weather); v2 fair adds weight x gap_rel, gap_rel = total - slate median gap - line (frozen at build)
+ team_total? {total, total_rel, slate_offset, weight, n_games, model},   # our total from team ratings (no weather); v2 fair adds weight x (total_rel - consensus total), total_rel = total - median(total - opening total) over the slate
  total_prices {method, model_version, fair_total, best_under, best_over,
                quotes [{book, side, line, odds, cost_prob, fair_cost, win_prob, push_prob, loss_prob, ev_roi, updated_at}]},
  fresh_odds? {status, request_id, checked_at, expires_at, selected_line, quotes_checked,
