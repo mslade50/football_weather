@@ -275,6 +275,33 @@ def stage_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | Non
     return window, horizon
 
 
+def stage_team_totals(ctx: RunContext, sport: str, games: Sequence[Game], horizon: Sequence[Game], raw: RawStore,
+                      season: int | None, state_dir: Path) -> dict[str, dict[str, Any]]:
+    """Our own expected total per game from team ratings (``pipeline.teamstats``). Refreshes the
+    cached team-game stats when a game has finished since the last fetch; any failure degrades
+    to an empty map (the v2 fair then falls back to the weather-shaded consensus)."""
+    if os.environ.get("TEAM_TOTALS", "1").strip() == "0":   # off switch / rollback: no fetch, no blend
+        return {}
+    mod = _import("pipeline.teamstats")
+    tt_mod = _import("pipeline.model.team_totals")
+    if mod is None or tt_mod is None or not games:
+        return {}
+    season = season or default_season(ctx.started_et)
+    try:
+        cache = mod.load_cache(state_dir)
+        changed = mod.refresh(sport, season, cache, [g.kickoff_utc for g in (*games, *horizon)], ctx.now_utc,
+                              raw_dir=None if isinstance(raw, NullRawStore) else raw.run_dir,
+                              on_error=lambda msg: ctx.degrade("teamstats", msg, "warn"))
+        if changed and not ctx.dry_run:
+            mod.save_cache(state_dir, cache)
+        out = mod.team_totals_for_games(sport, games, cache, tt_mod.load_model(), ctx.now_utc)
+    except Exception as exc:  # noqa: BLE001 - the board must render without team totals
+        ctx.degrade("teamstats", f"{sport}: {type(exc).__name__}: {exc}", "warn")
+        return {}
+    ctx.count("team_totals", sport, len(out))
+    return out
+
+
 def _is_conus(st: Stadium) -> bool:
     if st.country and st.country.strip().upper() not in ("US", "USA", "UNITED STATES", ""):
         return False
@@ -1876,11 +1903,14 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
 
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],
                    impact: Any, fc: WeatherForecast | None, stadium: Stadium | None,
-                   model_version: str = "v1") -> Any | None:
-    """``impact`` is an ImpactV1 or ImpactV2; edges are stamped with ``model_version``."""
+                   model_version: str = "v1", team_total: dict[str, Any] | None = None) -> Any | None:
+    """``impact`` is an ImpactV1 or ImpactV2; edges are stamped with ``model_version``.
+    ``team_total`` (v2 only) blends our team-rating total into the fair total."""
     fn = getattr(fair_mod, "evaluate_game", None) if fair_mod is not None else None
     if not callable(fn) or not lines or impact is None:
         return None
+    extra = ({"team_total": team_total["total_rel"], "team_weight": team_total["weight"]}
+             if team_total and team_total.get("total_rel") is not None else {})
     try:
         return fn(
             sport, game.game_id, list(lines), impact.gs_fg_pct, impact.away_fg_pct,
@@ -1891,6 +1921,7 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
             lead_hours=fc.lead_hours if fc else None,
             model_version=model_version,
             now=ctx.now_utc,
+            **extra,
         )
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("model.fair", f"{game.game_id}: evaluate_game[{model_version}] failed ({type(exc).__name__}: {exc})", "warn")
@@ -2031,6 +2062,9 @@ def run_sport(
     with ctx.stage(f"{sport}.schedule"):
         games, odds_games = stage_schedule(ctx, sport, raw, season, book)
 
+    with ctx.stage(f"{sport}.teamstats"):
+        team_totals = stage_team_totals(ctx, sport, games, odds_games, raw, season, state_dir)
+
     with ctx.stage(f"{sport}.resolve"):
         stadiums: dict[str, Stadium] = {}
         roof_states: dict[str, str | None] = {}
@@ -2079,6 +2113,10 @@ def run_sport(
     home_stadiums: dict[str, Stadium] = {}
     fair_mod = _import("pipeline.model.fair") if books else None
     alert_model = model_config.alert_model()
+    if team_totals:
+        ts_mod = _import("pipeline.teamstats")
+        cons_totals = {gid: c.line for (gid, m), c in (odds.consensus or {}).items() if m == "total" and c.line is not None}
+        team_totals = ts_mod.relative_to_slate(team_totals, cons_totals) if ts_mod is not None else {}
     with ctx.stage(f"{sport}.impact"):
         for g in games:
             rg = resolved[g.game_id]
@@ -2116,8 +2154,9 @@ def run_sport(
             impact2 = _compute_v2(ctx, sport, g, rg, fc, impact, wx_extras.get(g.game_id))
             impacts_v2[g.game_id] = impact2
             gf = _evaluate_fair(fair_mod, ctx, sport, g, game_lines, impact, fc, rg.stadium if rg else None)
+            tt = team_totals.get(g.game_id)
             gf2 = _evaluate_fair(fair_mod, ctx, sport, g, game_lines, impact2, fc, rg.stadium if rg else None,
-                                 model_version="v2")
+                                 model_version="v2", team_total=tt)
             if gf2 is not None:
                 fairs_v2[g.game_id] = gf2
             # ALERT_MODEL selects which fair/edges feed histories, D1 odds rows and alerts
@@ -2129,7 +2168,7 @@ def run_sport(
                 fc, impact, sig, flags, lines=game_lines, openers=odds.openers, consensus=odds.consensus, fair=gf_alert,
                 legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=rec.avg_wind,
                 run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model,
-                last_observed=odds.last_observed.get(g.game_id), **card_kwargs,
+                last_observed=odds.last_observed.get(g.game_id), team_total=tt, **card_kwargs,
             ))
             rows.append({
                 "game_id": g.game_id,

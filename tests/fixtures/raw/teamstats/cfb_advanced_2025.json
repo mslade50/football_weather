@@ -1,0 +1,78 @@
+[
+ {
+  "gameId": 401756846,
+  "season": 2025,
+  "week": 1,
+  "team": "Iowa State",
+  "opponent": "Kansas State",
+  "offense": {
+   "plays": 73,
+   "drives": 13,
+   "ppa": 0.12051931603433742,
+   "successRate": 0.3424657534246575
+  },
+  "defense": {
+   "plays": 57,
+   "drives": 11,
+   "ppa": -0.0005220970151715923,
+   "successRate": 0.3508771929824561
+  }
+ },
+ {
+  "gameId": 401756846,
+  "season": 2025,
+  "week": 1,
+  "team": "Kansas State",
+  "opponent": "Iowa State",
+  "offense": {
+   "plays": 57,
+   "drives": 11,
+   "ppa": -0.0005220970151715923,
+   "successRate": 0.3508771929824561
+  },
+  "defense": {
+   "plays": 73,
+   "drives": 13,
+   "ppa": 0.12051931603433742,
+   "successRate": 0.3424657534246575
+  }
+ },
+ {
+  "gameId": 401760371,
+  "season": 2025,
+  "week": 1,
+  "team": "Idaho State",
+  "opponent": "UNLV",
+  "offense": {
+   "plays": 84,
+   "drives": 14,
+   "ppa": -0.04837039169060415,
+   "successRate": 0.47619047619047616
+  },
+  "defense": {
+   "plays": 72,
+   "drives": 14,
+   "ppa": 0.27078465458107653,
+   "successRate": 0.5
+  }
+ },
+ {
+  "gameId": 401760371,
+  "season": 2025,
+  "week": 1,
+  "team": "UNLV",
+  "opponent": "Idaho State",
+  "offense": {
+   "plays": 72,
+   "drives": 14,
+   "ppa": 0.27078465458107653,
+   "successRate": 0.5
+  },
+  "defense": {
+   "plays": 84,
+   "drives": 14,
+   "ppa": -0.04837039169060415,
+   "successRate": 0.47619047619047616
+  }
+ }
+]

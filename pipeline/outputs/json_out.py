@@ -679,6 +679,7 @@ def build_card(
     fair_v2: Any = None,
     model_version: Optional[str] = None,
     last_observed: Optional[dict] = None,
+    team_total: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """One GameCard (ARCH §5). Pure: everything comes from the arguments.
     ``impact_v2``/``fair_v2`` fill the side-by-side v2 blocks; ``model_version`` stamps
@@ -725,6 +726,9 @@ def build_card(
         },
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": fair_block(fair, legacy_derived, fair_v2),
+        # our own expected total from team ratings (no weather), the slate offset removed before
+        # blending (total_rel) and the share of (total_rel - line) the v2 fair takes
+        "team_total": dict(team_total) if team_total else None,
         "total_prices": compare_totals(sport, lines, fair),
         "execution_markets": execution_markets(lines),
         "alerts": list(alerts),

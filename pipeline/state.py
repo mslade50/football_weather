@@ -34,6 +34,7 @@ ALERTS_EXPORT_FILE = "alerts_export.json"   # optional `wrangler d1 export --tab
 TELEGRAM_STATE_FILE = "telegram_state.json"
 HISTORY_FILE = "history.json"
 BOOK_HEALTH_FILE = "book_health.json"
+TEAM_STATS_FILE = "team_stats.json"
 
 ALERTS_CAP = 500   # dedup markers kept (oldest pruned)
 FEED_CAP = 200     # sent alerts kept for board/alerts_feed.json
@@ -51,6 +52,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
     "telegram_state": {"queue": []},
     "history": {"series": {}, "fair_series": {}},
     "book_health": {"books": {}, "horizon": {}},
+    "team_stats": {"sports": {}},   # pipeline/teamstats.py: per sport, per season TeamGame rows
 }
 
 PathLike = Union[str, Path]
@@ -446,6 +448,16 @@ def prune_archive_last(d: dict, active_game_ids: Iterable[str]) -> int:
 
 def save_archive_last(data_dir: PathLike, d: dict) -> None:
     _save(Path(data_dir) / ARCHIVE_LAST_FILE, d)
+
+
+# ── team-game stats cache (pipeline/teamstats.py) ────────────────────────────
+
+def load_team_stats(data_dir: PathLike) -> dict:
+    return _load_kind(data_dir, TEAM_STATS_FILE, "team_stats")
+
+
+def save_team_stats(data_dir: PathLike, d: dict) -> None:
+    _save(Path(data_dir) / TEAM_STATS_FILE, d)
 
 
 # ── scrape-volume baseline (per book|market peaks) ─────────────────────────────

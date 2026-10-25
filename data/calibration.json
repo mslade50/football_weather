@@ -371,5 +371,81 @@
         }
       }
     }
+  },
+  "team_totals": {
+    "nfl": {
+      "coef": {
+        "intercept": 10.523364,
+        "lg": 0.758651,
+        "pts_match": 0.429021,
+        "eff_match": 15.371053,
+        "sum_pace": 0.282359
+      },
+      "features": [
+        "lg",
+        "pts_match",
+        "eff_match",
+        "sum_pace"
+      ],
+      "seasons": [
+        2000,
+        2025
+      ],
+      "n_games": 6170,
+      "forward_test": {
+        "n": 5760,
+        "rmse_model": 13.809,
+        "rmse_close": 13.454,
+        "gap_slope": [
+          0.01,
+          0.06
+        ],
+        "gap_slope_early": [
+          0.055,
+          0.132
+        ],
+        "sd_gap": 3.032
+      }
+    },
+    "cfb": {
+      "coef": {
+        "intercept": 2.091761,
+        "lg": 0.927738,
+        "pts_match": 0.622678,
+        "eff_match": 15.45163,
+        "ppd_match": -1.833832,
+        "sr_match": 3.033477,
+        "sum_pace": 0.323369,
+        "sum_drives": -0.995397
+      },
+      "features": [
+        "lg",
+        "pts_match",
+        "eff_match",
+        "ppd_match",
+        "sr_match",
+        "sum_pace",
+        "sum_drives"
+      ],
+      "seasons": [
+        2017,
+        2025
+      ],
+      "n_games": 6474,
+      "forward_test": {
+        "n": 4764,
+        "rmse_model": 16.349,
+        "rmse_close": 16.01,
+        "gap_slope": [
+          0.169,
+          0.058
+        ],
+        "gap_slope_early": [
+          0.222,
+          0.118
+        ],
+        "sd_gap": 3.937
+      }
+    }
   }
 }
