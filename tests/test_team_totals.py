@@ -478,3 +478,22 @@ def test_malformed_returning_payload_keeps_rows(monkeypatch):
     def get_bad_shape(url, headers=None):
         return "[1, 2]" if "/player/returning" in url else good(url, headers)
     assert TS.fetch_season("cfb", 2025, get=get_bad_shape)["rows"]
+
+
+def test_follow_up_for_back_to_back_game_days_and_cold_start(monkeypatch):
+    """Codex F4 round 3: Sunday -> Monday -> Thursday. Consuming Sunday's follow-up must still
+    schedule Monday's; a first-ever fetch also gets one follow-up."""
+    sun = datetime(2026, 10, 18, 17, tzinfo=UTC)
+    mon, thu = sun + timedelta(hours=31), sun + timedelta(hours=103)
+    seasons = {str(s): {"fetched_at": sun.isoformat(), "rows": []} for s in (2024, 2025)}
+    seasons["2026"] = {"fetched_at": (sun - timedelta(days=3)).isoformat(), "next_kick": sun.isoformat(), "rows": []}
+    cache = {"sports": {"nfl": {"seasons": seasons}}}
+    monkeypatch.setattr(TS, "fetch_season", lambda *a, **k: {"rows": []})
+    TS.refresh("nfl", 2026, cache, [mon, thu], sun + timedelta(hours=4))           # Sunday finished
+    TS.refresh("nfl", 2026, cache, [thu], sun + timedelta(hours=36))               # Sunday follow-up; Monday finished
+    e = cache["sports"]["nfl"]["seasons"]["2026"]
+    assert e["recheck_at"] == (mon + timedelta(hours=TS.CATCHUP_H)).isoformat()
+    assert TS.needs_refresh(e, mon + timedelta(hours=TS.CATCHUP_H + 1), final=False, min_hours=12)
+    cold: dict = {"sports": {}}
+    TS.refresh("nfl", 2026, cold, [thu], sun)
+    assert cold["sports"]["nfl"]["seasons"]["2026"]["recheck_at"] == (sun + timedelta(hours=TS.CATCHUP_H)).isoformat()

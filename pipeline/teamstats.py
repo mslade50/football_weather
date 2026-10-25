@@ -283,17 +283,22 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
 
 
 def _next_recheck(prev: Mapping[str, Any], now: datetime) -> dict[str, Any]:
-    """Stats feeds can publish a finished game hours after the final score. A fetch triggered by a
-    finished game schedules ONE follow-up at that game's kickoff + ``CATCHUP_H``; the follow-up
-    itself schedules none (bounded: at most one extra fetch per finished-game trigger)."""
-    rc = prev.get("recheck_at")
-    if rc and now >= datetime.fromisoformat(rc):
-        return {}                                            # this fetch is the follow-up
+    """Stats feeds can publish a finished game hours after the final score, so every fetch that
+    may have missed one schedules a single follow-up: a fetch triggered by a finished game
+    (``next_kick``) -> that kickoff + ``CATCHUP_H``; a first-ever fetch -> now + ``CATCHUP_H``.
+    A still-pending follow-up is kept. The earliest future candidate wins, so each trigger adds
+    at most one extra fetch (bounded), and consuming a follow-up never drops a newer trigger."""
+    cands: list[datetime] = []
     nk = prev.get("next_kick")
     if nk and now >= datetime.fromisoformat(nk) + timedelta(hours=GAME_DONE_H):
-        due = datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H)
-        return {"recheck_at": due.isoformat()} if due > now else {}
-    return {"recheck_at": rc} if rc else {}                  # keep a pending follow-up
+        cands.append(datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H))
+    if not prev.get("fetched_at"):
+        cands.append(now + timedelta(hours=CATCHUP_H))
+    rc = prev.get("recheck_at")
+    if rc:
+        cands.append(datetime.fromisoformat(rc))
+    future = [c for c in cands if c > now]
+    return {"recheck_at": min(future).isoformat()} if future else {}
 
 
 def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: Mapping[str, Any],
