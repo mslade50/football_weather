@@ -154,15 +154,33 @@ NOW = datetime(2026, 10, 24, 18, tzinfo=UTC)
 
 
 def test_needs_refresh_rules():
-    nk = (NOW - timedelta(hours=5)).isoformat()
     old = (NOW - timedelta(hours=60)).isoformat()
+    recent = (NOW - timedelta(hours=10)).isoformat()
     assert TS.needs_refresh(None, NOW, final=False, min_hours=48)
-    assert not TS.needs_refresh({"fetched_at": old}, NOW, final=True, min_hours=48)       # past season: once
-    assert TS.needs_refresh({"fetched_at": old, "next_kick": nk}, NOW, final=False, min_hours=48)
-    assert not TS.needs_refresh({"fetched_at": (NOW - timedelta(hours=10)).isoformat(), "next_kick": nk},
-                                NOW, final=False, min_hours=48)                          # too soon
-    assert not TS.needs_refresh({"fetched_at": old, "next_kick": (NOW - timedelta(hours=2)).isoformat()},
-                                NOW, final=False, min_hours=48)                          # game not over yet
+    assert not TS.needs_refresh({"fetched_at": old}, NOW, final=True, min_hours=48)        # past season: once
+    assert TS.needs_refresh({"fetched_at": old}, NOW, final=False, min_hours=48)           # cadence elapsed
+    assert not TS.needs_refresh({"fetched_at": recent}, NOW, final=False, min_hours=48)    # too soon
+    assert TS.needs_refresh({"fetched_at": recent}, NOW, final=False, min_hours=6)
+    just_failed = (NOW - timedelta(hours=1)).isoformat()
+    assert not TS.needs_refresh({"fetched_at": old, "failed_at": just_failed}, NOW, final=False, min_hours=48)
+
+
+def test_fixed_cadence_picks_up_late_stats_and_skips_off_season(monkeypatch):
+    """A feed that publishes a finished game late is picked up by the next cadence fetch."""
+    calls: list[int] = []
+    seasons = {str(s): {"fetched_at": NOW.isoformat(), "rows": []} for s in (2024, 2025)}
+    cache = {"sports": {"nfl": {"seasons": seasons}}}
+
+    def fetch(sport, season, **k):
+        calls.append(season)
+        return {"rows": []}
+    monkeypatch.setattr(TS, "fetch_season", fetch)
+    kicks = [NOW + timedelta(days=3)]
+    assert TS.refresh("nfl", 2026, cache, kicks, NOW)                                     # first fetch
+    assert not TS.refresh("nfl", 2026, cache, kicks, NOW + timedelta(hours=6))            # inside 12 h
+    assert TS.refresh("nfl", 2026, cache, kicks, NOW + timedelta(hours=12))               # cadence
+    assert not TS.refresh("nfl", 2026, cache, [], NOW + timedelta(days=30))               # off-season
+    assert calls == [2026, 2026]
 
 
 def _fake_cfbd(calls: list[str]):
@@ -188,10 +206,10 @@ def test_refresh_fetches_history_once_and_returning_once(monkeypatch):
     assert TS.refresh("cfb", 2025, cache, kicks, NOW, get=_fake_cfbd(calls))
     assert len(calls) == 3 * 3                     # 3 seasons x (advanced, games, returning)
     seasons = cache["sports"]["cfb"]["seasons"]
-    assert set(seasons) == {"2023", "2024", "2025"} and seasons["2025"]["next_kick"] == kicks[0].isoformat()
+    assert set(seasons) == {"2023", "2024", "2025"}
     calls.clear()
-    assert not TS.refresh("cfb", 2025, cache, kicks, NOW + timedelta(hours=1), get=_fake_cfbd(calls))
-    assert calls == []                             # nothing finished yet
+    assert not TS.refresh("cfb", 2025, cache, kicks, NOW + timedelta(hours=47), get=_fake_cfbd(calls))
+    assert calls == []                             # CFB cadence is 48 h
     later = NOW + timedelta(days=3)
     assert TS.refresh("cfb", 2025, cache, [later + timedelta(days=4)], later, get=_fake_cfbd(calls))
     assert len(calls) == 2 and not any("returning" in c for c in calls)   # current season only, no returning
@@ -203,7 +221,6 @@ def test_refresh_failure_keeps_rows_and_backs_off(monkeypatch):
     cache: dict = {"sports": {}}
     TS.refresh("cfb", 2025, cache, [], NOW, get=_fake_cfbd([]))
     entry = cache["sports"]["cfb"]["seasons"]["2025"]
-    entry["next_kick"] = (NOW - timedelta(days=5)).isoformat()
     entry["fetched_at"] = (NOW - timedelta(days=6)).isoformat()
     rows_before = list(entry["rows"])
     errs: list[str] = []
@@ -212,14 +229,14 @@ def test_refresh_failure_keeps_rows_and_backs_off(monkeypatch):
     def boom(url, headers=None):
         calls.append(url)
         raise RuntimeError("502")
-    assert TS.refresh("cfb", 2025, cache, [], NOW, get=boom, on_error=errs.append)   # failure is recorded
+    assert TS.refresh("cfb", 2025, cache, [NOW], NOW, get=boom, on_error=errs.append)   # failure is recorded
     entry = cache["sports"]["cfb"]["seasons"]["2025"]
     assert entry["rows"] == rows_before and entry["failed_at"] == NOW.isoformat() and "502" in errs[0]
     n = len(calls)
     for i in range(3):   # later builds inside RETRY_H make no calls at all
-        TS.refresh("cfb", 2025, cache, [], NOW + timedelta(minutes=10 * (i + 1)), get=boom)
+        TS.refresh("cfb", 2025, cache, [NOW], NOW + timedelta(minutes=10 * (i + 1)), get=boom)
     assert len(calls) == n
-    TS.refresh("cfb", 2025, cache, [], NOW + timedelta(hours=TS.RETRY_H + 1), get=_fake_cfbd(calls))
+    TS.refresh("cfb", 2025, cache, [NOW], NOW + timedelta(hours=TS.RETRY_H + 1), get=_fake_cfbd(calls))
     assert len(calls) > n and "failed_at" not in cache["sports"]["cfb"]["seasons"]["2025"]
 
 
@@ -324,15 +341,14 @@ def test_build_stage_switch_and_offline_cache(tmp_path: Path, monkeypatch):
     games = [G("g1", 2025, 5, "hi", "lo", NOW + timedelta(days=4))]
     pstate.save_team_stats(tmp_path, {"sports": {"nfl": {"seasons": {
         "2024": {"rows": TS._rows_to_json(league(2024)), "fetched_at": NOW.isoformat()},
-        "2025": {"rows": TS._rows_to_json(league(2025)), "fetched_at": NOW.isoformat(),
-                 "next_kick": (NOW + timedelta(days=4)).isoformat()},
+        "2025": {"rows": TS._rows_to_json(league(2025)), "fetched_at": NOW.isoformat()},
         "2023": {"rows": [], "fetched_at": NOW.isoformat()}}}}})
     monkeypatch.setenv("TEAM_TOTALS", "0")
     assert B.stage_team_totals(_Ctx(), "nfl", games, [], NullRawStore(), 2025, tmp_path) == {}
     monkeypatch.setenv("TEAM_TOTALS", "1")
 
     def no_fetch(*a, **k):
-        raise AssertionError("must not fetch: nothing finished since the last fetch")
+        raise AssertionError("must not fetch: the cache is fresh")
     monkeypatch.setattr(TS, "fetch_season", no_fetch)
     ctx = _Ctx()
     out = B.stage_team_totals(ctx, "nfl", games, [], NullRawStore(), 2025, tmp_path)
@@ -439,33 +455,6 @@ def test_published_card_repricing_keeps_the_team_blend():
     assert 'card.get("team_total")' in src and '"team_total": tt["total_rel"]' in src and "**blend" in src
 
 
-def test_provider_lag_gets_one_bounded_follow_up(monkeypatch):
-    """Friday fetch misses Thursday's game (feed lag); one follow-up fetch picks it up before Sunday."""
-    thu = datetime(2026, 10, 22, 0, tzinfo=UTC)
-    sun = datetime(2026, 10, 25, 17, tzinfo=UTC)
-    fri = thu + timedelta(hours=6)
-    cache = {"sports": {"nfl": {"seasons": {"2024": {"fetched_at": fri.isoformat(), "rows": []},
-                                            "2025": {"fetched_at": fri.isoformat(), "rows": []},
-                                            "2026": {"fetched_at": (thu - timedelta(days=3)).isoformat(),
-                                                     "next_kick": thu.isoformat(), "rows": []}}}}}
-    calls = []
-
-    def fetch(sport, season, **k):
-        calls.append(season)
-        return {"rows": []}
-    monkeypatch.setattr(TS, "fetch_season", fetch)
-    assert TS.refresh("nfl", 2026, cache, [sun], fri)                 # Thursday finished -> fetch
-    e = cache["sports"]["nfl"]["seasons"]["2026"]
-    assert e["next_kick"] == sun.isoformat() and e["rechecks"] == [(thu + timedelta(hours=TS.CATCHUP_H)).isoformat()]
-    assert not TS.refresh("nfl", 2026, cache, [sun], fri + timedelta(hours=13))   # follow-up not yet due
-    sat = thu + timedelta(hours=TS.CATCHUP_H + 1)
-    assert TS.refresh("nfl", 2026, cache, [sun], sat)                 # follow-up fetch
-    assert cache["sports"]["nfl"]["seasons"]["2026"]["rechecks"] == []
-    n = len(calls)
-    assert not TS.refresh("nfl", 2026, cache, [sun], sat + timedelta(hours=13))   # no further fetch before Sunday
-    assert len(calls) == n
-
-
 def test_malformed_returning_payload_keeps_rows(monkeypatch):
     monkeypatch.setenv("CFBD_API_KEY", "k")
     good = _fake_cfbd([])
@@ -480,40 +469,3 @@ def test_malformed_returning_payload_keeps_rows(monkeypatch):
     assert TS.fetch_season("cfb", 2025, get=get_bad_shape)["rows"]
 
 
-def test_follow_up_for_back_to_back_game_days_and_cold_start(monkeypatch):
-    """Codex F4 round 3: Sunday -> Monday -> Thursday. Consuming Sunday's follow-up must still
-    schedule Monday's; a first-ever fetch also gets one follow-up."""
-    sun = datetime(2026, 10, 18, 17, tzinfo=UTC)
-    mon, thu = sun + timedelta(hours=31), sun + timedelta(hours=103)
-    seasons = {str(s): {"fetched_at": sun.isoformat(), "rows": []} for s in (2024, 2025)}
-    seasons["2026"] = {"fetched_at": (sun - timedelta(days=3)).isoformat(), "next_kick": sun.isoformat(), "rows": []}
-    cache = {"sports": {"nfl": {"seasons": seasons}}}
-    monkeypatch.setattr(TS, "fetch_season", lambda *a, **k: {"rows": []})
-    TS.refresh("nfl", 2026, cache, [mon, thu], sun + timedelta(hours=4))           # Sunday finished
-    TS.refresh("nfl", 2026, cache, [thu], sun + timedelta(hours=36))               # Sunday follow-up; Monday finished
-    e = cache["sports"]["nfl"]["seasons"]["2026"]
-    assert e["rechecks"] == [(mon + timedelta(hours=TS.CATCHUP_H)).isoformat()]
-    assert TS.needs_refresh(e, mon + timedelta(hours=TS.CATCHUP_H + 1), final=False, min_hours=12)
-    cold: dict = {"sports": {}}
-    TS.refresh("nfl", 2026, cold, [thu], sun)
-    assert cold["sports"]["nfl"]["seasons"]["2026"]["rechecks"] == [(sun + timedelta(hours=TS.CATCHUP_H)).isoformat()]
-
-
-def test_overlapping_follow_ups_are_all_kept(monkeypatch):
-    """Codex F4 round 4: Monday finishes just before Sunday's follow-up is due; both deadlines survive."""
-    sun = datetime(2026, 10, 18, 17, tzinfo=UTC)
-    mon, thu = sun + timedelta(hours=31), sun + timedelta(hours=103)
-    seasons = {str(s): {"fetched_at": sun.isoformat(), "rows": []} for s in (2024, 2025)}
-    seasons["2026"] = {"fetched_at": (sun - timedelta(days=3)).isoformat(), "next_kick": sun.isoformat(), "rows": []}
-    cache = {"sports": {"nfl": {"seasons": seasons}}}
-    fetched: list[int] = []
-
-    def fetch(*a, **k):
-        fetched.append(1)
-        return {"rows": []}
-    monkeypatch.setattr(TS, "fetch_season", fetch)
-    for hour, kicks in [(4, [mon, thu]), (35, [thu]), (47, [thu]), (67, [thu])]:
-        TS.refresh("nfl", 2026, cache, kicks, sun + timedelta(hours=hour))
-    assert len(fetched) == 4                                   # hour 67 = Monday's follow-up still fired
-    assert TS.needs_refresh(seasons["2026"], thu - timedelta(hours=1), final=False, min_hours=12) is False
-    assert seasons["2026"]["rechecks"] == []

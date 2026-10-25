@@ -11,10 +11,10 @@ Sources:
 * CFB: CFBD ``/stats/game/advanced?year=`` (PPA, success rate, plays, drives) + ``/games?year=``
   (points, FBS classification) + ``/player/returning?year=`` (early-season prior shrink).
 
-Quota: CFBD calls are shared with the live schedule. The current season is re-fetched only
-after the earliest game that was still upcoming at the last fetch has finished, and at most
-every ``MIN_REFRESH_H`` hours (CFB 48 h: ~2 calls each, ~30 calls a month); past seasons are
-fetched once and kept; returning production is fetched once per season.
+Quota: CFBD calls are shared with the live schedule. The current season is re-fetched on a fixed
+cadence while games are scheduled (``MIN_REFRESH_H``: NFL 12 h, free; CFB 48 h, 2 calls each,
+~30 calls a month); a fixed cadence also picks up stats a feed publishes late. Past seasons are
+fetched once and kept; returning production once per season; a failed fetch backs off ``RETRY_H``.
 """
 
 from __future__ import annotations
@@ -49,7 +49,6 @@ CFBD_BASE = "https://api.collegefootballdata.com"
 MIN_REFRESH_H = {"nfl": 12.0, "cfb": 48.0}   # CFBD calls are shared with the live schedule
 GAME_DONE_H = 4.0            # a game counts as finished this long after kickoff
 RETRY_H = 6.0                # after a failed fetch, wait this long before trying that season again
-CATCHUP_H = 36.0             # one follow-up fetch this long after a finished game (feeds publish late)
 HISTORY_SEASONS = 2          # seasons kept before the current one
 
 
@@ -162,10 +161,8 @@ def rows_from_cache(cache: dict, sport: str) -> tuple[list[TeamGame], dict[int, 
 
 
 def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: bool, min_hours: float) -> bool:
-    """Fetch when we have nothing; for the current season, once a game that was upcoming at the
-    last fetch (``next_kick``) has finished, or a follow-up in ``rechecks`` (provider lag) is due,
-    and ``min_hours`` have passed. A failed attempt
-    (``failed_at``) blocks every retry for ``RETRY_H`` so a flaky upstream cannot drain the quota."""
+    """Fetch when we have nothing; a finished season never again; the current season every
+    ``min_hours``. A failed attempt (``failed_at``) blocks retries for ``RETRY_H``."""
     failed = (entry or {}).get("failed_at")
     if failed and now - datetime.fromisoformat(failed) < timedelta(hours=RETRY_H):
         return False
@@ -173,15 +170,7 @@ def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: b
         return True
     if final:
         return False
-    last = datetime.fromisoformat(entry["fetched_at"])
-    if now - last < timedelta(hours=min_hours):
-        return False
-    if any(d <= now for d in _pending(entry)):
-        return True
-    nk = entry.get("next_kick")
-    if nk is None:
-        return True
-    return now >= datetime.fromisoformat(nk) + timedelta(hours=GAME_DONE_H)
+    return now - datetime.fromisoformat(entry["fetched_at"]) >= timedelta(hours=min_hours)
 
 
 # ---------------------------------------------------------------- fetch (raw-first)
@@ -247,13 +236,16 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
             raw_dir: Optional[Path] = None, get: Callable[..., str] = _http_text,
             on_error: Optional[Callable[[str], None]] = None) -> bool:
     """Bring ``cache`` up to date for ``sport`` (current + ``HISTORY_SEASONS`` back). ``kickoffs`` =
-    the scheduled kickoffs we know of (upcoming ones set the next refresh). True if anything changed."""
+    the scheduled kickoffs we know of; with none (off-season) a cached current season is left alone.
+    True if anything changed (so the caller saves)."""
     now = now or datetime.now(timezone.utc)
     sp = cache.setdefault("sports", {}).setdefault(sport, {"seasons": {}})
     seasons = sp.setdefault("seasons", {})
     changed = False
     for s in range(season - HISTORY_SEASONS, season + 1):
         entry = seasons.get(str(s))
+        if s == season and entry and entry.get("fetched_at") and not kickoffs:
+            continue   # off-season: nothing new to fetch
         if not needs_refresh(entry, now, final=s < season, min_hours=MIN_REFRESH_H.get(sport, 12.0)):
             continue
         try:
@@ -265,10 +257,6 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
             changed = True
             continue
         fresh["fetched_at"] = now.isoformat()
-        if s == season:
-            upcoming = sorted(k for k in kickoffs if k > now)
-            fresh["next_kick"] = upcoming[0].isoformat() if upcoming else None
-            fresh.update(_next_rechecks(entry or {}, now))
         seasons[str(s)] = fresh
         changed = True
     for s in [k for k in seasons if int(k) < season - HISTORY_SEASONS]:
@@ -279,26 +267,6 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
         members |= set(v.get("members", []))
     sp["members"] = sorted(members)
     return changed
-
-
-def _pending(entry: Mapping[str, Any]) -> list[datetime]:
-    return sorted(datetime.fromisoformat(x) for x in entry.get("rechecks") or [])
-
-
-def _next_rechecks(prev: Mapping[str, Any], now: datetime) -> dict[str, Any]:
-    """Stats feeds can publish a finished game hours after the final score, so every fetch that
-    may have missed one adds a single follow-up deadline: a fetch triggered by a finished game
-    (``next_kick``) -> that kickoff + ``CATCHUP_H``; a first-ever fetch -> now + ``CATCHUP_H``.
-    All outstanding deadlines are kept (``rechecks``); a fetch consumes only the ones already due.
-    Bounded: one extra fetch per finished-game trigger at most."""
-    keep = [d for d in _pending(prev) if d > now]
-    nk = prev.get("next_kick")
-    if nk and now >= datetime.fromisoformat(nk) + timedelta(hours=GAME_DONE_H):
-        keep.append(datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H))
-    if not prev.get("fetched_at"):
-        keep.append(now + timedelta(hours=CATCHUP_H))
-    future = sorted({d for d in keep if d > now})
-    return {"rechecks": [d.isoformat() for d in future]}
 
 
 def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: Mapping[str, Any],
