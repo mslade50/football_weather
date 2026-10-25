@@ -437,3 +437,44 @@ def test_published_card_repricing_keeps_the_team_blend():
 
     src = inspect.getsource(CQ._recompute_card)
     assert 'card.get("team_total")' in src and '"team_total": tt["total_rel"]' in src and "**blend" in src
+
+
+def test_provider_lag_gets_one_bounded_follow_up(monkeypatch):
+    """Friday fetch misses Thursday's game (feed lag); one follow-up fetch picks it up before Sunday."""
+    thu = datetime(2026, 10, 22, 0, tzinfo=UTC)
+    sun = datetime(2026, 10, 25, 17, tzinfo=UTC)
+    fri = thu + timedelta(hours=6)
+    cache = {"sports": {"nfl": {"seasons": {"2024": {"fetched_at": fri.isoformat(), "rows": []},
+                                            "2025": {"fetched_at": fri.isoformat(), "rows": []},
+                                            "2026": {"fetched_at": (thu - timedelta(days=3)).isoformat(),
+                                                     "next_kick": thu.isoformat(), "rows": []}}}}}
+    calls = []
+
+    def fetch(sport, season, **k):
+        calls.append(season)
+        return {"rows": []}
+    monkeypatch.setattr(TS, "fetch_season", fetch)
+    assert TS.refresh("nfl", 2026, cache, [sun], fri)                 # Thursday finished -> fetch
+    e = cache["sports"]["nfl"]["seasons"]["2026"]
+    assert e["next_kick"] == sun.isoformat() and e["recheck_at"] == (thu + timedelta(hours=TS.CATCHUP_H)).isoformat()
+    assert not TS.refresh("nfl", 2026, cache, [sun], fri + timedelta(hours=13))   # follow-up not yet due
+    sat = thu + timedelta(hours=TS.CATCHUP_H + 1)
+    assert TS.refresh("nfl", 2026, cache, [sun], sat)                 # follow-up fetch
+    assert "recheck_at" not in cache["sports"]["nfl"]["seasons"]["2026"]
+    n = len(calls)
+    assert not TS.refresh("nfl", 2026, cache, [sun], sat + timedelta(hours=13))   # no further fetch before Sunday
+    assert len(calls) == n
+
+
+def test_malformed_returning_payload_keeps_rows(monkeypatch):
+    monkeypatch.setenv("CFBD_API_KEY", "k")
+    good = _fake_cfbd([])
+
+    def get(url, headers=None):
+        return "not-json" if "/player/returning" in url else good(url, headers)
+    entry = TS.fetch_season("cfb", 2025, get=get)
+    assert entry["rows"] and entry["returning"] == {}
+
+    def get_bad_shape(url, headers=None):
+        return "[1, 2]" if "/player/returning" in url else good(url, headers)
+    assert TS.fetch_season("cfb", 2025, get=get_bad_shape)["rows"]

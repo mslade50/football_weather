@@ -49,6 +49,7 @@ CFBD_BASE = "https://api.collegefootballdata.com"
 MIN_REFRESH_H = {"nfl": 12.0, "cfb": 48.0}   # CFBD calls are shared with the live schedule
 GAME_DONE_H = 4.0            # a game counts as finished this long after kickoff
 RETRY_H = 6.0                # after a failed fetch, wait this long before trying that season again
+CATCHUP_H = 36.0             # one follow-up fetch this long after a finished game (feeds publish late)
 HISTORY_SEASONS = 2          # seasons kept before the current one
 
 
@@ -162,7 +163,8 @@ def rows_from_cache(cache: dict, sport: str) -> tuple[list[TeamGame], dict[int, 
 
 def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: bool, min_hours: float) -> bool:
     """Fetch when we have nothing; for the current season, once a game that was upcoming at the
-    last fetch (``next_kick``) has finished and ``min_hours`` have passed. A failed attempt
+    last fetch (``next_kick``) has finished, or the follow-up ``recheck_at`` (provider lag) is due,
+    and ``min_hours`` have passed. A failed attempt
     (``failed_at``) blocks every retry for ``RETRY_H`` so a flaky upstream cannot drain the quota."""
     failed = (entry or {}).get("failed_at")
     if failed and now - datetime.fromisoformat(failed) < timedelta(hours=RETRY_H):
@@ -174,6 +176,9 @@ def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: b
     last = datetime.fromisoformat(entry["fetched_at"])
     if now - last < timedelta(hours=min_hours):
         return False
+    rc = entry.get("recheck_at")
+    if rc and now >= datetime.fromisoformat(rc):
+        return True
     nk = entry.get("next_kick")
     if nk is None:
         return True
@@ -219,18 +224,23 @@ def fetch_season(sport: str, season: int, *, raw_dir: Optional[Path] = None,
     for name, path in calls:
         try:
             text = get(f"{CFBD_BASE}{path}", hdr)
+            _capture(raw_dir, f"cfb_{name}_{season}.json", text)
+            payloads[name] = json.loads(text)
         except Exception:
             if name == "returning":   # optional: the prior shrink falls back to 0.55; retried next refresh
                 continue
             raise
-        _capture(raw_dir, f"cfb_{name}_{season}.json", text)
-        payloads[name] = json.loads(text)
 
     def resolve(name: str) -> Optional[str]:
         return resolve_team("cfb", name)
 
     rows, fbs = parse_cfb(payloads["advanced"], payloads["games"], season, resolve)
-    ret = parse_returning(payloads["returning"], resolve) if "returning" in payloads else dict(returning or {})
+    ret = dict(returning or {})
+    if "returning" in payloads:
+        try:
+            ret = parse_returning(payloads["returning"], resolve)
+        except Exception:  # noqa: BLE001  (malformed optional payload: keep the rows, default the prior)
+            pass
     return {"rows": _rows_to_json(rows), "returning": ret, "members": sorted(fbs)}
 
 
@@ -259,6 +269,7 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
         if s == season:
             upcoming = sorted(k for k in kickoffs if k > now)
             fresh["next_kick"] = upcoming[0].isoformat() if upcoming else None
+            fresh.update(_next_recheck(entry or {}, now))
         seasons[str(s)] = fresh
         changed = True
     for s in [k for k in seasons if int(k) < season - HISTORY_SEASONS]:
@@ -269,6 +280,20 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
         members |= set(v.get("members", []))
     sp["members"] = sorted(members)
     return changed
+
+
+def _next_recheck(prev: Mapping[str, Any], now: datetime) -> dict[str, Any]:
+    """Stats feeds can publish a finished game hours after the final score. A fetch triggered by a
+    finished game schedules ONE follow-up at that game's kickoff + ``CATCHUP_H``; the follow-up
+    itself schedules none (bounded: at most one extra fetch per finished-game trigger)."""
+    rc = prev.get("recheck_at")
+    if rc and now >= datetime.fromisoformat(rc):
+        return {}                                            # this fetch is the follow-up
+    nk = prev.get("next_kick")
+    if nk and now >= datetime.fromisoformat(nk) + timedelta(hours=GAME_DONE_H):
+        due = datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H)
+        return {"recheck_at": due.isoformat()} if due > now else {}
+    return {"recheck_at": rc} if rc else {}                  # keep a pending follow-up
 
 
 def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: Mapping[str, Any],
