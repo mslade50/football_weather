@@ -198,19 +198,57 @@ def test_refresh_fetches_history_once_and_returning_once(monkeypatch):
     assert "unlv" in cache["sports"]["cfb"]["members"]
 
 
-def test_refresh_keeps_cache_on_error(monkeypatch):
+def test_refresh_failure_keeps_rows_and_backs_off(monkeypatch):
     monkeypatch.setenv("CFBD_API_KEY", "k")
     cache: dict = {"sports": {}}
     TS.refresh("cfb", 2025, cache, [], NOW, get=_fake_cfbd([]))
+    entry = cache["sports"]["cfb"]["seasons"]["2025"]
+    entry["next_kick"] = (NOW - timedelta(days=5)).isoformat()
+    entry["fetched_at"] = (NOW - timedelta(days=6)).isoformat()
+    rows_before = list(entry["rows"])
     errs: list[str] = []
+    calls: list[str] = []
 
     def boom(url, headers=None):
+        calls.append(url)
         raise RuntimeError("502")
-    cache["sports"]["cfb"]["seasons"]["2025"]["next_kick"] = (NOW - timedelta(days=5)).isoformat()
-    cache["sports"]["cfb"]["seasons"]["2025"]["fetched_at"] = (NOW - timedelta(days=6)).isoformat()
-    before = json.dumps(cache, sort_keys=True)
-    assert not TS.refresh("cfb", 2025, cache, [], NOW, get=boom, on_error=errs.append)
-    assert json.dumps(cache, sort_keys=True) == before and errs and "502" in errs[0]
+    assert TS.refresh("cfb", 2025, cache, [], NOW, get=boom, on_error=errs.append)   # failure is recorded
+    entry = cache["sports"]["cfb"]["seasons"]["2025"]
+    assert entry["rows"] == rows_before and entry["failed_at"] == NOW.isoformat() and "502" in errs[0]
+    n = len(calls)
+    for i in range(3):   # later builds inside RETRY_H make no calls at all
+        TS.refresh("cfb", 2025, cache, [], NOW + timedelta(minutes=10 * (i + 1)), get=boom)
+    assert len(calls) == n
+    TS.refresh("cfb", 2025, cache, [], NOW + timedelta(hours=TS.RETRY_H + 1), get=_fake_cfbd(calls))
+    assert len(calls) > n and "failed_at" not in cache["sports"]["cfb"]["seasons"]["2025"]
+
+
+def test_returning_failure_is_not_fatal(monkeypatch):
+    monkeypatch.setenv("CFBD_API_KEY", "k")
+    good = _fake_cfbd([])
+
+    def get(url, headers=None):
+        if "/player/returning" in url:
+            raise RuntimeError("timeout")
+        return good(url, headers)
+    entry = TS.fetch_season("cfb", 2025, get=get)
+    assert entry["rows"] and entry["returning"] == {}
+
+
+def test_season_without_predecessor_is_never_rated():
+    """A gap in history (2023 and 2025, no 2024) must not let 2025's own results into 2025 features."""
+    rows = pair(2023, 1, "a", "b", 20, 20) + pair(2025, 1, "a", "b", 20, 20) + pair(2025, 10, "a", "b", 20, 20)
+    assert TT.league_total(rows, 2025) is None and not TT.has_prior(rows, 2025)
+    assert TT.league_total(rows, 2024) == 40.0
+    games = [G("g", 2025, 11, "a", "b", NOW)]
+    cache = {"sports": {"nfl": {"seasons": {"2023": {"rows": TS._rows_to_json(rows[:2])},
+                                            "2025": {"rows": TS._rows_to_json(rows[2:])}}}}}
+    assert TS.team_totals_for_games("nfl", games, cache, {"nfl": {"coef": {"lg": 1.0}}}, NOW) == {}
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import fit_team_model as FIT
+
+    assert [t for t in FIT.game_table("nfl", rows, {}, None) if t["season"] == 2025] == []
 
 
 def test_state_file_round_trip(tmp_path: Path):
@@ -366,3 +404,36 @@ def test_evaluate_fair_blends_toward_total_rel_only():
                      team_total={"total": 60.0, "weight": 0.35})                    # no slate offset -> no blend
     assert seen[0]["team_total"] == 57.5 and seen[0]["team_weight"] == 0.35
     assert "team_total" not in seen[1]
+
+
+def test_expiry_repricing_keeps_the_team_blend():
+    """refresh_expired_quotes re-prices v2 after a reference quote expires: the blend must survive."""
+    from types import SimpleNamespace
+
+    from pipeline import build as B  # noqa: N812
+    from pipeline.contracts import GameLine
+
+    gid = "cfb:2026:9:a@h"
+    lines = [GameLine("cfb", gid, book, "total", side, -110, line=56, expires_at=exp)
+             for book, exp in (("pinnacle", None), ("fanduel", None), ("betcris", NOW - timedelta(minutes=1)))
+             for side in ("over", "under")]
+    impact = SimpleNamespace(gs_fg_pct=0.0, away_fg_pct=0.0, rain_c=0.0)
+    ctx = SimpleNamespace(now_utc=NOW, counts={}, degrade=lambda *a: None)
+    game = SimpleNamespace(game_id=gid)
+    tt = {"total": 64.0, "total_rel": 62.0, "weight": 0.35}
+    base = B._evaluate_fair(F, ctx, "cfb", game, lines, impact, None, None, "v2", team_total=tt)
+    odds = B.OddsResult(lines, {}, {"openers": {}}, {gid: lines}, [], {})
+    res = B.SportResult("cfb", [], [], [], [game], {}, {}, {}, {gid: impact}, odds, impacts_v2={gid: impact},
+                        fairs_v2={gid: base}, team_totals={gid: tt})
+    B.refresh_expired_quotes(ctx, res)
+    assert base.fair_total == pytest.approx(56.0 + 0.35 * 6.0)
+    assert res.fairs_v2[gid].fair_total == pytest.approx(base.fair_total)
+
+
+def test_published_card_repricing_keeps_the_team_blend():
+    import inspect
+
+    from pipeline import current_quotes as CQ  # noqa: N812
+
+    src = inspect.getsource(CQ._recompute_card)
+    assert 'card.get("team_total")' in src and '"team_total": tt["total_rel"]' in src and "**blend" in src

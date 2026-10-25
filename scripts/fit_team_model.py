@@ -87,12 +87,12 @@ def game_table(sport: str, rows: list[TT.TeamGame], returning: dict, members: se
     by_week: dict[tuple[int, int], dict[str, list[TT.TeamGame]]] = defaultdict(lambda: defaultdict(list))
     for r in rows:
         by_week[(r.season, r.week)][r.game_key].append(r)
-    first = min(r.season for r in rows)
     out = []
+    lg_by = {s: TT.league_total(rows, s, members or None) for s in {r.season for r in rows}}
     for s, w, snap in TT.walk_ratings(sport, rows, returning=returning, members=members or None):
-        if s == first:
-            continue  # no prior season to rate from
-        lg = TT.league_total(rows, s, members or None)
+        lg = lg_by[s]
+        if lg is None:
+            continue  # no previous season in the data: cannot rate this season pre-game
         for key, pair in by_week[(s, w)].items():
             if len(pair) != 2:
                 continue

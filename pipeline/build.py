@@ -1832,6 +1832,7 @@ class SportResult:
     home_stadiums: dict[str, Stadium] = dataclasses.field(default_factory=dict)  # stadium_id -> home venue of every team row (D1 FK)
     odds_games: list[Game] = dataclasses.field(default_factory=list)   # odds-horizon schedule (superset of ``games``)
     board_new_opener_keys: list[str] | None = None   # opener keys new to the BOARD (alerts); None -> odds.new_opener_keys
+    team_totals: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)  # game_id -> our team total (v2 blend)
 
     @property
     def season_week(self) -> tuple[int | None, int | None]:
@@ -1878,7 +1879,8 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
         lines = res.odds.by_game.get(gid, [])
         impact, fc, stadium = res.impacts.get(gid), res.forecasts.get(gid), res.stadiums.get(gid)
         gf = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, impact, fc, stadium)
-        gf2 = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, res.impacts_v2.get(gid), fc, stadium, "v2")
+        gf2 = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, res.impacts_v2.get(gid), fc, stadium, "v2",
+                             team_total=res.team_totals.get(gid))
         selected = gf2 if model_config.alert_model() == "v2" else gf
         for target, value in ((res.fairs, selected), (res.fairs_v2, gf2)):
             target.pop(gid, None)
@@ -2196,7 +2198,8 @@ def run_sport(
     ctx.count("legacy", sport, len(records))
     res = SportResult(sport, records, rows, cards, games, stadiums, teams, forecasts, impacts, odds, fairs,
                       impacts_v2={k: v for k, v in impacts_v2.items() if v is not None}, fairs_v2=fairs_v2,
-                      wx_extras=wx_extras, home_stadiums=home_stadiums, odds_games=odds_games)
+                      wx_extras=wx_extras, home_stadiums=home_stadiums, odds_games=odds_games,
+                      team_totals=team_totals)
     ctx.count("impact_v2", sport, len(res.impacts_v2))
     n_ens = sum(1 for e in wx_extras.values() if e.get("ensemble"))
     if forecasts and n_ens == 0:

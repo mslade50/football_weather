@@ -48,6 +48,7 @@ NFLVERSE_GAMES_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/
 CFBD_BASE = "https://api.collegefootballdata.com"
 MIN_REFRESH_H = {"nfl": 12.0, "cfb": 48.0}   # CFBD calls are shared with the live schedule
 GAME_DONE_H = 4.0            # a game counts as finished this long after kickoff
+RETRY_H = 6.0                # after a failed fetch, wait this long before trying that season again
 HISTORY_SEASONS = 2          # seasons kept before the current one
 
 
@@ -161,7 +162,11 @@ def rows_from_cache(cache: dict, sport: str) -> tuple[list[TeamGame], dict[int, 
 
 def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: bool, min_hours: float) -> bool:
     """Fetch when we have nothing; for the current season, once a game that was upcoming at the
-    last fetch (``next_kick``) has finished and ``min_hours`` have passed."""
+    last fetch (``next_kick``) has finished and ``min_hours`` have passed. A failed attempt
+    (``failed_at``) blocks every retry for ``RETRY_H`` so a flaky upstream cannot drain the quota."""
+    failed = (entry or {}).get("failed_at")
+    if failed and now - datetime.fromisoformat(failed) < timedelta(hours=RETRY_H):
+        return False
     if not entry or not entry.get("fetched_at"):
         return True
     if final:
@@ -212,7 +217,12 @@ def fetch_season(sport: str, season: int, *, raw_dir: Optional[Path] = None,
     if not returning:  # once per season: it does not change during the season
         calls.append(("returning", f"/player/returning?year={season}"))
     for name, path in calls:
-        text = get(f"{CFBD_BASE}{path}", hdr)
+        try:
+            text = get(f"{CFBD_BASE}{path}", hdr)
+        except Exception:
+            if name == "returning":   # optional: the prior shrink falls back to 0.55; retried next refresh
+                continue
+            raise
         _capture(raw_dir, f"cfb_{name}_{season}.json", text)
         payloads[name] = json.loads(text)
 
@@ -242,6 +252,8 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
         except Exception as exc:  # noqa: BLE001  (keep the cached season; the board still renders)
             if on_error is not None:
                 on_error(f"{sport} {s}: {type(exc).__name__}: {exc}")
+            seasons[str(s)] = {**(entry or {}), "failed_at": now.isoformat()}   # persisted -> backoff across runs
+            changed = True
             continue
         fresh["fetched_at"] = now.isoformat()
         if s == season:
@@ -270,6 +282,7 @@ def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: 
     if not coef or not rows:
         return {}
     out: dict[str, dict[str, Any]] = {}
+    lg_by: dict[int, Optional[float]] = {}
     by_week: dict[tuple[int, int], dict[str, Rating]] = {}
     for g in games:
         if sport == "cfb" and members and not (g.home_id in members and g.away_id in members):
@@ -278,9 +291,11 @@ def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: 
         if key not in by_week:
             by_week[key] = build_ratings(sport, rows, key[0], key[1], returning=returning, members=members or None)
         h, a = by_week[key].get(g.home_id), by_week[key].get(g.away_id)
-        if h is None or a is None:
+        if key[0] not in lg_by:
+            lg_by[key[0]] = league_total(rows, key[0], members or None)
+        if h is None or a is None or lg_by[key[0]] is None:   # no last season cached -> no pre-game rating
             continue
-        total = predict_total(coef, features(h, a, league_total(rows, key[0], members or None)))
+        total = predict_total(coef, features(h, a, lg_by[key[0]]))
         lead = (g.kickoff_utc - now).total_seconds() / 3600.0
         out[g.game_id] = {"total": round(total, 1), "weight": round(blend_weight(sport, lead), 3),
                           "n_games": min(h.n_games, a.n_games), "model": "team_v1"}

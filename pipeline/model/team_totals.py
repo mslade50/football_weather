@@ -131,6 +131,8 @@ def walk_ratings(
     prev_mean: dict[tuple[int, str, str], float] = {}
 
     def centre(s: int, m: str, v: Optional[float]) -> Optional[float]:
+        # last season's league mean. A season with no predecessor in ``rows`` is centred on its own
+        # mean: it only builds the prior for the next season and is never rated itself (has_prior).
         base = lg.get(s - 1, {}).get(m, lg.get(s, {}).get(m))
         return None if v is None or base is None else v - base
 
@@ -196,13 +198,17 @@ def build_ratings(
 
 # ---------------------------------------------------------------- points model
 
-def league_total(rows: Sequence[TeamGame], season: int, members: Optional[set[str]] = None) -> float:
-    """League-average game total known before ``season``: last season's mean points x 2 (this
-    season's when no earlier season is present)."""
+def league_total(rows: Sequence[TeamGame], season: int, members: Optional[set[str]] = None) -> Optional[float]:
+    """League-average game total known before ``season``: last season's mean points x 2.
+    None when last season is not in ``rows``: that season cannot be rated pre-game (its own
+    results would leak in), so callers skip it."""
     prev = league_means(rows, season - 1, members).get("pf")
-    cur = league_means(rows, season, members).get("pf")
-    base = prev if prev is not None else cur
-    return 2.0 * base if base is not None else 0.0
+    return 2.0 * prev if prev is not None else None
+
+
+def has_prior(rows: Sequence[TeamGame], season: int) -> bool:
+    """True when ``season - 1`` is present, i.e. ``season`` can be rated without its own results."""
+    return any(r.season == season - 1 for r in rows)
 
 
 def features(home: Rating, away: Rating, league_total: float) -> dict[str, float]:
@@ -247,4 +253,4 @@ def load_model(path: Path = CALIBRATION_PATH) -> dict[str, dict]:
 
 
 __all__ = ["BLEND_WEIGHTS", "DEFAULT_PARAMS", "METRICS", "Rating", "TeamGame", "blend_weight", "build_ratings",
-           "features", "league_means", "league_total", "load_model", "predict_total", "walk_ratings"]
+           "features", "has_prior", "league_means", "league_total", "load_model", "predict_total", "walk_ratings"]
