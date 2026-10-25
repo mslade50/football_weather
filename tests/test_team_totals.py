@@ -157,7 +157,8 @@ def test_needs_refresh_rules():
     old = (NOW - timedelta(hours=60)).isoformat()
     recent = (NOW - timedelta(hours=10)).isoformat()
     assert TS.needs_refresh(None, NOW, final=False, min_hours=48)
-    assert not TS.needs_refresh({"fetched_at": old}, NOW, final=True, min_hours=48)        # past season: once
+    assert TS.needs_refresh({"fetched_at": old}, NOW, final=True, min_hours=48)            # past season, not final yet
+    assert not TS.needs_refresh({"fetched_at": old, "final": True}, NOW, final=True, min_hours=48)  # then never
     assert TS.needs_refresh({"fetched_at": old}, NOW, final=False, min_hours=48)           # cadence elapsed
     assert not TS.needs_refresh({"fetched_at": recent}, NOW, final=False, min_hours=48)    # too soon
     assert TS.needs_refresh({"fetched_at": recent}, NOW, final=False, min_hours=6)
@@ -168,7 +169,7 @@ def test_needs_refresh_rules():
 def test_fixed_cadence_picks_up_late_stats_and_skips_off_season(monkeypatch):
     """A feed that publishes a finished game late is picked up by the next cadence fetch."""
     calls: list[int] = []
-    seasons = {str(s): {"fetched_at": NOW.isoformat(), "rows": []} for s in (2024, 2025)}
+    seasons = {str(s): {"fetched_at": NOW.isoformat(), "rows": [], "final": True} for s in (2024, 2025)}
     cache = {"sports": {"nfl": {"seasons": seasons}}}
 
     def fetch(sport, season, **k):
@@ -340,9 +341,9 @@ def test_build_stage_switch_and_offline_cache(tmp_path: Path, monkeypatch):
 
     games = [G("g1", 2025, 5, "hi", "lo", NOW + timedelta(days=4))]
     pstate.save_team_stats(tmp_path, {"sports": {"nfl": {"seasons": {
-        "2024": {"rows": TS._rows_to_json(league(2024)), "fetched_at": NOW.isoformat()},
+        "2024": {"rows": TS._rows_to_json(league(2024)), "fetched_at": NOW.isoformat(), "final": True},
         "2025": {"rows": TS._rows_to_json(league(2025)), "fetched_at": NOW.isoformat()},
-        "2023": {"rows": [], "fetched_at": NOW.isoformat()}}}}})
+        "2023": {"rows": [], "fetched_at": NOW.isoformat(), "final": True}}}}})
     monkeypatch.setenv("TEAM_TOTALS", "0")
     assert B.stage_team_totals(_Ctx(), "nfl", games, [], NullRawStore(), 2025, tmp_path) == {}
     monkeypatch.setenv("TEAM_TOTALS", "1")
@@ -501,3 +502,26 @@ def test_published_card_repricing_reads_total_rel():
 
     src = inspect.getsource(CQ._recompute_card)
     assert 'card.get("team_total")' in src and '"team_total": tt["total_rel"]' in src and "**blend" in src
+
+
+def test_season_rollover_completes_the_previous_season_once(monkeypatch):
+    """Codex F8: 2025 last fetched before the Super Bowl; the first 2026 run refetches it once."""
+    from dataclasses import asdict
+
+    partial = [asdict(TT.TeamGame("nfl", 2025, 21, "conf", "a", "b", pf=20, pa=20))]
+    complete = partial + [asdict(TT.TeamGame("nfl", 2025, 22, "sb", "a", "c", pf=40, pa=30))]
+    sept = datetime(2026, 9, 1, tzinfo=UTC)
+    seasons = {"2024": {"fetched_at": "2025-03-01T00:00:00+00:00", "rows": [], "final": True},
+               "2025": {"fetched_at": "2026-02-08T12:00:00+00:00", "rows": partial},
+               "2026": {"fetched_at": sept.isoformat(), "rows": []}}
+    cache = {"sports": {"nfl": {"seasons": seasons}}}
+    calls: list[int] = []
+
+    def fetch(sport, season, **k):
+        calls.append(season)
+        return {"rows": complete if season == 2025 else []}
+    monkeypatch.setattr(TS, "fetch_season", fetch)
+    TS.refresh("nfl", 2026, cache, [sept], sept)
+    assert calls == [2025] and seasons["2025"]["rows"] == complete and seasons["2025"]["final"] is True
+    TS.refresh("nfl", 2026, cache, [sept], sept + timedelta(days=30))
+    assert calls.count(2025) == 1                      # immutable from then on

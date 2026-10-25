@@ -161,15 +161,16 @@ def rows_from_cache(cache: dict, sport: str) -> tuple[list[TeamGame], dict[int, 
 
 
 def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: bool, min_hours: float) -> bool:
-    """Fetch when we have nothing; a finished season never again; the current season every
-    ``min_hours``. A failed attempt (``failed_at``) blocks retries for ``RETRY_H``."""
+    """Fetch when we have nothing; a finished season once more after it ends (``final`` marks that
+    fetch done; a season last fetched mid-season would otherwise miss its last games), then never;
+    the current season every ``min_hours``. A failed attempt (``failed_at``) blocks retries for ``RETRY_H``."""
     failed = (entry or {}).get("failed_at")
     if failed and now - datetime.fromisoformat(failed) < timedelta(hours=RETRY_H):
         return False
     if not entry or not entry.get("fetched_at"):
         return True
     if final:
-        return False
+        return not entry.get("final")   # one fetch after the season is over, then immutable
     return now - datetime.fromisoformat(entry["fetched_at"]) >= timedelta(hours=min_hours)
 
 
@@ -257,6 +258,8 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
             changed = True
             continue
         fresh["fetched_at"] = now.isoformat()
+        if s < season:
+            fresh["final"] = True   # fetched after the season ended: complete, never refetched
         seasons[str(s)] = fresh
         changed = True
     for s in [k for k in seasons if int(k) < season - HISTORY_SEASONS]:
