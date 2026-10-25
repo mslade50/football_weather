@@ -163,7 +163,7 @@ def rows_from_cache(cache: dict, sport: str) -> tuple[list[TeamGame], dict[int, 
 
 def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: bool, min_hours: float) -> bool:
     """Fetch when we have nothing; for the current season, once a game that was upcoming at the
-    last fetch (``next_kick``) has finished, or the follow-up ``recheck_at`` (provider lag) is due,
+    last fetch (``next_kick``) has finished, or a follow-up in ``rechecks`` (provider lag) is due,
     and ``min_hours`` have passed. A failed attempt
     (``failed_at``) blocks every retry for ``RETRY_H`` so a flaky upstream cannot drain the quota."""
     failed = (entry or {}).get("failed_at")
@@ -176,8 +176,7 @@ def needs_refresh(entry: Optional[Mapping[str, Any]], now: datetime, *, final: b
     last = datetime.fromisoformat(entry["fetched_at"])
     if now - last < timedelta(hours=min_hours):
         return False
-    rc = entry.get("recheck_at")
-    if rc and now >= datetime.fromisoformat(rc):
+    if any(d <= now for d in _pending(entry)):
         return True
     nk = entry.get("next_kick")
     if nk is None:
@@ -269,7 +268,7 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
         if s == season:
             upcoming = sorted(k for k in kickoffs if k > now)
             fresh["next_kick"] = upcoming[0].isoformat() if upcoming else None
-            fresh.update(_next_recheck(entry or {}, now))
+            fresh.update(_next_rechecks(entry or {}, now))
         seasons[str(s)] = fresh
         changed = True
     for s in [k for k in seasons if int(k) < season - HISTORY_SEASONS]:
@@ -282,23 +281,24 @@ def refresh(sport: str, season: int, cache: dict, kickoffs: Sequence[datetime], 
     return changed
 
 
-def _next_recheck(prev: Mapping[str, Any], now: datetime) -> dict[str, Any]:
+def _pending(entry: Mapping[str, Any]) -> list[datetime]:
+    return sorted(datetime.fromisoformat(x) for x in entry.get("rechecks") or [])
+
+
+def _next_rechecks(prev: Mapping[str, Any], now: datetime) -> dict[str, Any]:
     """Stats feeds can publish a finished game hours after the final score, so every fetch that
-    may have missed one schedules a single follow-up: a fetch triggered by a finished game
+    may have missed one adds a single follow-up deadline: a fetch triggered by a finished game
     (``next_kick``) -> that kickoff + ``CATCHUP_H``; a first-ever fetch -> now + ``CATCHUP_H``.
-    A still-pending follow-up is kept. The earliest future candidate wins, so each trigger adds
-    at most one extra fetch (bounded), and consuming a follow-up never drops a newer trigger."""
-    cands: list[datetime] = []
+    All outstanding deadlines are kept (``rechecks``); a fetch consumes only the ones already due.
+    Bounded: one extra fetch per finished-game trigger at most."""
+    keep = [d for d in _pending(prev) if d > now]
     nk = prev.get("next_kick")
     if nk and now >= datetime.fromisoformat(nk) + timedelta(hours=GAME_DONE_H):
-        cands.append(datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H))
+        keep.append(datetime.fromisoformat(nk) + timedelta(hours=CATCHUP_H))
     if not prev.get("fetched_at"):
-        cands.append(now + timedelta(hours=CATCHUP_H))
-    rc = prev.get("recheck_at")
-    if rc:
-        cands.append(datetime.fromisoformat(rc))
-    future = [c for c in cands if c > now]
-    return {"recheck_at": min(future).isoformat()} if future else {}
+        keep.append(now + timedelta(hours=CATCHUP_H))
+    future = sorted({d for d in keep if d > now})
+    return {"rechecks": [d.isoformat() for d in future]}
 
 
 def team_totals_for_games(sport: str, games: Sequence[Any], cache: dict, model: Mapping[str, Any],

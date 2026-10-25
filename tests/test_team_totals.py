@@ -456,11 +456,11 @@ def test_provider_lag_gets_one_bounded_follow_up(monkeypatch):
     monkeypatch.setattr(TS, "fetch_season", fetch)
     assert TS.refresh("nfl", 2026, cache, [sun], fri)                 # Thursday finished -> fetch
     e = cache["sports"]["nfl"]["seasons"]["2026"]
-    assert e["next_kick"] == sun.isoformat() and e["recheck_at"] == (thu + timedelta(hours=TS.CATCHUP_H)).isoformat()
+    assert e["next_kick"] == sun.isoformat() and e["rechecks"] == [(thu + timedelta(hours=TS.CATCHUP_H)).isoformat()]
     assert not TS.refresh("nfl", 2026, cache, [sun], fri + timedelta(hours=13))   # follow-up not yet due
     sat = thu + timedelta(hours=TS.CATCHUP_H + 1)
     assert TS.refresh("nfl", 2026, cache, [sun], sat)                 # follow-up fetch
-    assert "recheck_at" not in cache["sports"]["nfl"]["seasons"]["2026"]
+    assert cache["sports"]["nfl"]["seasons"]["2026"]["rechecks"] == []
     n = len(calls)
     assert not TS.refresh("nfl", 2026, cache, [sun], sat + timedelta(hours=13))   # no further fetch before Sunday
     assert len(calls) == n
@@ -492,8 +492,28 @@ def test_follow_up_for_back_to_back_game_days_and_cold_start(monkeypatch):
     TS.refresh("nfl", 2026, cache, [mon, thu], sun + timedelta(hours=4))           # Sunday finished
     TS.refresh("nfl", 2026, cache, [thu], sun + timedelta(hours=36))               # Sunday follow-up; Monday finished
     e = cache["sports"]["nfl"]["seasons"]["2026"]
-    assert e["recheck_at"] == (mon + timedelta(hours=TS.CATCHUP_H)).isoformat()
+    assert e["rechecks"] == [(mon + timedelta(hours=TS.CATCHUP_H)).isoformat()]
     assert TS.needs_refresh(e, mon + timedelta(hours=TS.CATCHUP_H + 1), final=False, min_hours=12)
     cold: dict = {"sports": {}}
     TS.refresh("nfl", 2026, cold, [thu], sun)
-    assert cold["sports"]["nfl"]["seasons"]["2026"]["recheck_at"] == (sun + timedelta(hours=TS.CATCHUP_H)).isoformat()
+    assert cold["sports"]["nfl"]["seasons"]["2026"]["rechecks"] == [(sun + timedelta(hours=TS.CATCHUP_H)).isoformat()]
+
+
+def test_overlapping_follow_ups_are_all_kept(monkeypatch):
+    """Codex F4 round 4: Monday finishes just before Sunday's follow-up is due; both deadlines survive."""
+    sun = datetime(2026, 10, 18, 17, tzinfo=UTC)
+    mon, thu = sun + timedelta(hours=31), sun + timedelta(hours=103)
+    seasons = {str(s): {"fetched_at": sun.isoformat(), "rows": []} for s in (2024, 2025)}
+    seasons["2026"] = {"fetched_at": (sun - timedelta(days=3)).isoformat(), "next_kick": sun.isoformat(), "rows": []}
+    cache = {"sports": {"nfl": {"seasons": seasons}}}
+    fetched: list[int] = []
+
+    def fetch(*a, **k):
+        fetched.append(1)
+        return {"rows": []}
+    monkeypatch.setattr(TS, "fetch_season", fetch)
+    for hour, kicks in [(4, [mon, thu]), (35, [thu]), (47, [thu]), (67, [thu])]:
+        TS.refresh("nfl", 2026, cache, kicks, sun + timedelta(hours=hour))
+    assert len(fetched) == 4                                   # hour 67 = Monday's follow-up still fired
+    assert TS.needs_refresh(seasons["2026"], thu - timedelta(hours=1), final=False, min_hours=12) is False
+    assert seasons["2026"]["rechecks"] == []
