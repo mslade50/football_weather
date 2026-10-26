@@ -594,6 +594,7 @@ def build_forecast(
     )
     apart = process_screen.ecmwf_disagreement(model_windows)
 
+    paper_ifs_idx = _index(om.models.get(ECMWF, [])) if om else {}
     forecast = WeatherForecast(
         game_id=game_id,
         source=source,
@@ -624,6 +625,9 @@ def build_forecast(
         climo_wind=cell.wind_mean if cell else None,
         climo_temp=cell.temp_mean if cell else None,
         model_windows=model_windows,
+        paper_ifs=[{"t": t, "wind_mph": row.wind if row else None}
+                   for t in [h0 + timedelta(hours=i) for i in range(4)]
+                   for row in [paper_ifs_idx.get(t)]],
         signal_source=signal["source"],
         signal_temp_f=signal["temp_f"],
         signal_wind_mph=signal["wind_mph"],

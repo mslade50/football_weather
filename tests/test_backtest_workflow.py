@@ -164,9 +164,15 @@ def test_backtest_step_order_and_failure_ping(bt: str):
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg and "--max-time 15" in tg
 
 
-def test_backtest_no_git_commit_no_continue_on_error_no_playwright(bt: str):
-    for token in ("git commit", "git push", "git pull", "continue-on-error", "playwright install"):
+def test_backtest_no_git_commit_no_playwright_only_paper_is_isolated(bt: str):
+    for token in ("git commit", "git push", "git pull", "playwright install"):
         assert token not in bt, token
+    steps = yaml.safe_load(bt)["jobs"]["backtest"]["steps"]
+    isolated = [step for step in steps if step.get("continue-on-error")]
+    assert len(isolated) == 1
+    assert isolated[0]["run"] == "python scripts/paper_run.py grade"
+    # Existing fetch/build/publication steps remain fail-closed.
+    assert all(not step.get("continue-on-error") for step in steps if step not in isolated)
     assert "grep -viE '^(playwright|playwright-stealth" in bt
 
 
