@@ -7,15 +7,17 @@ is free to use, including commercially, under Creative Commons Attribution 4.0
     ECMWF Open Data (CC BY 4.0). Source: European Centre for Medium-Range
     Weather Forecasts. https://www.ecmwf.int/en/forecasts/datasets/open-data
 
-The client asks only for the steps and parameters that cover the game windows,
-caches each GRIB subset by model run, and decodes it once per process. Sampled
-values are converted into the same hourly ``ParsedLocation`` / ``EnsembleLocation``
-rows Open-Meteo produces (F, mph, meteorological degrees, mm), so merge and the
-impact model do not change.
+The client reads each step's ``.index``, then HTTP byte-ranges only the surface
+messages the board needs (10 m u/v wind, total precipitation, 2 m temperature,
+and gust when the file has it). One decoded step is sampled for every stadium.
+Mirrors are Google, data.ecmwf.int, AWS, then Azure; a 503 SlowDown fails that
+mirror over instead of abandoning the run. Sampled fields are cached by model
+run so the next pipeline pass in the same 00z/12z cycle does not download them
+again. Values are converted into the same hourly ``ParsedLocation`` /
+``EnsembleLocation`` rows Open-Meteo produces (F, mph, meteorological degrees,
+mm), so merge and the impact model do not change.
 
-New packages, installed with the rest of the pipeline: ``ecmwf-opendata`` (index
-and byte-range download) and ``eccodes`` (GRIB2 decode). Both are imported only
-when a download actually runs.
+``eccodes`` decodes GRIB2 and is imported only when a download is decoded.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ import logging
 import os
 import random
 import re
+import shutil
+import threading
 import time
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
@@ -34,9 +38,19 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from pipeline.weather.ecmwf_ranges import (
+    AZURE_SAS_URL,
+    MIRROR_URLS,
+    IndexedMessages,
+    coalesce_ranges,
+    object_stem,
+    parse_index_entries,
+    select_indexed,
+)
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.ensemble import CONTROL, EnsembleLocation, Member
 from pipeline.weather.parsers.openmeteo import ParsedLocation
+from pipeline.weather.qc import plausible_precip_mm
 
 log = logging.getLogger(__name__)
 
@@ -54,24 +68,30 @@ PUBLICATION_LAG_H = 8.0
 STALE_INIT_H = 18.0
 CYCLE_H = 6.0
 DEFAULT_MAX_BYTES = 120 * 1024 * 1024
-# One open-data entry point (point forecast or ensemble) and the whole session.
-# A SlowDown crawl of 90 MB GRIB files used the entire 30 minute light job
-# (runs 40037160951 and 40038054554). These caps leave the rest of the job
-# room under that timeout. 503 SlowDown backs off, then the fetch stops and
-# Open-Meteo / the other models stay in place.
-FETCH_BUDGET_S = 90.0
-TOTAL_BUDGET_S = 180.0
+# One product (point forecast or ensemble) and the whole session. Byte ranges
+# are small, but a cold CFB slate can still touch a few dozen steps. These caps
+# leave the rest of the 30 minute light job room. Both are env-tunable.
+FETCH_BUDGET_S = 240.0
+TOTAL_BUDGET_S = 480.0
 SLOWDOWN_ATTEMPTS = 3
 SLOWDOWN_EVENT_LIMIT = 4
 SLOWDOWN_BASE_S = 1.0
 SLOWDOWN_CAP_S = 8.0
 HTTP_CONNECT_TIMEOUT_S = 5.0
 HTTP_READ_TIMEOUT_S = 20.0
+RANGE_WORKERS = 8
+SAMPLE_SCHEMA = 1
+SAMPLE_KEEP_H = 36.0
 _TRANSIENT_TRANSPORT = frozenset({
     "ConnectionError", "ConnectTimeout", "ReadTimeout", "Timeout",
     "ChunkedEncodingError", "ProxyError",
+    "ConnectError", "TimeoutException", "ReadError", "RemoteProtocolError",
+    "NetworkError", "PoolTimeout",
 })
-MIRRORS = ("aws", "azure", "ecmwf")
+# Google has been answering range requests while the AWS bucket returns
+# 503 SlowDown at cycle publication. Official ECMWF is next, then AWS, then
+# Azure (which needs a short-lived Planetary Computer SAS token).
+MIRRORS = ("google", "ecmwf", "aws", "azure")
 UNITS = {
     "temperature_2m": "°F",
     "wind_speed_10m": "mp/h",
@@ -203,8 +223,19 @@ def _env_int(name: str, default: int, low: int, high: int) -> int:
 
 
 def slowdown_give_up_enabled() -> bool:
-    """``ECMWF_OD_SLOWDOWN_GIVEUP=0`` keeps trying mirrors after a 503."""
+    """``ECMWF_OD_SLOWDOWN_GIVEUP=0`` retries the same mirror for longer.
+
+    With mirror failover on (the default) a SlowDown still moves to the next
+    mirror either way. Failover off plus this flag restores the old behaviour:
+    stop the fetch on the first mirror that returns 503.
+    """
     raw = os.environ.get("ECMWF_OD_SLOWDOWN_GIVEUP", "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def mirror_failover_enabled() -> bool:
+    """``ECMWF_OD_MIRROR_FAILOVER=0`` stops the fetch on the first 503."""
+    raw = os.environ.get("ECMWF_OD_MIRROR_FAILOVER", "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
 
 
@@ -400,7 +431,8 @@ def precip_mm(samples: dict[int, dict[str, float]], lead: float, steps: Sequence
     end = samples.get(s1, {}).get("tp")
     if start is None or end is None:
         return None
-    return max(0.0, (end - start) * 1000.0) / (s1 - s0)
+    hourly = max(0.0, (end - start) * 1000.0) / (s1 - s0)
+    return plausible_precip_mm(hourly)
 
 
 def hour_state(
@@ -572,6 +604,33 @@ def member_label(request: Request, grid: GridField) -> Optional[str]:
     return f"member{int(grid.member):02d}"
 
 
+def prune_sample_cache(cache_dir: Path, now: datetime, *, keep_hours: float = SAMPLE_KEEP_H) -> None:
+    """Drop sampled fields from model runs older than ``keep_hours``."""
+    root = cache_dir / "samples"
+    if not root.is_dir():
+        return
+    raw = os.environ.get("ECMWF_OD_SAMPLE_KEEP_H", "").strip()
+    if raw:
+        try:
+            keep_hours = float(raw)
+        except ValueError:
+            pass
+    cutoff = aware(now) - timedelta(hours=keep_hours)
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        try:
+            stamp = datetime.strptime(child.name, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if stamp < cutoff:
+            shutil.rmtree(child, ignore_errors=True)
+
+
+def _point_key(point: tuple[float, float]) -> str:
+    return f"{point[0]:.4f},{point[1]:.4f}"
+
+
 def _part_bytes(result: Any) -> int:
     total = 0
     for item in getattr(result, "urls", ()) or ():
@@ -682,12 +741,21 @@ class OpenDataSession:
     slowdown_attempts: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_ATTEMPTS", SLOWDOWN_ATTEMPTS, 1, 6))
     slowdown_event_limit: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_LIMIT", SLOWDOWN_EVENT_LIMIT, 1, 20))
     give_up_on_slowdown: bool = field(default_factory=slowdown_give_up_enabled)
+    mirror_failover: bool = field(default_factory=mirror_failover_enabled)
+    # Tests inject ``(method, url, headers) -> response``. Production uses httpx.
+    transport: Optional[Any] = None
+    range_workers: int = field(default_factory=lambda: _env_int("ECMWF_OD_RANGE_WORKERS", RANGE_WORKERS, 1, 32))
+    stopped_early: Optional[str] = None
     _samples: dict[str, dict[tuple[float, float], dict[int, dict[str, float]]]] = field(default_factory=dict)
     _members: dict[str, dict[tuple[float, float], dict[str, dict[int, dict[str, float]]]]] = field(default_factory=dict)
     _total_started: Optional[float] = field(default=None, init=False, repr=False)
     _fetch_started: Optional[float] = field(default=None, init=False, repr=False)
     _abandoned: Optional[str] = field(default=None, init=False, repr=False)
     _slowdown_events: int = field(default=0, init=False, repr=False)
+    _index_cache: dict[tuple[str, str], str] = field(default_factory=dict, init=False, repr=False)
+    _http: Any = field(default=None, init=False, repr=False)
+    _lock: Optional[threading.Lock] = field(default=None, init=False, repr=False)
+    _azure_sas: Optional[str] = field(default=None, init=False, repr=False)
 
     def _now(self) -> float:
         return time.monotonic() if self.clock is None else self.clock()
@@ -706,6 +774,10 @@ class OpenDataSession:
         self._fetch_started = now
         self._slowdown_events = 0
         self._abandoned = None
+        try:
+            prune_sample_cache(self.cache_dir, datetime.now(timezone.utc))
+        except OSError:
+            log.info("ECMWF sample cache prune skipped")
 
     def _remaining(self) -> float:
         now = self._now()
@@ -740,8 +812,21 @@ class OpenDataSession:
         if self._abandoned == "budget":
             raise OpenDataBudget("ECMWF open-data budget already exceeded")
 
+    def _state_lock(self) -> threading.Lock:
+        if self._lock is None:
+            self._lock = threading.Lock()
+        return self._lock
+
     def _note_slowdown(self, url: str) -> None:
         self._slowdown_events += 1
+        # Failover moves on to the next mirror. Poisoning the session here is
+        # what made one AWS 503 throw away Azure, Google, and data.ecmwf.int.
+        if self.mirror_failover:
+            log.warning(
+                "ECMWF 503 SlowDown on %s (%d this fetch); trying another mirror",
+                url, self._slowdown_events,
+            )
+            return
         if self.give_up_on_slowdown and self._slowdown_events >= self.slowdown_event_limit:
             self._abandoned = "slowdown"
             log.warning(
@@ -753,16 +838,19 @@ class OpenDataSession:
     def guarded_http(self, original: Any, method: str, url: str, **kwargs: Any) -> Any:
         """One HTTP call with a short timeout, SlowDown backoff, and the fetch budget.
 
-        multiurl treats a returned 503 as a reason to keep downloading the rest
-        of a multi-megabyte GRIB. Raising here stops that crawl.
+        A returned 503 is not a reason to keep reading the rest of a multi-gigabyte
+        GRIB. The attempt cap ends this URL; mirror failover then tries the next host.
         """
-        self.check_budget()
-        remaining = self._remaining()
-        read = min(HTTP_READ_TIMEOUT_S, max(1.0, remaining))
+        lock = self._state_lock()
+        with lock:
+            self.check_budget()
+            remaining = self._remaining()
+            read = min(HTTP_READ_TIMEOUT_S, max(1.0, remaining))
         kwargs["timeout"] = (min(HTTP_CONNECT_TIMEOUT_S, read), read)
         attempts = max(1, self.slowdown_attempts)
         for attempt in range(1, attempts + 1):
-            self.check_budget()
+            with lock:
+                self.check_budget()
             try:
                 response = original(method, url, **kwargs)
             except OpenDataBudget:
@@ -777,16 +865,18 @@ class OpenDataSession:
                     "ECMWF %s %s (%s); backing off %.2fs (attempt %d/%d)",
                     method, url, type(exc).__name__, delay, attempt, attempts,
                 )
-                if delay >= self._remaining():
-                    self._abandoned = "budget"
-                    raise OpenDataBudget("ECMWF open-data budget exceeded during transport backoff") from exc
+                with lock:
+                    if delay >= self._remaining():
+                        self._abandoned = "budget"
+                        raise OpenDataBudget("ECMWF open-data budget exceeded during transport backoff") from exc
                 self._sleep(delay)
                 continue
             if not is_slowdown_response(response):
                 return response
-            self._note_slowdown(url)
+            with lock:
+                self._note_slowdown(url)
             if attempt >= attempts:
-                if self.give_up_on_slowdown:
+                if self.give_up_on_slowdown and not self.mirror_failover:
                     self._abandoned = "slowdown"
                 log.warning(
                     "ECMWF 503 SlowDown persisted for %s after %d attempts; falling back",
@@ -798,9 +888,10 @@ class OpenDataSession:
                 "ECMWF 503 SlowDown for %s; backing off %.2fs (attempt %d/%d)",
                 url, delay, attempt, attempts,
             )
-            if delay >= self._remaining():
-                self._abandoned = "budget"
-                raise OpenDataBudget("ECMWF open-data budget exceeded during SlowDown backoff")
+            with lock:
+                if delay >= self._remaining():
+                    self._abandoned = "budget"
+                    raise OpenDataBudget("ECMWF open-data budget exceeded during SlowDown backoff")
             self._sleep(delay)
         raise OpenDataSlowDown(f"503 SlowDown for {url}")
 
@@ -816,24 +907,35 @@ class OpenDataSession:
             return found
         if not network_allowed():
             raise OpenDataError("ECMWF open-data network is disabled")
+        candidate = expected_published_run(datetime.now(timezone.utc))
         last: Optional[Exception] = None
-        for source in self.sources:
-            try:
-                self.check_budget()
-                found = aware(_client(source, model, self).latest(stream="oper", type="fc", step=0, param="2t"))
-            except OpenDataBudget:
-                raise
-            except OpenDataSlowDown as exc:
-                last = exc
-                if self._abandoned == "slowdown":
+        for back in range(4):
+            run = candidate - timedelta(hours=6 * back)
+            stem = object_stem(model, run, "oper", "fc", 0) + ".index"
+            for source in self.sources:
+                if source not in MIRROR_URLS:
+                    continue
+                try:
+                    self.check_budget()
+                    response = self._exchange("HEAD", self._object_url(source, stem))
+                except OpenDataBudget:
                     raise
-                continue
-            except Exception as exc:  # noqa: BLE001 - try the next mirror
-                last = exc
-                continue
-            self.mirror = source
-            self.runs[model] = found
-            return found
+                except OpenDataSlowDown as exc:
+                    last = exc
+                    if not self.mirror_failover or self._abandoned == "slowdown":
+                        raise
+                    continue
+                except Exception as exc:  # noqa: BLE001 - next mirror or previous cycle
+                    last = exc
+                    continue
+                if getattr(response, "status_code", None) == 200:
+                    self.mirror = source
+                    self.runs[model] = aware(run)
+                    log.info(
+                        "ECMWF open-data %s run %s via %s",
+                        model, aware(run).strftime("%Y-%m-%d %HZ"), source,
+                    )
+                    return self.runs[model]
         raise OpenDataError(f"no published {model} run ({last})")
 
     def openmeteo_init(self) -> Optional[datetime]:
@@ -864,6 +966,168 @@ class OpenDataSession:
                 continue
         return None
 
+    def _http_client(self) -> Any:
+        if self._http is None:
+            import httpx
+
+            self._http = httpx.Client(headers={"User-Agent": USER_AGENT}, follow_redirects=True)
+        return self._http
+
+    def _azure_sas_token(self) -> Optional[str]:
+        if self._azure_sas is not None:
+            return self._azure_sas or None
+        if self.transport is not None:
+            self._azure_sas = ""
+            return None
+        try:
+            import httpx
+
+            response = httpx.get(AZURE_SAS_URL, timeout=10.0, headers={"User-Agent": USER_AGENT})
+            response.raise_for_status()
+            token = str(response.json().get("token") or "")
+        except Exception as exc:  # noqa: BLE001 - Azure is one of four mirrors
+            log.warning("ECMWF Azure SAS token unavailable: %s", exc)
+            token = ""
+        self._azure_sas = token
+        return token or None
+
+    def _object_url(self, source: str, path: str) -> str:
+        base = MIRROR_URLS.get(source)
+        if not base:
+            raise OpenDataError(f"unknown ECMWF mirror {source}")
+        url = f"{base.rstrip('/')}/{path.lstrip('/')}"
+        if source == "azure":
+            token = self._azure_sas_token()
+            if not token:
+                raise OpenDataError("azure SAS token unavailable")
+            url = f"{url}?{token}"
+        return url
+
+    def _exchange(self, method: str, url: str, extra_headers: Optional[dict[str, str]] = None) -> Any:
+        headers = {"User-Agent": USER_AGENT}
+        if extra_headers:
+            headers.update(extra_headers)
+
+        def original(call_method: str, call_url: str, **kwargs: Any) -> Any:
+            if self.transport is not None:
+                return self.transport(call_method, call_url, headers)
+            return self._http_client().request(
+                call_method, call_url, headers=headers, timeout=kwargs.get("timeout"),
+            )
+
+        return self.guarded_http(original, method, url)
+
+    def _get_index_text(self, source: str, path: str) -> str:
+        key = (source, path)
+        cached = self._index_cache.get(key)
+        if cached is not None:
+            return cached
+        response = self._exchange("GET", self._object_url(source, path))
+        status = getattr(response, "status_code", None)
+        if status != 200:
+            raise OpenDataError(f"HTTP {status} for {path} via {source}")
+        text = bytes(response.content).decode("utf-8")
+        self._index_cache[key] = text
+        return text
+
+    def _get_ranges(self, source: str, path: str, spans: Sequence[tuple[int, int]]) -> bytes:
+        merged = coalesce_ranges(spans, 0)
+        parts: list[Optional[bytes]] = [None] * len(merged)
+
+        def fetch(index: int, start: int, length: int) -> None:
+            header = {"Range": f"bytes={start}-{start + length - 1}"}
+            response = self._exchange("GET", self._object_url(source, path), header)
+            status = getattr(response, "status_code", None)
+            body = bytes(getattr(response, "content", b"") or b"")
+            if status not in (200, 206):
+                raise OpenDataError(f"HTTP {status} for {path} via {source}")
+            if len(body) != length or not body.startswith(b"GRIB"):
+                raise OpenDataError(
+                    f"{source} returned {len(body)} bytes for a {length}-byte GRIB range of {path}"
+                )
+            parts[index] = body
+
+        workers = max(1, min(self.range_workers, len(merged)))
+        if workers == 1:
+            for index, (start, length) in enumerate(merged):
+                fetch(index, start, length)
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [pool.submit(fetch, index, start, length) for index, (start, length) in enumerate(merged)]
+                for future in futures:
+                    future.result()
+        return b"".join(part for part in parts if part is not None)
+
+    def _step_grib_path(self, request: Request, step: int) -> Path:
+        stamp = aware(request.run).strftime("%Y%m%d%H")
+        token = hashlib.sha256(
+            json.dumps(
+                {"p": list(request.params), "n": list(request.numbers), "role": request.role},
+                sort_keys=True,
+            ).encode(),
+        ).hexdigest()[:12]
+        return self.cache_dir / "grib" / stamp / f"{request.model}-{request.stream}-{request.kind}-{int(step)}-{token}.grib2"
+
+    def _fetch_step(self, request: Request, step: int) -> tuple[bytes, str, IndexedMessages]:
+        file_type = filename_type(request.kind, request.model)
+        stem = object_stem(request.model, aware(request.run), request.stream, file_type, step)
+        last: Optional[Exception] = None
+        for source in self.sources:
+            if source not in MIRROR_URLS:
+                continue
+            try:
+                self.check_budget()
+                text = self._get_index_text(source, stem + ".index")
+                indexed = select_indexed(parse_index_entries(text), request.params, request.numbers, step)
+                if indexed.messages == 0:
+                    raise OpenDataError(
+                        f"no index entries for {request.stream}/{request.kind} "
+                        f"{list(request.params)} step {step}"
+                    )
+                if indexed.nbytes > self.max_bytes:
+                    raise TooLarge(f"{indexed.nbytes} bytes exceeds {self.max_bytes}")
+                started = time.perf_counter()
+                payload = self._get_ranges(source, stem + ".grib2", indexed.spans)
+                self.seconds += time.perf_counter() - started
+                member_count = len(indexed.members) or (1 if request.role == "control" else 0)
+                log.info(
+                    "ECMWF open-data %s %s/%s step %sh via %s: %d messages, %.2f MB, members=%d",
+                    request.model, request.stream, request.kind, step, source,
+                    indexed.messages, indexed.nbytes / 1_000_000, member_count,
+                )
+                return payload, source, indexed
+            except TooLarge:
+                raise
+            except OpenDataBudget:
+                raise
+            except OpenDataSlowDown as exc:
+                last = exc
+                log.warning("ECMWF open data %s step %s via %s hit 503 SlowDown: %s", request.model, step, source, exc)
+                if not self.mirror_failover or self._abandoned == "slowdown":
+                    self._abandoned = "slowdown"
+                    raise
+                continue
+            except Exception as exc:  # noqa: BLE001 - next mirror
+                if is_slowdown_error(exc):
+                    last = exc
+                    log.warning("ECMWF open data %s step %s via %s hit 503 SlowDown: %s", request.model, step, source, exc)
+                    if not self.mirror_failover or self._abandoned == "slowdown":
+                        self._abandoned = "slowdown"
+                        raise OpenDataSlowDown(str(exc)) from exc
+                    continue
+                last = exc
+                log.warning("ECMWF open data %s step %s via %s failed: %s", request.model, step, source, exc)
+        if isinstance(last, OpenDataSlowDown):
+            # Every configured mirror already returned 503. Later steps must not
+            # walk that list again inside this fetch.
+            self._abandoned = "slowdown"
+            raise last
+        if isinstance(last, (OpenDataBudget, TooLarge)):
+            raise last
+        raise OpenDataError(f"{request.model} {request.kind} {request.params} step {step} unavailable: {last}")
+
     def _download(self, request: Request) -> Path:
         path = self.cache_dir / request.cache_name()
         if path.exists() and path.stat().st_size > 0:
@@ -871,71 +1135,42 @@ class OpenDataSession:
         if self.retriever is not None:
             raise OpenDataError("injected retriever did not supply this request")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        last: Optional[Exception] = None
-        for source in self.sources:
-            self.check_budget()
-            partial = path.with_suffix(".partial")
-            try:
-                client = _client(source, request.model, self)
-                payload = {
-                    "date": aware(request.run).strftime("%Y-%m-%d"),
-                    "time": aware(request.run).hour,
-                    "stream": request.stream,
-                    "type": request.kind,
-                    "step": list(request.steps),
-                    "param": list(request.params),
-                    "levtype": "sfc",
-                }
-                if request.numbers:
-                    payload["number"] = list(request.numbers)
-                indexed = client._get_urls(payload, target=str(partial), use_index=True)
-                indexed_bytes = _part_bytes(indexed)
-                if indexed_bytes > self.max_bytes:
-                    raise TooLarge(f"{indexed_bytes} bytes exceeds {self.max_bytes}")
-                started = time.perf_counter()
-                client._download(indexed)
-                self.seconds += time.perf_counter() - started
-                partial.replace(path)
-                size = path.stat().st_size
-                self.downloaded_bytes += size
-                self.mirror = source
+        blobs: list[bytes] = []
+        for step in request.steps:
+            step_path = self._step_grib_path(request, int(step))
+            if step_path.exists() and step_path.stat().st_size > 0:
+                blobs.append(step_path.read_bytes())
                 self.manifests.append({
-                    "license": LICENSE, "attribution": ATTRIBUTION, "mirror": source,
+                    "license": LICENSE, "attribution": ATTRIBUTION, "mirror": self.mirror or "cache",
                     "model": request.model, "run": aware(request.run).isoformat(),
                     "stream": request.stream, "type": request.kind,
-                    "steps": list(request.steps), "params": list(request.params),
-                    "numbers": list(request.numbers), "bytes": size,
-                    "indexed_bytes": indexed_bytes, "cached": False,
+                    "steps": [int(step)], "params": list(request.params),
+                    "numbers": list(request.numbers), "bytes": 0, "cached": True,
                 })
-                return path
-            except TooLarge:
-                partial.unlink(missing_ok=True)
-                raise
-            except OpenDataBudget:
-                partial.unlink(missing_ok=True)
-                raise
-            except OpenDataSlowDown as exc:
-                partial.unlink(missing_ok=True)
-                log.warning("ECMWF open data %s via %s hit 503 SlowDown: %s", request.model, source, exc)
-                if self.give_up_on_slowdown:
-                    self._abandoned = "slowdown"
-                    raise
-                last = exc
-            except Exception as exc:  # noqa: BLE001 - next mirror
-                if is_slowdown_error(exc):
-                    partial.unlink(missing_ok=True)
-                    self._abandoned = "slowdown" if self.give_up_on_slowdown else self._abandoned
-                    log.warning("ECMWF open data %s via %s hit 503 SlowDown: %s", request.model, source, exc)
-                    if self.give_up_on_slowdown:
-                        raise OpenDataSlowDown(str(exc)) from exc
-                    last = exc
-                    continue
-                last = exc
-                partial.unlink(missing_ok=True)
-                log.warning("ECMWF open data %s via %s failed: %s", request.model, source, exc)
-        if isinstance(last, (OpenDataSlowDown, OpenDataBudget)):
-            raise last
-        raise OpenDataError(f"{request.model} {request.kind} {request.params} unavailable: {last}")
+                continue
+            self.check_budget()
+            payload, source, indexed = self._fetch_step(request, int(step))
+            step_path.parent.mkdir(parents=True, exist_ok=True)
+            step_path.write_bytes(payload)
+            blobs.append(payload)
+            self.downloaded_bytes += len(payload)
+            self.mirror = source
+            self.manifests.append({
+                "license": LICENSE, "attribution": ATTRIBUTION, "mirror": source,
+                "model": request.model, "run": aware(request.run).isoformat(),
+                "stream": request.stream, "type": request.kind,
+                "steps": [int(step)], "params": list(request.params),
+                "numbers": list(request.numbers), "bytes": len(payload),
+                "indexed_bytes": indexed.nbytes, "messages": indexed.messages,
+                "members": list(indexed.members), "cached": False,
+            })
+        if not blobs:
+            raise OpenDataError(f"{request.model} {request.kind} produced no GRIB messages")
+        path.write_bytes(b"".join(blobs))
+        return path
+
+    def _decode_download(self, request: Request) -> list[GridField]:
+        return list(self.decoder(self._download(request)))
 
     def _fields(self, request: Request) -> list[GridField]:
         if self.retriever is not None:
@@ -950,38 +1185,158 @@ class OpenDataSession:
                 "numbers": list(request.numbers), "bytes": 0, "cached": False,
             })
             return fields
-        chunks = self._chunks(request)
-        fields: list[GridField] = []
-        for chunk in chunks:
-            path = self._download(chunk)
-            fields.extend(self.decoder(path))
-        return fields
-
-    def _chunks(self, request: Request) -> list[Request]:
-        """Split only when the index itself is over the byte cap. One chunk is the usual path."""
-        if self.retriever is not None or len(request.steps) <= 1 and len(request.numbers) <= 1:
-            return [request]
-        try:
-            # Probe with a download attempt; TooLarge is raised before any body is saved.
-            self._download(request)
-            return [request]
-        except TooLarge:
-            if len(request.steps) > 1:
-                mid = len(request.steps) // 2
-                left = replace(request, steps=request.steps[:mid])
-                right = replace(request, steps=request.steps[mid:])
-                return self._chunks(left) + self._chunks(right)
-            if len(request.numbers) > 1:
+        if len(request.steps) > 1:
+            fields: list[GridField] = []
+            for step in request.steps:
+                one = replace(request, steps=(int(step),))
+                try:
+                    fields.extend(self._fields(one))
+                except OpenDataBudget as exc:
+                    self.stopped_early = str(exc)
+                    log.warning(
+                        "ECMWF open-data budget reached at step %s; keeping %d decoded fields",
+                        step, len(fields),
+                    )
+                    break
+                except OpenDataSlowDown as exc:
+                    self.stopped_early = str(exc)
+                    self._abandoned = "slowdown"
+                    log.warning(
+                        "ECMWF open-data SlowDown at step %s after the mirrors failed; keeping %d decoded fields",
+                        step, len(fields),
+                    )
+                    break
+            return fields
+        if len(request.numbers) > 1:
+            try:
+                return self._decode_download(request)
+            except TooLarge:
                 mid = len(request.numbers) // 2
-                left = replace(request, numbers=request.numbers[:mid])
-                right = replace(request, numbers=request.numbers[mid:])
-                return self._chunks(left) + self._chunks(right)
-            raise
+                left = self._fields(replace(request, numbers=request.numbers[:mid]))
+                try:
+                    right = self._fields(replace(request, numbers=request.numbers[mid:]))
+                except OpenDataBudget as exc:
+                    self.stopped_early = str(exc)
+                    log.warning("ECMWF open-data budget reached while splitting members; keeping the first half")
+                    return left
+                return left + right
+        return self._decode_download(request)
+
+    def _sample_path(self, request: Request, step: int) -> Path:
+        stamp = aware(request.run).strftime("%Y%m%d%H")
+        params = "-".join(request.params)
+        role = request.role or "det"
+        return self.cache_dir / "samples" / stamp / f"{request.stream}-{request.kind}-{role}-{int(step)}-{params}.json"
+
+    def _entry_complete(self, request: Request, entry: dict[str, Any]) -> bool:
+        params = set(request.params)
+
+        def covered(row: Any) -> bool:
+            return isinstance(row, dict) and params <= set(row)
+
+        if request.role == "perturbed":
+            labels = [key for key in entry if str(key).startswith("member")]
+            return len(labels) >= 50 and all(covered(entry[key]) for key in labels)
+        if request.role == "control":
+            return covered(entry.get("control"))
+        return covered(entry.get("") if "" in entry else entry.get("det"))
+
+    def _load_samples(self, request: Request, points: Sequence[tuple[float, float]]) -> bool:
+        loaded: list[tuple[int, dict[str, Any]]] = []
+        for step in request.steps:
+            path = self._sample_path(request, int(step))
+            if not path.exists():
+                return False
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return False
+            if data.get("schema") != SAMPLE_SCHEMA or not data.get("complete"):
+                return False
+            pts = data.get("points")
+            if not isinstance(pts, dict):
+                return False
+            for point in points:
+                entry = pts.get(_point_key(point))
+                if not isinstance(entry, dict) or not self._entry_complete(request, entry):
+                    return False
+            loaded.append((int(step), pts))
+        bucket = self._samples.setdefault(request.key, {})
+        member_bucket = self._members.setdefault(request.key, {})
+        for step, pts in loaded:
+            for point in points:
+                entry = pts[_point_key(point)]
+                for label, values in entry.items():
+                    if not isinstance(values, dict):
+                        continue
+                    clean: dict[str, float] = {}
+                    for param, raw in values.items():
+                        if param not in request.params:
+                            continue
+                        try:
+                            clean[str(param)] = float(raw)
+                        except (TypeError, ValueError):
+                            continue
+                    if not clean:
+                        continue
+                    if label in ("", "det"):
+                        bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
+                    else:
+                        member_bucket.setdefault(point, {}).setdefault(str(label), {}).setdefault(step, {}).update(clean)
+                        if request.role != "perturbed":
+                            bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
+        log.info(
+            "ECMWF open-data cache hit %s %s/%s steps %s for %d locations (run %s)",
+            request.model, request.stream, request.kind, list(request.steps), len(points),
+            aware(request.run).strftime("%Y-%m-%d %HZ"),
+        )
+        return True
+
+    def _store_samples(self, request: Request, points: Sequence[tuple[float, float]]) -> None:
+        if self.stopped_early:
+            return
+        bucket = self._samples.get(request.key, {})
+        members = self._members.get(request.key, {})
+        for step in request.steps:
+            path = self._sample_path(request, int(step))
+            existing: dict[str, Any] = {}
+            if path.exists():
+                try:
+                    prior = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(prior.get("points"), dict):
+                        existing = prior["points"]
+                except (OSError, ValueError):
+                    existing = {}
+            for point in points:
+                entry: dict[str, dict[str, float]] = {}
+                values = bucket.get(point, {}).get(int(step)) or {}
+                bare = {param: values[param] for param in request.params if param in values}
+                if bare:
+                    entry[""] = bare
+                for label, steps in members.get(point, {}).items():
+                    row = steps.get(int(step)) or {}
+                    kept = {param: row[param] for param in request.params if param in row}
+                    if kept:
+                        entry[str(label)] = kept
+                if not entry or not self._entry_complete(request, entry):
+                    continue
+                existing[_point_key(point)] = entry
+            if not existing:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"schema": SAMPLE_SCHEMA, "complete": True, "points": existing}, allow_nan=False),
+                encoding="utf-8",
+            )
 
     def _ensure(self, request: Request, points: Sequence[tuple[float, float]]) -> None:
         bucket = self._samples.setdefault(request.key, {})
         missing = [point for point in points if point not in bucket]
         if not missing:
+            return
+        if self._load_samples(request, missing):
+            for point in missing:
+                bucket.setdefault(point, {})
             return
         member_bucket = self._members.setdefault(request.key, {})
         for grid in self._fields(request):
@@ -996,6 +1351,7 @@ class OpenDataSession:
                     member_bucket.setdefault(point, {}).setdefault(label, {}).setdefault(grid.step, {})[param] = value
         for point in missing:
             bucket.setdefault(point, {})
+        self._store_samples(request, missing)
 
     def _plan(self, model: str, hours: set[datetime]) -> list[tuple[datetime, set[datetime]]]:
         latest = self.run_for(model)
@@ -1171,8 +1527,6 @@ class OpenDataSession:
         except OpenDataBudget:
             raise
         except OpenDataSlowDown:
-            if self._abandoned == "slowdown":
-                raise
             return None
         except OpenDataError as exc:
             first = exc
@@ -1193,8 +1547,6 @@ class OpenDataSession:
         except OpenDataBudget:
             raise
         except OpenDataSlowDown:
-            if self._abandoned == "slowdown":
-                raise
             return None
         except OpenDataError as exc:
             log.warning(
@@ -1299,6 +1651,18 @@ class OpenDataSession:
                 )
             if members:
                 out[point] = EnsembleLocation(point[0], point[1], times, dict(UNITS), members)
+        run = self.runs.get("ifs")
+        run_text = run.isoformat() if run is not None else "unknown"
+        for point, location in out.items():
+            log.info(
+                "ECMWF ensemble %.4f,%.4f source=ecmwf-opendata run=%s mirror=%s members=%d",
+                point[0], point[1], run_text, self.mirror or "cache", location.n_members(),
+            )
+        if out:
+            log.info(
+                "ECMWF ensemble open-data summary run=%s mirror=%s locations=%d member_counts=%s",
+                run_text, self.mirror or "cache", len(out), [item.n_members() for item in out.values()],
+            )
         return out
 
 
@@ -1423,6 +1787,8 @@ __all__ = [
     "init_is_stale",
     "kelvin_to_f",
     "member_label",
+    "mirror_failover_enabled",
+    "prune_sample_cache",
     "native_steps",
     "network_allowed",
     "parse_published_steps",

@@ -9,7 +9,7 @@ from pipeline.build import _fetch_point_batches
 from pipeline.run_context import RunContext
 from pipeline.weather import openmeteo as OM
 from pipeline.weather import selective
-from pipeline.weather.member_cache import SOURCES, MemberCache, parameter_signature
+from pipeline.weather.member_cache import SOURCES, MemberCache, ModelSettling, parameter_signature
 from pipeline.weather.parsers.ensemble import EnsembleLocation, Member
 
 NOW = datetime(2026, 10, 3, 13, 20, 33, tzinfo=timezone.utc)
@@ -140,6 +140,63 @@ def test_changed_source_between_checks_does_not_create_a_trusted_snapshot(scenar
     locations, coverage = run(POINTS[1], "cfb")
     assert locations[POINTS[1]].n_members() == 82 and len(state["calls"]) == 6
     assert coverage[POINTS[1]]["unverified_sources"] == ["ifs", "gefs"]
+
+
+def _age_source(ctx, source: str, hours: float) -> None:
+    stamp = (NOW - timedelta(hours=hours)).isoformat()
+    cache = ctx.weather_state["member_cache"]
+    for key, entry in cache.entries.items():
+        if not key.startswith(f"{source}:"):
+            continue
+        entry["fetched_at"] = stamp
+        entry["fetched_by_hour"] = {hour: stamp for hour in entry["fetched_by_hour"]}
+
+
+def test_settle_wait_rechecks_and_uses_the_verified_ensemble(scenario, monkeypatch):
+    state, ctx, om, run = scenario
+    sleeps: list[float] = []
+    monkeypatch.setattr(selective, "_sleep", lambda seconds: sleeps.append(seconds))
+    original = om.fetch_model_versions
+    seen = {"ifs": 0}
+
+    def metadata(source, **kwargs):
+        if source == "ifs":
+            seen["ifs"] += 1
+            if seen["ifs"] == 1:
+                raise ModelSettling(12)
+        return original(source, **kwargs)
+
+    om.fetch_model_versions = metadata
+    locations, coverage = run(POINTS[0], "nfl")
+    assert sleeps == [14.0]
+    assert locations[POINTS[0]].n_members() == 82
+    assert coverage[POINTS[0]]["unverified_sources"] == []
+    assert "ifs" not in coverage[POINTS[0]]["errors"]
+    assert state["calls"] == ["ifs", "ifs", "gefs", "gefs"]
+
+
+def test_settle_cap_zero_keeps_the_previous_complete_run(scenario, monkeypatch):
+    state, ctx, om, run = scenario
+    monkeypatch.setenv("ECMWF_OM_SETTLE_WAIT_S", "0")
+    _age_source(ctx, "ifs", 5)
+    sleeps: list[float] = []
+    monkeypatch.setattr(selective, "_sleep", lambda seconds: sleeps.append(seconds))
+
+    om_versions = om.fetch_model_versions
+
+    def metadata(source, **kwargs):
+        state["calls"].append(source)
+        if source == "ifs":
+            raise ModelSettling(400)
+        return om_versions(source, **kwargs)
+
+    om.fetch_model_versions = metadata
+    locations, coverage = run(POINTS[0], "nfl")
+    assert sleeps == []
+    assert locations[POINTS[0]].n_members() == 82
+    assert coverage[POINTS[0]]["unverified_sources"] == ["ifs"]
+    assert "gefs" not in coverage[POINTS[0]]["unverified_sources"]
+    assert "settling" in coverage[POINTS[0]]["errors"]["ifs"]
 
 
 def test_new_member_retrieval_requires_both_fresh_checks_even_inside_sixty_seconds(scenario):

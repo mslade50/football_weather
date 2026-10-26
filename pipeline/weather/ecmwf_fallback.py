@@ -253,6 +253,16 @@ def supplement_ensemble(
     for point, location in filled.items():
         if not location.members:
             continue
+        previous = [item for item in locations.get(point, []) if _has_ifs([item])]
+        previous_members = sum(item.n_members(IFS_ENSEMBLE) for item in previous)
+        # A short download must not wipe a fuller ensemble already in hand
+        # (the previous Open-Meteo run, or an earlier complete open-data pass).
+        if location.n_members(IFS_ENSEMBLE) < 51 and location.n_members(IFS_ENSEMBLE) <= previous_members:
+            log.warning(
+                "%s ECMWF open-data %.4f,%.4f returned %d members; keeping the existing %d-member IFS ensemble",
+                sport, point[0], point[1], location.n_members(IFS_ENSEMBLE), previous_members,
+            )
+            continue
         kept = [item for item in locations.get(point, []) if not _has_ifs([item])]
         kept.append(location)
         locations[point] = kept
@@ -279,9 +289,17 @@ def supplement_ensemble(
         return
     _publish(ctx, session, reason, used, ensemble=True)
     _capture(ctx, session, capture)
+    counts = [location.n_members(IFS_ENSEMBLE) for location in filled.values() if location.members]
+    mirror = session.mirror or "cache"
+    run_text = None if run is None else run.isoformat()
+    log.info(
+        "%s ECMWF ensemble open-data: run=%s mirror=%s locations=%d member_counts=%s",
+        sport, run_text or "unknown", mirror, used, counts,
+    )
     ctx.degrade(
         "weather",
-        f"{sport}: ECMWF Open Data ensemble fallback ({reason}) at {used} locations; {od.ATTRIBUTION}",
+        f"{sport}: ECMWF Open Data ensemble fallback ({reason}) at {used} locations "
+        f"via {mirror} run {run_text or 'unknown'} members={counts}; {od.ATTRIBUTION}",
         "info",
     )
 
