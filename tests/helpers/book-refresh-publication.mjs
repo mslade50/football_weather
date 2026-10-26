@@ -32,8 +32,8 @@ for(const sport of ['nfl','cfb']) {
   assert.equal((head.match(/<th /g)||[]).length,18);
   assert.equal((body.match(/<td[ >]/g)||[]).length,18);
   assert.match(run("bookTotalCell(game,'pinnacle')"),/>U 46.5</);
-  assert.match(run("bookTotalCell(game,'fanduel')"),/Stale reference.*Last U 46.5/s);
-  assert.match(run("bookTotalCell(game,'betcris')"),/Expired reference/);
+  assert.match(run("bookTotalCell(game,'fanduel')"),/Last observed.*Last U 46.5/s);
+  assert.match(run("bookTotalCell(game,'betcris')"),/Last observed/);
   assert.match(run("bookTotalCell(game,'polymarket_us')"),/Source unavailable/);
   assert.match(run("bookTotalCell(game,'never_observed')"),/No quote/);
   assert.equal(run('tableColumns(BOOKS,false)[3][2](game)'),55); // Temp moved with header/cells.

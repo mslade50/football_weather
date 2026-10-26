@@ -186,7 +186,10 @@ function quoteAgeText(ts) {
   const age = Date.now() - Date.parse(ts);
   if (!Number.isFinite(age) || age < 0) return "";
   const mins = Math.round(age / 60000);
-  return mins < 1 ? "<1m old" : `${mins}m old`;
+  if (mins < 1) return "<1m old";
+  if (mins < 60) return `${mins}m old`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h old`;
+  return `${Math.floor(mins / 1440)}d old`;
 }
 function betcrisReference(quote) {
   const until = Date.parse(quote?.actionable_until);
@@ -245,10 +248,15 @@ function bookTotalCell(g, bk) {
   };
   const evidence = HOVER[hk].lines.map(([label, value]) => `${label}: ${value}`).join("; ");
   const ref = t.last_observed;
-  const unavailable = ref ? ({stale:'Stale reference', expired:'Expired reference', unavailable:'Source unavailable', unknown:'Unverified reference', current:'Not refreshed'}[ref.status] || 'Unavailable') : 'Unavailable';
+  // Historical observations remain useful between scheduled scrapes. Their
+  // qualification status stays in the details; the cell describes what we have.
+  const unavailable = ref ? ({stale:'Last observed', expired:'Last observed', unavailable:'Source unavailable', unknown:'Unverified reference', current:'Last observed'}[ref.status] || 'Unavailable') : 'Unavailable';
+  const current = isNum(t.line) && !t.expired;
+  const age = !current && ref ? (quoteAgeText(ref.source_updated_at || ref.updated_at) || 'age unknown')
+    : bk === "betcris" ? betcrisAgeNote(t) : '';
   return `<td class="book compact-total" data-hk="${hk}"><button type="button" class="book-total-detail" data-game="${esc(g.game_id)}"
-    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${isNum(t.line) && !t.expired ? 'U ' + fmtTotal(t.line) : unavailable}</b>
-    <span class="sub">${isNum(t.line) && !t.expired ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}${bk === "betcris" && betcrisAgeNote(t) ? ` · ${esc(betcrisAgeNote(t))}` : ""}</span></button></td>`;
+    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${current ? 'U ' + fmtTotal(t.line) : unavailable}</b>
+    <span class="sub">${current ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}${age ? ` · ${esc(age)}` : ""}</span></button></td>`;
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]

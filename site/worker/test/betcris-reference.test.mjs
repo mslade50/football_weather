@@ -133,7 +133,9 @@ test('An expired BetCris reference keeps a fresh Pinnacle, BetOnline, and Kalshi
   assert.equal(served.fair.best_total.book, 'kalshi');
   assert.deepEqual(served.expired_markets, ['betcris/total']);
   const cell = page.run("bookTotalCell(game,'betcris')");
-  assert.match(cell, /Expired reference/);
+  assert.match(cell, /Last observed/);
+  assert.match(cell, /Last U 60/);
+  assert.doesNotMatch(cell, /Expired reference/);
   assert.doesNotMatch(cell, />U /);
 });
 
@@ -165,4 +167,23 @@ test('A pricing book expiry still clears the fair line, edges, and best price', 
   assert.equal(served.fair.fair_total, null);
   assert.deepEqual(served.fair.edges, []);
   assert.equal(served.fair.best_total, null);
+});
+
+test('Scheduled-scrape references use neutral copy and retain age and source diagnostics for every book', () => {
+  const page = board();
+  for (const book of ['pinnacle', 'betonline', 'fanduel', 'betcris', 'kalshi', 'polymarket_us']) {
+    for (const status of ['stale', 'expired', 'current']) {
+      page.ctx.game.odds[book] = {total: {last_observed: {line: 48, under: -110, status,
+        updated_at: '2026-10-14T11:50:00Z', source_updated_at: '2026-10-14T10:00:00Z'}}};
+      const cell = page.run(`bookTotalCell(game,'${book}')`);
+      assert.match(cell, /<b>Last observed<\/b>/);
+      assert.match(cell, /Last U 48.*-110.*2h old/);
+      assert.match(cell, new RegExp(`reference status: ${status}`));
+      assert.doesNotMatch(cell, /Expired reference|Stale reference|<b>U 48/);
+    }
+  }
+  page.ctx.game.odds.pinnacle.total.last_observed.status = 'unavailable';
+  assert.match(page.run("bookTotalCell(game,'pinnacle')"), /<b>Source unavailable<\/b>/);
+  page.ctx.game.odds.pinnacle.total.last_observed.status = 'unknown';
+  assert.match(page.run("bookTotalCell(game,'pinnacle')"), /<b>Unverified reference<\/b>/);
 });
