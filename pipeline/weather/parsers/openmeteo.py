@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pipeline.weather.parsers import HourlyRow
+from pipeline.weather.qc import plausible_precip_mm
 
 VARIABLES = {
     "temperature_2m": "temp",
@@ -104,7 +105,7 @@ def parse_location(payload: dict[str, Any]) -> ParsedLocation:
                     wind=at("wind"),
                     gust=at("gust"),
                     dir=at("dir"),
-                    precip=at("precip"),
+                    precip=plausible_precip_mm(at("precip")),
                     pop=at("pop"),
                 )
             )

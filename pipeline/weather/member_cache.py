@@ -25,6 +25,17 @@ MAX_REUSED_DATASET_AGE_H = 30
 CONSISTENCY_SECONDS = 600
 
 
+class ModelSettling(ValueError):
+    """The provider asked us to wait out the post-update consistency window."""
+
+    def __init__(self, remaining_s: float) -> None:
+        self.remaining_s = max(0.0, float(remaining_s))
+        super().__init__(
+            "model update settling "
+            f"(provider recommends 10 minutes; {self.remaining_s:.0f}s remaining)"
+        )
+
+
 def version(payload: dict[str, Any], now: datetime) -> dict[str, int]:
     keys = ("last_run_initialisation_time", "last_run_modification_time",
             "last_run_availability_time", "update_interval_seconds", "data_end_time")
@@ -38,7 +49,7 @@ def version(payload: dict[str, Any], now: datetime) -> dict[str, int]:
     if clock - value["last_run_initialisation_time"] > MAX_CURRENT_DATASET_AGE_H * 3600:
         raise ValueError("provider dataset initialization overdue/stale")
     if clock - available < CONSISTENCY_SECONDS:
-        raise ValueError("model update settling (provider recommends 10 minutes)")
+        raise ModelSettling(CONSISTENCY_SECONDS - (clock - available))
     if clock - available > value["update_interval_seconds"] + 1200:
         raise ValueError("provider source overdue/stale")
     return value

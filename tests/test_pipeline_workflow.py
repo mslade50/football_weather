@@ -112,6 +112,22 @@ def test_gate_job_is_httpx_only_and_fail_open(text: str):
     assert '[ "$BOOK_BETONLINE_ENABLED" != "0" ]' in step
 
 
+def test_ecmwf_sample_cache_is_restored_across_runs(text: str):
+    light = _job(text, "light")
+    playwright = _job(text, "playwright")
+    light_step = _step(light, "Restore ECMWF open-data field cache")
+    pw_step = _step(playwright, "Restore ECMWF open-data field cache (playwright)")
+    for step in (light_step, pw_step):
+        assert "path: data/cache/ecmwf/samples" in step
+        assert "actions/cache@v4" in step
+        assert "continue-on-error: true" in step
+        assert "ecmwf-samples-${{ runner.os }}-" in step
+    assert "key: ecmwf-samples-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}" in light_step
+    assert "key: ecmwf-samples-pw-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}" in pw_step
+    assert light.index("Restore ECMWF open-data field cache") < light.index("name: Build board")
+    assert playwright.index("Restore ECMWF open-data field cache (playwright)") < playwright.index("Build board (BetOnline)")
+
+
 def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
     light = _job(text, "light")
     assert "needs: gate" in light

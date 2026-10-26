@@ -266,6 +266,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           CURRENT_GITHUB_RUN_ID: ${{ github.run_id }}
         run: python scripts/recover_alert_receipts.py --state-dir data/state
+      - name: Restore ECMWF open-data field cache
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: data/cache/ecmwf/samples
+          key: ecmwf-samples-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ecmwf-samples-${{ runner.os }}-
       - name: Build board
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
@@ -463,6 +471,15 @@ jobs:
         with:
           name: weather-points-${{ github.run_id }}-${{ github.run_attempt }}
           path: data/weather-reuse/
+      - name: Restore ECMWF open-data field cache (playwright)
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: data/cache/ecmwf/samples
+          key: ecmwf-samples-pw-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ecmwf-samples-${{ runner.os }}-
+            ecmwf-samples-pw-${{ runner.os }}-
       - name: Build board (BetOnline)
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}

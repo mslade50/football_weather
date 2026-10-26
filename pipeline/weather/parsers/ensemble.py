@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pipeline.weather.parsers.openmeteo import parse_time
+from pipeline.weather.qc import plausible_precip_mm
 
 VARIABLES = {
     "wind_speed_10m": "wind",
@@ -100,7 +101,10 @@ def parse_ensemble_location(payload: dict[str, Any], model: Optional[str] = None
         mem = loc.members.get(mk)
         if mem is None:
             mem = loc.members[mk] = Member(model=source_model, member=member)
-        setattr(mem, canon, [_num(v) for v in values])
+        series = [_num(v) for v in values]
+        if canon == "precip":
+            series = [plausible_precip_mm(v) for v in series]
+        setattr(mem, canon, series)
     return loc
 
 
