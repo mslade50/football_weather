@@ -53,6 +53,10 @@ refuses a mismatched checkpoint. NFL and CFB are always separate.
 At entry, freeze every valid below-threshold control in the same capture, sport,
 season, week, 24-hour lead bin and selected book. Exclude the target game itself.
 Do not choose controls using outcomes, closes or later availability. Report
+coverage explicitly: the existing NWS-first pipeline selectively fetches IFS,
+so quiet games may lack IFS and cannot become controls. These comparisons are
+conditional on observed IFS availability, not a representative market-wide
+causal benchmark. No new weather fetch is added to fill those gaps. Report
 raw under CLV as entry total minus the same-book closing total. A closing quote
 must have been observed strictly before kickoff and within its last 60 minutes;
 a change-only historical price is not evidence of a fresh close. The regular

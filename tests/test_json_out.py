@@ -404,12 +404,14 @@ def test_build_meta_and_slim_meta():
     ctx.degrade("odds", "kalshi returned 0 lines", "warn")
     ctx.stage_timings["nfl.weather"] = 1.5
     meta = json_out.build_meta(ctx, {"nfl": 14, "cfb": 60}, {"pinnacle": {"count": 60, "status": "green"}},
-                               season=2026, week=3, finished_at=KICK + timedelta(minutes=2))
+                               season=2026, week=3, finished_at=KICK + timedelta(minutes=2),
+                               extra={"books_requested": ["pinnacle", "fanduel"]})
     assert meta["run_id"] == "r1" and meta["duration_s"] == 120.0 and meta["sport_counts"] == {"nfl": 14, "cfb": 60}
     assert meta["degradations"][0]["component"] == "odds" and meta["books"]["pinnacle"]["status"] == "green"
     assert meta["next_run_eta"] == "2026-09-27T18:00:00Z" and meta["last_updated"] == "2026-09-27T17:02:00Z"
     slim = json_out.slim_meta(meta)
-    assert set(slim) == {"run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations"}
+    assert set(slim) == {"run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations", "books_requested", "scope"}
+    assert slim["books_requested"] == ["pinnacle", "fanduel"] and slim["scope"] == "light"
     json.dumps(meta, allow_nan=False)
 
 
