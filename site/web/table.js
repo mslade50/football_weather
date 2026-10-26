@@ -222,16 +222,17 @@ function bookSpreadCell(g, bk) {
       ...(bk === "betcris" && betcrisAgeNote(s) ? [["age", betcrisAgeNote(s)]] : []),
     ],
   };
-  const age = bk === "betcris" ? betcrisAgeNote(s) : "";
-  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${age ? `<span class="sub">${esc(age)}</span>` : ""}${tierChip(e)}</td>`;
+  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${tierChip(e)}</td>`;
 }
 function bookTotalCell(g, bk) {
   const o = (g.odds || {})[bk];
   const t = o && o.total;
-  if (!t || (!isNum(t.line) && !isNum(t.open_line) && !t.last_observed)) return blankOddsCell(g, bk, "total", "No quote");
+  if (!t || (!isNum(t.line) && !isNum(t.open_line) && !t.last_observed)) return blankOddsCell(g, bk, "total", "—");
   const e = edgeAt(g, bk, "total");
   const hk = ++HK;
   const baseline = totalBaselineLabel(g, t);
+  // Display saved observations without promoting them into current pricing.
+  const observed = isNum(t.line) ? t : isNum(t.last_observed?.line) ? t.last_observed : null;
   HOVER[hk] = {
     label: `${bookLabel(bk)} total · ${gameLabel(g)}`,
     lines: [
@@ -240,23 +241,17 @@ function bookTotalCell(g, bk) {
       ["now", `${fmtTotal(t.line)} o${fmtOdds(t.over)} / u${fmtOdds(t.under)}`],
       ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
-      ...(bk === "betcris" && betcrisAgeNote(t) ? [["age", betcrisAgeNote(t)]] : []),
+      ...(observed ? [["quote age", quoteAgeText(observed.source_updated_at || observed.updated_at) || "Unknown"],
+        ["quote status", observed === t ? (t.expired ? "expired" : bk === "betcris" && betcrisReference(t) ? "reference" : "current") : observed.status || "unknown"]] : []),
       ...(t.last_observed ? [["last observed (reference only)", `U ${fmtTotal(t.last_observed.line)} ${fmtOdds(t.last_observed.under)}`],
         ["source clock", t.last_observed.updated_at || "Unknown"], ["reference status", t.last_observed.status]] : []),
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket
     ],
   };
   const evidence = HOVER[hk].lines.map(([label, value]) => `${label}: ${value}`).join("; ");
-  const ref = t.last_observed;
-  // Historical observations remain useful between scheduled scrapes. Their
-  // qualification status stays in the details; the cell describes what we have.
-  const unavailable = ref ? ({stale:'Last observed', expired:'Last observed', unavailable:'Source unavailable', unknown:'Unverified reference', current:'Last observed'}[ref.status] || 'Unavailable') : 'Unavailable';
-  const current = isNum(t.line) && !t.expired;
-  const age = !current && ref ? (quoteAgeText(ref.source_updated_at || ref.updated_at) || 'age unknown')
-    : bk === "betcris" ? betcrisAgeNote(t) : '';
   return `<td class="book compact-total" data-hk="${hk}"><button type="button" class="book-total-detail" data-game="${esc(g.game_id)}"
-    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${current ? 'U ' + fmtTotal(t.line) : unavailable}</b>
-    <span class="sub">${current ? fmtOdds(t.under) : ref ? 'Last U ' + fmtTotal(ref.line) + ' · ' + fmtOdds(ref.under) : 'Baseline ' + fmtTotal(t.open_line)}${age ? ` · ${esc(age)}` : ""}</span></button></td>`;
+    title="${esc(evidence)}" aria-label="${esc(bookLabel(bk) + ' total details; ' + evidence)}"><b>${observed ? fmtTotal(observed.line) : "—"}</b>
+    <span class="sub">${observed ? fmtOdds(observed.under) : "—"}</span></button></td>`;
 }
 
 // column spec: [label, title, sortKey(g) or null, cell(g) or null (fixed cells are built inline)]
@@ -352,7 +347,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
         (g) => { const e = edgeAt(g, bk, "spread"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
         (g) => bookSpreadCell(g, bk), `${bk}:s`]);
     }
-    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} current under total / price; baseline, movement, source time and edge in hover or details`,
+    cols.push([`${bookLabel(bk)} T`, `${bookLabel(bk)} observed under total / price; age, status, baseline, source time and edge in hover or details`,
       (g) => { const e = edgeAt(g, bk, "total"); return e && isNum(e.edge_pts) ? Math.abs(e.edge_pts) : -Infinity; },
       (g) => bookTotalCell(g, bk), `${bk}:t`]);
   }

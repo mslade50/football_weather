@@ -31,11 +31,12 @@ for(const sport of ['nfl','cfb']) {
   assert.doesNotMatch(head,/Exchange under/);assert.doesNotMatch(body,/best-price|exchange-detail/);
   assert.equal((head.match(/<th /g)||[]).length,18);
   assert.equal((body.match(/<td[ >]/g)||[]).length,18);
-  assert.match(run("bookTotalCell(game,'pinnacle')"),/>U 46.5</);
-  assert.match(run("bookTotalCell(game,'fanduel')"),/Last observed.*Last U 46.5/s);
-  assert.match(run("bookTotalCell(game,'betcris')"),/Last observed/);
-  assert.match(run("bookTotalCell(game,'polymarket_us')"),/Source unavailable/);
-  assert.match(run("bookTotalCell(game,'never_observed')"),/No quote/);
+  for (const book of ['pinnacle','fanduel','betcris','polymarket_us']) {
+    const cell = run(`bookTotalCell(game,'${book}')`);
+    assert.match(cell,/<b>46.5<\/b>/);
+    assert.match(cell,/<span class="sub">-110<\/span>/);
+  }
+  assert.match(run("bookTotalCell(game,'never_observed')"),/>—<\/td>/);
   assert.equal(run('tableColumns(BOOKS,false)[3][2](game)'),55); // Temp moved with header/cells.
   run('BOOK_SPREADS=true; STATE.sort=3; renderTable(currentGames())');
   assert.equal((nodes.get('#table tbody').innerHTML.match(/<td[ >]/g)||[]).length,24);
