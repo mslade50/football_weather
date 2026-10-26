@@ -37,6 +37,8 @@ data/weather-reuse/
 data/state.json
 data/board/
 data/snapshots/
+data/paper/
+.review-loop/
 data/publish_manifest.json
 data/d1_inserts.sql
 data/*.parquet

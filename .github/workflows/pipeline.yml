@@ -332,6 +332,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MAX_LEAD_DAYS: ${{ vars.TELEGRAM_MAX_LEAD_DAYS || '7' }}
         run: python -m pipeline.published_alerts --board-dir data/board --state-dir data/state --run-id "$RUN_ID" --bucket "$R2_BUCKET"
+      - name: Capture paper opportunities (isolated)
+        if: ${{ vars.FOOTBALL_PAPER_ENABLED != '0' }}
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python scripts/paper_run.py capture
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -339,6 +344,7 @@ jobs:
           name: raw-runs-${{ github.run_id }}
           path: |
             data/raw_runs/
+            data/paper/
             data/board/
             data/d1_inserts.sql
           if-no-files-found: ignore
@@ -504,6 +510,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MAX_LEAD_DAYS: ${{ vars.TELEGRAM_MAX_LEAD_DAYS || '7' }}
         run: python -m pipeline.published_alerts --board-dir data/board --state-dir data/state --run-id "$RUN_ID" --bucket "$R2_BUCKET"
+      - name: Capture paper opportunities (isolated, playwright)
+        if: ${{ vars.FOOTBALL_PAPER_ENABLED != '0' }}
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python scripts/paper_run.py capture
       - name: Upload build logs (playwright)
         if: always()
         uses: actions/upload-artifact@v4
@@ -511,6 +522,7 @@ jobs:
           name: raw-runs-pw-${{ github.run_id }}
           path: |
             data/raw_runs/
+            data/paper/
             data/board/
             data/d1_inserts.sql
           if-no-files-found: ignore

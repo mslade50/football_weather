@@ -18,6 +18,8 @@ BUILD_PROTECTED_NAMES = frozenset({
     # Failure-page incident marker. notify_failure owns it; a board publish must
     # not replace it with a stale or missing copy.
     'pipeline_health',
+    # Paper sidecar owns these; generic board builds never round-trip them.
+    'paper', 'paper_health',
 })
 
 PUBLIC_NAMES = {
