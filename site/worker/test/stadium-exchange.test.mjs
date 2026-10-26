@@ -56,7 +56,7 @@ test('Book totals keep current under / price compact and evidence reachable in t
     open_ts:'2026-10-10T12:00:00Z',updated_at:'2026-10-14T11:59:55Z',expires_at:'2026-10-14T12:00:10Z'}};
   f.run("BOOKS=['kalshi']");
   const cell=f.run("bookTotalCell(game,'kalshi')");
-  assert.match(cell,/>U 46.5</); assert.match(cell,/>-110</); assert.match(cell,/true opener/);
+  assert.match(cell,/<b>46.5<\/b>/); assert.match(cell,/>-110</); assert.match(cell,/true opener/);
   assert.doesNotMatch(cell,/>48.5</);
   const detail=f.run('oddsTable(game)');
   assert.match(detail,/Updated:/); assert.match(detail,/2026-10-14T11:59:55/); assert.match(detail,/Expires:/); assert.match(detail,/true opener/);

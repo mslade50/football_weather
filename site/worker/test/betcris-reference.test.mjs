@@ -24,8 +24,9 @@ function board() {
 test('A BetCris price past the provider TTL shows its age and cannot be the edge', () => {
   const page = board();
   const cell = page.run("bookTotalCell(game,'betcris')");
-  assert.match(cell, /U 48/);
-  assert.match(cell, /20m old · reference/);
+  assert.match(cell, /<b>48<\/b>/);
+  assert.match(cell, /quote age: 20m old; quote status: reference/);
+  assert.equal(cell.replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' '), '48 -110');
   assert.equal(page.run("edgeAt(game,'betcris','total')"), null);
   assert.equal(page.run("bestEdge(game,'total').book"), 'kalshi');
 });
@@ -35,7 +36,7 @@ test('A BetCris price inside the provider timer is still only a reference', () =
   page.run(`game.odds.betcris.total.source_updated_at = '2026-10-14T11:50:00Z';
             game.odds.betcris.total.actionable_until = '2026-10-14T12:20:00Z';`);
   const cell = page.run("bookTotalCell(game,'betcris')");
-  assert.match(cell, /U 48/);
+  assert.match(cell, /<b>48<\/b>/);
   assert.match(cell, /10m old/);
   assert.doesNotMatch(cell, /reference/);
   assert.equal(page.run("edgeAt(game,'betcris','total')"), null);
@@ -133,8 +134,9 @@ test('An expired BetCris reference keeps a fresh Pinnacle, BetOnline, and Kalshi
   assert.equal(served.fair.best_total.book, 'kalshi');
   assert.deepEqual(served.expired_markets, ['betcris/total']);
   const cell = page.run("bookTotalCell(game,'betcris')");
-  assert.match(cell, /Expired reference/);
-  assert.doesNotMatch(cell, />U /);
+  assert.match(cell, /<b>60<\/b>/);
+  assert.match(cell, /reference status: expired/);
+  assert.equal(cell.replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' '), '60 -110');
 });
 
 test('A pricing book expiry still clears the fair line, edges, and best price', () => {
@@ -165,4 +167,24 @@ test('A pricing book expiry still clears the fair line, edges, and best price', 
   assert.equal(served.fair.fair_total, null);
   assert.deepEqual(served.fair.edges, []);
   assert.equal(served.fair.best_total, null);
+});
+
+test('All sportsbook cells show only the saved total and price; age and status stay in the quote card', () => {
+  const page = board();
+  for (const book of ['pinnacle', 'betonline', 'fanduel', 'betcris', 'kalshi', 'polymarket_us']) {
+    for (const status of ['stale', 'expired', 'current', 'unavailable', 'unknown']) {
+      page.ctx.game.odds[book] = {total: {last_observed: {line: 48, under: -110, status,
+        updated_at: '2026-10-14T11:50:00Z', source_updated_at: '2026-10-14T10:00:00Z'}}};
+      const cell = page.run(`bookTotalCell(game,'${book}')`);
+      assert.equal(cell.replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' '), '48 -110');
+      assert.match(cell, /quote age: 2h old/);
+      assert.match(cell, new RegExp(`reference status: ${status}`));
+      const hover = page.run('HOVER[HK]');
+      assert.ok(hover.lines.some(([label, value]) => label === 'quote age' && value === '2h old'));
+      assert.ok(hover.lines.some(([label, value]) => label === 'reference status' && value === status));
+    }
+  }
+  page.ctx.game.odds.pinnacle.total = {open_line: 45, open_under: -105};
+  assert.equal(page.run("bookTotalCell(game,'pinnacle')").replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' '), '— —');
+  assert.equal(page.run("bookTotalCell(game,'never_observed')").replace(/<[^>]*>/g, ''), '—');
 });
