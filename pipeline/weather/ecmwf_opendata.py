@@ -9,11 +9,15 @@ is free to use, including commercially, under Creative Commons Attribution 4.0
 
 The client reads each step's ``.index``, then HTTP byte-ranges only the surface
 messages the board needs (10 m u/v wind, total precipitation, 2 m temperature,
-and gust when the file has it). One decoded step is sampled for every stadium.
-Mirrors are Google, data.ecmwf.int, AWS, then Azure; a 503 SlowDown fails that
-mirror over instead of abandoning the run. Sampled fields are cached by model
-run so the next pipeline pass in the same 00z/12z cycle does not download them
-again. Values are converted into the same hourly ``ParsedLocation`` /
+and gust when the file has it). Each message is sampled at the stadiums and
+dropped before the next one is decoded; the GRIB temp file is removed after
+the step. Steps are only those that bracket a game hour inside
+``ECMWF_OD_MAX_LEAD_H`` (168 h). ``ECMWF_OD_CACHE_ONLY=1`` (the BetOnline
+publish job) reads the sample cache and does not download. Mirrors are Google,
+data.ecmwf.int, AWS, then Azure; a 503 SlowDown fails that mirror over instead
+of abandoning the run. Sampled fields are cached by model run so the next
+pipeline pass in the same 00z/12z cycle does not download them again. Values
+are converted into the same hourly ``ParsedLocation`` /
 ``EnsembleLocation`` rows Open-Meteo produces (F, mph, meteorological degrees,
 mm), so merge and the impact model do not change.
 
@@ -73,6 +77,9 @@ DEFAULT_MAX_BYTES = 120 * 1024 * 1024
 # leave the rest of the 30 minute light job room. Both are env-tunable.
 FETCH_BUDGET_S = 240.0
 TOTAL_BUDGET_S = 480.0
+# Game hours farther out than this are left on Open-Meteo. A 222 h ensemble
+# step is ~100 MB of GRIB and is past the 7-day medium-range window.
+MAX_LEAD_H = 168.0
 SLOWDOWN_ATTEMPTS = 3
 SLOWDOWN_EVENT_LIMIT = 4
 SLOWDOWN_BASE_S = 1.0
@@ -282,6 +289,12 @@ def fallback_mode() -> str:
     return "auto"
 
 
+def cache_only_enabled() -> bool:
+    """``ECMWF_OD_CACHE_ONLY=1`` reads sampled fields and does not download GRIB."""
+    raw = os.environ.get("ECMWF_OD_CACHE_ONLY", "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def network_allowed() -> bool:
     """Unit tests never touch ECMWF unless they opt in or inject a retriever."""
     if os.environ.get("ECMWF_OPENDATA_ALLOW_NETWORK") == "1":
@@ -366,6 +379,30 @@ def runs_for_hours(model: str, latest: datetime, hours: Iterable[datetime]) -> l
             assigned.append((run, covered))
             remaining -= covered
     return assigned
+
+
+def canonical_param(name: str) -> str:
+    """Gust is stored as ``10fg``. Open-data steps 93–144 h request it as ``10fg3``."""
+    return "10fg" if name in ("10fg", "10fg3") else str(name)
+
+
+def stored_params(params: Iterable[str]) -> set[str]:
+    return {canonical_param(param) for param in params}
+
+
+def hours_within_lead(run: datetime, hours: Iterable[datetime], max_lead_h: float) -> set[datetime]:
+    """Game hours whose forecast step from ``run`` is inside ``max_lead_h``.
+
+    A negative cap keeps every hour (``ECMWF_OD_MAX_LEAD_H=-1``).
+    """
+    aware_hours = {aware(hour) for hour in hours}
+    if max_lead_h < 0:
+        return aware_hours
+    origin = aware(run)
+    return {
+        hour for hour in aware_hours
+        if 0.0 <= (hour - origin).total_seconds() / 3600.0 <= max_lead_h
+    }
 
 
 def steps_for_hours(run: datetime, hours: Iterable[datetime], native: Sequence[int]) -> list[int]:
@@ -738,6 +775,10 @@ class OpenDataSession:
     jitter: Optional[Any] = None
     fetch_budget_s: float = field(default_factory=lambda: _env_float("ECMWF_OD_FETCH_BUDGET_S", FETCH_BUDGET_S))
     total_budget_s: float = field(default_factory=lambda: _env_float("ECMWF_OD_TOTAL_BUDGET_S", TOTAL_BUDGET_S))
+    max_lead_h: float = field(default_factory=lambda: _env_float("ECMWF_OD_MAX_LEAD_H", MAX_LEAD_H))
+    # The BetOnline publish job reuses samples. A miss keeps Open-Meteo.
+    cache_only: bool = field(default_factory=cache_only_enabled)
+    cache_note: Optional[str] = None
     slowdown_attempts: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_ATTEMPTS", SLOWDOWN_ATTEMPTS, 1, 6))
     slowdown_event_limit: int = field(default_factory=lambda: _env_int("ECMWF_OD_SLOWDOWN_LIMIT", SLOWDOWN_EVENT_LIMIT, 1, 20))
     give_up_on_slowdown: bool = field(default_factory=slowdown_give_up_enabled)
@@ -748,7 +789,7 @@ class OpenDataSession:
     stopped_early: Optional[str] = None
     _samples: dict[str, dict[tuple[float, float], dict[int, dict[str, float]]]] = field(default_factory=dict)
     _members: dict[str, dict[tuple[float, float], dict[str, dict[int, dict[str, float]]]]] = field(default_factory=dict)
-    _total_started: Optional[float] = field(default=None, init=False, repr=False)
+    _active_s: float = field(default=0.0, init=False, repr=False)
     _fetch_started: Optional[float] = field(default=None, init=False, repr=False)
     _abandoned: Optional[str] = field(default=None, init=False, repr=False)
     _slowdown_events: int = field(default=0, init=False, repr=False)
@@ -767,25 +808,39 @@ class OpenDataSession:
         return random.random() if self.jitter is None else self.jitter()
 
     def begin_fetch(self) -> None:
-        """Start the per-fetch clock. The session clock keeps running across fetches."""
-        now = self._now()
-        if self._total_started is None:
-            self._total_started = now
-        self._fetch_started = now
+        """Start the per-fetch clock. Idle time outside a fetch is not charged."""
+        self.end_fetch()
+        self._fetch_started = self._now()
         self._slowdown_events = 0
         self._abandoned = None
+        self.stopped_early = None
+        self.cache_note = None
         try:
             prune_sample_cache(self.cache_dir, datetime.now(timezone.utc))
+            self._purge_grib()
         except OSError:
             log.info("ECMWF sample cache prune skipped")
+
+    def end_fetch(self) -> None:
+        """Stop charging the session budget. Odds scraping between sports is idle."""
+        if self._fetch_started is None:
+            return
+        self._active_s += max(0.0, self._now() - self._fetch_started)
+        self._fetch_started = None
+
+    def _active_elapsed(self) -> float:
+        extra = 0.0
+        if self._fetch_started is not None:
+            extra = max(0.0, self._now() - self._fetch_started)
+        return self._active_s + extra
 
     def _remaining(self) -> float:
         now = self._now()
         limits: list[float] = []
-        if self._total_started is not None and self.total_budget_s >= 0:
-            limits.append(self.total_budget_s - (now - self._total_started))
+        if self.total_budget_s >= 0:
+            limits.append(self.total_budget_s - self._active_elapsed())
         if self._fetch_started is not None and self.fetch_budget_s >= 0:
-            limits.append(self.fetch_budget_s - (now - self._fetch_started))
+            limits.append(self.fetch_budget_s - max(0.0, now - self._fetch_started))
         if not limits:
             return HTTP_READ_TIMEOUT_S
         return max(0.0, min(limits))
@@ -793,11 +848,9 @@ class OpenDataSession:
     def check_budget(self) -> None:
         """Raise when this fetch should stop and the caller should keep Open-Meteo."""
         now = self._now()
-        if self._total_started is None:
-            self._total_started = now
         if self._fetch_started is None:
             self._fetch_started = now
-        if self.total_budget_s >= 0 and now - self._total_started >= self.total_budget_s:
+        if self.total_budget_s >= 0 and self._active_elapsed() >= self.total_budget_s:
             self._abandoned = "budget"
             raise OpenDataBudget(
                 f"ECMWF open-data total budget of {self.total_budget_s:.0f}s exceeded"
@@ -966,6 +1019,31 @@ class OpenDataSession:
                 continue
         return None
 
+    def _purge_grib(self) -> None:
+        """Drop temp GRIB left by a killed run. Sampled JSON is the cache."""
+        grib = self.cache_dir / "grib"
+        if grib.exists():
+            shutil.rmtree(grib, ignore_errors=True)
+        if not self.cache_dir.exists():
+            return
+        for path in self.cache_dir.glob("*.grib2"):
+            path.unlink(missing_ok=True)
+        for path in self.cache_dir.glob("*.grib2.part"):
+            path.unlink(missing_ok=True)
+
+    def _discard_grib(self, request: Request, path: Optional[Path]) -> None:
+        targets: list[Path] = []
+        if path is not None:
+            targets.append(path)
+            targets.append(Path(str(path) + ".part"))
+        for step in request.steps:
+            targets.append(self._step_grib_path(request, int(step)))
+        for target in targets:
+            try:
+                target.unlink(missing_ok=True)
+            except OSError:
+                log.info("ECMWF temp GRIB cleanup skipped for %s", target)
+
     def _http_client(self) -> Any:
         if self._http is None:
             import httpx
@@ -1129,44 +1207,53 @@ class OpenDataSession:
         raise OpenDataError(f"{request.model} {request.kind} {request.params} step {step} unavailable: {last}")
 
     def _download(self, request: Request) -> Path:
+        """Write one step at a time. The caller deletes the file after sampling."""
         path = self.cache_dir / request.cache_name()
         if path.exists() and path.stat().st_size > 0:
             return path
         if self.retriever is not None:
             raise OpenDataError("injected retriever did not supply this request")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        blobs: list[bytes] = []
-        for step in request.steps:
-            step_path = self._step_grib_path(request, int(step))
-            if step_path.exists() and step_path.stat().st_size > 0:
-                blobs.append(step_path.read_bytes())
-                self.manifests.append({
-                    "license": LICENSE, "attribution": ATTRIBUTION, "mirror": self.mirror or "cache",
-                    "model": request.model, "run": aware(request.run).isoformat(),
-                    "stream": request.stream, "type": request.kind,
-                    "steps": [int(step)], "params": list(request.params),
-                    "numbers": list(request.numbers), "bytes": 0, "cached": True,
-                })
-                continue
-            self.check_budget()
-            payload, source, indexed = self._fetch_step(request, int(step))
-            step_path.parent.mkdir(parents=True, exist_ok=True)
-            step_path.write_bytes(payload)
-            blobs.append(payload)
-            self.downloaded_bytes += len(payload)
-            self.mirror = source
-            self.manifests.append({
-                "license": LICENSE, "attribution": ATTRIBUTION, "mirror": source,
-                "model": request.model, "run": aware(request.run).isoformat(),
-                "stream": request.stream, "type": request.kind,
-                "steps": [int(step)], "params": list(request.params),
-                "numbers": list(request.numbers), "bytes": len(payload),
-                "indexed_bytes": indexed.nbytes, "messages": indexed.messages,
-                "members": list(indexed.members), "cached": False,
-            })
-        if not blobs:
-            raise OpenDataError(f"{request.model} {request.kind} produced no GRIB messages")
-        path.write_bytes(b"".join(blobs))
+        tmp = path.with_suffix(path.suffix + ".part")
+        written = 0
+        try:
+            with tmp.open("wb") as handle:
+                for step in request.steps:
+                    step_path = self._step_grib_path(request, int(step))
+                    if step_path.exists() and step_path.stat().st_size > 0:
+                        payload = step_path.read_bytes()
+                        self.manifests.append({
+                            "license": LICENSE, "attribution": ATTRIBUTION, "mirror": self.mirror or "cache",
+                            "model": request.model, "run": aware(request.run).isoformat(),
+                            "stream": request.stream, "type": request.kind,
+                            "steps": [int(step)], "params": list(request.params),
+                            "numbers": list(request.numbers), "bytes": 0, "cached": True,
+                        })
+                    else:
+                        self.check_budget()
+                        payload, source, indexed = self._fetch_step(request, int(step))
+                        step_path.parent.mkdir(parents=True, exist_ok=True)
+                        step_path.write_bytes(payload)
+                        self.downloaded_bytes += len(payload)
+                        self.mirror = source
+                        self.manifests.append({
+                            "license": LICENSE, "attribution": ATTRIBUTION, "mirror": source,
+                            "model": request.model, "run": aware(request.run).isoformat(),
+                            "stream": request.stream, "type": request.kind,
+                            "steps": [int(step)], "params": list(request.params),
+                            "numbers": list(request.numbers), "bytes": len(payload),
+                            "indexed_bytes": indexed.nbytes, "messages": indexed.messages,
+                            "members": list(indexed.members), "cached": False,
+                        })
+                    handle.write(payload)
+                    written += len(payload)
+                    del payload
+            if written == 0:
+                raise OpenDataError(f"{request.model} {request.kind} produced no GRIB messages")
+            tmp.replace(path)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise  # noqa: BLE001 - keep the part file from surviving a failed fetch
         return path
 
     def _decode_download(self, request: Request) -> list[GridField]:
@@ -1229,7 +1316,7 @@ class OpenDataSession:
         return self.cache_dir / "samples" / stamp / f"{request.stream}-{request.kind}-{role}-{int(step)}-{params}.json"
 
     def _entry_complete(self, request: Request, entry: dict[str, Any]) -> bool:
-        params = set(request.params)
+        params = stored_params(request.params)
 
         def covered(row: Any) -> bool:
             return isinstance(row, dict) and params <= set(row)
@@ -1241,50 +1328,64 @@ class OpenDataSession:
             return covered(entry.get("control"))
         return covered(entry.get("") if "" in entry else entry.get("det"))
 
+    def _read_step_points(self, request: Request, step: int) -> Optional[dict[str, Any]]:
+        path = self._sample_path(request, int(step))
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if data.get("schema") != SAMPLE_SCHEMA or not data.get("complete"):
+            return None
+        pts = data.get("points")
+        return pts if isinstance(pts, dict) else None
+
+    def _step_covers(self, request: Request, pts: dict[str, Any], points: Sequence[tuple[float, float]]) -> bool:
+        for point in points:
+            entry = pts.get(_point_key(point))
+            if not isinstance(entry, dict) or not self._entry_complete(request, entry):
+                return False
+        return True
+
+    def _absorb_step(
+        self, request: Request, step: int, pts: dict[str, Any], points: Sequence[tuple[float, float]],
+    ) -> None:
+        bucket = self._samples.setdefault(request.key, {})
+        member_bucket = self._members.setdefault(request.key, {})
+        wanted = stored_params(request.params)
+        for point in points:
+            entry = pts[_point_key(point)]
+            for label, values in entry.items():
+                if not isinstance(values, dict):
+                    continue
+                clean: dict[str, float] = {}
+                for param, raw in values.items():
+                    canon = canonical_param(str(param))
+                    if canon not in wanted:
+                        continue
+                    try:
+                        clean[canon] = float(raw)
+                    except (TypeError, ValueError):
+                        continue
+                if not clean:
+                    continue
+                if label in ("", "det"):
+                    bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
+                else:
+                    member_bucket.setdefault(point, {}).setdefault(str(label), {}).setdefault(step, {}).update(clean)
+                    if request.role != "perturbed":
+                        bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
+
     def _load_samples(self, request: Request, points: Sequence[tuple[float, float]]) -> bool:
         loaded: list[tuple[int, dict[str, Any]]] = []
         for step in request.steps:
-            path = self._sample_path(request, int(step))
-            if not path.exists():
+            pts = self._read_step_points(request, int(step))
+            if pts is None or not self._step_covers(request, pts, points):
                 return False
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return False
-            if data.get("schema") != SAMPLE_SCHEMA or not data.get("complete"):
-                return False
-            pts = data.get("points")
-            if not isinstance(pts, dict):
-                return False
-            for point in points:
-                entry = pts.get(_point_key(point))
-                if not isinstance(entry, dict) or not self._entry_complete(request, entry):
-                    return False
             loaded.append((int(step), pts))
-        bucket = self._samples.setdefault(request.key, {})
-        member_bucket = self._members.setdefault(request.key, {})
         for step, pts in loaded:
-            for point in points:
-                entry = pts[_point_key(point)]
-                for label, values in entry.items():
-                    if not isinstance(values, dict):
-                        continue
-                    clean: dict[str, float] = {}
-                    for param, raw in values.items():
-                        if param not in request.params:
-                            continue
-                        try:
-                            clean[str(param)] = float(raw)
-                        except (TypeError, ValueError):
-                            continue
-                    if not clean:
-                        continue
-                    if label in ("", "det"):
-                        bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
-                    else:
-                        member_bucket.setdefault(point, {}).setdefault(str(label), {}).setdefault(step, {}).update(clean)
-                        if request.role != "perturbed":
-                            bucket.setdefault(point, {}).setdefault(step, {}).update(clean)
+            self._absorb_step(request, step, pts, points)
         log.info(
             "ECMWF open-data cache hit %s %s/%s steps %s for %d locations (run %s)",
             request.model, request.stream, request.kind, list(request.steps), len(points),
@@ -1292,11 +1393,30 @@ class OpenDataSession:
         )
         return True
 
+    def _load_present_steps(self, request: Request, points: Sequence[tuple[float, float]]) -> list[int]:
+        """Load cached steps. Return the steps that still need a download."""
+        pending: list[int] = []
+        hit: list[int] = []
+        for step in request.steps:
+            pts = self._read_step_points(request, int(step))
+            if pts is None or not self._step_covers(request, pts, points):
+                pending.append(int(step))
+                continue
+            self._absorb_step(request, int(step), pts, points)
+            hit.append(int(step))
+        if hit:
+            log.info(
+                "ECMWF open-data cache hit %s %s/%s steps %s; still missing %s",
+                request.model, request.stream, request.kind, hit, pending,
+            )
+        return pending
+
     def _store_samples(self, request: Request, points: Sequence[tuple[float, float]]) -> None:
         if self.stopped_early:
             return
         bucket = self._samples.get(request.key, {})
         members = self._members.get(request.key, {})
+        wanted = stored_params(request.params)
         for step in request.steps:
             path = self._sample_path(request, int(step))
             existing: dict[str, Any] = {}
@@ -1310,12 +1430,12 @@ class OpenDataSession:
             for point in points:
                 entry: dict[str, dict[str, float]] = {}
                 values = bucket.get(point, {}).get(int(step)) or {}
-                bare = {param: values[param] for param in request.params if param in values}
+                bare = {param: values[param] for param in wanted if param in values}
                 if bare:
                     entry[""] = bare
                 for label, steps in members.get(point, {}).items():
                     row = steps.get(int(step)) or {}
-                    kept = {param: row[param] for param in request.params if param in row}
+                    kept = {param: row[param] for param in wanted if param in row}
                     if kept:
                         entry[str(label)] = kept
                 if not entry or not self._entry_complete(request, entry):
@@ -1329,6 +1449,48 @@ class OpenDataSession:
                 encoding="utf-8",
             )
 
+    def _sample_field(
+        self,
+        request: Request,
+        grid: GridField,
+        points: Sequence[tuple[float, float]],
+        bucket: dict[tuple[float, float], dict[int, dict[str, float]]],
+        member_bucket: dict[tuple[float, float], dict[str, dict[int, dict[str, float]]]],
+    ) -> None:
+        param = canonical_param(grid.param)
+        label = member_label(request, grid)
+        for point in points:
+            value = sample_grid(grid, point[0], point[1])
+            if value is None:
+                continue
+            bucket.setdefault(point, {}).setdefault(grid.step, {})[param] = value
+            if label is not None:
+                member_bucket.setdefault(point, {}).setdefault(label, {}).setdefault(grid.step, {})[param] = value
+
+    def _stream_step(
+        self,
+        request: Request,
+        points: Sequence[tuple[float, float]],
+        bucket: dict[tuple[float, float], dict[int, dict[str, float]]],
+        member_bucket: dict[tuple[float, float], dict[str, dict[int, dict[str, float]]]],
+    ) -> None:
+        """Decode one step, sample it, and delete the GRIB before the next step."""
+        try:
+            path = self._download(request)
+        except TooLarge:
+            if len(request.numbers) <= 1:
+                raise
+            mid = len(request.numbers) // 2
+            self._stream_step(replace(request, numbers=request.numbers[:mid]), points, bucket, member_bucket)
+            self._stream_step(replace(request, numbers=request.numbers[mid:]), points, bucket, member_bucket)
+            return
+        try:
+            for grid in self.decoder(path):
+                self._sample_field(request, grid, points, bucket, member_bucket)
+                del grid
+        finally:
+            self._discard_grib(request, path)
+
     def _ensure(self, request: Request, points: Sequence[tuple[float, float]]) -> None:
         bucket = self._samples.setdefault(request.key, {})
         missing = [point for point in points if point not in bucket]
@@ -1338,20 +1500,50 @@ class OpenDataSession:
             for point in missing:
                 bucket.setdefault(point, {})
             return
+        pending = self._load_present_steps(request, missing)
         member_bucket = self._members.setdefault(request.key, {})
-        for grid in self._fields(request):
-            param = "10fg" if grid.param in ("10fg", "10fg3") else grid.param
-            label = member_label(request, grid)
+        if not pending:
             for point in missing:
-                value = sample_grid(grid, point[0], point[1])
-                if value is None:
-                    continue
-                bucket.setdefault(point, {}).setdefault(grid.step, {})[param] = value
-                if label is not None:
-                    member_bucket.setdefault(point, {}).setdefault(label, {}).setdefault(grid.step, {})[param] = value
+                bucket.setdefault(point, {})
+            return
+        if self.cache_only:
+            self.cache_note = "open-data cache miss; network fetch skipped"
+            log.info(
+                "ECMWF open-data cache-only miss %s %s/%s steps %s; not downloading",
+                request.model, request.stream, request.kind, pending,
+            )
+            for point in missing:
+                bucket.setdefault(point, {})
+            return
+        if self.retriever is not None:
+            for grid in self._fields(request):
+                self._sample_field(request, grid, missing, bucket, member_bucket)
+            for point in missing:
+                bucket.setdefault(point, {})
+            self._store_samples(request, missing)
+            return
+        for step in pending:
+            one = replace(request, steps=(int(step),))
+            try:
+                self._stream_step(one, missing, bucket, member_bucket)
+            except OpenDataBudget as exc:
+                self.stopped_early = str(exc)
+                log.warning(
+                    "ECMWF open-data budget reached at step %s; keeping fields decoded so far",
+                    step,
+                )
+                break
+            except OpenDataSlowDown as exc:
+                self.stopped_early = str(exc)
+                self._abandoned = "slowdown"
+                log.warning(
+                    "ECMWF open-data SlowDown at step %s after the mirrors failed; keeping fields decoded so far",
+                    step,
+                )
+                break
+            self._store_samples(request, missing)
         for point in missing:
             bucket.setdefault(point, {})
-        self._store_samples(request, missing)
 
     def _plan(self, model: str, hours: set[datetime]) -> list[tuple[datetime, set[datetime]]]:
         latest = self.run_for(model)
@@ -1367,6 +1559,14 @@ class OpenDataSession:
         if not points:
             return {}
         self.begin_fetch()
+        try:
+            return self._point_forecasts(points, hours_by_point)
+        finally:
+            self.end_fetch()
+
+    def _point_forecasts(
+        self, points: Sequence[tuple[float, float]], hours_by_point: dict[tuple[float, float], set[datetime]],
+    ) -> dict[tuple[float, float], ParsedLocation]:
         union = {hour for point in points for hour in hours_by_point.get(point, ())}
         out: dict[tuple[float, float], ParsedLocation] = {}
         products = (
@@ -1377,6 +1577,7 @@ class OpenDataSession:
             try:
                 by_point: dict[tuple[float, float], dict[datetime, HourlyRow]] = {}
                 for run, covered in self._plan(model, union):
+                    covered = self._clip_hours(run, covered)
                     steps = tuple(steps_for_hours(run, covered, native_steps(model, aware(run).hour)))
                     if not steps:
                         continue
@@ -1519,17 +1720,29 @@ class OpenDataSession:
             return None
         return replace(request, steps=snapped)
 
+    def _has_samples(self, request: Request, points: Sequence[tuple[float, float]]) -> bool:
+        bucket = self._samples.get(request.key, {})
+        members = self._members.get(request.key, {})
+        return any(bucket.get(point) or members.get(point) for point in points)
+
+    def _accept_cached(self, request: Request, points: Sequence[tuple[float, float]]) -> Optional[Request]:
+        """A cache-only miss is not a loaded product. Nearest-step lookup would hit the network."""
+        if self.cache_only and not self._has_samples(request, points):
+            return None
+        return request
+
     def _ensure_available(self, request: Request, points: Sequence[tuple[float, float]]) -> Optional[Request]:
         """Fetch ``request``. On a missing index entry, retry the nearest published steps."""
         try:
             self._ensure(request, points)
-            return request
         except OpenDataBudget:
             raise
         except OpenDataSlowDown:
             return None
         except OpenDataError as exc:
             first = exc
+        else:
+            return self._accept_cached(request, points)
         alt = self._nearest_request(request)
         if alt is None:
             log.warning(
@@ -1543,7 +1756,6 @@ class OpenDataSession:
         )
         try:
             self._ensure(alt, points)
-            return alt
         except OpenDataBudget:
             raise
         except OpenDataSlowDown:
@@ -1554,6 +1766,7 @@ class OpenDataSession:
                 alt.stream, alt.kind, ",".join(alt.params), list(alt.steps), exc,
             )
             return None
+        return self._accept_cached(alt, points)
 
     def _load_member_product(
         self,
@@ -1578,18 +1791,37 @@ class OpenDataSession:
         )
         return None
 
+    def _clip_hours(self, run: datetime, hours: set[datetime]) -> set[datetime]:
+        clipped = hours_within_lead(run, hours, self.max_lead_h)
+        skipped = len(hours) - len(clipped)
+        if skipped:
+            log.info(
+                "ECMWF open-data skipping %d hours beyond %.0fh from %s",
+                skipped, self.max_lead_h, aware(run).strftime("%Y-%m-%d %HZ"),
+            )
+        return clipped
+
     def ensemble_forecasts(
         self, points: Sequence[tuple[float, float]], hours_by_point: dict[tuple[float, float], set[datetime]],
     ) -> dict[tuple[float, float], EnsembleLocation]:
         if not points:
             return {}
         self.begin_fetch()
+        try:
+            return self._ensemble_forecasts(points, hours_by_point)
+        finally:
+            self.end_fetch()
+
+    def _ensemble_forecasts(
+        self, points: Sequence[tuple[float, float]], hours_by_point: dict[tuple[float, float], set[datetime]],
+    ) -> dict[tuple[float, float], EnsembleLocation]:
         union = {hour for point in points for hour in hours_by_point.get(point, ())}
         plan = self._plan("ifs", union)
         if not plan:
             return {}
         collected: dict[tuple[float, float], dict[str, dict[datetime, HourlyRow]]] = {}
         for run, covered in plan:
+            covered = self._clip_hours(run, covered)
             steps = tuple(steps_for_hours(run, covered, native_steps("ifs", aware(run).hour)))
             if not steps:
                 continue

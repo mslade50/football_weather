@@ -120,6 +120,8 @@ env:
   FORCE: ${{ inputs.force == true && '1' || '' }}
   # auto uses ECMWF Open Data only after an Open-Meteo error, HTTP 429, or a stale ECMWF run.
   ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}
+  # Ensemble GRIB past this lead is not fetched. -1 restores the old 360 h tail.
+  ECMWF_OD_MAX_LEAD_H: ${{ vars.ECMWF_OD_MAX_LEAD_H || '168' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}
@@ -485,6 +487,9 @@ jobs:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Light already sampled this cycle. A miss keeps Open-Meteo; this job
+          # must not download ensemble GRIB (that exhausted the runner).
+          ECMWF_OD_CACHE_ONLY: "1"
         run: |
           # BetOnline comes from the parallel scrape (--ingest-lines). Refresh
           # BetCRIS live here: the light upload can outlast the short college feed
