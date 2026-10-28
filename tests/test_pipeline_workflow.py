@@ -74,6 +74,7 @@ def test_dispatch_inputs(text: str):
     assert "- exchanges" in text
     assert "ecmwf_opendata:" in text
     assert "ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}" in text
+    assert "ECMWF_OD_MAX_LEAD_H: ${{ vars.ECMWF_OD_MAX_LEAD_H || '168' }}" in text
 
 
 def test_safe_refresh_disables_messages_without_force_or_cadence_changes(text: str):
@@ -271,6 +272,8 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     build = _step(pw, "Build board (BetOnline)")
     assert ('python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts '
             '--run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines') in build
+    assert 'ECMWF_OD_CACHE_ONLY: "1"' in build
+    assert "ECMWF_OD_CACHE_ONLY" not in _step(_job(text, "light"), "Build board")
     assert "contents: write" not in pw
     order = ["Download BetOnline handoff", "Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]

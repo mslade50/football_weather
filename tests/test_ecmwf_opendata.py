@@ -753,6 +753,222 @@ def test_slowdown_on_every_mirror_does_not_start_the_next_step(tmp_path):
     assert hosts == ["aws", "aws", "aws", "google", "google", "google"]
 
 
+def test_steps_past_the_lead_cap_are_not_fetched():
+    calls: list[od.Request] = []
+    session = _session(calls)
+    near = RUN + timedelta(hours=48)
+    far = RUN + timedelta(hours=222)
+    session.ensemble_forecasts([POINT], {POINT: {near, far}})
+    fetched = [step for call in calls for step in call.steps]
+    assert fetched
+    assert 222 not in fetched
+    assert all(step <= 168 for step in fetched)
+    before = len(calls)
+    assert session.point_forecasts([POINT], {POINT: {far}}) == {}
+    assert len(calls) == before
+    edge = RUN + timedelta(hours=168)
+    session.point_forecasts([POINT], {POINT: {edge}})
+    assert any(168 in call.steps for call in calls[before:])
+
+
+def test_negative_lead_cap_keeps_the_far_step():
+    kept = od.hours_within_lead(RUN, [RUN + timedelta(hours=48), RUN + timedelta(hours=222)], 168)
+    assert kept == {RUN + timedelta(hours=48)}
+    assert od.hours_within_lead(RUN, [RUN + timedelta(hours=222)], -1) == {RUN + timedelta(hours=222)}
+
+
+def test_time_between_fetches_is_not_charged_to_the_budget(tmp_path):
+    clock = _Clock()
+    session = _budget_session(tmp_path, clock=clock, fetch_budget_s=30, total_budget_s=100)
+    clock.t = 10
+    session.end_fetch()
+    clock.t = 500  # odds scrape and the rest of the first sport
+    session.begin_fetch()
+    clock.t = 515
+    session.check_budget()
+    clock.t = 535
+    with pytest.raises(od.OpenDataBudget, match="fetch budget of 30s"):
+        session.check_budget()
+
+
+def test_cache_only_miss_does_not_download_or_blame_the_index(monkeypatch, tmp_path):
+    def boom(_request: od.Request) -> list[od.GridField]:
+        raise AssertionError("cache-only must not fetch")
+
+    ctx = RunContext(sport="cfb", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = od.OpenDataSession(
+        retriever=boom, fixed_run=RUN, cache_dir=tmp_path, cache_only=True,
+    )
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+    hour = RUN + timedelta(hours=48)
+    ecmwf_fallback.supplement_ensemble(ctx, "cfb", [POINT], {POINT: {hour}}, {}, {}, None)
+    reasons = [item.reason for item in ctx.degradations]
+    assert any("found no fields" in reason and "cache miss" in reason for reason in reasons)
+    assert not any("index entries" in reason for reason in reasons)
+
+
+def test_cache_only_gust_without_wind_keeps_the_existing_ensemble(tmp_path, monkeypatch):
+    from pipeline.weather.parsers.ensemble import EnsembleLocation, Member
+
+    monkeypatch.setenv("ECMWF_OD_SAMPLE_KEEP_H", "100000")
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+    session = od.OpenDataSession(retriever=_retriever([]), fixed_run=RUN, cache_dir=tmp_path)
+    hour = RUN + timedelta(hours=48)
+    assert session.ensemble_forecasts([POINT], {POINT: {hour}})[POINT].n_members() == 51
+    wind_files = list((tmp_path / "samples").rglob("*10u-10v-tp.json"))
+    assert wind_files
+    for path in wind_files:
+        path.unlink()
+
+    def boom(_request: od.Request) -> list[od.GridField]:
+        raise AssertionError("cache-only must not fetch")
+
+    ctx = RunContext(sport="cfb", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = od.OpenDataSession(
+        retriever=boom, fixed_run=RUN, cache_dir=tmp_path, cache_only=True,
+    )
+    labels = ["control"] + [f"member{i:02d}" for i in range(1, 51)]
+    members = {
+        f"{od.ENS_MODEL}:{label}": Member(od.ENS_MODEL, label, [9.0], [10.0], [0.1]) for label in labels
+    }
+    locations = {POINT: [EnsembleLocation(POINT[0], POINT[1], [hour], {}, members)]}
+    coverage = {POINT: {"errors": {"ifs": "settling"}, "fetched_at": {}, "source_versions": {}}}
+    ecmwf_fallback.supplement_ensemble(ctx, "cfb", [POINT], {POINT: {hour}}, locations, coverage, None)
+    assert locations[POINT][0].members[f"{od.ENS_MODEL}:member01"].wind == [9.0]
+    assert any("cache miss" in item.reason for item in ctx.degradations)
+
+
+def test_budget_stop_is_not_reported_as_a_missing_index(monkeypatch, tmp_path):
+    ctx = RunContext(sport="cfb", run_id="t", git_sha="abc")
+    ctx.weather_state["ecmwf_session"] = od.OpenDataSession(
+        retriever=lambda _request: [], fixed_run=RUN, cache_dir=tmp_path,
+    )
+
+    def empty(self, points, hours):
+        self.stopped_early = "ECMWF open-data fetch budget of 240s exceeded"
+        self.cache_note = None
+        return {}
+
+    monkeypatch.setattr(od.OpenDataSession, "ensemble_forecasts", empty)
+    monkeypatch.setenv("ECMWF_OPENDATA_FALLBACK", "force")
+    hour = RUN + timedelta(hours=48)
+    ecmwf_fallback.supplement_ensemble(ctx, "cfb", [POINT], {POINT: {hour}}, {}, {}, None)
+    reasons = [item.reason for item in ctx.degradations]
+    assert any("found no fields" in reason and "fetch budget of 240s" in reason for reason in reasons)
+    assert not any("index entries" in reason for reason in reasons)
+
+
+def test_gust_interval_samples_are_reused_under_the_10fg_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("ECMWF_OD_SAMPLE_KEEP_H", "100000")
+    calls: list[od.Request] = []
+    session = od.OpenDataSession(retriever=_retriever(calls), fixed_run=RUN, cache_dir=tmp_path)
+    hour = RUN + timedelta(hours=100)
+    first = session.ensemble_forecasts([POINT], {POINT: {hour}})
+    gust = first[POINT].members[f"{od.ENS_MODEL}:member01"].gust[0]
+    assert gust == pytest.approx(8.0 * od.MPS_TO_MPH)
+    assert any(call.params == ("10fg3",) for call in calls)
+
+    def boom(_request: od.Request) -> list[od.GridField]:
+        raise AssertionError("cached 10fg3 gust must not download")
+
+    again = od.OpenDataSession(retriever=boom, fixed_run=RUN, cache_dir=tmp_path)
+    second = again.ensemble_forecasts([POINT], {POINT: {hour}})
+    assert second[POINT].members[f"{od.ENS_MODEL}:member01"].gust[0] == pytest.approx(gust)
+
+
+def test_a_cached_step_is_not_downloaded_again(tmp_path, monkeypatch):
+    monkeypatch.setenv("ECMWF_OD_SAMPLE_KEEP_H", "100000")
+    calls: list[od.Request] = []
+    session = od.OpenDataSession(retriever=_retriever(calls), fixed_run=RUN, cache_dir=tmp_path)
+    hour = RUN + timedelta(hours=48)
+    session.point_forecasts([POINT], {POINT: {hour}})
+    base = [path for path in (tmp_path / "samples").rglob("*-2t-10u-10v-tp.json")]
+    assert len(base) >= 2
+    base[0].unlink()
+    downloaded: list[int] = []
+
+    def download(self, request: od.Request):
+        downloaded.extend(int(step) for step in request.steps)
+        path = tmp_path / "refetch.grib2"
+        path.write_bytes(b"GRIB")
+        return path
+
+    def decoder(_path):
+        step = downloaded[-1]
+        for param, value in (("2t", 280.0), ("10u", 5.0), ("10v", 0.0), ("tp", 0.001)):
+            yield _grid(param, step, value)
+
+    again = od.OpenDataSession(decoder=decoder, fixed_run=RUN, cache_dir=tmp_path)
+    again._download = download.__get__(again, od.OpenDataSession)
+    again.point_forecasts([POINT], {POINT: {hour}})
+    assert len(downloaded) == 1
+
+
+def test_ensemble_steps_are_decoded_one_message_at_a_time_and_grib_is_removed(tmp_path):
+    import tracemalloc
+
+    class Payload:
+        live = 0
+        peak = 0
+        nbytes = 1 << 20
+        created = 0
+
+        def __init__(self) -> None:
+            Payload.created += 1
+            Payload.live += 1
+            Payload.peak = max(Payload.peak, Payload.live)
+            self._buf = bytearray(self.nbytes)
+
+        def __len__(self) -> int:
+            return 4
+
+        def __getitem__(self, index: int) -> float:
+            return 280.0
+
+        def __del__(self) -> None:
+            Payload.live -= 1
+
+    def decoder(_path):
+        for param in ("10u", "10v"):
+            yield od.GridField(
+                param=param, step=0, lat0=50.0, lon0=260.0, dlat=-20.0, dlon=40.0,
+                ni=2, nj=2, values=Payload(), member=1,
+            )
+
+    def download(self, request: od.Request):
+        path = self.cache_dir / request.cache_name()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"GRIB")
+        step_path = self._step_grib_path(request, int(request.steps[0]))
+        step_path.parent.mkdir(parents=True, exist_ok=True)
+        step_path.write_bytes(b"GRIB-step")
+        # The decoder stamps every message as step 0; tag the yielded step via closure.
+        decoder.step = int(request.steps[0])
+        return path
+
+    def stepping_decoder(path):
+        step = decoder.step
+        for grid in decoder(path):
+            yield od.GridField(
+                param=grid.param, step=step, lat0=grid.lat0, lon0=grid.lon0,
+                dlat=grid.dlat, dlon=grid.dlon, ni=grid.ni, nj=grid.nj,
+                values=grid.values, member=grid.member,
+            )
+
+    session = od.OpenDataSession(decoder=stepping_decoder, fixed_run=RUN, cache_dir=tmp_path)
+    session._download = download.__get__(session, od.OpenDataSession)
+    request = od.Request("ifs", RUN, "enfo", "pf", (48, 51, 54), ("10u", "10v"), (1,), "perturbed")
+    tracemalloc.start()
+    session._ensure(request, [POINT])
+    _current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert Payload.created == 6
+    assert Payload.peak <= 2
+    # Six retained 1 MiB grids would be 6 MiB. Two in flight stay under 4 MiB.
+    assert peak < Payload.nbytes * 4
+    assert list(tmp_path.rglob("*.grib2")) == []
+
+
 def test_partial_open_data_does_not_replace_a_fuller_ensemble(monkeypatch, tmp_path):
     from pipeline.weather.parsers.ensemble import EnsembleLocation, Member
 

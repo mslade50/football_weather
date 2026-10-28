@@ -237,14 +237,16 @@ def supplement_ensemble(
         status["error"] = f"{type(exc).__name__}: {exc}"
         return
     if not filled:
+        detail = session.stopped_early or session.cache_note or (
+            "no control or perturbed index entries at the requested steps"
+        )
         log.warning(
-            "%s ECMWF open-data ensemble fallback found no fields; the Open-Meteo ensemble is unchanged",
-            sport,
+            "%s ECMWF open-data ensemble fallback found no fields (%s); the Open-Meteo ensemble is unchanged",
+            sport, detail,
         )
         ctx.degrade(
             "weather",
-            f"{sport}: ECMWF Open Data ensemble fallback found no fields "
-            "(no control or perturbed index entries at the requested steps)",
+            f"{sport}: ECMWF Open Data ensemble fallback found no fields ({detail})",
             "warn",
         )
         return
