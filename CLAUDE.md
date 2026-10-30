@@ -11,9 +11,8 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 ## Environment
 - Native Windows, Git Bash. `python` (3.10) not `python3`. No 3.11-only syntax
   (no `except*`, `StrEnum`, `tomllib`).
-- Contracts
-  use stdlib dataclasses; fuzzy matching uses `difflib` behind a try-import of
-  `rapidfuzz`.
+- Contracts use stdlib dataclasses; fuzzy matching uses `difflib` behind a
+  try-import of `rapidfuzz`.
 - Never commit generated data. Only `data/stadiums*.csv`, `data/teams.csv`,
   `data/aliases/`, `data/raw/` and `tests/fixtures/` are tracked. The legacy
   `nfl_weather.csv` / `cfb_weather.xlsx` are written to `data/` and uploaded to
