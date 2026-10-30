@@ -1,5 +1,7 @@
 # CLAUDE.md — football_weather
 
+Global rules come from `mslade50/agent-rules`, installed on this machine as `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`. This file holds football_weather facts only.
+
 NFL + college-football weather/odds board: schedule → stadiums → weather →
 impact model → odds scrapers → fair/edges → JSON board (Cloudflare Worker + R2 +
 D1) + Telegram alerts. Design docs: `docs/AUDIT.md`, `docs/ARCHITECTURE.md`,
@@ -9,7 +11,7 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 ## Environment
 - Native Windows, Git Bash. `python` (3.10) not `python3`. No 3.11-only syntax
   (no `except*`, `StrEnum`, `tomllib`).
-- Do NOT `pip install` — flag what is needed and let the user decide. Contracts
+- Contracts
   use stdlib dataclasses; fuzzy matching uses `difflib` behind a try-import of
   `rapidfuzz`.
 - Never commit generated data. Only `data/stadiums*.csv`, `data/teams.csv`,
@@ -42,10 +44,7 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 
 ## Review
 
-Read and follow `docs/REVIEW_POLICY.md` before opening a pull request.
-Run `python -m pytest tests -q` and `ruff check .`, paste the real output
-into the PR, name the risk tier, and write the rollback steps in plain
-words. Never print or commit secrets.
+Repo gate: `docs/REVIEW_POLICY.md`. Checks: `python -m pytest tests -q` and `ruff check .`.
 
 ## Tests
 - `python -m pytest tests -q` from the repo root; `pyproject.toml` sets
@@ -55,7 +54,7 @@ words. Never print or commit secrets.
   `golf_scraping/tests/test_betcris.py`); never require network.
 - Workflow YAML changes must update the workflow-contract tests
   (`tests/test_pipeline_workflow.py` etc.) that pin string invariants.
-- Style: type hints, `pathlib`, f-strings, explicit imports; `ruff check .`.
+- Lint: `ruff check .`.
 
 ## Layout (abridged; full tree in ARCH §3)
 ```
