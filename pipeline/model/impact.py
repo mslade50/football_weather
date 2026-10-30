@@ -535,7 +535,8 @@ def compute_impact_v2(
     rain_c, expected_mm = rain_component_v2(rain_fg_mm, precip_prob, precip_prob_ens, cal)
     if closed:
         rain_c = 0.0
-    gs = -(wind_c + cold_c + heat_c + rain_c)
+    # components stay unscaled (they describe the weather); the shade the fair total uses is scaled
+    gs = -(wind_c + cold_c + heat_c + rain_c) * cal.get(f"gs_scale_{sport}", 1.0)
 
     heat_away = 0.0 if closed else heat_away_component_v2(temp_fg, home_temp, away_temp, cal)
     cold_away = 0.0 if closed else cold_away_component(temp_fg, away_temp, sport)

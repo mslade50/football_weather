@@ -222,7 +222,7 @@ def test_clv_block_reads_pipeline_backtest_alerts_clv_shape():
 def test_cli_refuses_under_four_weeks_and_writes_nothing(tmp_path: Path, config_hash: str, capsys):
     (tmp_path / "bt.json").write_text(json.dumps({"games": synth_rows(30, weeks=3)}), encoding="utf-8")
     out = tmp_path / "calibration.json"
-    rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out)])
+    rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--target", "close"])
     assert rc == 2 and not out.exists()
     assert "refusing to refit" in capsys.readouterr().out
     assert hashlib.sha256(CONFIG_PY.read_bytes()).hexdigest() == config_hash
@@ -233,7 +233,8 @@ def test_cli_writes_calibration_and_never_touches_v1(tmp_path: Path, config_hash
     (tmp_path / "backtest.json").write_text(json.dumps({"clv": {"weeks": 5, "by_model": {"v1": {"avg_clv": 0.3}, "v2": {"avg_clv": 0.2}}}}),
                                             encoding="utf-8")
     out = tmp_path / "calibration.json"
-    rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--backtest", str(tmp_path / "backtest.json"), "--rounds", "8"])
+    rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--backtest", str(tmp_path / "backtest.json"),
+                   "--rounds", "8", "--target", "close"])
     assert rc == 0 and out.exists()
     data = json.loads(out.read_text(encoding="utf-8"))
     assert CAL.validate_calibration(data) == []
@@ -253,7 +254,8 @@ def test_cli_writes_calibration_and_never_touches_v1(tmp_path: Path, config_hash
 def test_dry_run_writes_nothing(tmp_path: Path):
     (tmp_path / "bt.json").write_text(json.dumps({"games": synth_rows(60, weeks=4)}), encoding="utf-8")
     out = tmp_path / "calibration.json"
-    assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--dry-run", "--rounds", "3"]) == 0
+    assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--dry-run", "--rounds", "3",
+                     "--target", "close"]) == 0
     assert not out.exists()
 
 
@@ -266,3 +268,123 @@ def test_module_never_writes_python_sources():
     assert "ALERT_MODEL" not in src.split('"""', 2)[2].replace("PROMOTION_RULE", "").split("PROMOTION_RULE")[0] \
         or "alert_model()" in src   # read-only accessor only
     assert sys.version_info >= (3, 10)
+
+
+# ---------------------------------------------------------------- --target result (final score)
+
+
+def synth_result_rows(n: int, scale: dict[str, float], noise: float = 0.5, seed: int = 11) -> list[dict]:
+    """Games whose FINAL total is the opener moved by ``scale[sport]`` x the unscaled v2 shade (+ noise)."""
+    rng = random.Random(seed)
+    unscaled = _true_cal(gs_scale_nfl=1.0, gs_scale_cfb=1.0)
+    rows = []
+    for i in range(n):
+        sport = "nfl" if i % 2 == 0 else "cfb"
+        wind, temp = rng.uniform(0.0, 30.0), rng.uniform(25.0, 85.0)
+        imp = I.compute_impact_v2(sport, temp, wind, None, 0.0, None, None, None, None, cal=unscaled)
+        line = rng.choice([41.5, 44.0, 47.5, 51.0, 55.5])
+        rows.append({"sport": sport, "season": 2026, "week": 1 + i % 6, "kickoff_utc": "2026-10-10T17:00:00Z",
+                     "temp_fg": temp, "wind_fg": wind, "total_open": line + 3.0, "total_at_forecast": line,
+                     "actual_total": line * (1 + scale[sport] * imp.gs_fg_pct / 100.0) + rng.gauss(0, noise)})
+    return rows
+
+
+def test_v2_cfb_shade_is_scaled_and_nfl_is_not():
+    raw = _true_cal(gs_scale_nfl=1.0, gs_scale_cfb=1.0)
+    for sport, k in (("nfl", 1.0), ("cfb", 0.4)):
+        full = I.compute_impact_v2(sport, 40.0, 22.0, None, 0.0, None, None, None, None, cal=raw)
+        shipped = I.compute_impact_v2(sport, 40.0, 22.0, None, 0.0, None, None, None, None, cal=dict(C.V2_DEFAULTS))
+        assert full.gs_fg_pct < 0
+        assert shipped.gs_fg_pct == pytest.approx(k * full.gs_fg_pct)
+        assert shipped.wind_c == full.wind_c          # components are not scaled
+    # v1 is untouched by the v2 scale
+    assert I.compute_impact_v1("cfb", 10, 40.0, 22.0, 0.0, None, None).gs_fg_pct == -6.5 - 0.0
+
+
+def test_fit_scale_recovers_strong_signal_and_keeps_prior_when_thin():
+    rows = [CAL.row_from_dict(d) for d in synth_result_rows(600, {"nfl": 0.7, "cfb": 0.9}, noise=0.2)]
+    fits = {f.sport: f for f in (CAL.fit_scale(rows, sp, dict(C.V2_DEFAULTS)) for sp in C.SPORTS)}
+    assert fits["nfl"].slope == pytest.approx(0.7, abs=0.02) and fits["nfl"].posterior == pytest.approx(0.7, abs=0.03)
+    assert fits["cfb"].slope == pytest.approx(0.9, abs=0.02) and fits["cfb"].posterior == pytest.approx(0.9, abs=0.03)
+    thin = [CAL.row_from_dict(d) for d in synth_result_rows(20, {"nfl": 0.0, "cfb": 0.0})]
+    for sp, (prior, _) in CAL.RESULT_PRIOR.items():
+        f = CAL.fit_scale(thin, sp, dict(C.V2_DEFAULTS))
+        assert f.slope is None and f.posterior == prior
+
+
+def test_noisy_data_barely_moves_the_prior():
+    rows = [CAL.row_from_dict(d) for d in synth_result_rows(200, {"nfl": 0.0, "cfb": 0.0}, noise=14.0)]
+    f = CAL.fit_scale(rows, "cfb", dict(C.V2_DEFAULTS))
+    assert f.se is not None and f.se > 0.5
+    assert abs(f.posterior - CAL.RESULT_PRIOR["cfb"][0]) < abs(f.slope - CAL.RESULT_PRIOR["cfb"][0])
+
+
+def test_result_update_starts_from_the_base_prior_not_the_last_file():
+    """Re-running on the same season must not double-count: the start file's scale is ignored."""
+    rows = [CAL.row_from_dict(d) for d in synth_result_rows(300, {"nfl": 1.2, "cfb": 0.1}, noise=3.0)]
+    a, _ = CAL.fit_result(rows, dict(C.V2_DEFAULTS))
+    b, _ = CAL.fit_result(rows, {**C.V2_DEFAULTS, "gs_scale_nfl": 0.3, "gs_scale_cfb": 1.4})
+    assert a.cal["gs_scale_nfl"] == b.cal["gs_scale_nfl"] and a.cal["gs_scale_cfb"] == b.cal["gs_scale_cfb"]
+    for k in CAL.REFIT_KEYS:                      # the wind curve is carried through untouched
+        assert a.cal[k] == C.V2_DEFAULTS[k]
+
+
+def test_cli_default_target_is_result_and_writes_valid_scales(tmp_path: Path, config_hash: str, capsys):
+    (tmp_path / "bt.json").write_text(json.dumps({"games": synth_result_rows(240, {"nfl": 0.9, "cfb": 0.5}, noise=2.0)}),
+                                      encoding="utf-8")
+    out = tmp_path / "calibration.json"
+    assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out)]) == 0
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert CAL.validate_calibration(data) == [] and data["fit"]["target"] == "result"
+    assert {s["sport"] for s in data["fit"]["scales"]} == {"nfl", "cfb"}
+    assert "gs_scale_cfb" in capsys.readouterr().out
+    assert hashlib.sha256(CONFIG_PY.read_bytes()).hexdigest() == config_hash
+
+
+def test_validate_rejects_out_of_bounds_scale():
+    bad = {"schema_version": 1, "v2": {**C.V2_DEFAULTS, "gs_scale_cfb": 3.0}}
+    assert "v2.gs_scale_cfb out of bounds" in CAL.validate_calibration(bad)
+
+
+def test_result_target_measures_from_the_contemporaneous_line_not_the_opener():
+    """Market already moved from the opener to the weather-adjusted number: relative to the line the
+    board actually prices from, nothing is left, so the scale must go to ~0 (no double counting)."""
+    cal = dict(C.V2_DEFAULTS)
+    unscaled = {**cal, "gs_scale_nfl": 1.0}
+    rows = []
+    for i in range(120):
+        d = {"sport": "nfl", "temp_fg": 60.0, "wind_fg": 12.0 + i / 6, "total_open": 50.0}
+        moved = 50.0 * (1 + CAL._v2(CAL.row_from_dict(d), unscaled).gs_fg_pct / 100.0)
+        rows.append(CAL.row_from_dict({**d, "total_close": moved, "actual_total": moved + (-1) ** i * 0.01}))
+    f = CAL.fit_scale(rows, "nfl", cal)
+    assert f.slope == pytest.approx(0.0, abs=0.01) and f.posterior == pytest.approx(0.0, abs=0.05)
+    # the opener alone is not a usable baseline for the result target
+    only_open = CAL.row_from_dict({"sport": "nfl", "temp_fg": 60.0, "wind_fg": 20.0, "total_open": 50.0, "actual_total": 44.0})
+    assert CAL.usable([only_open], "result") == []
+
+
+def test_perfect_zero_slope_fit_overrides_prior():
+    rows = [CAL.row_from_dict({"sport": "cfb", "temp_fg": 60.0, "wind_fg": 11 + i / 3, "total_at_forecast": 50.0,
+                               "actual_total": 50.0}) for i in range(60)]
+    f = CAL.fit_scale(rows, "cfb", dict(C.V2_DEFAULTS))
+    assert f.slope == pytest.approx(0.0) and f.se == 0.0 and f.posterior == 0.0
+
+
+def test_constant_shade_keeps_prior():
+    rows = [CAL.row_from_dict({"sport": "cfb", "temp_fg": 60.0, "wind_fg": 20.0, "total_at_forecast": 50.0,
+                               "actual_total": 50.0}) for _ in range(60)]
+    f = CAL.fit_scale(rows, "cfb", dict(C.V2_DEFAULTS))
+    assert f.slope is None and f.posterior == CAL.RESULT_PRIOR["cfb"][0]
+
+
+def test_refit_keeps_blocks_owned_by_other_fitters(tmp_path: Path):
+    """forecast_blend (scripts/fit_forecast_blend.py) must survive a monthly refit of the same file."""
+    out = tmp_path / "calibration.json"
+    shipped = json.loads(SHIPPED.read_text(encoding="utf-8"))
+    out.write_text(json.dumps(shipped), encoding="utf-8")
+    (tmp_path / "bt.json").write_text(json.dumps({"games": synth_result_rows(240, {"nfl": 0.9, "cfb": 0.5}, noise=2.0)}),
+                                      encoding="utf-8")
+    assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out)]) == 0
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["forecast_blend"] == shipped["forecast_blend"]
+    assert data["fit"]["target"] == "result"

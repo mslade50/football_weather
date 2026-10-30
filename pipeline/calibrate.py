@@ -1,4 +1,17 @@
-"""Refit the v2 impact coefficients against closing lines (PLAN Phase 6, ARCH §7.5).
+"""Refit the v2 impact coefficients (PLAN Phase 6, ARCH §7.5).
+
+Default target is the FINAL SCORE (``--target result``, owner decision 2026-10-24): the v2
+fair total is meant to be the expected game total, not where the line closes. In that mode
+only the per-sport shade scales ``gs_scale_{nfl,cfb}`` move, by a precision-weighted update
+of the fixed ``RESULT_PRIOR`` (from the 1999-2025 NFL / 2017-2025 CFB evidence) with the
+slope of (actual - line) on the unscaled v2 shade in the input rows. "line" is the total
+quoted when that forecast was taken (``total_at_forecast``; else the closing total, which is
+contemporaneous with the backtest's last pre-kickoff forecast), never the opener: the board
+applies the shade to the CURRENT consensus, so the scale must be learned against the line
+the market had already moved to, or a priced-in move would be counted twice. The update
+always starts from the same base prior, so re-running on a growing season never
+double-counts. The wind curve is left as it is. ``--target close`` is the original mode,
+described below.
 
     python -m pipeline.calibrate [--input data/backtest/games.parquet ...] [--out data/calibration.json]
                                  [--min-weeks 4] [--backtest data/board/backtest.json] [--dry-run] [--force]
@@ -85,6 +98,11 @@ BOUNDS: dict[str, tuple[float, float]] = {
     "heat_away_delta_f": (5.0, 25.0),
 }
 REFIT_KEYS: tuple[str, ...] = tuple(BOUNDS)
+# --target result: per-sport shade scale; prior = (mean, sd) from docs/notes/team-style-weather-study.md
+SCALE_BOUNDS: dict[str, tuple[float, float]] = {"gs_scale_nfl": (0.0, 1.5), "gs_scale_cfb": (0.0, 1.5)}
+RESULT_PRIOR: dict[str, tuple[float, float]] = {"nfl": (1.0, 0.25), "cfb": (0.4, 0.25)}
+MIN_SCALE_ROWS = 30  # fewer shaded rows than this for a sport -> its scale stays at the prior
+MIN_SHADE_VAR = 1e-8  # pts^2; below this the shade is constant up to float noise
 TOTAL_KEYS = ("gust_blend", "wind_offset_mph", "wind_coeff", "wind_exp", "wind_cap", "rain_prob_min")
 SPREAD_KEYS = ("alt_slope_per_m", "heat_away_delta_f")
 
@@ -117,6 +135,8 @@ class Row:
     total_close: Optional[float]
     spread_open: Optional[float]
     spread_close: Optional[float]
+    actual_total: Optional[float] = None
+    total_at_forecast: Optional[float] = None   # line quoted when the forecast was taken
     # month of the RUN that produced the forecast (v1 rain suppression keys on it); None -> game month
     run_month: Optional[int] = None
 
@@ -252,10 +272,12 @@ def row_from_dict(d: dict[str, Any]) -> Optional[Row]:
         home_temp=_num(_get(d, "home_temp")),
         away_temp=_num(_get(d, "away_temp")),
         roof_state=_str(_get(d, "roof_state", "stadium.roof_state")),
-        total_open=_num(_get(d, "total_open", "consensus.total_open", "total_at_forecast")),
+        total_open=_num(_get(d, "total_open", "consensus.total_open")),
         total_close=_num(_get(d, "total_close", "closing_total", "closing.total", "consensus.total_close")),
         spread_open=_num(_get(d, "spread_open", "consensus.spread_open")),
         spread_close=_num(_get(d, "spread_close", "closing_spread", "closing.spread", "consensus.spread_close")),
+        actual_total=_num(_get(d, "actual_total", "total_actual", "result.total")),
+        total_at_forecast=_num(_get(d, "total_at_forecast", "line_at_forecast")),
         run_month=_run_month(d),
     )
 
@@ -291,12 +313,20 @@ def load_rows(paths: Sequence[Path]) -> list[Row]:
     return out
 
 
-def usable(rows: Iterable[Row]) -> list[Row]:
+def result_line(r: Row) -> Optional[float]:
+    """Line the result target measures from: contemporaneous with the forecast, never the opener."""
+    return r.total_at_forecast if r.total_at_forecast is not None else r.total_close
+
+
+def usable(rows: Iterable[Row], target: str = "close") -> list[Row]:
+    if target == "result":
+        return [r for r in rows if result_line(r) is not None and r.actual_total is not None
+                and r.wind_fg is not None and r.temp_fg is not None]
     return [r for r in rows if r.has_total and r.wind_fg is not None and r.temp_fg is not None]
 
 
 def weeks_of(rows: Iterable[Row]) -> list[tuple[int, int]]:
-    return sorted({(r.season or 0, r.week or 0) for r in rows if r.has_total})
+    return sorted({(r.season or 0, r.week or 0) for r in rows if r.has_total or r.actual_total is not None})
 
 
 # ---- model evaluation --------------------------------------------------------------------
@@ -429,6 +459,79 @@ def fit(rows: Sequence[Row], start: dict[str, float], *, keys: Sequence[str] = R
     return FitResult({k: round(float(v), 6) for k, v in cal.items()}, dict(start), before, best, n_rounds, evals, changed)
 
 
+@dataclass(frozen=True)
+class ScaleFit:
+    sport: str
+    n: int                      # rows with a non-zero shade
+    slope: Optional[float]      # OLS slope (with intercept) of (actual - open) on the unscaled shade
+    se: Optional[float]         # heteroskedasticity-robust (HC0) standard error of ``slope``
+    prior: float
+    prior_sd: float
+    posterior: float
+
+
+def fit_scale(rows: Sequence[Row], sport: str, cal: dict[str, float]) -> ScaleFit:
+    """Precision-weighted update of ``RESULT_PRIOR[sport]`` with the data's slope.
+
+    x = line * unscaled_gs / 100 (points of shade), y = actual - line, line = ``result_line``.
+    The intercept absorbs any overall over/under bias of the season so it cannot leak into the
+    weather scale. A perfect fit (zero residual variance) takes the fitted slope outright."""
+    prior, prior_sd = RESULT_PRIOR[sport]
+    unscaled = {**cal, f"gs_scale_{sport}": 1.0}
+    xs: list[float] = []
+    ys: list[float] = []
+    for r in rows:
+        line = result_line(r)
+        if r.sport != sport or line is None or r.actual_total is None:
+            continue
+        xs.append(line * _v2(r, unscaled).gs_fg_pct / 100.0)
+        ys.append(r.actual_total - line)
+    n_shaded = sum(1 for x in xs if abs(x) > 1e-9)
+    slope = se = None
+    post = prior
+    if n_shaded >= MIN_SCALE_ROWS:
+        n = len(xs)
+        mx, my = sum(xs) / n, sum(ys) / n
+        sxx = sum((x - mx) ** 2 for x in xs)
+        if sxx / n > MIN_SHADE_VAR:  # no spread in the shade -> slope unidentified, keep the prior
+            slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / sxx
+            a = my - slope * mx
+            var = sum(((x - mx) ** 2) * (y - a - slope * x) ** 2 for x, y in zip(xs, ys, strict=True)) / sxx ** 2
+            se = math.sqrt(max(var, 0.0))
+            if se > 0:
+                w0, w1 = 1.0 / prior_sd ** 2, 1.0 / se ** 2
+                post = (w0 * prior + w1 * slope) / (w0 + w1)
+            else:
+                post = slope   # identified slope with no residual noise: the data is exact
+    lo, hi = SCALE_BOUNDS[f"gs_scale_{sport}"]
+    return ScaleFit(sport, n_shaded, slope, se, prior, prior_sd, round(min(hi, max(lo, post)), 4))
+
+
+def loss_v2_result(rows: Sequence[Row], cal: dict[str, float]) -> tuple[float, int]:
+    """Mean squared error of the v2 fair total against the final score."""
+    se = 0.0
+    n = 0
+    for r in rows:
+        line = result_line(r)
+        if line is None or r.actual_total is None:
+            continue
+        se += (line * (1.0 + _v2(r, cal).gs_fg_pct / 100.0) - r.actual_total) ** 2
+        n += 1
+    return (se / n if n else 0.0), n
+
+
+def fit_result(rows: Sequence[Row], start: dict[str, float]) -> tuple[FitResult, list[ScaleFit]]:
+    """--target result: move only gs_scale_{sport}; everything else in ``start`` is carried through."""
+    cal = dict(start)
+    fits = [fit_scale(rows, sp, start) for sp in C.SPORTS]
+    for f in fits:
+        cal[f"gs_scale_{f.sport}"] = f.posterior
+    changed = [k for k in SCALE_BOUNDS if abs(cal[k] - start.get(k, C.V2_DEFAULTS[k])) > 1e-12]
+    before, _ = loss_v2_result(rows, start)
+    after, _ = loss_v2_result(rows, cal)
+    return FitResult({k: float(v) for k, v in cal.items()}, dict(start), before, after, 1, 0, changed), fits
+
+
 # ---- promotion verdict (from backtest.json alerts_clv.by_model) -----------------------------
 
 def clv_block(backtest: Optional[dict[str, Any]]) -> dict[str, Any]:
@@ -482,7 +585,8 @@ def promotion_verdict(backtest: Optional[dict[str, Any]], min_weeks: int = MIN_W
 # ---- output ------------------------------------------------------------------------------
 
 def build_calibration(res: FitResult, rows: Sequence[Row], *, inputs: Sequence[Path], ridge: float,
-                      backtest: Optional[dict[str, Any]] = None, now: Optional[datetime] = None) -> dict[str, Any]:
+                      backtest: Optional[dict[str, Any]] = None, now: Optional[datetime] = None,
+                      target: str = "close", scale_fits: Sequence[ScaleFit] = ()) -> dict[str, Any]:
     now = now or datetime.now(timezone.utc)
     lt_b, ls_b = loss_baseline(rows)
     lt_1, ls_1 = loss_v1(rows)
@@ -511,6 +615,10 @@ def build_calibration(res: FitResult, rows: Sequence[Row], *, inputs: Sequence[P
                 "v2_after": {"total": lt_2, "spread": ls_2},
             },
             "start": {k: res.start[k] for k in REFIT_KEYS},
+            "target": target,
+            "result_mse": {"v2_before": loss_v2_result(rows, res.start)[0], "v2_after": loss_v2_result(rows, res.cal)[0]},
+            "scales": [{"sport": f.sport, "n_shaded": f.n, "slope": f.slope, "se": f.se, "prior": f.prior,
+                        "prior_sd": f.prior_sd, "posterior": f.posterior} for f in scale_fits],
         },
         "promotion": promotion_verdict(backtest),
     }
@@ -531,7 +639,23 @@ def validate_calibration(data: dict[str, Any]) -> list[str]:
             errs.append(f"v2.{k} not numeric")
         elif k in BOUNDS and not (BOUNDS[k][0] <= float(v) <= BOUNDS[k][1]):
             errs.append(f"v2.{k} out of bounds")
+        elif k in SCALE_BOUNDS and not (SCALE_BOUNDS[k][0] <= float(v) <= SCALE_BOUNDS[k][1]):
+            errs.append(f"v2.{k} out of bounds")
     return errs
+
+
+# blocks calibrate itself owns; every other top-level block (forecast_blend, ...) belongs to
+# another fitter and must survive a refit untouched
+OWN_BLOCKS = ("schema_version", "note", "v2", "fit", "promotion")
+
+
+def carry_other_blocks(data: dict[str, Any], existing: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """``data`` plus every top-level block of ``existing`` that calibrate does not own."""
+    out = dict(data)
+    for k, v in (existing or {}).items():
+        if k not in OWN_BLOCKS and k not in out:
+            out[k] = v
+    return out
 
 
 def write_calibration(path: Path, data: dict[str, Any]) -> Path:
@@ -564,6 +688,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--rounds", type=int, default=40)
     p.add_argument("--force", action="store_true", help="fit even with fewer than --min-weeks weeks")
     p.add_argument("--dry-run", action="store_true", help="print the fit, write nothing")
+    p.add_argument("--target", choices=["result", "close"], default="result",
+                   help="result (default): per-sport shade scale vs final scores; close: refit the curve vs closing totals")
     return p.parse_args(argv)
 
 
@@ -582,23 +708,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     fp_before = config_fingerprint()
     inputs = list(args.input) if args.input else [p for p in DEFAULT_INPUTS if p.is_file()][:1]
-    rows = usable(load_rows(inputs))
+    rows = usable(load_rows(inputs), args.target)
     wk = weeks_of(rows)
     print(f"  calibrate: {len(rows)} usable game(s) over {len(wk)} week(s) from {[str(p) for p in inputs] or 'nothing'}")
     if not rows:
-        print("  calibrate: no rows with forecast + opening + closing total; nothing to fit")
+        need = "line at forecast (or close) + final score" if args.target == "result" else "opening + closing total"
+        print(f"  calibrate: no rows with forecast + {need}; nothing to fit")
         return 2
     if len(wk) < args.min_weeks and not args.force:
         print(f"  calibrate: need >= {args.min_weeks} weeks (have {len(wk)}); refusing to refit (use --force)")
         return 2
     start_path = args.start or (args.out if Path(args.out).is_file() else None)
     start = I.load_v2_calibration(start_path, use_cache=False) if start_path else dict(C.V2_DEFAULTS)
-    res = fit(rows, start, ridge=args.ridge, rounds=args.rounds)
-    data = build_calibration(res, rows, inputs=inputs, ridge=args.ridge, backtest=_load_json(args.backtest))
+    scale_fits: list[ScaleFit] = []
+    if args.target == "result":
+        res, scale_fits = fit_result(rows, start)
+    else:
+        res = fit(rows, start, ridge=args.ridge, rounds=args.rounds)
+    data = build_calibration(res, rows, inputs=inputs, ridge=args.ridge, backtest=_load_json(args.backtest),
+                             target=args.target, scale_fits=scale_fits)
     mse = data["fit"]["mse"]
     print(f"  objective {res.loss_before:.4f} -> {res.loss_after:.4f} in {res.rounds} round(s) / {res.evaluations} eval(s)")
     print(f"  total mse: baseline {mse['baseline']['total']:.3f} · v1 {mse['v1']['total']:.3f} · "
           f"v2 {mse['v2_before']['total']:.3f} -> {mse['v2_after']['total']:.3f}")
+    if args.target == "result":
+        rm = data["fit"]["result_mse"]
+        print(f"  result mse: v2 {rm['v2_before']:.3f} -> {rm['v2_after']:.3f}")
+        for f in scale_fits:
+            got = f"slope {f.slope:+.2f} +/- {f.se:.2f}" if f.slope is not None and f.se is not None else "too few shaded rows"
+            print(f"    gs_scale_{f.sport}  prior {f.prior:.2f} +/- {f.prior_sd:.2f}, data {got} (n={f.n}) -> {f.posterior:.3f}")
     for k in REFIT_KEYS:
         flag = " *" if k in res.changed else ""
         print(f"    {k:<18} {start[k]:>10.5f} -> {res.cal[k]:>10.5f}{flag}")
@@ -608,7 +746,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.dry_run:
         print("  dry-run: nothing written")
     else:
-        write_calibration(args.out, data)
+        write_calibration(args.out, carry_other_blocks(data, _load_json(args.out) or _load_json(start_path)))
         print(f"  wrote {args.out}")
     assert config_fingerprint() == fp_before, "pipeline/model/config.py changed during calibrate — v1 is frozen"
     return 0
