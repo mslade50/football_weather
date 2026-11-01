@@ -216,6 +216,9 @@ def test_calibrate_gates_pr_on_v1_golden_and_untouched_config(cal: str):
     assert "if: steps.fit.outputs.refit == 'true'" in step
     assert "git diff --exit-code -- pipeline/model/config.py" in step
     assert "python -m pytest tests/test_impact_v1.py tests/test_impact_v2.py tests/test_calibrate.py -q" in step
+    # +/-0.5 is the default-curve spec. The file written by this job is judged
+    # by calibration_gate, and a real fit is allowed to miss the band.
+    assert "calibration_gate" in step and "A fit may miss +/-0.5" in step
     order = ["Fetch backtest inputs from R2 (read-only)", "Refit v2 coefficients",
              "v1 golden + v2 curve tests against the new calibration", "Open PR", "Telegram on failure"]
     idx = [cal.index(f"- name: {n}\n") for n in order]
