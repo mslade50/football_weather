@@ -1,7 +1,11 @@
 """v2 impact model (ARCH §7.5): continuous wind curve calibrated to the v1 tier
-midpoints (+/-0.5), weak-direction parsing, probabilistic rain, continuous altitude,
-heat-away delta, roof handling, calibration loading, fair v2 + confidence, and the
-GameCard / D1 side-by-side blocks. v1 is never touched."""
+midpoints (+/-0.5) at the hand-tuned defaults, weak-direction parsing, probabilistic
+rain, continuous altitude, heat-away delta, roof handling, calibration loading,
+fair v2 + confidence, and the GameCard / D1 side-by-side blocks. v1 is never touched.
+
+The +/-0.5 band is the spec for ``V2_DEFAULTS`` only. A refitted
+``data/calibration.json`` is judged by ``pipeline.calibrate.calibration_gate``.
+"""
 
 from __future__ import annotations
 
@@ -22,9 +26,11 @@ CAL = I.load_v2_calibration()
 
 
 def _v2(sport="nfl", **kw):
+    """Impact under the hand-tuned defaults unless the caller passes ``cal``."""
     base = dict(temp_fg=60.0, wind_fg=0.0, gust_fg=0.0, rain_fg_mm=0.0, precip_prob=0.0,
                 travel_alt_m=0.0, home_temp=60.0, away_temp=60.0)
     base.update(kw)
+    base.setdefault("cal", C.V2_DEFAULTS)
     return I.compute_impact_v2(sport, **base)
 
 
@@ -63,30 +69,40 @@ def test_v1_constants_untouched_by_v2():
 
 @pytest.mark.parametrize("mid,expected", [(13.5, 2.0), (16.0, 3.5), (21.0, 6.5), (27.5, 10.0)])
 def test_wind_curve_matches_v1_tier_midpoints(mid: float, expected: float):
-    """Pure crosswind with gust == wind so w_dir == wind_fg: v1 tier value +/- 0.5."""
-    imp = _v2(wind_fg=mid, gust_fg=mid, wind_dir_deg=90.0, orientation_deg=0.0)
+    """Default curve only: pure crosswind, v1 tier value +/- 0.5.
+
+    PLAN describes this band for the hand-tuned fallback. A fitted file is
+    allowed to miss it; ``calibration_gate`` is the refit check.
+    """
+    cal = C.V2_DEFAULTS
+    imp = _v2(wind_fg=mid, gust_fg=mid, wind_dir_deg=90.0, orientation_deg=0.0, cal=cal)
     assert imp.w_eff == pytest.approx(mid) and imp.w_dir == pytest.approx(mid)
     assert abs(imp.wind_c - expected) <= 0.5
-    assert I.wind_curve(mid) == pytest.approx(imp.wind_c)
+    assert I.wind_curve(mid, cal) == pytest.approx(imp.wind_c)
 
 
 def test_wind_curve_continuous_monotone_capped_and_zero_below_offset():
-    assert I.wind_curve(None) == 0.0 and I.wind_curve(9.9) == 0.0 and I.wind_curve(CAL["wind_offset_mph"]) == 0.0
+    cal = C.V2_DEFAULTS
+    assert I.wind_curve(None, cal) == 0.0
+    assert I.wind_curve(9.9, cal) == 0.0  # default offset is 10 mph
+    assert I.wind_curve(cal["wind_offset_mph"], cal) == 0.0
     prev = 0.0
     for w in range(10, 60):
-        cur = I.wind_curve(float(w))
+        cur = I.wind_curve(float(w), cal)
         assert cur >= prev
         prev = cur
-    assert I.wind_curve(80.0) == CAL["wind_cap"]
-    # no tier jumps: consecutive 0.1 mph steps move the component by < 0.1
-    steps = [I.wind_curve(10 + i / 10) for i in range(300)]
+    assert I.wind_curve(80.0, cal) == cal["wind_cap"]
+    # no tier jumps on the default curve: 0.1 mph steps move the component by < 0.1
+    steps = [I.wind_curve(10 + i / 10, cal) for i in range(300)]
     assert max(b - a for a, b in zip(steps, steps[1:], strict=False)) < 0.1
 
 
 def test_gust_blend_and_orientation():
-    assert I.effective_wind(10.0, 20.0) == pytest.approx(0.7 * 10 + 0.3 * 20)
-    assert I.effective_wind(10.0, None) == 10.0 and I.effective_wind(10.0, 5.0) == 10.0  # gust never below wind
-    assert I.effective_wind(None, 20.0) is None
+    cal = C.V2_DEFAULTS
+    assert cal["gust_blend"] == 0.7
+    assert I.effective_wind(10.0, 20.0, cal) == pytest.approx(0.7 * 10 + 0.3 * 20)
+    assert I.effective_wind(10.0, None, cal) == 10.0 and I.effective_wind(10.0, 5.0, cal) == 10.0  # gust never below wind
+    assert I.effective_wind(None, 20.0, cal) is None
     # head wind counts half (in variance): w_dir = sqrt(0.5) * w
     assert I.directional_wind(20.0, 0.0, 0.0) == pytest.approx(20.0 * 0.5 ** 0.5)
     assert I.directional_wind(20.0, 90.0, 0.0) == pytest.approx(20.0)
@@ -134,14 +150,15 @@ def test_dir_multiplier_applies_to_wind_component():
 
 
 def test_rain_probabilistic_no_september_suppression():
-    # 10 mm at 50% -> expected 5 mm -> tier 1.5 (>=1); at 30% -> below prob floor -> 0
-    assert I.rain_component_v2(10.0, 0.5) == (1.5, 5.0)
-    assert I.rain_component_v2(10.0, 0.3) == (0.0, 3.0)
+    # 10 mm at 50% -> expected 5 mm -> tier 1.5 (>=1); at 30% -> below the default prob floor -> 0
+    cal = C.V2_DEFAULTS
+    assert I.rain_component_v2(10.0, 0.5, cal=cal) == (1.5, 5.0)
+    assert I.rain_component_v2(10.0, 0.3, cal=cal) == (0.0, 3.0)
     # ensemble fraction beats NBM PoP; neither -> deterministic
-    assert I.rain_component_v2(10.0, 0.3, precip_prob_ens=0.9)[0] == 3.0   # 9 mm -> tier 3.0
-    assert I.rain_component_v2(10.0, None) == (3.0, 10.0)  # deterministic: full 10 mm -> tier 3.0
-    assert I.rain_component_v2(0.0, None) == (0.0, 0.0) and I.rain_component_v2(None, None) == (0.0, 0.0)
-    assert I.rain_component_v2(30.0, 1.0)[0] == 6.5
+    assert I.rain_component_v2(10.0, 0.3, precip_prob_ens=0.9, cal=cal)[0] == 3.0   # 9 mm -> tier 3.0
+    assert I.rain_component_v2(10.0, None, cal=cal) == (3.0, 10.0)  # deterministic: full 10 mm -> tier 3.0
+    assert I.rain_component_v2(0.0, None, cal=cal) == (0.0, 0.0) and I.rain_component_v2(None, None, cal=cal) == (0.0, 0.0)
+    assert I.rain_component_v2(30.0, 1.0, cal=cal)[0] == 6.5
     imp = _v2(rain_fg_mm=10.0, precip_prob=0.5)
     assert imp.rain_c == 1.5 and imp.expected_mm == 5.0 and imp.gs_fg_pct == -1.5
     sep_v1 = I.compute_impact_v1("cfb", 9, 60.0, 0.0, 10.0, None, None)
@@ -151,9 +168,10 @@ def test_rain_probabilistic_no_september_suppression():
 
 
 def test_altitude_continuous():
-    assert I.alt_component_v2(None) == 0.0 and I.alt_component_v2(800.0) == 0.0 and I.alt_component_v2(-100.0) == 0.0
-    assert I.alt_component_v2(1000.0) == pytest.approx(0.7)
-    assert I.alt_component_v2(1800.0) == 3.5 and I.alt_component_v2(5000.0) == 3.5
+    cal = C.V2_DEFAULTS
+    assert I.alt_component_v2(None, cal) == 0.0 and I.alt_component_v2(800.0, cal) == 0.0 and I.alt_component_v2(-100.0, cal) == 0.0
+    assert I.alt_component_v2(1000.0, cal) == pytest.approx(0.7)
+    assert I.alt_component_v2(1800.0, cal) == 3.5 and I.alt_component_v2(5000.0, cal) == 3.5
     imp = _v2(travel_alt_m=1600.0)
     assert imp.alt_c == pytest.approx(2.8) and imp.away_fg_pct == pytest.approx(-2.8)
 
@@ -279,7 +297,8 @@ def test_gamecard_impact_v2_block_and_model_version():
     v1 = I.compute_impact_v1("nfl", 9, fc.temp_fg, fc.wind_fg, fc.rain_fg_mm, 0.0, 60.0, roof_state="outdoors")
     v2 = I.compute_impact_v2("nfl", fc.temp_fg, fc.wind_fg, fc.gust_fg, fc.rain_fg_mm, fc.precip_prob, 0.0, 60.0, 60.0,
                              wind_dir_deg=fc.wind_dir_deg, wind_dir_fg=fc.wind_dir_fg, orientation_deg=st.orientation_deg,
-                             weakest_wind_effect=st.weakest_wind_effect, roof_state="outdoors", conf=0.8)
+                             weakest_wind_effect=st.weakest_wind_effect, roof_state="outdoors", conf=0.8,
+                             cal=C.V2_DEFAULTS)
     gf2 = F.evaluate_game_v2("nfl", gid, _lines(gid), v2, wind_vol_fc=fc.wind_vol_fc, lead_hours=6.0)
     from pipeline.model import signals
     sig = signals.nfl_signal(fc.wind_fg, fc.temp_fg, fc.rain_fg_mm)
