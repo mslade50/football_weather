@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pipeline.weather.parsers.openmeteo import parse_time
+from pipeline.weather.qc import plausible_precip_mm
 
 
 @dataclass
@@ -57,8 +58,8 @@ def parse_ensemble_mean_location(
         wind_spread=_nums(hourly.get("wind_speed_10m_spread")),
         gust=_nums(hourly.get("wind_gusts_10m")),
         gust_spread=_nums(hourly.get("wind_gusts_10m_spread")),
-        precip=_nums(hourly.get("precipitation")),
-        precip_spread=_nums(hourly.get("precipitation_spread")),
+        precip=[plausible_precip_mm(v) for v in _nums(hourly.get("precipitation"))],
+        precip_spread=[plausible_precip_mm(v) for v in _nums(hourly.get("precipitation_spread"))],
     )
 
 

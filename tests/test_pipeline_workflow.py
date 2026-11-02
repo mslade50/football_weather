@@ -74,6 +74,7 @@ def test_dispatch_inputs(text: str):
     assert "- exchanges" in text
     assert "ecmwf_opendata:" in text
     assert "ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}" in text
+    assert "ECMWF_OD_MAX_LEAD_H: ${{ vars.ECMWF_OD_MAX_LEAD_H || '168' }}" in text
 
 
 def test_safe_refresh_disables_messages_without_force_or_cadence_changes(text: str):
@@ -110,6 +111,22 @@ def test_gate_job_is_httpx_only_and_fail_open(text: str):
     assert 'echo "need_playwright=$NEED" >> "$GITHUB_OUTPUT"' in step
     assert '[ "$SCOPE" = "full" ]' in step
     assert '[ "$BOOK_BETONLINE_ENABLED" != "0" ]' in step
+
+
+def test_ecmwf_sample_cache_is_restored_across_runs(text: str):
+    light = _job(text, "light")
+    playwright = _job(text, "playwright")
+    light_step = _step(light, "Restore ECMWF open-data field cache")
+    pw_step = _step(playwright, "Restore ECMWF open-data field cache (playwright)")
+    for step in (light_step, pw_step):
+        assert "path: data/cache/ecmwf/samples" in step
+        assert "actions/cache@v4" in step
+        assert "continue-on-error: true" in step
+        assert "ecmwf-samples-${{ runner.os }}-" in step
+    assert "key: ecmwf-samples-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}" in light_step
+    assert "key: ecmwf-samples-pw-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}" in pw_step
+    assert light.index("Restore ECMWF open-data field cache") < light.index("name: Build board")
+    assert playwright.index("Restore ECMWF open-data field cache (playwright)") < playwright.index("Build board (BetOnline)")
 
 
 def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
@@ -255,6 +272,8 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     build = _step(pw, "Build board (BetOnline)")
     assert ('python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts '
             '--run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines') in build
+    assert 'ECMWF_OD_CACHE_ONLY: "1"' in build
+    assert "ECMWF_OD_CACHE_ONLY" not in _step(_job(text, "light"), "Build board")
     assert "contents: write" not in pw
     order = ["Download BetOnline handoff", "Fetch board state from R2 (playwright)", "Build board (BetOnline)",
              "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]

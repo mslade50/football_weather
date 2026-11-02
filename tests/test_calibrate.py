@@ -1,12 +1,18 @@
 """pipeline/calibrate.py (PLAN Phase 6): refits the v2 coefficients into a valid
 calibration.json, recovers a known curve from synthetic closings, honours the >=4-week
-guard and the bounds, and NEVER touches v1 (config.py bytes, V2_DEFAULTS, golden v1)."""
+guard and the bounds, and NEVER touches v1 (config.py bytes, V2_DEFAULTS, golden v1).
+
+A fitted file may differ from V2_DEFAULTS. ``calibration_gate`` is what the
+monthly workflow enforces. The +/-0.5 v1-midpoint band is not part of that gate.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,6 +25,11 @@ from pipeline.model import impact as I  # noqa: N812
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PY = ROOT / "pipeline" / "model" / "config.py"
 SHIPPED = ROOT / "data" / "calibration.json"
+# Coefficients from calibrate run 41336628766 (2026-11-01). The 2026-10-01 run
+# failed the same assertions on a fit of the same shape.
+FITTED_V2 = ROOT / "tests" / "fixtures" / "calibration_v2_fitted_202611.json"
+# v1 tier midpoints the old gate required the fitted curve to hit within 0.5.
+V1_WIND_MIDPOINTS = ((13.5, 2.0), (16.0, 3.5), (21.0, 6.5), (27.5, 10.0))
 
 V1_SNAPSHOT = {
     "WIND_TIERS": [(25.0, 10.0), (17.0, 6.5), (15.0, 3.5), (12.0, 2.0)],
@@ -189,7 +200,11 @@ def test_write_refuses_invalid_schema(tmp_path: Path):
 
 
 def test_shipped_calibration_is_valid():
-    assert CAL.validate_calibration(json.loads(SHIPPED.read_text(encoding="utf-8"))) == []
+    data = json.loads(SHIPPED.read_text(encoding="utf-8"))
+    assert CAL.validate_calibration(data) == []
+    # The monthly workflow overwrites this file and then runs this module.
+    # Whatever is on disk — defaults today, a fit after a refit — must pass the gate.
+    assert CAL.calibration_gate(data) == []
 
 
 def test_promotion_verdict_requires_four_weeks_and_v2_ge_v1():
@@ -233,22 +248,29 @@ def test_cli_writes_calibration_and_never_touches_v1(tmp_path: Path, config_hash
     (tmp_path / "backtest.json").write_text(json.dumps({"clv": {"weeks": 5, "by_model": {"v1": {"avg_clv": 0.3}, "v2": {"avg_clv": 0.2}}}}),
                                             encoding="utf-8")
     out = tmp_path / "calibration.json"
+    shipped_before = SHIPPED.read_bytes()
     rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--backtest", str(tmp_path / "backtest.json"),
                    "--rounds", "8", "--target", "close"])
     assert rc == 0 and out.exists()
     data = json.loads(out.read_text(encoding="utf-8"))
     assert CAL.validate_calibration(data) == []
+    assert CAL.calibration_gate(data) == []
     assert data["promotion"]["eligible"] is False and data["promotion"]["v1_clv_avg"] == 0.3
     printed = capsys.readouterr().out
     assert "promotion:" in printed and "wrote" in printed
-    # v1 frozen: config.py bytes, the v1 constants and the v1 numbers are all unchanged
+    # v1 frozen: config.py bytes, the v1 constants and the v1 numbers are all unchanged.
+    # The module defaults stay the hand-tuned fallback. The shipped file is a
+    # separate artifact: a run with --out elsewhere must not modify it, and it
+    # is allowed to already be a fit (that is what the monthly workflow tests).
     assert hashlib.sha256(CONFIG_PY.read_bytes()).hexdigest() == config_hash
     for name, val in V1_SNAPSHOT.items():
         assert getattr(C, name) == val, name
+    assert C.V2_DEFAULTS["wind_coeff"] == 0.56
+    assert C.V2_DEFAULTS["wind_offset_mph"] == 10.0
+    assert C.V2_DEFAULTS["gust_blend"] == 0.7
     v1 = I.compute_impact_v1("nfl", 10, 60.0, 16.0, 0.0, None, None)
     assert v1.wind_c == 3.5 and v1.gs_fg_pct == -3.5
-    # the shipped file and the module defaults are untouched by a run against --out elsewhere
-    assert json.loads(SHIPPED.read_text(encoding="utf-8"))["v2"] == {k: float(v) for k, v in C.V2_DEFAULTS.items()}
+    assert SHIPPED.read_bytes() == shipped_before
 
 
 def test_dry_run_writes_nothing(tmp_path: Path):
@@ -257,6 +279,107 @@ def test_dry_run_writes_nothing(tmp_path: Path):
     assert CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--dry-run", "--rounds", "3",
                      "--target", "close"]) == 0
     assert not out.exists()
+
+
+def _fitted_calibration() -> dict:
+    return json.loads(FITTED_V2.read_text(encoding="utf-8"))
+
+
+def test_refit_gate_accepts_2026_11_fit_that_misses_v1_midpoints():
+    """Run 41336628766 wrote these coefficients and the old gate rejected them.
+
+    The misses against the v1 tier midpoints are 1.1 to 2.2 points. That is a
+    real refit, and calibration_gate must accept it.
+    """
+    data = _fitted_calibration()
+    v2 = data["v2"]
+    assert (v2["wind_coeff"], v2["wind_offset_mph"], v2["gust_blend"], v2["wind_exp"]) == (
+        0.463833, 11.535156, 0.74657, 1.019023,
+    )
+    assert v2["wind_coeff"] != C.V2_DEFAULTS["wind_coeff"]
+    misses = [abs(I.wind_curve(mid, v2) - expected) for mid, expected in V1_WIND_MIDPOINTS]
+    assert min(misses) > 0.5 and max(misses) < 3.0
+    assert CAL.calibration_gate(data) == []
+    blended = I.effective_wind(10.0, 20.0, v2)
+    assert blended == pytest.approx(v2["gust_blend"] * 10.0 + (1.0 - v2["gust_blend"]) * 20.0)
+    assert blended != pytest.approx(0.7 * 10.0 + 0.3 * 20.0)
+
+
+def test_refit_gate_accepts_in_bounds_corners_far_from_v1():
+    quiet = _fitted_calibration()
+    quiet["v2"].update(wind_offset_mph=14.0, wind_coeff=0.2, wind_exp=0.8, wind_cap=16.0, gust_blend=0.3)
+    assert CAL.calibration_gate(quiet) == []
+    assert I.wind_curve(13.5, quiet["v2"]) == 0.0  # below the offset; the v1 midpoint is 2.0
+    steep = _fitted_calibration()
+    steep["v2"].update(wind_offset_mph=6.0, wind_coeff=1.5, wind_exp=1.6, wind_cap=16.0, gust_blend=1.0)
+    assert CAL.calibration_gate(steep) == []
+
+
+def test_refit_gate_rejects_bad_fits():
+    data = _fitted_calibration()
+    capped = json.loads(json.dumps(data))
+    capped["v2"]["wind_cap"] = 99.0
+    assert any("wind_cap" in e for e in CAL.calibration_gate(capped))
+    low = json.loads(json.dumps(data))
+    low["v2"]["wind_coeff"] = 0.05
+    assert any("wind_coeff" in e for e in CAL.calibration_gate(low))
+    gust = json.loads(json.dumps(data))
+    gust["v2"]["gust_blend"] = 0.1
+    assert any("gust_blend" in e for e in CAL.calibration_gate(gust))
+    frozen = json.loads(json.dumps(data))
+    frozen["v2"]["head_weight"] = 0.9
+    assert any("head_weight" in e and "frozen" in e for e in CAL.calibration_gate(frozen))
+    scaled = json.loads(json.dumps(data))
+    scaled["v2"]["gs_scale_nfl"] = 0.85
+    scaled["v2"]["gs_scale_cfb"] = 0.55
+    assert CAL.calibration_gate(scaled) == []
+    scaled["v2"]["gs_scale_cfb"] = 3.0
+    assert any("gs_scale_cfb" in e for e in CAL.calibration_gate(scaled))
+    decreasing = dict(C.V2_DEFAULTS)
+    decreasing["wind_coeff"] = -0.5
+    assert CAL.wind_curve_problems(decreasing)
+
+
+def test_cli_preserves_blocks_it_does_not_refit(tmp_path: Path):
+    out = tmp_path / "calibration.json"
+    sentinel = {"sentinel": "keep-me", "weights": {"wind": {"floor": 0.33}}}
+    out.write_text(json.dumps({
+        "schema_version": 1,
+        "note": "preexisting",
+        "v2": {k: float(v) for k, v in C.V2_DEFAULTS.items()},
+        "forecast_blend": sentinel,
+    }), encoding="utf-8")
+    (tmp_path / "bt.json").write_text(json.dumps({"games": synth_rows(80, weeks=4)}), encoding="utf-8")
+    rc = CAL.main(["--input", str(tmp_path / "bt.json"), "--out", str(out), "--rounds", "2", "--target", "close"])
+    assert rc == 0
+    wrote = json.loads(out.read_text(encoding="utf-8"))
+    assert wrote["forecast_blend"] == sentinel
+    assert CAL.calibration_gate(wrote) == []
+
+
+def test_refit_gate_pytest_accepts_fitted_file():
+    """The workflow's pytest command, with the fitted file standing in for calibration.json.
+
+    The nested process sets CALIBRATE_GATE_NESTED so this test cannot spawn itself
+    again if the -k filter is dropped.
+    """
+    if os.environ.get("CALIBRATE_GATE_NESTED") == "1":
+        return
+    original = SHIPPED.read_bytes()
+    cmd = [
+        sys.executable, "-m", "pytest",
+        "tests/test_impact_v1.py", "tests/test_impact_v2.py", "tests/test_calibrate.py",
+        "-q", "--tb=line", "-p", "no:cacheprovider",
+        "-k", "not test_refit_gate_pytest_accepts_fitted_file",
+    ]
+    env = dict(os.environ)
+    env["CALIBRATE_GATE_NESTED"] = "1"
+    try:
+        SHIPPED.write_bytes(FITTED_V2.read_bytes())
+        proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False, env=env)
+    finally:
+        SHIPPED.write_bytes(original)
+    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
 
 def test_module_never_writes_python_sources():
@@ -381,6 +504,9 @@ def test_refit_keeps_blocks_owned_by_other_fitters(tmp_path: Path):
     """forecast_blend (scripts/fit_forecast_blend.py) must survive a monthly refit of the same file."""
     out = tmp_path / "calibration.json"
     shipped = json.loads(SHIPPED.read_text(encoding="utf-8"))
+    # The gate fixture that stands in for this file during the nested pytest has
+    # no sibling block. Plant one so the preservation check still runs.
+    shipped.setdefault("forecast_blend", {"sentinel": "keep-me"})
     out.write_text(json.dumps(shipped), encoding="utf-8")
     (tmp_path / "bt.json").write_text(json.dumps({"games": synth_result_rows(240, {"nfl": 0.9, "cfb": 0.5}, noise=2.0)}),
                                       encoding="utf-8")

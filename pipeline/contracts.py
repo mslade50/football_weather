@@ -210,6 +210,8 @@ class WeatherForecast(_AsDict):
     ecmwf_apart_fields: tuple[str, ...] = ()
     # ``open-meteo`` or ``ecmwf-opendata`` when ECMWF fields were filled this run.
     ecmwf_source: Optional[str] = None
+    # Paper-only raw IFS samples; never consumed by pricing, signals or alerts.
+    paper_ifs: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.roof_state is not None:

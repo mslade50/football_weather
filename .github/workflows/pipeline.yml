@@ -120,6 +120,8 @@ env:
   FORCE: ${{ inputs.force == true && '1' || '' }}
   # auto uses ECMWF Open Data only after an Open-Meteo error, HTTP 429, or a stale ECMWF run.
   ECMWF_OPENDATA_FALLBACK: ${{ inputs.ecmwf_opendata || 'auto' }}
+  # Ensemble GRIB past this lead is not fetched. -1 restores the old 360 h tail.
+  ECMWF_OD_MAX_LEAD_H: ${{ vars.ECMWF_OD_MAX_LEAD_H || '168' }}
   # Per-book kill switches (repo variables; default on). Disabled books are skipped
   # entirely: no scrape, no "0 lines" degradation, excluded from the volume check.
   BOOK_BETONLINE_ENABLED: ${{ vars.BOOK_BETONLINE_ENABLED || '1' }}
@@ -266,6 +268,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           CURRENT_GITHUB_RUN_ID: ${{ github.run_id }}
         run: python scripts/recover_alert_receipts.py --state-dir data/state
+      - name: Restore ECMWF open-data field cache
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: data/cache/ecmwf/samples
+          key: ecmwf-samples-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ecmwf-samples-${{ runner.os }}-
       - name: Build board
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
@@ -332,6 +342,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MAX_LEAD_DAYS: ${{ vars.TELEGRAM_MAX_LEAD_DAYS || '7' }}
         run: python -m pipeline.published_alerts --board-dir data/board --state-dir data/state --run-id "$RUN_ID" --bucket "$R2_BUCKET"
+      - name: Capture paper opportunities (isolated)
+        if: ${{ vars.FOOTBALL_PAPER_ENABLED != '0' }}
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python scripts/paper_run.py capture
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -339,6 +354,7 @@ jobs:
           name: raw-runs-${{ github.run_id }}
           path: |
             data/raw_runs/
+            data/paper/
             data/board/
             data/d1_inserts.sql
           if-no-files-found: ignore
@@ -457,11 +473,23 @@ jobs:
         with:
           name: weather-points-${{ github.run_id }}-${{ github.run_attempt }}
           path: data/weather-reuse/
+      - name: Restore ECMWF open-data field cache (playwright)
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: data/cache/ecmwf/samples
+          key: ecmwf-samples-pw-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ecmwf-samples-${{ runner.os }}-
+            ecmwf-samples-pw-${{ runner.os }}-
       - name: Build board (BetOnline)
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Light already sampled this cycle. A miss keeps Open-Meteo; this job
+          # must not download ensemble GRIB (that exhausted the runner).
+          ECMWF_OD_CACHE_ONLY: "1"
         run: |
           # BetOnline comes from the parallel scrape (--ingest-lines). Refresh
           # BetCRIS live here: the light upload can outlast the short college feed
@@ -504,6 +532,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MAX_LEAD_DAYS: ${{ vars.TELEGRAM_MAX_LEAD_DAYS || '7' }}
         run: python -m pipeline.published_alerts --board-dir data/board --state-dir data/state --run-id "$RUN_ID" --bucket "$R2_BUCKET"
+      - name: Capture paper opportunities (isolated, playwright)
+        if: ${{ vars.FOOTBALL_PAPER_ENABLED != '0' }}
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python scripts/paper_run.py capture
       - name: Upload build logs (playwright)
         if: always()
         uses: actions/upload-artifact@v4
@@ -511,6 +544,7 @@ jobs:
           name: raw-runs-pw-${{ github.run_id }}
           path: |
             data/raw_runs/
+            data/paper/
             data/board/
             data/d1_inserts.sql
           if-no-files-found: ignore

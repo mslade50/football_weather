@@ -293,6 +293,7 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "ecmwf_apart": bool(getattr(fc, "ecmwf_apart", False)),
         "ecmwf_apart_fields": list(getattr(fc, "ecmwf_apart_fields", ()) or ()),
         "ecmwf_source": getattr(fc, "ecmwf_source", None),
+        "paper_ifs": fc.paper_ifs,
     }
 
 
@@ -716,6 +717,9 @@ def build_card(
         "impact": _impact_block(impact, impact_v2, model_version),
         "signal": _signal_block(signal, flags),
         "odds": odds_block(game.game_id, lines, openers, last_observed),
+        # Preserve actual side/line/time pairs for paper entries. The display
+        # block combines sides and can contain a historical fallback.
+        "paper_quotes": [ln.to_dict() for ln in lines if ln.market == "total" and ln.is_main],
         "weekly_total_open": (openers.get("weekly_totals") or {}).get(game.game_id),
         'odds_baselines': {
             'first_observed': {k: v for k, v in (openers.get('openers') or {}).items() if k.startswith(game.game_id + '|')},
@@ -922,7 +926,7 @@ def current_weeks(games_by_sport: dict[str, Any], now: datetime) -> dict[str, Op
 
 
 def slim_meta(meta: dict[str, Any]) -> dict[str, Any]:
-    keys = ("run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations")
+    keys = ("run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations", "books_requested", "scope")
     return {k: meta.get(k) for k in keys}
 
 

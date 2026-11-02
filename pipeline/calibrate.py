@@ -49,6 +49,12 @@ kickoff − lead), falling back to the game month when the row carries no run ti
 Guard: at least ``--min-weeks`` (default 4) distinct (season, week) pairs with a closing
 total, else nothing is written (exit 2) unless ``--force``.
 
+Refit gate (``calibration_gate``): the file must be valid, stay inside ``BOUNDS``
+and ``SCALE_BOUNDS``, and keep every other v2 key equal to ``V2_DEFAULTS``. The
+wind curve must be zero below its own offset, monotone, and capped. Matching
+``V2_DEFAULTS`` exactly, or sitting within 0.5 of the v1 tier midpoints, is the
+spec for that hand-tuned fallback curve — not a requirement on a fit.
+
 Promotion rule (manual, documented here and in ``model/config.py``): set
 ``ALERT_MODEL = "v2"`` in ``pipeline/model/config.py`` ONLY when v2 CLV >= v1 CLV over
 >= 4 weeks of alerts. ``--backtest`` reads ``clv.by_model`` from ``backtest.json`` and
@@ -103,6 +109,16 @@ SCALE_BOUNDS: dict[str, tuple[float, float]] = {"gs_scale_nfl": (0.0, 1.5), "gs_
 RESULT_PRIOR: dict[str, tuple[float, float]] = {"nfl": (1.0, 0.25), "cfb": (0.4, 0.25)}
 MIN_SCALE_ROWS = 30  # fewer shaded rows than this for a sport -> its scale stays at the prior
 MIN_SHADE_VAR = 1e-8  # pts^2; below this the shade is constant up to float noise
+# Keys with no bound are carried through from the start file. A refit that moves
+# them is a bug, not a fit. Derived so a new V2_DEFAULTS key is frozen until it
+# is given an explicit bound. The shade scales are bounded separately and are
+# the only keys ``--target result`` may move, so they are not frozen.
+FROZEN_KEYS: tuple[str, ...] = tuple(k for k in C.V2_DEFAULTS if k not in BOUNDS and k not in SCALE_BOUNDS)
+# Steepest 0.1 mph rise still inside BOUNDS is ~0.57 points (wind_coeff 1.5,
+# wind_exp 1.6, wind_cap 16). 0.75 rejects a single step the size of a v1 tier
+# jump (>= 1.5) without rejecting a legal fit. The tighter < 0.1 check belongs
+# to the hand-tuned default curve, in tests/test_impact_v2.py.
+MAX_WIND_STEP_PER_TENTH_MPH = 0.75
 TOTAL_KEYS = ("gust_blend", "wind_offset_mph", "wind_coeff", "wind_exp", "wind_cap", "rain_prob_min")
 SPREAD_KEYS = ("alt_slope_per_m", "heat_away_delta_f")
 
@@ -644,18 +660,94 @@ def validate_calibration(data: dict[str, Any]) -> list[str]:
     return errs
 
 
-# blocks calibrate itself owns; every other top-level block (forecast_blend, ...) belongs to
-# another fitter and must survive a refit untouched
-OWN_BLOCKS = ("schema_version", "note", "v2", "fit", "promotion")
+def wind_curve_problems(cal: dict[str, float]) -> list[str]:
+    """Shape failures of ``impact.wind_curve`` under ``cal`` (empty == fine).
+
+    Judged against this calibration's own offset and cap. Distance from the v1
+    tier midpoints is not a failure.
+    """
+    errs: list[str] = []
+    offset = float(cal["wind_offset_mph"])
+    cap = float(cal["wind_cap"])
+    if I.wind_curve(None, cal) != 0.0:
+        errs.append("wind curve is not 0 when wind is missing")
+    if I.wind_curve(offset, cal) != 0.0:
+        errs.append("wind curve is not 0 at wind_offset_mph")
+    if offset > 0.0 and I.wind_curve(max(0.0, offset - 0.1), cal) != 0.0:
+        errs.append("wind curve is not 0 below wind_offset_mph")
+    prev = 0.0
+    max_step = 0.0
+    for i in range(0, 801):
+        w = i / 10.0
+        cur = I.wind_curve(w, cal)
+        if cur + 1e-9 < prev:
+            errs.append(f"wind curve decreases at {w} mph")
+            return errs
+        max_step = max(max_step, cur - prev)
+        if cur > cap + 1e-6:
+            errs.append(f"wind curve exceeds wind_cap at {w} mph")
+            return errs
+        prev = cur
+    if max_step >= MAX_WIND_STEP_PER_TENTH_MPH:
+        errs.append(
+            f"wind curve jumps {max_step:.3f} per 0.1 mph (limit {MAX_WIND_STEP_PER_TENTH_MPH})"
+        )
+    above = I.wind_curve(offset + 5.0, cal)
+    if not 0.0 < above <= cap + 1e-6:
+        errs.append("wind curve does not respond above wind_offset_mph")
+    return errs
 
 
-def carry_other_blocks(data: dict[str, Any], existing: Optional[dict[str, Any]]) -> dict[str, Any]:
-    """``data`` plus every top-level block of ``existing`` that calibrate does not own."""
-    out = dict(data)
-    for k, v in (existing or {}).items():
-        if k not in OWN_BLOCKS and k not in out:
-            out[k] = v
-    return out
+def gust_blend_problems(cal: dict[str, float]) -> list[str]:
+    """``w_eff`` must be the convex blend this calibration declares."""
+    b = float(cal["gust_blend"])
+    got = I.effective_wind(10.0, 20.0, cal)
+    expect = b * 10.0 + (1.0 - b) * 20.0
+    if got is None or abs(got - expect) > 1e-9:
+        return ["gust blend does not match w_eff = b*wind + (1-b)*gust"]
+    if not 10.0 - 1e-9 <= got <= 20.0 + 1e-9:
+        return ["gust blend is not a convex combination of wind and gust"]
+    return []
+
+
+def calibration_gate(data: dict[str, Any]) -> list[str]:
+    """Problems that should block a calibrate PR (empty == the file may ship).
+
+    Schema, numeric values, ``BOUNDS``, and ``SCALE_BOUNDS`` come from
+    ``validate_calibration``. ``FROZEN_KEYS`` must still equal ``V2_DEFAULTS``.
+    The per-sport shade scales are not frozen: ``--target result`` may move
+    them inside ``SCALE_BOUNDS``. The curve checks above then run on that file.
+    A reasonable fit — including one that misses the v1 tier midpoints by a
+    point or two, or a shade scale off its prior — passes. A coefficient
+    outside the bounds, a moved frozen key, or a curve that jumps, decreases,
+    or ignores its own offset does not.
+    """
+    errs = validate_calibration(data)
+    v2 = data.get("v2") if isinstance(data, dict) else None
+    if isinstance(v2, dict):
+        for k in FROZEN_KEYS:
+            v = v2.get(k)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)):
+                continue
+            if abs(float(v) - float(C.V2_DEFAULTS[k])) > 1e-9:
+                errs.append(f"v2.{k} is frozen at {C.V2_DEFAULTS[k]}")
+    if errs or not isinstance(v2, dict):
+        return errs
+    cal = {k: float(v2[k]) for k in C.V2_DEFAULTS}
+    return errs + wind_curve_problems(cal) + gust_blend_problems(cal)
+
+
+def merge_calibration(existing: Optional[dict[str, Any]], fresh: dict[str, Any]) -> dict[str, Any]:
+    """Overlay a refit onto an existing file.
+
+    ``fresh`` replaces ``v2``, the fit report, and the promotion verdict.
+    Sibling blocks (``forecast_blend``, and anything added later) stay.
+    """
+    if not isinstance(existing, dict):
+        return fresh
+    merged = dict(existing)
+    merged.update(fresh)
+    return merged
 
 
 def write_calibration(path: Path, data: dict[str, Any]) -> Path:
@@ -746,7 +838,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.dry_run:
         print("  dry-run: nothing written")
     else:
-        write_calibration(args.out, carry_other_blocks(data, _load_json(args.out) or _load_json(start_path)))
+        # Sibling blocks (forecast_blend, ...) survive a rewrite of --out, and of
+        # --start when --out is not already a calibration file.
+        existing = _load_json(args.out) or _load_json(start_path)
+        write_calibration(args.out, merge_calibration(existing, data))
         print(f"  wrote {args.out}")
     assert config_fingerprint() == fp_before, "pipeline/model/config.py changed during calibrate — v1 is frozen"
     return 0

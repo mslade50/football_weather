@@ -232,6 +232,12 @@ async function loadStatus(force = false) {
     } catch (_) { /* neither */ }
   }
   STATUS.data = data || {};
+  const paperData = await Promise.allSettled([
+    fetchJson("data/paper_health.json?t=" + Date.now()),
+    fetchJson("data/paper.json?t=" + Date.now()),
+  ]);
+  STATUS.data.paperHealth = paperData[0].status === "fulfilled" ? paperData[0].value : null;
+  STATUS.data.paperReport = paperData[1].status === "fulfilled" ? paperData[1].value : null;
   STATUS.loaded = true;
   return STATUS.data;
 }
@@ -246,6 +252,35 @@ function stageTimingsHtml(timings) {
   const max = Math.max(...secs.map(([, v]) => v), 0.001);
   return `<div class="stages">${secs.map(([k, v]) =>
     `<div class="stage"><span class="stage-k">${esc(k)}</span><span class="stage-bar"><i style="width:${Math.max(2, (v / max) * 100).toFixed(0)}%"></i></span><span class="stage-v">${fmtSecs(v)}</span></div>`).join("")}</div>`;
+}
+
+function paperScorecardHtml(health, report, meta) {
+  if (!health || !report) return `<div class="card"><h3>Weather paper test</h3><p class="muted">Awaiting a successful capture. Paper status unavailable.</p></div>`;
+  const age = ageHours(report.last_capture);
+  const late = health.status !== "ok" || age == null || age > 12
+    || (meta.run_id && health.last_run_id !== meta.run_id);
+  const gradeAge = ageHours(report.last_grade);
+  const pct = v => isNum(v) ? `${(Number(v) * 100).toFixed(1)}%` : "—";
+  const interval = (v, percent = false) => Array.isArray(v) && v.length === 2
+    ? `${percent ? pct(v[0]) : fmtNum(v[0], 2)} to ${percent ? pct(v[1]) : fmtNum(v[1], 2)}` : "needs 8 weeks";
+  const groups = Object.entries(report.groups || {});
+  const table = entries => `<div class="wrap"><table class="kv"><thead><tr><th>Test</th><th>Entries / missed</th><th>Raw CLV (n)</th><th>Excess CLV (n)</th><th>ROI (settled)</th><th>Weeks</th></tr></thead><tbody>${entries.map(([key, stats]) => {
+    const [sport, threshold, variant] = key.split("|");
+    return `<tr><td>${esc(sport.toUpperCase())} ${esc(threshold)} mph · ${esc(variant)}</td><td>${esc(stats.entries)} / ${esc((report.missed || {})[key] || 0)}</td>`
+      + `<td title="95% weekly cluster interval: ${esc(interval(stats.raw_clv_interval))}">${fmtNum(stats.raw_clv, 2)} (${esc(stats.clv_n)})</td>`
+      + `<td title="95% weekly cluster interval: ${esc(interval(stats.excess_clv_interval))}">${fmtNum(stats.excess_clv, 2)} (${esc(stats.matched_n)})</td>`
+      + `<td title="95% weekly cluster interval: ${esc(interval(stats.roi_interval, true))}">${pct(stats.roi)} (${esc(stats.settled_n)})</td><td>${esc(stats.weeks)}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+  const rejected = Object.entries(report.last_capture_rejections || {}).map(([k, n]) => `${k}: ${n}`).join(" · ");
+  return `<div class="card"><h3>Weather paper test <span class="pill ${late ? "warn" : "ok"}">${late ? "check capture" : "capturing"}</span></h3>`
+    + `<p>Paper only · CFB 12 mph fixed book is primary. 15 mph, NFL and best line are separate secondary tests. No established edge or automatic promotion.</p>`
+    + `<p class="sub">Last capture ${esc(report.last_capture ? fmtET(report.last_capture) : "never")} · ${esc(report.capture_runs)} runs · ${esc(report.games)} games. `
+    + `Last grade ${esc(report.last_grade ? fmtET(report.last_grade) : "pending first weekly run")}${gradeAge != null && gradeAge > 8 * 24 ? " (overdue)" : ""}. `
+    + `${esc(report.missing_closes || 0)} entries missing a fresh close. ${esc((report.capture_gaps || []).length)} known capture gaps. ${esc(health.reason || "")}</p>`
+    + table(groups.filter(([k]) => k.endsWith("|fixed")))
+    + `<details><summary>Secondary best-line comparisons and capture coverage</summary>${table(groups.filter(([k]) => k.endsWith("|best")))}<p class="sub">${esc(rejected || "No weather-gate rejections in last capture.")}</p><p class="sub">${esc(Object.entries(report.last_quote_rejections || {}).map(([k, n]) => `${k}: ${n}`).join(" · "))}</p>`
+    + `<p class="sub">First weather crossing is final; a missing paired quote is a missed opportunity. CLV uses a same-book quote observed within 60 minutes before kickoff. Excess CLV requires every frozen same-time control to have a valid close. Weekly intervals appear after 8 weeks; detailed weekly rows and entry prices are in the scorecard.</p></details>`
+    + `<p><a href="data/paper.json" target="_blank" rel="noopener">Open full scorecard JSON</a></p></div>`;
 }
 
 function bookCountsHtml(books, runCounts) {
@@ -397,6 +432,7 @@ async function renderStatus() {
         ${stageTimingsHtml(timings)}
       </div>
     </div>
+    ${paperScorecardHtml(sd.paperHealth, sd.paperReport, meta)}
     <h3>Degradations</h3>
     <div class="banners static">${degradationsHtml(degs)}</div>
     <div class="status-grid">
