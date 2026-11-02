@@ -23,6 +23,12 @@ name: backtest
 # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID; optional CFBD_API_KEY (scores), TELEGRAM_CHAT_ID_NFL/CFB.
 
 on:
+  # Same-repo pull_request runs the mirror + backtest as a dry run. workflow_dispatch
+  # from this environment returns HTTP 403 (actions:read only), and the schedule
+  # trigger only fires from the default branch. Remove this trigger after the
+  # measurement run; a merged pull_request hook would hold football-refresh on every PR.
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '17 13 * * 0'    # Sun 09:17 EDT / 08:17 EST — CFB after Saturday slate
     - cron: '17 13 * * 2'    # Tue 09:17 EDT / 08:17 EST — post-mortem after MNF
@@ -58,7 +64,8 @@ env:
   D1_DATABASE: football-odds
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-  DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+  # pull_request has no dispatch inputs; never publish board/backtest.json from a PR.
+  DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run == true) && '1' || '' }}
   # Request digest on schedule/dispatch; delivery also needs the master opt-in.
   SEND_DIGEST: ${{ github.event_name == 'schedule' || inputs.digest == true }}
   FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
