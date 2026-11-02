@@ -56,6 +56,8 @@ def test_backtest_parses_and_has_one_job(bt: str):
     wf = yaml.safe_load(bt)
     assert list(wf["jobs"]) == ["backtest"]
     assert wf["jobs"]["backtest"]["timeout-minutes"] <= 30
+    assert wf["jobs"]["backtest"]["runs-on"] == "ubuntu-latest"
+    assert "self-hosted" not in bt
 
 
 def test_backtest_schedule_is_sunday_cfb_and_tuesday_nfl_off_the_minute(bt: str):
@@ -108,13 +110,23 @@ def test_backtest_exports_d1_and_runs_module(bt: str):
     assert "--freeze" not in cmd          # state stays read-only; pipeline.yml freezes closings
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in run
     mirror = _step(bt, "Mirror snapshots from R2 (wrangler, read-only)")
-    # keys rebuilt from the D1 export (game_id + run_id), fetched with the pipeline.yml get loop
+    # keys rebuilt from the D1 export (game_id + run_id), fetched in parallel by one wrangler
     assert 'from pipeline.backtest import load_export_dir, snapshot_keys' in mirror
     assert 'snapshot_keys(load_export_dir("data/d1_export")' in mirror
-    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/$key" --file="$DEST" --remote 2>&1' in mirror
-    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in mirror
-    assert "exit 1" in mirror and "::error::R2 snapshot fetch failed" in mirror
+    assert "bash scripts/mirror_r2_snapshots.sh data/snapshot_keys.txt data" in mirror
+    assert 'MIRROR_PARALLEL: "8"' in mirror
+    assert "npx --yes wrangler@4" not in mirror and "set -x" not in mirror
     assert "SNAPSHOT_MAX" in mirror and 'SNAPSHOT_MAX: "120"' in bt
+    assert 'BACKTEST_NETWORK_BUDGET_S: "600"' in bt
+    script = (WF_DIR.parents[1] / "scripts" / "mirror_r2_snapshots.sh").read_text(encoding="utf-8")
+    assert "npm install --no-save --prefix" in script and "wrangler@4" in script
+    assert "xargs -d $'\\n' -P \"$PARALLEL\" -n 1" in script
+    assert 'r2 object get "${R2_BUCKET}/${key}" --file="${dest}" --remote' in script
+    assert "mirrored ${mirrored} snapshot object(s) of ${listed} listed" in script
+    assert "does not match listed" in script
+    assert "::error::R2 snapshot fetch failed" in script
+    assert "npx" not in script and "set -x" not in script
+    assert 'echo "$CLOUDFLARE_API_TOKEN"' not in script and "echo $CLOUDFLARE_API_TOKEN" not in script
     assert "continue-on-error" not in mirror and "exit 0" not in mirror
 
 
