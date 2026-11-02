@@ -164,9 +164,15 @@ def test_backtest_step_order_and_failure_ping(bt: str):
     assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg and "--max-time 15" in tg
 
 
-def test_backtest_no_git_commit_no_continue_on_error_no_playwright(bt: str):
-    for token in ("git commit", "git push", "git pull", "continue-on-error", "playwright install"):
+def test_backtest_no_git_commit_no_playwright_only_paper_is_isolated(bt: str):
+    for token in ("git commit", "git push", "git pull", "playwright install"):
         assert token not in bt, token
+    steps = yaml.safe_load(bt)["jobs"]["backtest"]["steps"]
+    isolated = [step for step in steps if step.get("continue-on-error")]
+    assert len(isolated) == 1
+    assert isolated[0]["run"] == "python scripts/paper_run.py grade"
+    # Existing fetch/build/publication steps remain fail-closed.
+    assert all(not step.get("continue-on-error") for step in steps if step not in isolated)
     assert "grep -viE '^(playwright|playwright-stealth" in bt
 
 
@@ -210,6 +216,9 @@ def test_calibrate_gates_pr_on_v1_golden_and_untouched_config(cal: str):
     assert "if: steps.fit.outputs.refit == 'true'" in step
     assert "git diff --exit-code -- pipeline/model/config.py" in step
     assert "python -m pytest tests/test_impact_v1.py tests/test_impact_v2.py tests/test_calibrate.py -q" in step
+    # +/-0.5 is the default-curve spec. The file written by this job is judged
+    # by calibration_gate, and a real fit is allowed to miss the band.
+    assert "calibration_gate" in step and "A fit may miss +/-0.5" in step
     order = ["Fetch backtest inputs from R2 (read-only)", "Refit v2 coefficients",
              "v1 golden + v2 curve tests against the new calibration", "Open PR", "Telegram on failure"]
     idx = [cal.index(f"- name: {n}\n") for n in order]

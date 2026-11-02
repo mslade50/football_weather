@@ -164,12 +164,20 @@ def _moneyline_only(event):
     listed = copy.deepcopy(event)
     listed["markets"] = [m for m in listed["markets"] if m["sportsMarketType"] == "football_team_full_game_winner"]
     listed["marketCounts"] = {"numSpreadsAndTotalsMarkets": 12}
-    # The captured kickoff is already in the past relative to a live scrape clock.
-    listed["startTime"] = "2026-10-25T17:00:00Z"
     return listed
 
 
-def test_league_list_without_spreads_loads_the_event_document(monkeypatch):
+@pytest.fixture
+def fixture_scrape_clock(monkeypatch):
+    class FixtureDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz) if tz is not None else NOW.replace(tzinfo=None)
+
+    monkeypatch.setattr(scraper, "datetime", FixtureDateTime)
+
+
+def test_league_list_without_spreads_loads_the_event_document(monkeypatch, fixture_scrape_clock):
     full = fixture()["events"][0]
     listed = _moneyline_only(full)
     seen = []
@@ -189,7 +197,7 @@ def test_league_list_without_spreads_loads_the_event_document(monkeypatch):
     assert {r.market for r in rows} == {"ml", "spread", "total"}
 
 
-def test_event_document_failure_keeps_the_listed_moneyline(monkeypatch):
+def test_event_document_failure_keeps_the_listed_moneyline(monkeypatch, fixture_scrape_clock):
     full = fixture()["events"][0]
     listed = _moneyline_only(full)
 

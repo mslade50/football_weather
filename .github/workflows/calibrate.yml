@@ -8,8 +8,9 @@ name: calibrate
 #     board/backtest.json (CLV by model -> promotion verdict) are fresh in R2.
 #   * `python -m pipeline.calibrate` refuses to refit on < 4 weeks of data (exit 2 ->
 #     no PR); `force` bypasses for a dry look.
-#   * Gate before the PR: the v1 golden test and the v2 curve tests must still pass
-#     with the new file — pipeline/model/config.py is never edited here (the
+#   * Gate before the PR: config.py is never edited, the v1 golden test still passes,
+#     and calibration_gate accepts the new file (schema, bounds, frozen keys, curve
+#     shape). The +/-0.5 v1-midpoint checks lock V2_DEFAULTS, not the fit. (The
 #     promotion to ALERT_MODEL=v2 is a manual edit once v2 CLV >= v1 over >= 4 weeks;
 #     the verdict is printed in the job summary and carried in the PR body).
 #
@@ -102,8 +103,9 @@ jobs:
             *) exit "$RC" ;;
           esac
       - name: v1 golden + v2 curve tests against the new calibration
-        # v1 must be byte-for-byte untouched (the golden test pins it); the v2 curve
-        # tests pin the tier-midpoint sanity of whatever the fit produced.
+        # v1 stays byte-for-byte (golden test + config.py diff). The +/-0.5 midpoint
+        # checks run against V2_DEFAULTS. calibration_gate, via test_calibrate.py,
+        # accepts or rejects the file this job just wrote. A fit may miss +/-0.5.
         if: steps.fit.outputs.refit == 'true'
         run: |
           git diff --exit-code -- pipeline/model/config.py
