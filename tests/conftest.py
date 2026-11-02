@@ -48,6 +48,8 @@ for _k in [k for k in os.environ if k.startswith("TELEGRAM_")]:
     os.environ.pop(_k, None)
 os.environ["TELEGRAM_DISABLED"] = "1"
 os.environ["FOOTBALL_WEATHER_NO_DOTENV"] = "1"
+# The team-totals stage fetches nflverse/CFBD stats; off unless a test opts in (and fakes the fetch).
+os.environ["TEAM_TOTALS"] = "0"
 
 
 @pytest.fixture(autouse=True)

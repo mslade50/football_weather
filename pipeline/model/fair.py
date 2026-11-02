@@ -339,6 +339,13 @@ def consensus(sport: str, lines: Iterable[GameLine], market: str, now: datetime 
 
 
 # ---- fair lines --------------------------------------------------------------
+def blend_team_total(fair: float | None, line: float | None, team_total: float | None, weight: float) -> float | None:
+    """``fair + weight * (team_total - line)``; unchanged when any input is missing or weight is 0."""
+    if fair is None or line is None or team_total is None or not weight or team_total != team_total:
+        return fair
+    return fair + weight * (team_total - line)
+
+
 def fair_total(consensus_total: float | None, gs_fg_pct: float | None) -> float | None:
     if consensus_total is None or gs_fg_pct is None or gs_fg_pct != gs_fg_pct:
         return consensus_total
@@ -464,10 +471,16 @@ def evaluate_game(
     lead_hours: float | None = None,
     model_version: str = C.MODEL_VERSION_V1,
     now: datetime | None = None,
+    team_total: float | None = None,
+    team_weight: float = 0.0,
 ) -> GameFair:
+    """``team_total`` = our team-rating total with the slate's level offset removed
+    (``pipeline.teamstats.relative_to_slate``; no weather). The fair total moves by
+    ``team_weight`` x (team_total - this game's consensus total) on top of the weather shade."""
     rows = _pricing_lines((gl for gl in lines if gl.game_id == game_id), now)
     cons = {m: consensus(sport, rows, m, now) for m in ("total", "spread")}
     fairs = {m: fair_line(m, cons[m], gs_fg_pct, away_fg_pct) for m in ("total", "spread")}
+    fairs["total"] = blend_team_total(fairs["total"], cons["total"].line, team_total, team_weight)
     conf = confidence(wind_vol_fc, model_disagreement, lead_hours, wind_vol_static)
     wd = weather_driven(gs_fg_pct, rain_c, away_fg_pct)
     edges: list[Edge] = []
