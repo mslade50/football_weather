@@ -385,7 +385,7 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 - `rain_c2 = tier(expected_mm) if precip_prob ≥ 0.4 else 0`, `expected_mm = precip_prob_ens * rain_fg_mm`; no September suppression; zero when roof closed.
 - `alt_c2 = min(3.5, 0.0035*max(0, travel_alt−800))`.
 - `heat_away2 = heat_c if temp_fg>80 and (home_temp − away_temp) ≥ 12`.
-- cold/heat unchanged. `gs_fg_v2 = −(wind_c2+cold_c+heat_c+rain_c2)`; `away_fg_v2 = −max(heat_away2+cold_away, alt_c2)`.
+- cold/heat unchanged. `gs_fg_v2 = −(wind_c2+cold_c+heat_c+rain_c2) × gs_scale_{sport}` (per-sport scale calibrated to final scores: NFL 1.0, CFB 0.4; components stay unscaled; refit monthly by `calibrate --target result`); `away_fg_v2 = −max(heat_away2+cold_away, alt_c2)`.
 - Coefficients (0.7/0.3, 0.55, 1.15, cap 12, 0.0035, cutoffs) live in `data/calibration.json`, refit weekly by `calibrate.yml` against CLV/closing totals; v1 constants never refit.
 
 ## 8. Odds scrapers (`pipeline/odds/`) — per-book contract

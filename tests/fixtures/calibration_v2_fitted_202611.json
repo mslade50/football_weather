@@ -13,6 +13,8 @@
     "alt_base_m": 800.0,
     "alt_slope_per_m": 0.0035,
     "alt_cap": 3.5,
-    "heat_away_delta_f": 12.0
+    "heat_away_delta_f": 12.0,
+    "gs_scale_nfl": 1.0,
+    "gs_scale_cfb": 0.4
   }
 }

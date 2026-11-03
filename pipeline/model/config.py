@@ -38,6 +38,13 @@ V2_DEFAULTS: dict[str, float] = {
     "alt_slope_per_m": 0.0035,
     "alt_cap": 3.5,
     "heat_away_delta_f": 12.0,
+    # Per-sport scale on the v2 game-site shade (gs_fg), calibrated to FINAL SCORES (not the close).
+    # Evidence (docs/notes/team-style-weather-study.md): NFL 1999-2025 closing lines + archive
+    # forecasts put the full shade about right (1.2 +/- 0.25); CFB 2017-2025 + archive put it near
+    # 0.4. NFL is held at 1.0 (below the estimate, conservative). Monthly calibrate updates these
+    # from this prior with new seasons' results (pipeline/calibrate.py RESULT_PRIOR).
+    "gs_scale_nfl": 1.0,
+    "gs_scale_cfb": 0.4,
 }
 
 # ---- v1 impact (AUDIT §5; boundaries verified against the full golden history) ----
