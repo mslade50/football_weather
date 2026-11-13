@@ -17,15 +17,13 @@ from pipeline.build import (
     BOOK_ORDER,
     HTTPX_BOOKS,
     books_for_scope,
-    consensus_lines,
-    fallback_match,
     legacy_odds,
-    parse_provisional,
     scrape_books,
-    weighted_median,
 )
 from pipeline.contracts import Game, GameLine, WeatherForecast
 from pipeline.model import signals
+from pipeline.odds.base import BaseScraper
+from pipeline.run_context import RunContext
 from pipeline.stadiums.loader import load_stadium_book
 
 KC_BUF = "nfl:2026:1:buf@kc"
@@ -132,21 +130,18 @@ def test_exchange_scope_scrapes_only_enabled_exchanges(monkeypatch):
 
 # ---- gather with return_exceptions -----------------------------------------------
 
-class _Ok:
+class _Ok(BaseScraper):
     BOOK_NAME = "ok"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None) -> None:
-        self.raw_store = raw_store
+    async def scrape(self, sport, market=None, **kwargs):
+        return [_ln("ok", "total", "over", 47.5)]
 
     async def scrape_with_retry(self, sport: str, market: str | None = None, **kw: Any) -> list[GameLine]:
         return [_ln("ok", "total", "over", 47.5)]
 
 
-class _Boom:
+class _Boom(_Ok):
     BOOK_NAME = "boom"
-
-    def __init__(self) -> None:  # no ctor kwargs at all
-        pass
 
     async def scrape_with_retry(self, sport: str, market: str | None = None, **kw: Any) -> list[GameLine]:
         raise RuntimeError("site changed")
@@ -165,47 +160,10 @@ def test_scrape_books_isolates_failures(monkeypatch: pytest.MonkeyPatch):
     assert all(s == "warn" for _, _, s in degs)
 
 
-# ---- provisional id matching --------------------------------------------------------
+# ---- canonical consensus -------------------------------------------------------------
 
-def test_parse_provisional():
-    assert parse_provisional("nfl:raw:20260913:buffalo-bills@kansas-city-chiefs") == ("20260913", "buffalo-bills", "kansas-city-chiefs")
-    assert parse_provisional("cfb:raw:2026-08-29:Iowa State@Kansas State") == ("2026-08-29", "Iowa State", "Kansas State")
-    assert parse_provisional(KC_BUF) is None
-
-
-def test_fallback_match_maps_ids_and_flips_swapped_sides():
-    games = [_game()]
-    lines = [
-        _ln("betonline", "spread", "home", -2.5, game_id="nfl:raw:20260913:buffalo-bills@kansas-city-chiefs"),
-        _ln("betonline", "spread", "away", 2.5, game_id="nfl:raw:20260913:buffalo-bills@kansas-city-chiefs"),
-        _ln("fanduel", "total", "under", 48.5, game_id="nfl:raw:2026-09-13:Buffalo Bills@Kansas City Chiefs"),
-        # book lists the pairing the other way round (neutral / display order): sides flip
-        _ln("pinnacle", "spread", "home", 2.5, game_id="nfl:raw:2026-09-13T20:25:Kansas City Chiefs@Buffalo Bills"),
-        _ln("pinnacle", "total", "over", 48.0, game_id="nfl:raw:2026-09-13T20:25:Kansas City Chiefs@Buffalo Bills"),
-        # too far from kickoff: outside the schedule span -> dropped silently, not "unresolved"
-        _ln("betcris", "total", "over", 40.0, game_id="nfl:raw:20260920:buffalo-bills@kansas-city-chiefs"),
-        # unknown team
-        _ln("betcris", "total", "over", 40.0, game_id="nfl:raw:20260913:nowhere-nobodies@kansas-city-chiefs"),
-        _ln("novig", "ml", "home", None, game_id=KC_BUF),  # already canonical
-    ]
-    matched, unresolved = fallback_match("nfl", games, lines, _Book())
-    ids = {ln.game_id for ln in matched}
-    assert ids == {KC_BUF}
-    by = {(ln.book, ln.market, ln.side): ln.line for ln in matched}
-    assert by[("betonline", "spread", "home")] == -2.5
-    assert by[("fanduel", "total", "under")] == 48.5
-    assert by[("pinnacle", "spread", "away")] == 2.5      # flipped home->away, line kept with the team
-    assert by[("pinnacle", "total", "over")] == 48.0      # totals never flip
-    assert by[("novig", "ml", "home")] is None
-    assert unresolved == ["betcris:nowhere-nobodies@kansas-city-chiefs"]
-
-
-# ---- consensus ------------------------------------------------------------------------
-
-def test_weighted_median():
-    assert weighted_median([(1.0, 1), (2.0, 1), (3.0, 1)]) == 2.0
-    assert weighted_median([(1.0, 1), (10.0, 5)]) == 10.0
-    assert weighted_median([]) is None
+def _consensus(sport, lines):
+    return build._build_consensus(sport, lines, RunContext(sport=sport))
 
 
 def test_consensus_is_weighted_median_with_ref_book():
@@ -218,16 +176,18 @@ def test_consensus_is_weighted_median_with_ref_book():
         _ln("betonline", "total", "under", 46.0, -130, main=False),  # alternate ignored
         _ln("novig", "ml", "home", None, -150),
     ]
-    c = consensus_lines("nfl", lines)
+    c = _consensus("nfl", lines)
     sp = c[(KC_BUF, "spread")]
     # spread = simple average of pinnacle/betonline (-3.0, -2.5); kalshi is not a member and betcris is display-only
-    assert sp.line == -2.75 and sp.n_books == 3 and sp.ref_book == "pinnacle" and sp.odds == -108 and sp.side == "home"
+    # No book quotes the average itself: the real fair module shifts the devigged
+    # consensus probability to that number, then the adapter converts it to odds.
+    assert sp.line == -2.75 and sp.n_books == 3 and sp.ref_book == "pinnacle" and sp.odds == -103 and sp.side == "home"
     assert sp.src == "bol+pin"
     to = c[(KC_BUF, "total")]
     assert to.line == 47.5 and to.ref_book == "pinnacle" and to.n_books == 2 and to.side == "under" and to.src is None
     assert (KC_BUF, "ml") not in c
     # only a non-member posts a spread -> weighted-median fallback
-    fb = consensus_lines("nfl", [_ln("kalshi", "spread", "home", -2.5, -102)])
+    fb = _consensus("nfl", [_ln("kalshi", "spread", "home", -2.5, -102)])
     assert fb[(KC_BUF, "spread")].line == -2.5 and fb[(KC_BUF, "spread")].src == "fallback"
     assert fb[(KC_BUF, "spread")].ref_book == "kalshi" and fb[(KC_BUF, "spread")].odds == -102
 
@@ -309,7 +269,7 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
         _ln("betonline", "spread", "home", -2.5, -115), _ln("betonline", "total", "under", 47.0, -108),
         _ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
     ]
-    cons = consensus_lines("nfl", lines)
+    cons = _consensus("nfl", lines)
     openers = pstate.migrate(None, "openers")
     pstate.record_openers(openers, _both(_ln("betonline", "spread", "home", -1.5, -110), _ln("betonline", "total", "under", 48.5, -110)), "t0")
     o = legacy_odds("nfl", KC_BUF, _by_game(lines), cons, openers)
@@ -324,7 +284,7 @@ def test_nfl_legacy_odds_from_betonline_with_openers():
 def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
     lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
              _ln("betcris", "total", "under", 60.0, -110)]
-    cons = consensus_lines("nfl", lines)
+    cons = _consensus("nfl", lines)
     openers = pstate.migrate(None, "openers")
     pstate.record_openers(openers, build.consensus_pseudo_lines(cons, "nfl"), "t0")
     o = legacy_odds("nfl", KC_BUF, _by_game(lines), cons, openers)
@@ -343,7 +303,7 @@ def test_cfb_legacy_odds_from_fanduel():
 
     lines = [ln("fanduel", "total", "under", 51.5, -112), ln("fanduel", "spread", "home", -3.5, -108),
              ln("pinnacle", "total", "under", 52.0), ln("pinnacle", "spread", "home", -3.0)]
-    cons = consensus_lines("cfb", lines)
+    cons = _consensus("cfb", lines)
     openers = pstate.migrate(None, "openers")
     pstate.record_openers(openers, _both(ln("fanduel", "total", "under", 50.5, -110), ln("fanduel", "spread", "home", -2.5, -110)), "t0")
     o = legacy_odds("cfb", gid, _by_game(lines), cons, openers)
@@ -420,7 +380,6 @@ def test_zero_lines_warns_only_when_the_league_has_games(tmp_path: Path, monkeyp
         }
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_import", lambda _name: None)
     ctx = RunContext(sport="nfl", scope="light", git_sha="t", run_id="empty-league")
     build.stage_odds(ctx, "nfl", [], _Book(), NullRawStore("nfl", "r"), ["novig"], tmp_path, 2026, dry_run=True)
     assert not any("returned 0 lines" in d.reason for d in ctx.degradations)
@@ -461,7 +420,6 @@ def test_stale_betcris_warns_and_stays_off_the_dark_and_down_paths(tmp_path: Pat
         }
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    monkeypatch.setattr(build, "_import", lambda _name: None)
     ctx = RunContext(sport="nfl", scope="light", git_sha="t", run_id="stale-betcris")
     build.stage_odds(
         ctx, "nfl", [_game()], _Book(), NullRawStore("nfl", "r"),
@@ -501,8 +459,6 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
                 "pinnacle": _both(_ln("pinnacle", "spread", "home", -3.0, game_id=prov))}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    # concurrent modules may or may not exist: force the built-in paths for determinism
-    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else __import__(name, fromlist=["_"]))
     from pipeline.outputs.raw_out import NullRawStore
     from pipeline.run_context import RunContext
 
@@ -528,13 +484,16 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     assert bl["peaks"]["betonline|spread"] == 2
 
 
-def test_stage_odds_tolerates_missing_merge_and_fair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_stage_odds_tolerates_merge_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     async def fake_scrape(sport, books, raw, run_id, degrade):
         return {"pinnacle": []}, {}
 
     monkeypatch.setattr(build, "scrape_books", fake_scrape)
-    real_import = build._import
-    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
+
+    def bad(*args, **kwargs):
+        raise KeyError("boom")
+
+    monkeypatch.setattr(build.odds_merge, "merge_odds", bad)
     from pipeline.outputs.raw_out import NullRawStore
     from pipeline.run_context import RunContext
 
@@ -542,15 +501,13 @@ def test_stage_odds_tolerates_missing_merge_and_fair(tmp_path: Path, monkeypatch
     res = build.stage_odds(ctx, "nfl", [_game()], _Book(), NullRawStore("nfl", "r"), ["pinnacle"], tmp_path, 2026, dry_run=True)
     assert res.lines == []
     comps = {d.component: d.severity for d in ctx.degradations}
-    assert comps.get("odds.merge") == "info" and comps.get("model.fair") == "info"
+    assert comps.get("odds.merge") == "warn"
     assert not (tmp_path / "openers.json").exists()  # dry-run writes no state
 
 
 def test_external_merge_and_fair_real_modules():
     """The concurrent modules exist: merge_odds re-keys provisional ids via data/aliases,
     fair.consensus gives the Pinnacle-weighted line; both feed the same ConsensusLine shape."""
-    merge_mod = pytest.importorskip("pipeline.odds.merge")
-    fair_mod = pytest.importorskip("pipeline.model.fair")
     from pipeline.run_context import RunContext
 
     ctx = RunContext(sport="nfl", scope="full", git_sha="t")
@@ -562,12 +519,12 @@ def test_external_merge_and_fair_real_modules():
                  # next week's card: outside the span, must not count as unresolved
                  _ln("betcris", "total", "under", 40.0, game_id="nfl:raw:20260927:buffalo-bills@kansas-city-chiefs")]
     openers = pstate.migrate(None, "openers")
-    merged = build._external_merge(merge_mod, "nfl", [_game()], raw_lines, {}, openers, ctx)
+    merged = build._merge_lines("nfl", [_game()], raw_lines, {}, openers, ctx)
     assert merged is not None
     lines, unresolved = merged
     assert {ln.game_id for ln in lines} == {KC_BUF} and len(lines) == 5
     assert unresolved == []
-    cons = build._external_consensus(fair_mod, "nfl", lines, ctx)
+    cons = build._build_consensus("nfl", lines, ctx)
     assert cons is not None
     sp = cons[(KC_BUF, "spread")]
     # BetCris -2.5 is display-only, so the spread is Pinnacle's -3.0.
@@ -577,18 +534,36 @@ def test_external_merge_and_fair_real_modules():
     assert not any(d.severity == "warn" for d in ctx.degradations)
 
 
-def test_external_merge_failure_falls_back(monkeypatch: pytest.MonkeyPatch):
-    from pipeline.run_context import RunContext
-
+def test_merge_failure_returns_empty_with_original_degradation(monkeypatch: pytest.MonkeyPatch):
     ctx = RunContext(sport="nfl", scope="full", git_sha="t")
 
     def bad(*a, **kw):
         raise KeyError("boom")
 
-    assert build._external_merge(SimpleNamespace(merge_odds=bad), "nfl", [_game()], [], {}, {}, ctx) is None
-    assert any(d.component == "odds.merge" and d.severity == "warn" for d in ctx.degradations)
-    assert build._external_merge(SimpleNamespace(), "nfl", [_game()], [], {}, {}, ctx) is None
-    assert build._external_consensus(SimpleNamespace(), "nfl", [], ctx) is None
+    monkeypatch.setattr(build.odds_merge, "merge_odds", bad)
+    assert build._merge_lines("nfl", [_game()], [], {}, {}, ctx) == ([], [])
+    assert [(d.component, d.reason, d.severity) for d in ctx.degradations] == [
+        ("odds.merge", "nfl: merge_odds failed (KeyError: 'boom'); using built-in matcher", "warn")]
+
+
+def test_consensus_failure_drops_only_the_failing_game(monkeypatch: pytest.MonkeyPatch):
+    ctx = RunContext(sport="nfl")
+    other = "nfl:2026:1:den@lv"
+    rows = [_ln("pinnacle", "spread", "home", -3), _ln("pinnacle", "total", "under", 47),
+            _ln("pinnacle", "total", "under", 41, game_id=other)]
+    real_consensus = build.fair_mod.consensus
+
+    def fail_total(sport, lines, market, **kwargs):
+        if lines[0].game_id == KC_BUF and market == "total":
+            raise ValueError("boom")
+        return real_consensus(sport, lines, market, **kwargs)
+
+    monkeypatch.setattr(build.fair_mod, "consensus", fail_total)
+    result = build._build_consensus("nfl", rows, ctx)
+    assert set(result) == {(other, "total")}
+    assert result[(other, "total")].line == 41
+    assert [(d.component, d.reason, d.severity) for d in ctx.degradations] == [
+        ("model.fair", "nfl: consensus failed (ValueError: boom); using built-in", "warn")]
 
 
 def test_carry_forward_lines_only_for_unscraped_books():
@@ -769,8 +744,6 @@ def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [near, far])
     monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
-    real_import = build._import
-    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
 
     ctx = RunContext(sport="nfl", scope="light", git_sha="t")
     res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline", "pinnacle"], state_dir=tmp_path)
@@ -823,8 +796,6 @@ def test_run_sport_preseason_is_lines_only_and_info_not_warn(tmp_path: Path, mon
     monkeypatch.setattr(build, "stage_stadiums", lambda ctx, sport: _NoVenueBook())
     monkeypatch.setattr(build, "fetch_schedule", lambda ctx, sport, raw, season, book: [far])
     monkeypatch.setattr(build, "stage_weather", lambda *a, **kw: {})
-    real_import = build._import
-    monkeypatch.setattr(build, "_import", lambda name: None if name in ("pipeline.odds.merge", "pipeline.model.fair") else real_import(name))
 
     ctx = RunContext(sport="nfl", scope="light", git_sha="t")
     res = build.run_sport(ctx, "nfl", NullRawStore("nfl", "r"), 2026, books=["betonline"], state_dir=tmp_path)

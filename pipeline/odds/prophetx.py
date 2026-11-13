@@ -30,7 +30,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, get_with_retry, request_with_retry
+from pipeline.odds.base import BaseScraper, Capture, get_with_retry, request_with_retry
 from pipeline.odds.parsers import prophetx as parser
 
 logger = logging.getLogger(__name__)
@@ -71,8 +71,7 @@ class ProphetXScraper(BaseScraper):
     MAX_RETRIES = 2
     RETRY_DELAY = 2.0
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None):
-        del headless  # API-only; retained for the common scraper constructor.
+    def _initialize(self) -> None:
         _load_dotenv()
         self.base_url = (os.getenv("PROPHETX_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.api_key = os.getenv("PROPHETX_API_KEY", "").strip()
@@ -81,8 +80,6 @@ class ProphetXScraper(BaseScraper):
         # Prefer a complete access/secret pair so a stale affiliate key cannot
         # shadow newly approved Trading API credentials (same rule as golf).
         self.api_flavor = "mm" if self.access_key and self.secret_key else "affiliate"
-        self.raw_store = raw_store
-        self.run_id = run_id
 
     # -- transport (golf-identical) -------------------------------------------------
 
@@ -212,11 +209,9 @@ class ProphetXScraper(BaseScraper):
     # -- BaseScraper ----------------------------------------------------------------
 
     async def scrape(
-        self,
-        sport: str,
-        market: str | None = None,
-        include_alternates: bool = True,
-        include_live: bool = False,
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
         **kwargs: Any,
     ) -> list[GameLine]:
         if sport not in parser.TOURNAMENTS:

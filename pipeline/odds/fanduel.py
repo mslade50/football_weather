@@ -33,6 +33,7 @@ from pipeline.odds.base import (
     TRANSPORT_CURL,
     TRANSPORT_HTTPX,
     BaseScraper,
+    Capture,
     browser_headers,
     fetch_json_with_fallback,
     transport_mode,
@@ -125,12 +126,15 @@ async def fetch_board(
 class FanDuelScraper(BaseScraper):
     BOOK_NAME = "fanduel"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None) -> None:
-        self.raw_store = raw_store
-        self.run_id = run_id
+    def _initialize(self) -> None:
         self.last_transport: str | None = None
 
-    async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
+    async def scrape(
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
+        **kwargs: Any,
+    ) -> list[GameLine]:
         if os.environ.get("BOOK_FANDUEL_ENABLED", "1") == "0":
             logger.info("[fanduel] disabled via BOOK_FANDUEL_ENABLED=0")
             return []

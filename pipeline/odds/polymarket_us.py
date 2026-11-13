@@ -6,10 +6,12 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
-from pipeline.odds.base import BaseScraper, get_with_retry
+from pipeline.contracts import GameLine
+from pipeline.odds.base import BaseScraper, Capture, get_with_retry
 from pipeline.odds.parsers import polymarket_us as parser
 
 logger = logging.getLogger(__name__)
@@ -43,8 +45,7 @@ def _needs_event_document(event: dict) -> bool:
 class PolymarketUSScraper(BaseScraper):
     BOOK_NAME = "polymarket_us"
 
-    def __init__(self, headless: bool = True, timeout: float = 30.0):
-        self.timeout = timeout
+    def _initialize(self) -> None:
         self.fetch_errors: dict[str, str] = {}
 
     async def _attach_line_markets(self, client: httpx.AsyncClient, sport: str, events: list[dict], capture) -> None:
@@ -87,7 +88,14 @@ class PolymarketUSScraper(BaseScraper):
             self.fetch_errors["event_documents"] = (
                 f"{failures} of {len(pending)} event documents failed; spreads and totals may be missing")
 
-    async def scrape(self, sport, market=None, capture=None, run_id=None, **kwargs):
+    async def scrape(
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
+        **kwargs: Any,
+    ) -> list[GameLine]:
+        capture = self.capture if capture is None else capture
+        run_id = self.run_id if run_id is None else run_id
         if sport not in ("nfl", "cfb"):
             raise ValueError(f"unknown sport {sport}")
         if os.getenv("BOOK_POLYMARKET_US_ENABLED", "1") == "0":

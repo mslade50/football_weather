@@ -191,7 +191,7 @@ def test_cfb_spread_column_is_betonline_pinnacle_consensus_average():
 
     lines = [ln("pinnacle", "spread", "home", -3.0), ln("betonline", "spread", "home", -2.5), ln("betcris", "spread", "home", -2.0),
              ln("fanduel", "spread", "home", -7.0), ln("fanduel", "total", "under", 50.0), ln("pinnacle", "total", "under", 51.0)]
-    cons = build.consensus_lines("cfb", lines)
+    cons = build._build_consensus("cfb", lines, build.RunContext(sport="cfb"))
     odds = build.legacy_odds("cfb", gid, {gid: lines}, cons, pstate.migrate(None, "openers"))
     assert odds["spread"] == -2.75 and odds["spread_src"] == "bol+pin" and odds["current"] == -7.0
     rec = _rec("cfb", gs_fg_pct=-4.0, away_fg_pct=-2.0, odds=odds)

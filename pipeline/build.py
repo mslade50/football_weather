@@ -17,9 +17,8 @@ recorded on the RunContext, ``check_scrape_volume`` (adapted from
 golf_scraping/board/build.py ``_check_scrape_volume``) records a data issue when a
 book goes dark or a (book|market) count collapses; the unified alert stage decides
 whether and how to notify. Provisional book game ids are mapped
-onto schedule ``game_id``s (``pipeline.odds.merge`` when present, else the built-in
-matcher), a weighted-median consensus is computed (``pipeline.model.fair`` when
-present, else built-in) and openers/archive_last/scrape_baseline are persisted under
+onto schedule ``game_id``s (``pipeline.odds.merge``), a consensus is computed
+(``pipeline.model.fair``) and openers/archive_last/scrape_baseline are persisted under
 ``data/state/``. Legacy odds columns are filled from the sport's reference book
 (NFL: BetOnline, CFB: FanDuel) with consensus fallback; openers come from
 ``openers.json`` so ``*_open`` stays fixed while ``*_now`` moves. CFB total
@@ -67,7 +66,6 @@ import importlib
 import json
 import logging
 import os
-import re
 import shutil
 import sys
 import threading
@@ -85,10 +83,12 @@ from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast, a
 from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
+from pipeline.model import fair as fair_mod
 from pipeline.model import signals
 from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
 from pipeline.odds import handoff
+from pipeline.odds import merge as odds_merge
 from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
@@ -96,8 +96,11 @@ from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
+from pipeline.schedule import cfb as cfb_schedule, nfl as nfl_schedule
+from pipeline.stadiums import loader as stadium_loader
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import first_pass, point_handoff, screening, selective
+from pipeline.weather import ecmwf_fallback as fallback_mod, merge as merge_mod, nws as nws_mod, openmeteo as om_mod
 from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
 
@@ -136,7 +139,6 @@ BOOK_REGISTRY: dict[str, tuple[str, str]] = {
     "prophetx": ("pipeline.odds.prophetx", "ProphetXScraper"),
     "polymarket_us": ("pipeline.odds.polymarket_us", "PolymarketUSScraper"),
     "betonline": ("pipeline.odds.betonline", "BetOnlineScraper"),
-    "draftkings": ("pipeline.odds.draftkings", "DraftKingsScraper"),
 }
 PLAYWRIGHT_BOOKS = ("betonline",)
 HTTPX_BOOKS = ("pinnacle", "betcris", "fanduel", "kalshi", "novig", "prophetx", "polymarket_us")
@@ -150,17 +152,9 @@ CONSENSUS_BOOK = "consensus"
 LEGACY_NOW_BOOK = {"nfl": "betonline", "cfb": "fanduel"}
 
 SCRAPE_TIMEOUT_S = 300.0     # per book incl. retries (BetOnline: Chromium + CF pass)
-MATCH_WINDOW_H = 36.0        # provisional-id kickoff must be within ±36 h of the schedule
 VOLUME_DROP_FRAC = 0.5       # alert when current < 50% of the peak
 VOLUME_MIN_PEAK = 8          # ignore small markets (noise floor)
 VOLUME_DARK_MIN_ROWS = 10    # a peer counts as healthy at >= this many rows
-
-
-def _import(name: str) -> Any | None:
-    try:
-        return importlib.import_module(name)
-    except ImportError:
-        return None
 
 
 def default_season(now: datetime) -> int:
@@ -224,12 +218,8 @@ def book_enabled(name: str) -> bool:
 # ---- stages ---------------------------------------------------------------------
 
 def stage_stadiums(ctx: RunContext, sport: str) -> Any | None:
-    mod = _import("pipeline.stadiums.loader")
-    if mod is None:
-        ctx.degrade("stadiums", "pipeline.stadiums.loader not importable", "error")
-        return None
     try:
-        return mod.load_stadium_book(sports=(sport,))
+        return stadium_loader.load_stadium_book(sports=(sport,))
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("stadiums", f"{type(exc).__name__}: {exc}", "error")
         return None
@@ -239,17 +229,13 @@ def fetch_schedule(ctx: RunContext, sport: str, raw: RawStore, season: int | Non
     """Every non-final game of the season the source knows about (nflverse games.csv
     and CFBD ``/games?year`` are full-season; the ESPN scoreboard fallback is only
     the current slate, so the odds horizon simply sees fewer games)."""
-    mod = _import(f"pipeline.schedule.{sport}")
-    if mod is None:
-        ctx.degrade("schedule", f"pipeline.schedule.{sport} not importable", "error")
-        return []
     season = season or default_season(ctx.started_et)
     raw_dir = None if isinstance(raw, NullRawStore) else raw.run_dir
     try:
         if sport == "nfl":
-            games = mod.fetch_nfl_schedule(season, book=book, raw_dir=raw_dir)
+            games = nfl_schedule.fetch_nfl_schedule(season, book=book, raw_dir=raw_dir)
         else:
-            games = mod.fetch_cfb_schedule(season, book=book, raw_dir=raw_dir, ctx=ctx)
+            games = cfb_schedule.fetch_cfb_schedule(season, book=book, raw_dir=raw_dir, ctx=ctx)
     except Exception as exc:  # noqa: BLE001 - any stage failure becomes a Degradation
         ctx.degrade("schedule", f"{sport}: {type(exc).__name__}: {exc}", "error")
         return []
@@ -385,15 +371,7 @@ def stage_weather(
     ``roof_heuristic``, ``ensemble`` (bool)."""
     if not games:
         return {}
-    om_mod = _import("pipeline.weather.openmeteo")
-    nws_mod = _import("pipeline.weather.nws")
-    merge_mod = _import("pipeline.weather.merge")
-    fallback_mod = _import("pipeline.weather.ecmwf_fallback")
-    if om_mod is None or merge_mod is None or nws_mod is None:
-        ctx.degrade("weather", "pipeline.weather modules not importable", "error")
-        return {}
-    if fallback_mod is not None:
-        fallback_mod.prepare(ctx)
+    fallback_mod.prepare(ctx)
     games = [g for g in games if g.game_id in stadiums]
     if not games:
         return {}
@@ -413,9 +391,8 @@ def stage_weather(
                    for point, group in by_point.items()}
     reused = point_handoff.read(ctx.weather_state.get("reuse_point_dir"), ctx, sport, om_mod, by_point, stadiums, roof_states, point_hours)
     budget_kwargs: dict[str, Any] = {}
-    if callable(getattr(om_mod, "RequestBudget", None)):
-        ctx.request_budgets.setdefault("openmeteo", om_mod.RequestBudget())
-        budget_kwargs["budget"] = ctx.request_budgets["openmeteo"]
+    ctx.request_budgets.setdefault("openmeteo", om_mod.RequestBudget())
+    budget_kwargs["budget"] = ctx.request_budgets["openmeteo"]
     om_by_point, nws_by_point, point_stamps, point_meta = first_pass.collect(
         ctx, sport, om_mod, nws_mod, by_point, conus_pts, point_hours, reused, start, end,
         capture, _fetch_point_batches, state_dir, budget_kwargs,
@@ -516,8 +493,7 @@ def stage_weather(
                           "partial_members_degraded" if trace.get("errors") or stats.n_members < 82
                           or not selective.complete(ensembles.get(point), {merge_mod.hour_floor(game.kickoff_utc) + timedelta(hours=i) for i in range(-1, 5)})
                           else "aged_members" if trace.get("aged_sources") else "full_members")
-                ecmwf_source, source_updated = (fallback_mod.forecast_markers(point_meta.get(point), trace)
-                                                if fallback_mod is not None else (None, {}))
+                ecmwf_source, source_updated = fallback_mod.forecast_markers(point_meta.get(point), trace)
                 if not source_updated and point_meta.get(point, {}).get("updated_at"):
                     source_updated = {"nws": point_meta[point]["updated_at"]}
                 fc[game.game_id] = dataclasses.replace(
@@ -583,37 +559,19 @@ def stage_weather(
 
 def load_scraper_class(name: str) -> type | None:
     module_name, cls_name = BOOK_REGISTRY[name]
-    mod = _import(module_name)
-    if mod is None:
+    try:
+        mod = importlib.import_module(module_name)
+    except ImportError:
         return None
     return getattr(mod, cls_name, None)
 
 
 def make_scraper(cls: type, raw: RawStore | None, run_id: str | None) -> Any:
-    """Books differ in ctor kwargs (Kalshi/Novig take no raw_store): degrade gracefully."""
-    try:
-        return cls(headless=True, raw_store=raw, run_id=run_id)
-    except TypeError:
-        try:
-            return cls(headless=True)
-        except TypeError:
-            return cls()
+    return cls(headless=True, raw_store=raw, run_id=run_id)
 
 
-async def _run_book(name: str, scraper: Any, sport: str, raw: RawStore | None, run_id: str | None) -> list[GameLine]:
-    kwargs: dict[str, Any] = {}
-    if raw is not None and getattr(scraper, "raw_store", "missing") == "missing":
-        # scrapers without a raw_store attribute take a capture callback instead
-        def capture(source: str, payload: Any, url: str | None = None) -> None:
-            raw.put(source, payload, url)
-
-        kwargs["capture"] = capture
-        kwargs["run_id"] = run_id
-    try:
-        return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None, **kwargs), SCRAPE_TIMEOUT_S)
-    except TypeError:
-        # scrape() rejected the extra kwargs (BaseScraper forwards **kwargs verbatim)
-        return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None), SCRAPE_TIMEOUT_S)
+async def _run_book(scraper: Any, sport: str) -> list[GameLine]:
+    return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None), SCRAPE_TIMEOUT_S)
 
 
 async def scrape_books(
@@ -636,7 +594,7 @@ async def scrape_books(
             continue
         names.append(name)
         scrapers[name] = scraper
-        tasks.append(_run_book(name, scraper, sport, raw, run_id))
+        tasks.append(_run_book(scraper, sport))
     if not tasks:
         return {}, {}
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -694,8 +652,6 @@ def scrape_only(sports: Sequence[str], out_dir: Path, *, books: Sequence[str] | 
     except ValueError as exc:
         ctx.degrade("scope", str(exc), "error")
         book_list = []
-    merge_mod = _import("pipeline.odds.merge")
-    rg_fn = getattr(merge_mod, "raw_games_from_scraper", None)
     for sport in sports:
         raw = RawStore(sport, ctx.run_id, raw_dir)
         with ctx.stage(f"{sport}.scrape"):
@@ -704,7 +660,7 @@ def scrape_only(sports: Sequence[str], out_dir: Path, *, books: Sequence[str] | 
         for name in book_list:
             scraper = scrapers.get(name)
             lines = per_book.get(name, [])
-            raw_games = list(rg_fn(scraper, name, sport).values()) if callable(rg_fn) and scraper is not None else []
+            raw_games = list(odds_merge.raw_games_from_scraper(scraper, name, sport).values()) if scraper is not None else []
             errors = dict(getattr(scraper, "fetch_errors", None) or {})
             if scraper is None:
                 errors.setdefault(sport, "scraper unavailable")
@@ -864,138 +820,31 @@ def baseline_scope(sport: str, games: Sequence[Game], odds_games: Sequence[Game]
     return f"{sport}:{season or '?'}:?"
 
 
-# ---- odds: provisional id -> schedule game_id (fallback when odds.merge is absent) -----
+# ---- odds: canonical merge ---------------------------------------------------------
 
-_PROVISIONAL = re.compile(r"^(?P<sport>nfl|cfb):raw:(?P<stamp>.*?):(?P<away>[^:]+)@(?P<home>[^:]+)$")
-
-
-def parse_provisional(game_id: str) -> tuple[str, str, str] | None:
-    """``{sport}:raw:{stamp}:{away}@{home}`` -> (stamp, away, home); None for canonical ids."""
-    m = _PROVISIONAL.match(game_id or "")
-    if not m:
-        return None
-    return m.group("stamp"), m.group("away"), m.group("home")
-
-
-def _stamp_to_utc(stamp: str) -> datetime | None:
-    from datetime import timezone
-
-    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(stamp, fmt).replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-    return None
-
-
-def _team_id(book: Any, sport: str, raw: str) -> str | None:
-    if book is None:
-        return None
-    try:
-        return book.resolve_team(sport, raw.replace("-", " "))
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def schedule_span(games: Sequence[Game]) -> tuple[datetime, datetime] | None:
-    """[earliest kickoff − 36 h, latest kickoff + 36 h]: a book game outside this span
-    (next week's card, a preseason game the schedule does not carry) is not an
-    "unresolved" match — it simply is not on the board."""
-    if not games:
-        return None
-    win = timedelta(hours=MATCH_WINDOW_H)
-    kicks = [g.kickoff_utc for g in games]
-    return min(kicks) - win, max(kicks) + win
-
-
-def in_span(when: datetime | None, span: tuple[datetime, datetime] | None) -> bool:
-    if when is None or span is None:
-        return True  # unknown kickoff: judge it
-    return span[0] <= when <= span[1]
-
-
-def fallback_match(
-    sport: str, games: Sequence[Game], lines: Sequence[GameLine], book: Any
-) -> tuple[list[GameLine], list[str]]:
-    """Map provisional book ids onto schedule ``game_id``s: team aliases via the stadium
-    book + kickoff within ±36 h; neutral-site flips handled by trying swapped sides.
-    Lines already carrying a canonical id pass through. Returns (lines, unresolved)
-    where unresolved lists only book games inside the schedule span."""
-    by_pair: dict[tuple[str, str], list[Game]] = {}
-    known_ids = {g.game_id for g in games}
-    for g in games:
-        by_pair.setdefault((g.away_id, g.home_id), []).append(g)
-    win = timedelta(hours=MATCH_WINDOW_H)
-    span = schedule_span(games)
-    # provisional id -> (schedule game_id, flipped) ; None when unmatched
-    cache: dict[str, tuple[str, bool] | None] = {}
-    unresolved: list[str] = []
-    out: list[GameLine] = []
-    for ln in lines:
-        if ln.game_id in known_ids:
-            out.append(ln)
-            continue
-        parts = parse_provisional(ln.game_id)
-        if parts is None:
-            continue
-        stamp, away_raw, home_raw = parts
-        if ln.game_id not in cache:
-            hit: tuple[str, bool] | None = None
-            away_id = _team_id(book, sport, away_raw)
-            home_id = _team_id(book, sport, home_raw)
-            when = _stamp_to_utc(stamp)
-            if away_id and home_id:
-                cands = [(g, False) for g in by_pair.get((away_id, home_id), [])]
-                # swapped sides: neutral-site games or a book listing the home side first
-                cands += [(g, True) for g in by_pair.get((home_id, away_id), [])]
-                if when is not None:
-                    cands = [(g, f) for g, f in cands if abs(g.kickoff_utc - when) <= win]
-                if cands:
-                    cands.sort(key=lambda gf: (gf[1], abs(gf[0].kickoff_utc - when) if when else timedelta(0)))
-                    hit = (cands[0][0].game_id, cands[0][1])
-            cache[ln.game_id] = hit
-            if hit is None and in_span(when, span):
-                unresolved.append(f"{ln.book}:{away_raw}@{home_raw}")
-        hit = cache[ln.game_id]
-        if hit is None:
-            continue
-        target, flipped = hit
-        side = ln.side
-        line = ln.line
-        if flipped and ln.market in ("ml", "spread"):
-            side = {"home": "away", "away": "home"}.get(side, side)
-        out.append(dataclasses.replace(ln, game_id=target, side=side, line=line))
-    return out, unresolved
-
-
-def _external_merge(
-    mod: Any,
+def _merge_lines(
     sport: str,
     games: Sequence[Game],
     lines: Sequence[GameLine],
     scrapers: dict[str, Any],
     openers: dict,
     ctx: RunContext,
-) -> tuple[list[GameLine], list[str]] | None:
+) -> tuple[list[GameLine], list[str]]:
     """``pipeline.odds.merge.merge_odds`` (aliases + rapidfuzz + ±36 h + neutral flip).
     Openers are recorded into the passed dict (never overwritten) and saved by the
     caller. Returns ``(canonical lines, unresolved)`` where unresolved = team names
     the resolver could not map plus in-span book games without a schedule match;
-    ``None`` on any failure so the built-in matcher takes over."""
-    fn = getattr(mod, "merge_odds", None)
-    if not callable(fn):
-        return None
+    Empty results on failure; other books and sports can continue."""
     try:
         raw_games: dict[str, Any] = {}
-        rg_fn = getattr(mod, "raw_games_from_scraper", None)
-        if callable(rg_fn):
-            for name, scraper in scrapers.items():
-                raw_games.update(rg_fn(scraper, name, sport))
-        res = fn(sport, list(games), list(lines), raw_games or None, openers=openers, now=ctx.now_utc, save=False)
-        matched = [ln for ln in getattr(res, "lines", []) if isinstance(ln, GameLine)]
-        unresolved = [str(u) for u in (getattr(res, "unresolved", None) or [])]
-        span = schedule_span(games)
-        for row in getattr(res, "unmatched", None) or []:
+        for name, scraper in scrapers.items():
+            raw_games.update(odds_merge.raw_games_from_scraper(scraper, name, sport))
+        res = odds_merge.merge_odds(sport, list(games), list(lines), raw_games or None, openers=openers, now=ctx.now_utc, save=False)
+        matched = [ln for ln in res.lines if isinstance(ln, GameLine)]
+        unresolved = [str(u) for u in res.unresolved]
+        span = (min(g.kickoff_utc for g in games) - timedelta(hours=odds_merge.WINDOW_H),
+                max(g.kickoff_utc for g in games) + timedelta(hours=odds_merge.WINDOW_H)) if games else None
+        for row in res.unmatched:
             parts = str(row).split("|", 2)
             if len(parts) != 3:
                 continue
@@ -1003,18 +852,26 @@ def _external_merge(
             when = None
             rg = raw_games.get(pid)
             if rg is not None:
-                when = getattr(rg, "kickoff_utc", None)
-            elif (pp := parse_provisional(pid)) is not None:
-                when = _stamp_to_utc(pp[0])
-            if in_span(when, span):
+                when = rg.kickoff_utc
+            else:
+                try:
+                    parsed = odds_merge.parse_provisional(pid)
+                except ValueError:
+                    parsed = None
+                if parsed is not None:
+                    when = parsed.kickoff_utc
+                    # Preserve the reporting span: date-only stamps were midnight UTC.
+                    if when is not None and parsed.date_only:
+                        when = when.replace(hour=0)
+            if when is None or span is None or span[0] <= when <= span[1]:
                 unresolved.append(f"{book}:{pid.split(':', 3)[-1]}:{reason}")
         return matched, unresolved
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("odds.merge", f"{sport}: merge_odds failed ({type(exc).__name__}: {exc}); using built-in matcher", "warn")
-        return None
+        return [], []
 
 
-# ---- odds: consensus (fallback when model.fair is absent) ----------------------------
+# ---- odds: consensus adapter ----------------------------
 
 @dataclass(frozen=True)
 class ConsensusLine:
@@ -1026,106 +883,40 @@ class ConsensusLine:
     src: str | None = None  # spread: averaged members ("bol+pin" subset) or "fallback"
 
 
-def _average_spread(per_book: dict[str, float]) -> tuple[float | None, str]:
-    """Built-in twin of ``model.fair.average_spread`` (used when model.fair is absent)."""
-    members = [b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book]
-    if not members:
-        return None, model_config.SPREAD_SRC_FALLBACK
-    avg = round(sum(per_book[b] for b in members) / len(members), model_config.SPREAD_AVG_DP)
-    return avg, "+".join(model_config.SPREAD_SRC_LABELS[b] for b in members)
-
-
-def weighted_median(values: Sequence[tuple[float, float]]) -> float | None:
-    """Weighted median of ``[(value, weight)]`` (lower-middle on ties)."""
-    pts = sorted((float(v), float(w)) for v, w in values if v is not None and w > 0)
-    if not pts:
-        return None
-    half = sum(w for _, w in pts) / 2.0
-    acc = 0.0
-    for v, w in pts:
-        acc += w
-        if acc >= half:
-            return v
-    return pts[-1][0]
-
-
-def consensus_lines(sport: str, lines: Sequence[GameLine], weights: dict[str, float] | None = None,
-                    now: datetime | None = None) -> dict[tuple[str, str], ConsensusLine]:
-    """``(game_id, market)`` -> weighted-median main line across books (spread: home side,
-    total: under side). ``ref_book`` = heaviest book sitting on the consensus number."""
-    w = weights or BOOK_WEIGHTS
-    side_for = {"spread": "home", "total": "under"}
-    by_key: dict[tuple[str, str], dict[str, GameLine]] = {}
-    for ln in lines:
-        if ln.book in model_config.REFERENCE_BOOKS:
-            continue
-        if now is not None and ln.reference_only(now):
-            continue
-        if ln.sport != sport or not ln.is_main or ln.market not in side_for or ln.side != side_for[ln.market]:
-            continue
-        if ln.line is None or ln.book == CONSENSUS_BOOK:
-            continue
-        by_key.setdefault((ln.game_id, ln.market), {})[ln.book] = ln
-    out: dict[tuple[str, str], ConsensusLine] = {}
-    for key, per_book in by_key.items():
-        src: str | None = None
-        med: float | None = None
-        if key[1] == "spread":
-            med, src = _average_spread({b: float(ln.line) for b, ln in per_book.items() if ln.line is not None})
-        if med is None:
-            med = weighted_median([(ln.line, w.get(b, DEFAULT_BOOK_WEIGHT)) for b, ln in per_book.items()])
-        if med is None:
-            continue
-        on_line = [(w.get(b, DEFAULT_BOOK_WEIGHT), b, ln) for b, ln in per_book.items() if ln.line == med]
-        on_line.sort(key=lambda t: -t[0])
-        ref = on_line[0] if on_line else None
-        if ref is None and src not in (None, model_config.SPREAD_SRC_FALLBACK):
-            # averaged spread sits between the books: heaviest member is the reference
-            heavy = max((b for b in model_config.SPREAD_CONSENSUS_BOOKS if b in per_book), key=lambda b: w.get(b, DEFAULT_BOOK_WEIGHT))
-            ref = (w.get(heavy, 0.5), heavy, per_book[heavy])
-        out[key] = ConsensusLine(
-            line=med, odds=ref[2].odds if ref else None, n_books=len(per_book),
-            ref_book=ref[1] if ref else None, side=side_for[key[1]], src=src,
-        )
-    return out
-
-
-def _external_consensus(mod: Any, sport: str, lines: Sequence[GameLine], ctx: RunContext) -> dict[tuple[str, str], ConsensusLine] | None:
+def _build_consensus(sport: str, lines: Sequence[GameLine], ctx: RunContext) -> dict[tuple[str, str], ConsensusLine]:
     """``pipeline.model.fair.consensus(sport, game_lines, market)`` per game/market
     (Pinnacle-weighted median, devigged prob moved to the consensus line). The
     opener/legacy odds for the consensus row are the ref book's price on our side
     (home / under), else the devigged consensus prob converted to American."""
-    fn = getattr(mod, "consensus", None)
-    if not callable(fn):
-        return None
-    to_american = getattr(mod, "prob_to_american", None)
     side_for = {"spread": "home", "total": "under"}
     by_game: dict[str, list[GameLine]] = {}
     for ln in lines:
         if ln.sport == sport and ln.book != CONSENSUS_BOOK:
             by_game.setdefault(ln.game_id, []).append(ln)
     out: dict[tuple[str, str], ConsensusLine] = {}
-    try:
-        for game_id, glines in by_game.items():
+    for game_id, glines in by_game.items():
+        game_consensus: dict[tuple[str, str], ConsensusLine] = {}
+        try:
             for market, side in side_for.items():
-                c = fn(sport, glines, market, now=ctx.now_utc)
-                line = getattr(c, "line", None)
+                c = fair_mod.consensus(sport, glines, market, now=ctx.now_utc)
+                line = c.line
                 if line is None:
                     continue
-                ref_book = getattr(c, "ref_book", None)
+                ref_book = c.ref_book
                 odds = next((ln.odds for ln in glines if ln.book == ref_book and ln.market == market
                              and ln.side == side and ln.is_main and ln.line == line), None)
-                prob = getattr(c, "prob", None)
-                if odds is None and prob is not None and callable(to_american):
+                prob = c.prob
+                if odds is None and prob is not None:
                     p = prob if side == "home" else 1.0 - prob
-                    odds = int(to_american(min(0.99, max(0.01, p))))
-                out[(game_id, market)] = ConsensusLine(
-                    line=float(line), odds=odds, n_books=int(getattr(c, "n_books", 0) or 0),
-                    ref_book=ref_book, side=side, src=getattr(c, "src", None),
+                    odds = int(fair_mod.prob_to_american(min(0.99, max(0.01, p))))
+                game_consensus[(game_id, market)] = ConsensusLine(
+                    line=float(line), odds=odds, n_books=int(c.n_books or 0),
+                    ref_book=ref_book, side=side, src=c.src,
                 )
-    except Exception as exc:  # noqa: BLE001
-        ctx.degrade("model.fair", f"{sport}: consensus failed ({type(exc).__name__}: {exc}); using built-in", "warn")
-        return None
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("model.fair", f"{sport}: consensus failed ({type(exc).__name__}: {exc}); using built-in", "warn")
+            continue
+        out.update(game_consensus)
     return out
 
 
@@ -1204,7 +995,7 @@ def retarget_cfb_total_openers(
         if before:
             rows = before
         weighted = [(float(row[1][1]["line"]), BOOK_WEIGHTS.get(row[0], DEFAULT_BOOK_WEIGHT)) for row in rows]
-        line = weighted_median(weighted)
+        line = odds_merge._weighted_median([(v, w) for v, w in weighted if w > 0])
         if line is None:
             continue
         refs = [row for row in rows if float(row[1][1]["line"]) == line]
@@ -1452,14 +1243,7 @@ def stage_odds(
     # provisional ids -> schedule game_id
     openers = pstate.load_openers(state_dir)
     with ctx.stage(f"{sport}.merge"):
-        merge_mod = _import("pipeline.odds.merge")
-        matched: tuple[list[GameLine], list[str]] | None = None
-        if merge_mod is None:
-            ctx.degrade("odds.merge", "pipeline.odds.merge not importable; using built-in matcher", "info")
-        else:
-            matched = _external_merge(merge_mod, sport, games, all_lines, scrapers, openers, ctx)
-        if matched is None:
-            matched = fallback_match(sport, games, all_lines, stadium_book)
+        matched = _merge_lines(sport, games, all_lines, scrapers, openers, ctx)
         lines, unresolved = matched
         if not games:
             unresolved = []  # nothing on the schedule to match against: not a resolver problem
@@ -1494,14 +1278,7 @@ def stage_odds(
 
     # consensus / fair
     with ctx.stage(f"{sport}.fair"):
-        fair_mod = _import("pipeline.model.fair")
-        consensus: dict[tuple[str, str], ConsensusLine] | None = None
-        if fair_mod is None:
-            ctx.degrade("model.fair", "pipeline.model.fair not importable; using built-in consensus", "info")
-        else:
-            consensus = _external_consensus(fair_mod, sport, board_lines, ctx)
-        if consensus is None:
-            consensus = consensus_lines(sport, board_lines, now=ctx.now_utc)
+        consensus = _build_consensus(sport, board_lines, ctx)
 
     # state: first-seen openers except CFB totals, which use the T-6-day snapshot;
     # archive_last remains the most recently seen value per key
@@ -1832,8 +1609,7 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
     res.odds.by_game = {}
     for line in res.odds.lines:
         res.odds.by_game.setdefault(line.game_id, []).append(line)
-    fair_mod = _import("pipeline.model.fair")
-    res.odds.consensus = _external_consensus(fair_mod, res.sport, res.odds.lines, ctx) or consensus_lines(res.sport, res.odds.lines, now=now)
+    res.odds.consensus = _build_consensus(res.sport, res.odds.lines, ctx)
     for book, count in Counter(line.book for line in removed).items():
         counts = ctx.counts.get(book, {})
         if res.sport in counts:
@@ -1877,11 +1653,10 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
                    impact: Any, fc: WeatherForecast | None, stadium: Stadium | None,
                    model_version: str = "v1") -> Any | None:
     """``impact`` is an ImpactV1 or ImpactV2; edges are stamped with ``model_version``."""
-    fn = getattr(fair_mod, "evaluate_game", None) if fair_mod is not None else None
-    if not callable(fn) or not lines or impact is None:
+    if not lines or impact is None:
         return None
     try:
-        return fn(
+        return fair_mod.evaluate_game(
             sport, game.game_id, list(lines), impact.gs_fg_pct, impact.away_fg_pct,
             rain_c=impact.rain_c,
             wind_vol_fc=fc.wind_vol_fc if fc else None,
@@ -1908,9 +1683,8 @@ def _compute_v2(ctx: RunContext, sport: str, game: Game, rg: Any, fc: WeatherFor
     )
     weather = fc if weather_exposed(roof_type, roof_state) else None
     try:
-        fair_mod = _import("pipeline.model.fair")
         conf = None
-        if fair_mod is not None and fc is not None:
+        if fc is not None:
             conf = fair_mod.confidence(fc.wind_vol_fc, fc.model_disagreement, fc.lead_hours,
                                        st.wind_vol_static if st else None)
         return compute_impact_v2(
@@ -2076,7 +1850,6 @@ def run_sport(
     fairs_v2: dict[str, Any] = {}
     teams: dict[str, Team] = {}
     home_stadiums: dict[str, Stadium] = {}
-    fair_mod = _import("pipeline.model.fair") if books else None
     alert_model = model_config.alert_model()
     with ctx.stage(f"{sport}.impact"):
         for g in games:
