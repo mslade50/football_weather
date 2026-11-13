@@ -57,7 +57,6 @@
 const DATA = { meta: {}, games: { nfl: [], cfb: [] }, history: null };
 let QUOTES = null, RAW_META = {}, RAW_GAMES = {nfl: [], cfb: []};
 let RESIDENT = null;
-let QUOTE_HEALTH = "";
 const LOAD_ERRORS = {};
 let OFFER_EXPIRY_TIMER;
 const STATE = {
@@ -246,8 +245,8 @@ function render() {
     notice.textContent = "";
   }
   if (QUOTES) {
-    DATA.meta = QUOTES.expireQuoteMeta(RAW_META);
-    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
+    DATA.meta = RAW_META;
+    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport];
     renderHeader(DATA.meta); renderBanners(DATA.meta); renderStatusbar(DATA.meta);
   }
   if (STATE.view === "execution" && !IS_ADMIN) STATE.view = "table";
@@ -490,7 +489,7 @@ function startMetaPoll() {
       const m = await fetchJson("data/meta.json?t=" + Date.now());
       if (RESIDENT && m?.run_id === RAW_META.run_id) {
         RAW_META.resident = m.resident;
-        for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), m.resident));
+        for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(g, m.resident));
         render();
         if (STATE.game && !document.getElementById('drawer').hidden) refreshDrawerQuotes();
       }
@@ -533,7 +532,7 @@ async function boot() {
   }
   RAW_META = DATA.meta;
   RAW_GAMES = {nfl: DATA.games.nfl, cfb: DATA.games.cfb};
-  for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(QUOTES.expireCardQuotes(g), meta.resident));
+  for (const sport of ['nfl', 'cfb']) RAW_GAMES[sport] = RAW_GAMES[sport].map(g => RESIDENT.mergeResidentCard(g, meta.resident));
   // No sport in the URL and the default sport has no games on the board (NFL before its
   // 10-day window opens, CFB in January): open on the sport that does.
   // A failed load is not "no games": never switch sport away from it (the table shows the error).
@@ -551,12 +550,9 @@ async function boot() {
   populateWeeks();
   populateBooks();
   setInterval(() => {
-    const health = JSON.stringify([QUOTES.expireQuoteMeta(RAW_META).quote_expiries,
-      QUOTES.refreshOverdue(RAW_META), ...Object.values(RAW_GAMES).flat().map(c => QUOTES.expireCardQuotes(c).expired_markets)]);
-    QUOTE_HEALTH = health;
-    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport].map(c => QUOTES.expireCardQuotes(c));
+    for (const sport of ["nfl", "cfb"]) DATA.games[sport] = RAW_GAMES[sport];
     if (STATE.view !== "execution") render();
-    else { DATA.meta = QUOTES.expireQuoteMeta(RAW_META); renderBanners(DATA.meta); renderStatusbar(DATA.meta); }
+    else { DATA.meta = RAW_META; renderBanners(DATA.meta); renderStatusbar(DATA.meta); }
     if (STATE.game && !document.getElementById("drawer").hidden) refreshDrawerQuotes();
   }, 15000);
 

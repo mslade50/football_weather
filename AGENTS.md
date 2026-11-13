@@ -23,3 +23,10 @@ and explicitly confirmed-bet CLEAR notices. `pipeline/alerts.py` retains formatt
 delivery receipts/feed, book-health paging and the postmortem CLI/email fallback.
 Telegram delivery defaults off behind `FOOTBALL_TELEGRAM_ENABLED`. Legacy stored
 queue keys remain loadable but are never replayed. See `docs/ARCHITECTURE.md` §10.
+
+## Pricing snapshots
+
+Python selects usable quotes once at pricing. Published cards preserve original quote clocks
+and `fair.priced_at`; serialization, upload, Worker reads and browser rendering do not
+expire or reprice them. Browser ages and the 150-minute stale style are presentational.
+Execution, resident, exchange refresh and alert freshness gates remain independent.

@@ -1,7 +1,6 @@
 // Direct, request-correlated public quotes. No publication, dispatch or orders.
 import { alertLiquidity } from './alert-liquidity.js';
 import { DEPTH_ADAPTERS } from './execution-preview.js';
-import { expireCardQuotes } from '../web/current-quotes.mjs';
 import { pinPublication } from './publication.js';
 
 export async function exchangeRefresh(env, { sport, request_id, requested_at }, fetchImpl = fetch,
@@ -25,7 +24,7 @@ export async function exchangeRefresh(env, { sport, request_id, requested_at }, 
     const games = Array.isArray(payload) ? payload : payload?.games;
     if (!meta?.run_id || !Array.isArray(games) || games.some(g => !g || g.run_id !== meta.run_id))
       throw new Error('Published board generation mismatch');
-    const output = games.map(g => expireCardQuotes(g, started));
+    const output = structuredClone(games);
     let cursor = 0, freshCount = 0, checked = 0;
     const boundedFetch = (url, options) => fetchImpl(url, { ...options,
       signal: AbortSignal.any([controller.signal, options.signal]) });

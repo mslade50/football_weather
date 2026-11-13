@@ -294,7 +294,7 @@ def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> li
             if gl.expires_at is not None and (gl.expires_at.tzinfo is None or now > gl.expires_at):
                 continue
             if gl.scraped_at is not None and (gl.scraped_at.tzinfo is None
-                    or not timedelta(0) <= now - gl.scraped_at <= timedelta(hours=1)):
+                    or now - gl.scraped_at > timedelta(hours=1)):
                 continue
         kept.append(gl)
     return kept

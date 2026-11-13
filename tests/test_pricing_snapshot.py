@@ -40,6 +40,10 @@ def test_only_usable_quotes_price_consensus_fair_and_edges(clocks):
     assert build._build_consensus("nfl", lines, RunContext("nfl", git_sha="test"), now=NOW)[GID, "total"].line == 48
     fresh = fair.evaluate_game("nfl", GID, pair("betonline", 47, scraped_at=NOW - timedelta(hours=1)), 0, 0, now=NOW)
     assert fresh.total.line == 47  # The existing ceiling is inclusive.
+    # Ingest already owns its bounded future-clock tolerance; pricing adds only
+    # the age ceiling, without rejecting a source clock accepted there.
+    future = fair.consensus("nfl", pair("pinnacle", 47, scraped_at=NOW + timedelta(minutes=1)), "total", now=NOW)
+    assert future.line == 47
 
 
 def test_elapsed_time_does_not_mutate_cards_or_sealed_publication(tmp_path, monkeypatch):

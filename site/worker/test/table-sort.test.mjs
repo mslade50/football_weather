@@ -79,10 +79,10 @@ test('book health absent and present', () => {
   assert.match(html, /timeout/);
 });
 
-test('game state badge and expired-quote tooltip', () => {
+test('game state badge and missing quote', () => {
   assert.equal(run(`gameStarted({status: "final", kickoff_utc: "2026-10-12T00:00:00Z"})`), 'Final');
   assert.equal(run(`gameStarted({status: "scheduled", kickoff_utc: "2026-10-10T12:00:00Z"})`), 'Live');
   assert.equal(run(`gameStarted({status: "scheduled", kickoff_utc: "2026-10-11T12:00:00Z"})`), '');
-  assert.match(run(`blankOddsCell({expired_markets: ["novig/total"]}, "novig", "total", "No quote")`), /quote expired/);
+  assert.match(run(`blankOddsCell({}, "novig", "total", "No quote")`), /No quote/);
   assert.doesNotMatch(run(`blankOddsCell({}, "novig", "total", "No quote")`), /expired/);
 });

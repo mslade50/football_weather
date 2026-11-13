@@ -45,9 +45,7 @@ for(const sport of ['nfl','cfb']) {
   try {
     Date.now=()=>Date.parse(game.odds.pinnacle.total.expires_at)+1;
     const later=await (await handleFetch(new Request(`https://fixture.invalid/data/games_${sport}.json`),env)).json();
-    assert.equal(later.games[0].odds.pinnacle.total.line,undefined);
-    assert.equal(later.games[0].odds.pinnacle.total.last_observed.status,'expired');
-    assert.equal(later.games[0].odds.pinnacle.total.last_observed.updated_at,game.odds.pinnacle.total.updated_at);
+    assert.deepEqual(later,data);
   } finally {Date.now=originalNow;}
 }
 assert.doesNotMatch(readFileSync(new URL('../../site/web/index.html',import.meta.url),'utf8'),/Verified all-in price/);

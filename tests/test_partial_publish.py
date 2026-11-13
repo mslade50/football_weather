@@ -189,6 +189,7 @@ def _projectable_game(run: str) -> dict:
         "neutral": False,
         "run_id": run,
         "weather": {"wind_fg": 12, "temp_fg": 55},
+        "fair": {"priced_at": "2026-10-17T12:57:09Z", "fair_total": 45.6},
     }
 
 
@@ -253,6 +254,7 @@ def test_plain_games_and_board_match_the_sealed_carried_copy(tmp_path: Path, mon
     assert carried["meta"]["run_id"] == FAILED_RUN
     assert carried["meta"]["last_updated"] == earlier
     assert carried["games"][0]["run_id"] == FAILED_RUN and carried["games"][0]["weather"]["wind_fg"] == 12
+    assert carried["games"][0]["fair"] == {"priced_at": earlier, "fair_total": 45.6}
     assert uploaded["board/board.json"] == uploaded[
         next(key for key in uploaded if "/generations/" in key and key.endswith("/board.json"))
     ]
