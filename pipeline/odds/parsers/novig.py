@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
-from pipeline.model.fair import prob_to_american as prob_to_american
+from pipeline.model.fair import prob_to_american as _prob_to_american
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.parsers.common import parse_utc, positive_zero, valid_lines
@@ -54,6 +54,11 @@ OPEN_EVENT_STATUSES = {"OPEN_PREGAME", "OPEN_INGAME"}
 _SIDE_TYPE = {side: label for label, side in SIDE_BY_TYPE.items()}
 _SPREAD_OUTCOME = re.compile(r"^(?P<team>.+?)\s+(?P<signed>[+-]\d+(?:\.\d+)?)$")
 _TOTAL_OUTCOME = re.compile(r"^(Over|Under)\b", re.IGNORECASE)
+
+
+def prob_to_american(price: float) -> int:
+    """Compatibility wrapper retaining the historical price keyword."""
+    return _prob_to_american(price)
 
 
 def parse_kickoff(value: object) -> datetime | None:

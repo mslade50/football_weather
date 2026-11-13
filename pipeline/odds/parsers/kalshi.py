@@ -57,7 +57,7 @@ from datetime import date, datetime
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
-from pipeline.model.fair import prob_to_american as dollar_to_american
+from pipeline.model.fair import prob_to_american
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.kalshi_fees import effective_price as rounded_effective_price
 from pipeline.odds.parsers.common import MAX_QUOTE_WIDTH, finite_number, valid_lines
@@ -81,6 +81,11 @@ _SPREAD_SUFFIX_RE = re.compile(r"^(?P<abbr>[A-Z]+?)(?P<n>\d+)$")
 
 
 # ── price helpers (copied from golf_scraping/scrapers/kalshi.py) ─────────────
+
+
+def dollar_to_american(price: float) -> int:
+    """Compatibility wrapper retaining the historical price keyword."""
+    return prob_to_american(price)
 
 
 def taker_fee(price: float) -> float:

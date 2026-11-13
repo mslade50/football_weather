@@ -9,6 +9,13 @@ once right after matching and leaves exactly one ``is_main`` pair behind.
 Only rows the parser flagged ``is_main`` are eligible: a book with no main
 contributes no main line (alternates are never promoted).  Pure and
 deterministic -- the result does not depend on input order.
+
+Book eligibility is intentionally separate from this final collapse: Kalshi
+can refuse a sparse ladder; ProphetX honours provider favourites; Polymarket
+breaks midpoint ties by contract id rather than line size. Novig's REST
+parser also calls this same function for standalone callers (main.py consumes
+is_main without merging). Its repeated application at merge is idempotent
+for an unchanged group, but removing it changes the standalone parser API.
 """
 
 from __future__ import annotations
