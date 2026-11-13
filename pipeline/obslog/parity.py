@@ -112,7 +112,8 @@ def compare(conn, state_dir, cards, as_of, *, sample_limit=20):
     conn.execute("CREATE TEMP TABLE parity_games (game_id TEXT PRIMARY KEY)")
     conn.executemany("INSERT INTO parity_games VALUES (?)", [(g,) for g in games])
     for table in ("quote_observations", "game_observations", "forecast_observations"):
-        conn.execute(f"CREATE TEMP VIEW {table} AS SELECT * FROM main.{table} "
+        # first_seen orders a capture by insertion (scrape line) order; a view has no rowid of its own.
+        conn.execute(f"CREATE TEMP VIEW {table} AS SELECT {'rowid AS rowid, ' if table == 'quote_observations' else ''}* FROM main.{table} "
                      "WHERE game_id IN (SELECT game_id FROM parity_games)")
     points = defaultdict(list)
     for row in q._rows(conn, as_of):
@@ -223,11 +224,13 @@ def compare_weather(conn, state_dir, games, as_of, report):
     for row in rows:
         by_game[row["game_id"]].append(row)
         by_source[f"{row['game_id']}|{row['source']}"].append(row)
-    fields = ("lead_hours", "wind_fg", "gust_fg", "temp_fg", "rain_fg_mm", "precip_prob")
+    # lead_hours is time-to-kickoff: a clock that moves every run, so change-only
+    # forecast storage does not key on it and neither does this comparison.
+    fields = ("wind_fg", "gust_fg", "temp_fg", "rain_fg_mm", "precip_prob")
     history = load(state_dir / "wx_history.json").get("series", {})
     for gid in sorted((set(history) | set(by_game)) & set(games)):
         observations = by_game[gid]
-        old = collapse_values([[stamp(p[0]), *p[1:7]] for p in history.get(gid, [])])
+        old = collapse_values([[stamp(p[0]), *p[2:7]] for p in history.get(gid, [])])
         value = collapse_values([[r["fetched_at"], *[json.loads(r["payload"]).get(f) for f in fields]] for r in observations])[-120:]
         is_late = bool(old and (not observations or instant(old[0][0]) < instant(observations[0]["fetched_at"])))
         clock_only = (bool(old) and len(old) == len(value) and [p[1:] for p in old] == [p[1:] for p in value]
@@ -242,7 +245,7 @@ def compare_weather(conn, state_dir, games, as_of, report):
         observations = by_source[key]
         payload = json.loads(observations[-1]["payload"]) if observations else None
         old = last[key][:5] if key in last else None
-        value = [payload.get(f) for f in fields[1:]] if payload else None
+        value = [payload.get(f) for f in fields] if payload else None
         report.add("wx_last", key, old, value, rows=observations, late=bool(old is not None and not observations))
 
 
@@ -277,7 +280,7 @@ def main(argv=None):
         utc(as_of)
         with closing(sqlite3.connect(Path(args.log).resolve().as_uri() + "?mode=ro", uri=True)) as conn:
             conn.row_factory = sqlite3.Row
-            if [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([1], [2]):
+            if [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([3],):
                 raise ValueError("unsupported observation-log schema")
             data = compare(conn, args.state_dir, cards, as_of, sample_limit=max(0, args.samples))
     except (Exception, SystemExit) as exc:

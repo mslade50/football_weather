@@ -12,6 +12,8 @@ from pathlib import Path
 from .store import UnsupportedSchema, connect, instant, utc
 
 KEEP_DAYS = 2
+# Coverage rows are tiny (about 50 per run) and confirm unchanged quotes of live games.
+COVERAGE_KEEP_DAYS = 21
 MAX_MIB = 192
 
 
@@ -47,13 +49,15 @@ def recover_connect(path, warn=None, *, check=False):
         if check and conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise sqlite3.DatabaseError("integrity check failed")
         return conn
-    except (sqlite3.DatabaseError, UnsupportedSchema):
+    except (sqlite3.DatabaseError, UnsupportedSchema) as exc:
+        unsupported = isinstance(exc, UnsupportedSchema)
         # A corrupt file and a newer/unknown schema are both unusable here; the
         # cache is disposable, so keep the bytes beside it and start empty.
         if conn is not None:
             conn.close()
         quarantine(path)
-        message = "corrupt cache moved aside; starting an empty log"
+        message = ("corrupt cache moved aside; starting an empty log" if not unsupported
+                   else "old-format cache moved aside; starting an empty log")
         if warn is None:
             recovery_notice(path, message)
         else:
@@ -78,10 +82,17 @@ def maintain(path, *, keep_days=KEEP_DAYS, as_of=None, max_mib=MAX_MIB, prepare=
         with conn:
             for table, clock in (("quote_observations", "recorded_at"), ("forecast_observations", "fetched_at"),
                                  ("game_observations", "observed_at")):
+                # Change-only storage: an unchanged game keeps one old fact row, so it
+                # goes only once nothing else of that game remains.
                 counts[table] = conn.execute(
                     f"DELETE FROM {table} WHERE game_id IN (SELECT game_id FROM retired) AND {clock}<?"
-                    + (" AND observed_at<?" if table == "quote_observations" else ""),
+                    + (" AND observed_at<?" if table == "quote_observations" else "")
+                    + (" AND NOT EXISTS (SELECT 1 FROM quote_observations x WHERE x.game_id=game_observations.game_id)"
+                       " AND NOT EXISTS (SELECT 1 FROM forecast_observations x WHERE x.game_id=game_observations.game_id)"
+                       if table == "game_observations" else ""),
                     (cutoff, cutoff) if table == "quote_observations" else (cutoff,)).rowcount
+            counts["coverage"] = conn.execute("DELETE FROM coverage WHERE recorded_at<?",
+                                              (utc(now - timedelta(days=max(keep_days, COVERAGE_KEEP_DAYS))),)).rowcount
             counts["runs"] = conn.execute(
                 "DELETE FROM runs WHERE finished_at<? AND run_id NOT IN ("
                 "SELECT run_id FROM quote_observations UNION SELECT run_id FROM forecast_observations "

@@ -279,25 +279,32 @@ def test_incomplete_or_other_sport_coverage_cannot_withdraw(tmp_path, changes):
         assert q.latest(conn, as_of=datetime.now(timezone.utc))[key(line(g))].kind == "quote"
 
 
-def test_cache_cold_corrupt_recovery_and_v1_upgrade(tmp_path):
+def test_cache_cold_corrupt_recovery_and_old_format_quarantine(tmp_path):
     path = tmp_path / "nested" / "cache.sqlite"
     warnings = []
     with closing(maintain.recover_connect(path, warnings.append, check=True)) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 2
+        assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 3
         append_games(conn, [game()], run_id="kept", observed_at=T)
-        conn.execute("UPDATE schema_version SET version=1")
-        conn.execute("DROP INDEX quote_clock")
-        conn.commit()
     with closing(connect(path)) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 2
-        assert conn.execute("SELECT name FROM sqlite_master WHERE name='quote_clock'").fetchone()
         assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 1
     assert not warnings
+    # A v1/v2 (one row per run) file is never read as v3: quarantined, empty log started.
+    for old in (1, 2):
+        with closing(sqlite3.connect(path)) as raw:
+            raw.execute("UPDATE schema_version SET version=?", (old,))
+            raw.commit()
+        with pytest.raises(ValueError, match="schema"):
+            connect(path)
+        with closing(maintain.recover_connect(path, warnings.append, check=True)) as conn:
+            assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 3
+            assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 0
+            append_games(conn, [game()], run_id="again", observed_at=T)
+        assert "old-format cache" in warnings[-1]
     path.write_bytes(b"not sqlite")
     with closing(maintain.recover_connect(path, warnings.append, check=True)) as conn:
         assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 0
-    assert "corrupt cache" in warnings[0]
-    assert next(path.parent.glob("*.corrupt-*.sqlite")).read_bytes() == b"not sqlite"
+    assert "corrupt cache" in warnings[-1]
+    assert any(p.read_bytes() == b"not sqlite" for p in path.parent.glob("*.corrupt-*.sqlite"))
 
 
 def test_prepare_corruption_is_run_log_only_never_a_degradation(tmp_path, capsys):
@@ -395,4 +402,4 @@ def test_unknown_schema_version_is_quarantined_like_corruption(tmp_path):
     assert maintain.main(["--path", str(path), "--prepare"]) == 0
     assert len(list(path.parent.glob("*.corrupt-*.sqlite"))) == 1
     with closing(connect(path)) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchall()[0][0] == 2
+        assert conn.execute("SELECT version FROM schema_version").fetchall()[0][0] == 3

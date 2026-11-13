@@ -2,8 +2,16 @@
 
 IDs are SHA256 of canonical, complete row content (excluding the ID itself).
 An identical append is a no-op; a corrected payload at the same clock is a new
-fact. Different runs/receipt clocks retain unchanged observations. Provider
-timestamps never replace our observation or knowledge clocks.
+fact. Provider timestamps never replace our observation or knowledge clocks.
+
+Schema v3 is change-only. A quote, forecast or game row is appended only when
+its value differs from the latest logged one for that key. A (book, sport)
+scrape that succeeded in full also writes small per-market ``coverage`` rows;
+"this quote was still live and unchanged at T" is the last change row plus a
+later coverage row with no logged row for the key in between (withdrawals are
+rows). Unsuccessful or partial scrapes write no coverage and append every
+present line, exactly as before, so they neither confirm nor withdraw anything
+they did not literally observe.
 """
 
 from __future__ import annotations
@@ -16,6 +24,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pipeline.contracts import Game, GameLine, WeatherForecast
+
+SCHEMA_VERSION = 3
+MARKETS = ("ml", "spread", "total")
+# Clocks, not values: they change on every scrape without the quote changing.
+QUOTE_CLOCKS = ("scraped_at", "run_id", "source_updated_at")
+# lead_hours is time-to-kickoff; the other two are provider fetch clocks.
+FORECAST_CLOCKS = ("lead_hours", "point_source_updated_at", "ensemble_fetched_at")
 
 
 class UnsupportedSchema(ValueError):
@@ -75,11 +90,11 @@ def connect(path: str | Path = ":memory:") -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     try:
         existing = conn.execute("SELECT name FROM sqlite_master WHERE name='schema_version'").fetchone()
-        if existing and [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([1], [2]):
+        if existing and [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([SCHEMA_VERSION],):
             raise UnsupportedSchema("unsupported observation-log schema version")
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         conn.executescript("BEGIN IMMEDIATE;\n" + schema + "\nDELETE FROM schema_version;\n"
-                           "INSERT INTO schema_version VALUES (2);\nCOMMIT;")
+                           f"INSERT INTO schema_version VALUES ({SCHEMA_VERSION});\nCOMMIT;")
     except Exception:
         conn.close()
         raise
@@ -97,11 +112,13 @@ def insert(conn, table, row):
 
 def _games(conn, games, run_id, now):
     for game in games:
-        insert(conn, "game_observations", dict(
-            game_id=game.game_id, observed_at=utc(now), run_id=run_id,
-            kickoff=utc(game.kickoff_utc), sport=game.sport, season=game.season,
-            week=game.week, payload=encode(asdict(game)),
-        ))
+        row = dict(game_id=game.game_id, observed_at=utc(now), run_id=run_id,
+                   kickoff=utc(game.kickoff_utc), sport=game.sport, season=game.season,
+                   week=game.week, payload=encode(asdict(game)))
+        head = conn.execute("SELECT kickoff, sport, season, week, payload FROM game_observations WHERE game_id=? "
+                            "AND observed_at<=? ORDER BY observed_at DESC, id DESC LIMIT 1", (game.game_id, row["observed_at"])).fetchone()
+        if head is None or tuple(head) != (row["kickoff"], row["sport"], row["season"], row["week"], row["payload"]):
+            insert(conn, "game_observations", row)
 
 
 def append_games(conn: sqlite3.Connection, games: list[Game], *, run_id: str, observed_at: datetime):
@@ -120,7 +137,7 @@ def key_of(row) -> QuoteKey:
     return QuoteKey(row["game_id"], row["book"], row["market"], row["side"])
 
 
-def _quote(conn, line, run_id, now, capture_id):
+def _quote_row(line, run_id, now, capture_id):
     payload = asdict(line)
     row = {name: payload[name] for name in (
         "game_id", "sport", "book", "market", "side", "line", "odds", "prob_raw", "is_main",
@@ -131,30 +148,100 @@ def _quote(conn, line, run_id, now, capture_id):
     )})
     row.update(capture_id=capture_id, run_id=run_id, observed_at=utc(line.scraped_at or now), quote_at=utc(line.scraped_at or now),
                recorded_at=utc(now), kind="quote", payload=encode(payload))
-    insert(conn, "quote_observations", row)
+    return row
 
 
-def _withdrawals(conn, lines, successful, run_id, now, capture_id):
+def _content(payload: str, clocks) -> dict:
+    return {k: v for k, v in json.loads(payload).items() if k not in clocks}
+
+
+def _heads(conn, book, sport, stamp):
+    """Newest logged main row per (game, market, side) of one book/sport, via the quote_head index."""
+    rows = conn.execute(
+        "SELECT * FROM quote_observations WHERE rowid IN (SELECT rid FROM (SELECT rowid AS rid, "
+        "row_number() OVER (PARTITION BY game_id, market, side ORDER BY recorded_at DESC, rowid DESC) AS n "
+        "FROM quote_observations WHERE book=? AND sport=? AND is_main=1 AND recorded_at<=?) WHERE n=1)",
+        (book, sport, stamp)).fetchall()
+    return {(r["game_id"], r["market"], r["side"]): r for r in rows}
+
+
+def _alt_head(conn, row, stamp):
+    return conn.execute(
+        "SELECT * FROM quote_observations WHERE game_id=? AND book=? AND market=? AND side=? AND is_main=0 "
+        "AND line IS ? AND recorded_at<=? ORDER BY recorded_at DESC, rowid DESC LIMIT 1",
+        (row["game_id"], row["book"], row["market"], row["side"], row["line"], stamp)).fetchone()
+
+
+def _ttl(row):
+    """Expiry as an offset from the observation clock: rolling-expiry quotes (BetCris) keep it fixed."""
+    at = instant(row["observed_at"])
+    return tuple((instant(row[f]) - at) if row[f] else None for f in ("expires_at", "actionable_until"))
+
+
+def _changed(head, row):
+    """A quote changed when its value or expiry offset did; scrape clocks alone are not a change.
+
+    Queries shift a confirmed quote's expires_at/actionable_until by the same
+    amount as its confirmation clock, so equal offsets mean equal meaning.
+    """
+    if head is None or head["kind"] != "quote":
+        return True
+    clocks = QUOTE_CLOCKS + ("expires_at", "actionable_until")
+    return _content(head["payload"], clocks) != _content(row["payload"], clocks) or _ttl(head) != _ttl(row)
+
+
+def _withdrawals(conn, seen, heads, run_id, now, capture_id):
     """Withdraw main quotes missing from a successful (book, sport) scrape.
 
-    Reads only the newest main row per key for the books/sports that actually
-    succeeded, in SQL, instead of materializing the whole log.
+    ``heads`` are the newest main rows per key for the books/sports that
+    actually succeeded, read in SQL through an index, not the whole log.
     """
-    seen = {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}
     stamp = utc(now)
-    for book, sport in sorted(successful):
-        rows = conn.execute(
-            "SELECT * FROM (SELECT *, row_number() OVER (PARTITION BY game_id, book, market, side "
-            "ORDER BY observed_at DESC, recorded_at DESC, id DESC) AS n FROM quote_observations "
-            "WHERE is_main=1 AND book=? AND sport=? AND observed_at<=? AND recorded_at<=?) "
-            "WHERE n=1 AND kind='quote'", (book, sport, stamp, stamp)).fetchall()
-        for previous in rows:
-            if key_of(previous) in seen:
+    for _group, group in sorted(heads.items()):
+        for previous in group.values():
+            if previous["kind"] != "quote" or key_of(previous) in seen:
                 continue
             row = dict(previous)
-            row.pop("id"), row.pop("n")
+            row.pop("id")
             row.update(capture_id=capture_id, run_id=run_id, observed_at=stamp, recorded_at=stamp, kind="withdrawn")
             insert(conn, "quote_observations", row)
+
+
+def _coverage(conn, lines, successful, run_id, now, capture_id):
+    """One small row per (book, sport, market): when this full scrape observed it."""
+    for book, sport in sorted(successful):
+        group = [ln for ln in lines if ln.book == book and ln.sport == sport]
+        every = min((ln.scraped_at or now for ln in group), default=now)
+        for market in MARKETS:
+            clock = min((ln.scraped_at or now for ln in group if ln.market == market), default=every)
+            insert(conn, "coverage", dict(capture_id=capture_id, run_id=run_id, book=book, sport=sport,
+                                          market=market, observed_at=utc(clock), recorded_at=utc(now)))
+
+
+def _append_lines(conn, lines, successful, run_id, now, capture):
+    stamp = utc(now)
+    heads = {group: _heads(conn, *group, stamp) for group in successful}
+    alts = {}
+    for line in lines:
+        row = _quote_row(line, run_id, now, capture)
+        group = (line.book, line.sport)
+        if group not in successful:
+            insert(conn, "quote_observations", row)  # unsuccessful scrape: log what was seen, as always
+            continue
+        if line.is_main:
+            slot = heads[group]
+            k = (line.game_id, line.market, line.side)
+            if _changed(slot.get(k), row):
+                insert(conn, "quote_observations", row)
+                slot[k] = dict(row)
+        else:
+            k = (line.game_id, line.book, line.market, line.side, line.line)
+            if k not in alts:
+                alts[k] = _alt_head(conn, row, stamp)
+            if _changed(alts[k], row):
+                insert(conn, "quote_observations", row)
+                alts[k] = dict(row)
+    return heads
 
 
 def append_odds(conn: sqlite3.Connection, lines: list[GameLine], *, run_id: str, observed_at: datetime,
@@ -165,21 +252,28 @@ def append_odds(conn: sqlite3.Connection, lines: list[GameLine], *, run_id: str,
     capture_id groups the batch, including alternate lines; pairs require a
     common capture AND canonical number. successful is explicit, never inferred
     from absence of lines. Unsuccessful/unscraped pairs cannot withdraw anything.
+    Lines of a successful (book, sport) are appended only when they differ from
+    the latest logged value; the run's coverage rows confirm the rest.
     """
     capture = identity((run_id, utc(observed_at), "odds"))
+    successful = set(successful)
     with conn:
         _run(conn, run_id, "odds", observed_at, started_at, attempted | successful, successful, {g.sport for g in games} | {ln.sport for ln in lines})
         _games(conn, games, run_id, observed_at)
-        for line in lines:
-            _quote(conn, line, run_id, observed_at, capture)
-        _withdrawals(conn, lines, successful, run_id, observed_at, capture)
+        heads = _append_lines(conn, lines, successful, run_id, observed_at, capture)
+        _coverage(conn, lines, successful, run_id, observed_at, capture)
+        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}, heads, run_id, observed_at, capture)
 
 
 def record_withdrawals(conn, lines, successful, *, run_id: str, observed_at: datetime):
     """Standalone successful-coverage receipt; prefer append_odds for atomicity."""
+    capture = identity((run_id, utc(observed_at), "coverage"))
+    successful = set(successful)
     with conn:
         _run(conn, run_id, "coverage", observed_at, None, successful, successful)
-        _withdrawals(conn, lines, successful, run_id, observed_at, identity((run_id, utc(observed_at), "coverage")))
+        heads = {group: _heads(conn, *group, utc(observed_at)) for group in successful}
+        _coverage(conn, lines, successful, run_id, observed_at, capture)
+        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}, heads, run_id, observed_at, capture)
 
 
 def append_forecasts(conn: sqlite3.Connection, forecasts: list[WeatherForecast], *, run_id: str,
@@ -196,9 +290,14 @@ def append_forecasts(conn: sqlite3.Connection, forecasts: list[WeatherForecast],
             if fc.retained:
                 continue  # An old observation must not acquire a new receipt/run.
             hours = [p.t for p in fc.hourly]
-            insert(conn, "forecast_observations", dict(
+            row = dict(
                 game_id=fc.game_id, source=fc.source, model="merged", run_id=run_id,
                 fetched_at=utc(fetched_at), run_time=utc(fc.run_time) if fc.run_time else None,
                 lead_hours=fc.lead_hours, valid_start=utc(min(hours)) if hours else None,
                 valid_end=utc(max(hours)) if hours else None, payload=encode(asdict(fc)),
-            ))
+            )
+            head = conn.execute("SELECT payload FROM forecast_observations WHERE game_id=? AND source=? AND model=? "
+                                "AND fetched_at<=? ORDER BY fetched_at DESC, id DESC LIMIT 1",
+                                (fc.game_id, fc.source, "merged", row["fetched_at"])).fetchone()
+            if head is None or _content(head["payload"], FORECAST_CLOCKS) != _content(row["payload"], FORECAST_CLOCKS):
+                insert(conn, "forecast_observations", row)

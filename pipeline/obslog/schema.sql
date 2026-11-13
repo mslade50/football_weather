@@ -37,3 +37,13 @@ CREATE INDEX IF NOT EXISTS quote_clock ON quote_observations(observed_at, record
 CREATE INDEX IF NOT EXISTS forecast_clock ON forecast_observations(fetched_at, id);
 CREATE INDEX IF NOT EXISTS game_clock ON game_observations(observed_at, id);
 CREATE INDEX IF NOT EXISTS run_clock ON runs(finished_at);
+-- v3: change-only storage. A quote/forecast/game row is written only when its
+-- value differs from the latest logged one; coverage rows say which scrapes
+-- succeeded in full, so "still live and unchanged at T" is derived, not stored.
+CREATE TABLE IF NOT EXISTS coverage (
+    id TEXT PRIMARY KEY, capture_id TEXT NOT NULL, run_id TEXT NOT NULL,
+    book TEXT NOT NULL, sport TEXT NOT NULL, market TEXT NOT NULL,
+    observed_at TEXT NOT NULL, recorded_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS coverage_scope ON coverage(book, sport, market, recorded_at);
+CREATE INDEX IF NOT EXISTS quote_head ON quote_observations(book, sport, is_main, game_id, market, side, recorded_at);
