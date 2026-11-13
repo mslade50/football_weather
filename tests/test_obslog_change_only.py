@@ -168,28 +168,6 @@ def _legacy_vs_log(runs, g):
     return op, base
 
 
-def test_baseline_matches_store_when_a_mate_is_an_alternate_line():
-    """Thin Novig spreads: the store sees both sides (the mate as an alternate line)
-    at different numbers, records nothing, and the log must not anchor the lone main side."""
-    g = game("cfb")
-    novig = lambda side, n, **kw: line(g, "novig", "spread", side, n, odds=-144, **kw)  # noqa: E731
-    runs = [
-        [novig("home", -4.5), novig("away", 2.5, is_main=False)],
-        [novig("home", -4.5), novig("away", 2.5, is_main=False)],
-        [novig("home", -2.5), novig("away", 2.5, is_main=False)],
-        [novig("home", -6.5)],
-    ]
-    for ordering in (runs, [list(reversed(r)) for r in runs]):
-        op, base = _legacy_vs_log(ordering, g)
-        for side in ("home", "away"):
-            k = QuoteKey(g.game_id, "novig", "spread", side)
-            expected = legacy.get_baseline(op, legacy.odds_key(g.game_id, "spread", side, "novig"))
-            found = base.get(k)
-            assert (found is None) == (expected is None), (ordering is runs, side, expected, found)
-            if found:
-                assert found.observation.value == (expected["line"], expected["odds"])
-
-
 def test_baseline_takes_first_line_per_side_like_the_store():
     g = game("cfb")
     novig = lambda side, n, **kw: line(g, "novig", "spread", side, n, odds=-144, **kw)  # noqa: E731

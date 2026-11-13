@@ -156,13 +156,14 @@ baseline; (5) `change_points=True`: unchanged 45 at 00:00 and 01:00, kickoff
 02:00, legacy closing clock is 00:00; (6) `max_age`/`honor_expiry`: 45 at 00:00
 expires 00:50, usable at expiry and at exactly one hour only if not expired.
 
-`anchored_first_seen` follows `state._record_pair_openers` exactly: per capture the
-first line of each side counts **including alternate lines** (the store sees
-every scraped line, not only the selected main ones), a mismatched pair records
-nothing, and a lone side anchors. Production parity showed two thin Novig spreads
-with no stored opener where the log had anchored the lone main side: the mate
-was a different-number alternate, so the store saw a mismatched pair every run.
-The log now agrees (`test_baseline_matches_store_when_a_mate_is_an_alternate_line`).
+`anchored_first_seen` follows `state._record_pair_openers`: per capture the first
+main line of each side counts (build.py passes the store main lines only), a
+mismatched pair records nothing, a lone side anchors, and with one side known the
+other joins only at that number. Production parity showed two thin Novig spreads
+with no stored opener where the log had anchored a lone side. Cause: the store had
+anchored the mate side the day before the log started, and the missing side never
+returned to that number, so the store correctly withholds it. The log cannot know
+an anchor that predates it, so parity classifies this as `log_started_late`.
 
 Four legacy accidents (type i) are asserted as differences with minimal cases:
 (1) successful quote, failed scrape ten minutes later: legacy marks unavailable,

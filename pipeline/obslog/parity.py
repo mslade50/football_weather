@@ -146,8 +146,15 @@ def compare(conn, state_dir, cards, as_of, *, sample_limit=20):
         attested = found and found.basis == "true_opener" and old == value
         known = "known_i2_history_clock" if (old and value and found.basis == "t_minus_6d"
                  and old[:2] == value[:2] and instant(old[2]) >= found.observation.recorded_at) else None
+        fact_ts = store.get("ts") if store else None
+        mates = {"home": "away", "away": "home", "over": "under", "under": "over"}
+        if not store and key.market in ("spread", "total") and key.side in mates:
+            # The store adds a missing side only at its mate's recorded number. When that
+            # anchor predates the log, the log cannot know this side is being withheld.
+            mate = pstate.get_baseline(openers, legacy_key(QuoteKey(key.game_id, key.book, key.market, mates[key.side])))
+            fact_ts = mate.get("ts") if mate else None
         report.add("baseline", legacy_key(key), old, value, rows=[*points[key], found.observation] if found else points[key],
-                   late=late(key, store.get("ts") if store else None) and not attested, known=known)
+                   late=late(key, fact_ts) and not attested, known=known)
 
     archive = selected(load(state_dir / "archive_last.json").get("last", {}))
     latest = {k: v for k, v in q.latest(conn, as_of=as_of, max_age=timedelta(hours=1), honor_expiry=True).items()

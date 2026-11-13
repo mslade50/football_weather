@@ -249,11 +249,11 @@ def first_seen(conn, *, as_of: datetime, policy: str = "first_complete") -> dict
 
     anchored_first_seen: legacy product policy, identical to
     state.record_openers/_record_pair_openers. Per capture (one run) each side
-    contributes its FIRST line, main or alternate, because the store sees every
-    scraped line. Neither side known: a lone side anchors its number, a
+    contributes its FIRST main line, because build.py passes the store main
+    lines only. Neither side known: a lone side anchors its number, a
     mismatched pair records nothing. One side known: the other joins only at
     that number. Such a pair is marked same_capture=False when assembled over
-    time. first_complete considers main lines only.
+    time.
 
     Storage is change-only: within a successful-coverage capture, live unchanged
     main sides are carried into the batch with the capture's confirmation clock,
@@ -266,7 +266,7 @@ def first_seen(conn, *, as_of: datetime, policy: str = "first_complete") -> dict
     cov = Coverage(conn, as_of)
     rows = []
     for r in conn.execute("SELECT rowid AS _rid, * FROM quote_observations WHERE observed_at<=? AND recorded_at<=? "
-                          + ("" if anchored else "AND is_main=1 ") + "ORDER BY recorded_at, rowid", (stamp, stamp)):
+                          + "AND is_main=1 ORDER BY recorded_at, rowid", (stamp, stamp)):
         data = dict(r)
         data.pop("_rid")
         data.pop("rowid", None)
