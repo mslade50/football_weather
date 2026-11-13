@@ -63,6 +63,7 @@ from typing import Any, Optional
 from pipeline.model import config as C
 from pipeline.model import impact as I  # noqa: N812
 from utils.env import load_repo_dotenv
+from utils.numbers import finite_number as _num
 
 SCHEMA_VERSION = 1
 MIN_WEEKS = 4
@@ -144,24 +145,6 @@ class Row:
         return self.spread_open is not None and self.spread_close is not None and self.spread_open != 0.0
 
 
-def _num(v: Any) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return None
-    if isinstance(v, (int, float)):
-        return float(v) if math.isfinite(float(v)) else None
-    if isinstance(v, str):
-        try:
-            f = float(v)
-        except ValueError:
-            return None
-        return f if math.isfinite(f) else None
-    try:  # numpy scalars
-        f = float(v)
-    except (TypeError, ValueError):
-        return None
-    return f if math.isfinite(f) else None
-
-
 def _int(v: Any) -> Optional[int]:
     f = _num(v)
     return int(f) if f is not None else None
@@ -204,7 +187,8 @@ def _month(v: Any) -> Optional[int]:
     return _int(v) if _int(v) is not None and 1 <= (_int(v) or 0) <= 12 else None
 
 
-def _parse_dt(v: Any) -> Optional[datetime]:
+def _offset_preserving_dt(v: Any) -> Optional[datetime]:
+    """Preserve source offsets for run-month selection; stringify sheet scalars."""
     if isinstance(v, datetime):
         return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
     s = _str(v)
@@ -236,7 +220,7 @@ def _run_month(d: dict[str, Any]) -> Optional[int]:
         m = _month(src.split(":", 1)[1])
         if m is not None:
             return m
-    kick = _parse_dt(_get(d, "kickoff_utc", "kickoff"))
+    kick = _offset_preserving_dt(_get(d, "kickoff_utc", "kickoff"))
     lead = _num(_get(d, "lead_fc", "lead_hours", "weather.lead_hours"))
     if kick is not None and lead is not None and lead >= 0:
         return (kick - timedelta(hours=lead)).month

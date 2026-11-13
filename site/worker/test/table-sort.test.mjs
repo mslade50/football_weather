@@ -12,7 +12,7 @@ function load() {
     localStorage: {getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }},
     location: {hash: ''}, history: {replaceState() {}}});
   for (const file of ['discovery.js', 'app.js', 'signals.js', 'table.js', 'status.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   return ctx;
 }
 const ctx = load();
@@ -80,6 +80,9 @@ test('book health absent and present', () => {
 });
 
 test('game state badge and missing quote', () => {
+  assert.equal(run(`gameStarted({status: "scheduled", status_code: "final", kickoff_utc: "2026-10-12T00:00:00Z"})`), 'Final');
+  for (const status_code of ['cancelled', 'postponed', 'suspended', 'tbd', 'unknown'])
+    assert.equal(run(`gameStarted({status_code: "${status_code}", kickoff_utc: "2026-10-10T12:00:00Z"})`), '');
   assert.equal(run(`gameStarted({status: "final", kickoff_utc: "2026-10-12T00:00:00Z"})`), 'Final');
   assert.equal(run(`gameStarted({status: "scheduled", kickoff_utc: "2026-10-10T12:00:00Z"})`), 'Live');
   assert.equal(run(`gameStarted({status: "scheduled", kickoff_utc: "2026-10-11T12:00:00Z"})`), '');

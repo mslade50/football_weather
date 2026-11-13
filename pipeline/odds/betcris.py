@@ -44,6 +44,8 @@ class BetcrisScraper(BaseScraper):
     def _initialize(self) -> None:
         self.last_games: list[BetcrisGame] = []
         self.fetch_errors: dict[str, str] = {}
+        self.upstream_stale = False
+        self.stale_age_seconds: float | None = None
 
     async def _get_with_retry(self, client: httpx.AsyncClient, slug: str, path: str) -> str | None:
         """Retry transient transport failures for the public league JSON."""
@@ -97,6 +99,8 @@ class BetcrisScraper(BaseScraper):
     def _upstream_stale(self, raw: str, exc: BaseException) -> str:
         """Health marker. A stale public file is a warning, not a scrape failure."""
         info = self._feed_age(raw)
+        self.upstream_stale = True
+        self.stale_age_seconds = info[1] if info is not None else None
         if info is None:
             return f"upstream stale: {exc}"
         return f"upstream stale, age {info[1]:.0f}s: {exc}"
@@ -113,6 +117,8 @@ class BetcrisScraper(BaseScraper):
             logger.info(f"[{self.BOOK_NAME}] disabled via BOOK_BETCRIS_ENABLED")
             return []
         self.fetch_errors.clear()
+        self.upstream_stale = False
+        self.stale_age_seconds = None
         self.last_games = []
         slug = "nfl" if sport == "nfl" else "college-football"
         url = PUBLIC_URL.format(league=parser.PUBLIC_LEAGUES[sport])

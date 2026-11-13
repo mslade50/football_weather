@@ -427,7 +427,9 @@ def test_shadow_failure_and_success_coverage(tmp_path, monkeypatch):
     ctx = SimpleNamespace(run_id="shadow", now_utc=T, degradations=degradations,
                           degrade=lambda component, reason, severity: degradations.append(SimpleNamespace(component=component, reason=reason, severity=severity)))
     path = str(tmp_path / "shadow.sqlite")
-    shadow.odds(path, ctx, g.sport, [g], [line(g)], ["betonline"], {"betonline": SimpleNamespace()})
+    from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult
+    result = ScrapeResult('betonline', g.sport, ScrapeOutcome.OK, 1)
+    shadow.odds(path, ctx, g.sport, [g], [line(g)], ["betonline"], {"betonline": result})
     assert not degradations
     with closing(connect(path)) as conn:
         assert len(q.latest(conn, as_of=datetime.now(timezone.utc))) == 1

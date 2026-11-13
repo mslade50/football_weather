@@ -8,7 +8,7 @@ class Clock extends Date { static now() { return now; } }
 function fixture() {
   const ctx = vm.createContext({Date: Clock, console});
   for (const file of ['discovery.js', 'app.js', 'table.js', 'drawer.js', 'backtest.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   vm.runInContext(`RAW_META = {publication_status:'manifest_verified', publication:{generation:'gen'}}; BT.loaded=true;`, ctx);
   ctx.game = {process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},game_id:'nfl:2026:6:a@h', run_id:'run', sport:'nfl', kickoff_utc:'2026-10-18T17:00:00Z', status:'scheduled',
     stadium:{stadium_id:'venue-1',name:'Fixture stadium',roof_state:'open',orient_deg:0},

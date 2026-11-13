@@ -6,7 +6,7 @@ import vm from 'node:vm';
 test('Historical table separates saved No signals, missing snapshots, and closing versus alerted results', () => {
   const ctx = vm.createContext({ Intl, Date });
   for (const name of ['app.js', 'backtest.js', 'history-table.js']) {
-    vm.runInContext(readFileSync(new URL(`../../web/${name}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${name}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   }
   ctx.payload = { games: [
     { game_id: 'nfl:2025:1:a@b', sport: 'nfl', season: 2025, week: 1, kickoff_utc: '2025-09-01T17:00:00Z',

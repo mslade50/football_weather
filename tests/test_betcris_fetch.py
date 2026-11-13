@@ -194,7 +194,7 @@ def test_book_failure_reaches_board_diagnostics(monkeypatch):
     monkeypatch.setattr(B.BetcrisScraper, "_get_with_retry", unavailable)
     monkeypatch.setattr(build, "load_scraper_class", lambda name: B.BetcrisScraper)
     issues = []
-    result, _ = asyncio.run(build.scrape_books("cfb", ["betcris"], None, "r", lambda *args: issues.append(args)))
+    result, _ = asyncio.run(build.scrape_books("cfb", ["betcris"], None, "r", lambda *args, **kw: issues.append(args)))
     assert result == {"betcris": []}
     assert any(component == "odds.betcris" and "college-football: ConnectTimeout" in reason and severity == "warn"
                for component, reason, severity in issues)

@@ -75,7 +75,8 @@ _COLS: dict[str, dict[str, str]] = {
 _NUM = ["wind_fg", "temp_fg", "rain_fg", "travel_alt", "home_temp", "away_temp", "gs_fg", "away_fg"]
 
 
-def _f(x: Any) -> Optional[float]:
+def _number_allow_bool_and_infinity(x: Any) -> Optional[float]:
+    """Legacy sheet coercion: bool/infinity allowed, NaN missing."""
     try:
         v = float(x)
     except (TypeError, ValueError):
@@ -268,16 +269,16 @@ def replay(snaps: pd.DataFrame, home_elev: Mapping[str, float] | None = None) ->
     gs, aw, tiers = [], [], []
     for r in s.to_dict("records"):
         run_et = r["run_ts"].astimezone(ET)
-        imp = compute_impact_v1(r["sport"], run_et.month, _f(r["temp_fg"]), _f(r["wind_fg"]), _f(r["rain_fg"]),
-                                _f(r["travel_alt"]), _f(r["away_temp"]), _f(r["home_temp"]),
+        imp = compute_impact_v1(r["sport"], run_et.month, _number_allow_bool_and_infinity(r["temp_fg"]), _number_allow_bool_and_infinity(r["wind_fg"]), _number_allow_bool_and_infinity(r["rain_fg"]),
+                                _number_allow_bool_and_infinity(r["travel_alt"]), _number_allow_bool_and_infinity(r["away_temp"]), _number_allow_bool_and_infinity(r["home_temp"]),
                                 home_elev_m=elev.get(r["home_id"]), era_date=run_et.date().isoformat())
         gs.append(imp.gs_fg_pct)
         aw.append(imp.away_fg_pct)
         if r["sport"] == "nfl":
-            sig = nfl_signal(_f(r["wind_fg"]), _f(r["temp_fg"]), _f(r["rain_fg"]))
+            sig = nfl_signal(_number_allow_bool_and_infinity(r["wind_fg"]), _number_allow_bool_and_infinity(r["temp_fg"]), _number_allow_bool_and_infinity(r["rain_fg"]))
         else:  # archive opener is FanDuel-only: a labelled proxy for the consensus opener
-            sig = cfb_signal(_f(r["wind_fg"]), _f(r["temp_fg"]), _f(r["rain_fg"]), _f(r["open_spread_abs"]),
-                             _f(r["travel_alt"]), _f(r["home_temp"]), _f(r["away_temp"]))
+            sig = cfb_signal(_number_allow_bool_and_infinity(r["wind_fg"]), _number_allow_bool_and_infinity(r["temp_fg"]), _number_allow_bool_and_infinity(r["rain_fg"]), _number_allow_bool_and_infinity(r["open_spread_abs"]),
+                             _number_allow_bool_and_infinity(r["travel_alt"]), _number_allow_bool_and_infinity(r["home_temp"]), _number_allow_bool_and_infinity(r["away_temp"]))
         tiers.append(sig.level)
     s["gs_fg"] = gs
     s["away_fg"] = aw
@@ -359,7 +360,7 @@ def unit_profit(result: Optional[str], odds: Optional[float]) -> Optional[float]
         return 0.0
     if result == "loss":
         return -1.0
-    o = _f(odds) or -110.0
+    o = _number_allow_bool_and_infinity(odds) or -110.0
     return o / 100.0 if o > 0 else 100.0 / -o
 
 
@@ -372,7 +373,7 @@ def attach_results(games: pd.DataFrame, sched: pd.DataFrame) -> pd.DataFrame:
     g["actual_total"] = g.home_score + g.away_score
     g["actual_margin"] = g.home_score - g.away_score
     for prefix in ("alert", "close"):
-        res = [grade_under(_f(t), _f(a)) for t, a in zip(g[f"{prefix}_total"], g.actual_total, strict=True)]
+        res = [grade_under(_number_allow_bool_and_infinity(t), _number_allow_bool_and_infinity(a)) for t, a in zip(g[f"{prefix}_total"], g.actual_total, strict=True)]
         g[f"{prefix}_result"] = res
         g[f"{prefix}_profit"] = [unit_profit(r, o) for r, o in zip(res, g[f"{prefix}_under_odds"], strict=True)]
     g["clv_pts"] = g.alert_total - g.close_total           # > 0: the total fell after the alert

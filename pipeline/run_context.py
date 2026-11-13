@@ -70,8 +70,8 @@ class RunContext:
     def now_et(self) -> datetime:
         return now_utc().astimezone(ET)
 
-    def degrade(self, component: str, reason: str, severity: str = "warn") -> Degradation:
-        d = Degradation(component=component, reason=reason, severity=severity, run_id=self.run_id, ts=now_utc())
+    def degrade(self, component: str, reason: str, severity: str = "warn", **evidence: Any) -> Degradation:
+        d = Degradation(component=component, reason=reason, severity=severity, run_id=self.run_id, ts=now_utc(), **evidence)
         self.degradations.append(d)
         return d
 

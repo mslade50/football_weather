@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from pipeline.contracts import Game, make_game_id
 from pipeline.schedule.espn import fetch_espn_scoreboard, parse_espn_scoreboard
 from pipeline.stadiums.loader import slug
+from utils.game_status import GameStatus
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso
 
 CFBD_BASE = "https://api.collegefootballdata.com"
@@ -214,7 +215,7 @@ def fetch_cfb_schedule(
                 ctx.degrade("schedule.cfb", f"ESPN scoreboard failed (type {season_type}): {exc}", "error")
             continue
         games.extend(parse_espn_scoreboard(payload, "cfb", season=season, book=book))
-    return [g for g in games if include_final or g.status != "final"]
+    return [g for g in games if include_final or g.status_code != GameStatus.FINAL]
 
 
 __all__ = [

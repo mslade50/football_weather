@@ -187,7 +187,7 @@ Team(team_id, sport, name, short, home_stadium_id, avg_temp_f, conference, alias
 WeatherForecast(game_id, source, run_time, lead_hours, temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg_mm, precip_prob, wind_vol_fc, wind_p10, wind_p50, wind_p90, cross_mph, head_mph, model_disagreement, roof_state, hourly[] {t, temp, wind, gust, dir, precip, pop, p10, p90})
 GameLine(sport, game_id, book, market, side, line: float|None, odds: int, prob_raw: float|None, is_main: bool, source_id, scraped_at, run_id)
 Edge(game_id, book, market, side, line, odds, fair_line, fair_prob, vigfree_prob, edge_pts, edge_prob, confidence, tier in strong|edge|watch|none, model_version, ref_book, n_books)
-Degradation(component, reason, severity, run_id, ts)
+Degradation(component, reason, severity, run_id, ts, outcome_code?, empty_book=false)
 RunMeta(run_id, sport, season, week, git_sha, started_at, finished_at, stage_timings{}, counts{book:{market:n}}, baseline{}, degradations[], unresolved_names[], next_run_eta)
 ```
 
@@ -295,10 +295,19 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
 | `raw/{sport}/{run_id}/{source}.json` + `raw/{sport}/{run_id}/manifest.json` | verbatim captures; manifest `{source: {sha256, bytes, fetched_at, url}}` |
 | `snapshots/{sport}/{season}/{week}/{run_id}.json` | full GameCard list per run (backtest input) |
 
+`Game.__post_init__` normalizes schedule status once using `utils/game_status.py`.
+`status` remains the original text; additive `status_code` is one of `scheduled`,
+`tbd`, `live`, `final`, `postponed`, `cancelled`, `suspended`, `unknown`, `unspecified`.
+`bettable_before_kickoff` is the Python eligibility predicate. Each JS runtime
+has a `game-status.js` helper; only these helpers interpret old snapshot text
+when `status_code` is absent. TBD/unknown remain eligible with a future kickoff.
+Display badges and evidence-confirmed CLEAR retain their distinct policies.
+See `docs/BOUNDARY_TYPES.md` for the status-filter audit and drift fixes.
+
 **GameCard**:
 ```
 {game_id, sport, season, week, kickoff_utc, kickoff_local, tz, date_label 'SUN 11/09', time_label '01:00 PM',
- home {team_id, name, short}, away {...}, neutral, status,
+ home {team_id, name, short}, away {...}, neutral, status, status_code,
  stadium {stadium_id, name, lat, lon, orient_deg, orient, roof_type, roof_state, elevation_m, year_built,
           wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind, avg_wind_month},
  travel_alt, home_temp, away_temp,
@@ -438,6 +447,19 @@ Historical NFL fixtures store fractions (`gs_fg=-0.035`); CFB fixtures store per
 ## 8. Odds scrapers (`pipeline/odds/`) — per-book contract
 
 All: `class XScraper(BaseScraper)`, `BOOK_NAME`, `async scrape(sport) -> list[GameLine]`, raw capture via `raw_out.capture(book, sport, payload)`, parse via `parsers/<book>.parse(payload, sport) -> list[GameLine]`, env flag `BOOK_<X>_ENABLED` (default 1). Team strings → `odds/teams.normalize_team(sport, raw, book)`; unresolved → `meta.unresolved_names[]` + Degradation(warn) + row dropped.
+
+The odds boundary produces frozen `ScrapeResult` records (`pipeline/scrape_outcomes.py`):
+`ok`, `empty`, `upstream_stale`, `fetch_error`, `timeout`, `skipped`, `not_requested`.
+Each has book/sport, row count, diagnostic detail, optional stale age, attempted and
+shadow-coverage evidence. Scraper `fetch_errors` remain diagnostics; Betcris supplies
+an explicit stale marker. Health, volume exemptions and shadow coverage consume the
+record. Degradations add `outcome_code` and `empty_book`; the latter identifies the
+existing empty-book warning that makes the run status warn. Human reasons and severity
+are unchanged. Book-health schema 2 adds `outcome_code` (also exported to meta);
+`state.migrate()` maps schema-0/1 diagnostic text once. Partial rows still reset the
+empty streak even with a fetch error. A stale upstream feed resets the streak without
+claiming recovery. Handoffs optionally preserve typed scrape evidence; old handoffs
+remain readable.
 
 | Book | Transport | Endpoint / params | Parse notes |
 |---|---|---|---|

@@ -7,7 +7,7 @@ const input = JSON.parse(readFileSync(0, 'utf8'));
 let now = Date.parse('2026-10-15T12:00:06Z');
 class Clock extends Date {static now() {return now;}}
 const ctx = vm.createContext({Date:Clock, console});
-for (const file of ['discovery.js', 'app.js', 'table.js', 'drawer.js', 'backtest.js'])
+for (const file of ['game-status.js', 'discovery.js', 'app.js', 'table.js', 'drawer.js', 'backtest.js'])
   vm.runInContext(readFileSync(new URL(`../../site/web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
 const run = code => vm.runInContext(code, ctx);
 ctx.history = stadiumHistoryPayload();

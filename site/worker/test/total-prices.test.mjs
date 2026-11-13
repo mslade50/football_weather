@@ -11,8 +11,8 @@ function preview() {
     fmtTotal: String, fmtLine: String, fmtOdds: String, fmtShortET: String, bookLabel: String,
     esc: (v) => String(v).replaceAll('<', '&lt;'), gameLabel: () => 'Away @ Home',
   });
-  vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
-  vm.runInContext(readFileSync(new URL('../../web/table.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/table.js', import.meta.url), 'utf8'), ctx);
   const quote = (book, side, ev_roi, minutes = 0) => ({
     book, side, ev_roi, line: 46.5, odds: 108, cost_prob: .48, fair_cost: .50,
     win_prob: .50, push_prob: 0, updated_at: new Date(Date.now() - minutes * 60000).toISOString(),

@@ -7,11 +7,11 @@ No transport is called from this module.
 from __future__ import annotations
 
 import html
-import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from pipeline.model import process as process_screen
+from utils.game_status import GameStatus, bettable_before_kickoff, status_code
 
 
 def routine_slot(now):
@@ -71,7 +71,7 @@ def clear_reason(card, cfg, now):
     # positive evidence of invalidation, never the negation of eligibility.
     sport, kickoff = card.get('sport'), evidence_time(card.get('kickoff_utc'))
     if (sport not in ('nfl', 'cfb') or not card.get('game_id')
-            or str(card.get('status') or '').lower() != 'scheduled'
+            or status_code(card) != GameStatus.SCHEDULED
             or not A._within_alert_window(kickoff, now, cfg)
             or any(not isinstance(card.get(team), dict) or not any(card[team].get(key) for key in ('id', 'short', 'name'))
                    for team in ('home', 'away'))):
@@ -81,7 +81,7 @@ def clear_reason(card, cfg, now):
     roof = resolve_roof_state(roof_type, stadium.get('roof_state') or card.get('roof_state'))
     if roof_type in ('open', 'dome', 'retractable') and roof in ('closed', 'dome'):
         return 'Stadium roof is closed'
-    spread = A._num((card.get('consensus') or {}).get('spread_open'))
+    spread = A._strict_number((card.get('consensus') or {}).get('spread_open'))
     decision = process_screen.decision_for(card, recheck=True, now=now)
     if 'spread_outside' in decision['ineligible_reasons']:
         return 'CFB spread exceeds the encoded eligibility limit'
@@ -89,12 +89,12 @@ def clear_reason(card, cfg, now):
         return None
     wx = card.get('weather') or {}
     fetched = evidence_time(wx.get('fetched_at'))
-    values = [A._num(wx.get(key)) for key in ('wind_fg', 'temp_fg', 'rain_fg')]
+    values = [A._strict_number(wx.get(key)) for key in ('wind_fg', 'temp_fg', 'rain_fg')]
     if (fetched is None or not timedelta(0) <= now - fetched <= timedelta(hours=3)
             or wx.get('point_aged') is not False
             or wx.get('point_stage') not in ('nws_first_pass', 'global_first_pass', 'refined_multimodel', 'refined_split_fields')
             or wx.get('ensemble_status') != 'full_members' or wx.get('ensemble_eligible') is not True
-            or A._num(wx.get('ensemble_members')) is None or wx['ensemble_members'] < 82
+            or A._strict_number(wx.get('ensemble_members')) is None or wx['ensemble_members'] < 82
             or wx.get('ensemble_unverified_sources') != [] or wx.get('ensemble_aged_sources') != []
             or wx.get('ensemble_verification_errors') != {}
             or any(value is None for value in values)):
@@ -146,7 +146,7 @@ def compact_notice(card, cfg, reminder=False):
     from pipeline import alerts as A
 
     cons = card.get('consensus') or {}
-    reference, current = A._num(cons.get('total_open')), A._num(cons.get('total_now'))
+    reference, current = A._strict_number(cons.get('total_open')), A._strict_number(cons.get('total_now'))
     movement = ''
     if reference is not None and current is not None:
         basis = html.escape(str(cons.get('total_open_basis') or 'displayed reference'))
@@ -165,7 +165,7 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
         for card in cards:
             if not A._card_within_alert_window(card, now, cfg):
                 continue
-            if re.search(r'final|cancel|postpon|suspend|live|progress', str(card.get('status') or ''), re.I):
+            if not bettable_before_kickoff(card, now):
                 continue
             gid = card.get("game_id")
             bets = confirmed_for(confirmations, gid)

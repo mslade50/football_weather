@@ -1,26 +1,16 @@
 """Small parser primitives; provider-specific acceptance rules stay explicit."""
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol, TypeVar
 
 from pipeline.contracts import GameLine
-from utils.timeutil import ensure_utc
+from utils.numbers import finite_number as finite_number
+from utils.timeutil import parse_iso_utc
 
 # Both binary exchanges reject a BBO wider than 25 cents before pricing it.
 MAX_QUOTE_WIDTH = 0.25
-
-
-def finite_number(value: object, *, allow_bool: bool = False) -> float | None:
-    if not allow_bool and isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
 
 
 def positive_zero(value: float | None) -> float | None:
@@ -33,15 +23,7 @@ def parse_utc(value: object, *, naive_utc: bool = True) -> datetime | None:
     Unlike timeutil.parse_iso this does not strip whitespace, preserving the
     parsers' existing acceptance rules. UTC normalization uses timeutil.
     """
-    if not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is None and not naive_utc:
-        return None
-    return ensure_utc(dt)
+    return parse_iso_utc(value, naive_utc=naive_utc, strings_only=True)
 
 
 def valid_lines(lines: Iterable[GameLine | None]) -> list[GameLine]:

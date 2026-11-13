@@ -9,7 +9,7 @@ function board() {
   class Clock extends Date {static now() {return now;}}
   const ctx = vm.createContext({Date: Clock, console});
   for (const file of ['app.js', 'table.js', 'drawer.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   ctx.game = {sport: 'nfl', home: {}, away: {}, fair: {priced_at: new Date(priced).toISOString(), fair_total: 45.6},
     consensus: {total_now: 48, total_n_books: 2}, odds: {pinnacle: {total: {line: 48, under: -110,
       updated_at: '2026-11-13T11:23:00Z', expires_at: '2026-11-13T11:59:59Z'}}}};

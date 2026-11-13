@@ -1,3 +1,4 @@
+import { bettableBeforeKickoff } from './game-status.js';
 // Authenticated read-only depth retrieval. No workflow dispatch, order, or R2 write.
 import { alertLiquidity } from './alert-liquidity.js';
 import { DEPTH_ADAPTERS } from './execution-preview.js';
@@ -18,7 +19,7 @@ export async function freshOddsRoute(request, env, fetchImpl = fetch) {
       const payload = object ? await object.json() : [];
       const game = (Array.isArray(payload) ? payload : payload.games || []).find(g => g.game_id === gameId);
       if (!game) return respond({ ok: false, error: 'Game is not on the current board' }, 404);
-      if (!(Date.parse(game.kickoff_utc) > started) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || ''))
+      if (!bettableBeforeKickoff(game, started))
         return respond({ ok: false, error: 'Pregame odds only; this game has started or is unavailable' }, 409);
       const all = (game.execution_markets || []).filter(r => Object.hasOwn(DEPTH_ADAPTERS, r.book)
         && Number.isFinite(r.line) && r.line % 1 === .5 && (requested === null || r.line === requested));

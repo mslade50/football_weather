@@ -334,7 +334,7 @@ function pickDefaultWeek(weeksList, games, meta, sport, now = Date.now()) {
   let best = null;
   for (const g of games || []) {
     const t = Date.parse(g.kickoff_utc);
-    if (g.week == null || Number.isNaN(t) || t <= now || /final|cancel|postpon/i.test(g.status || "")) continue;
+    if (g.week == null || !bettableBeforeKickoff(g, now)) continue;
     if (!best || t < best.t) best = {t, week: g.week};
   }
   return String(best ? best.week : weeksList[weeksList.length - 1]);

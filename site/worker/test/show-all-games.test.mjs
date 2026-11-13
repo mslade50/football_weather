@@ -12,7 +12,7 @@ function harness() {
   const ctx=vm.createContext({Date:Clock,URLSearchParams,document,clearTimeout(){},setTimeout(){},
     location:{hash:''},history:{replaceState(_a,_b,hash){ctx.location.hash=hash;}}});
   for(const file of ['discovery.js','app.js','signals.js','table.js','map.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
   ctx.tableIds=[];
   vm.runInContext(`renderTableOriginal=renderTable; renderTable=rows=>{tableIds=rows.map(g=>g.game_id)}; renderLegend=()=>{}; placeMarkers=()=>{};
     ensureMap=()=>({resize(){},jumpTo(){},fitBounds(){}}); setupShowAllGames();`,ctx);

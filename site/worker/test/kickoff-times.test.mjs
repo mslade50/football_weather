@@ -15,7 +15,7 @@ function harness(browserZone = 'Asia/Tokyo') {
   }};
   const ctx = vm.createContext({Intl:ViewerIntl, document});
   for (const file of ['app.js', 'discovery.js', 'signals.js', 'table.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
   return {html:game=>ctx.tableKickoffHtml(game), ctx, nodes};
 }
 const game = (utc, zone, extra = {}) => ({kickoff_utc:utc, stadium:{timezone:zone}, ...extra});

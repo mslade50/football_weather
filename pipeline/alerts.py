@@ -29,6 +29,7 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional
 
@@ -39,7 +40,9 @@ from pipeline.model import process as process_screen
 from pipeline.model.wind_history import stadium_wind_history
 from utils.env import load_repo_dotenv
 from utils.telegram import football_telegram_enabled
-from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
+from utils.timeutil import ET, ensure_utc, now_utc, parse_iso_utc, to_et, utc_iso
+
+_dt = partial(parse_iso_utc, strip=True, z_suffix_only=True)
 
 logger = logging.getLogger(__name__)
 
@@ -203,18 +206,10 @@ def _slug(s: str, n: int = 40) -> str:
 # optional API keys, books disabled via BOOK_*_ENABLED, and a book returning 0 lines (the
 # scoped volume-health incident handles a true dark book while peers report). They
 # stay on the Status page and never page Telegram.
-def _dt(v: Any) -> Optional[datetime]:
-    if isinstance(v, datetime):
-        return ensure_utc(v)
-    if isinstance(v, str) and v:
-        try:
-            return ensure_utc(parse_iso(v))
-        except ValueError:
-            return None
-    return None
 
 
-def _num(v: Any) -> Optional[float]:
+def _strict_number(v: Any) -> Optional[float]:
+    """Published numeric fields only; strings and native bools are not evidence."""
     if isinstance(v, bool) or v is None:
         return None
     if isinstance(v, (int, float)) and math.isfinite(v):
@@ -223,7 +218,7 @@ def _num(v: Any) -> Optional[float]:
 
 
 def _fmt_odds(o: Any) -> str:
-    n = _num(o)
+    n = _strict_number(o)
     if n is None:
         return "?"
     n = int(round(n))
@@ -231,7 +226,7 @@ def _fmt_odds(o: Any) -> str:
 
 
 def _fmt_line(x: Any, signed: bool = False) -> str:
-    n = _num(x)
+    n = _strict_number(x)
     if n is None:
         return "?"
     s = f"{abs(n):.1f}".rstrip("0").rstrip(".") if n != int(n) else f"{int(abs(n))}"
@@ -241,7 +236,7 @@ def _fmt_line(x: Any, signed: bool = False) -> str:
 
 
 def _fmt_signed(x: Any, digits: int = 1) -> str:
-    n = _num(x)
+    n = _strict_number(x)
     if n is None:
         return "?"
     return f"{'+' if n > 0 else (MINUS if n < 0 else '')}{abs(n):.{digits}f}"
@@ -297,8 +292,8 @@ def _brief_bet(card: dict[str, Any], edge: dict[str, Any], *, label: str = "") -
     market = edge.get("market")
     raw_side = _side_label(edge, card)
     side = raw_side.title() if raw_side.lower() in ("over", "under") else raw_side
-    line = _num(edge.get("line"))
-    if line is None or _num(edge.get("odds")) is None or edge.get("book") == CONSENSUS_BOOK:
+    line = _strict_number(edge.get("line"))
+    if line is None or _strict_number(edge.get("odds")) is None or edge.get("book") == CONSENSUS_BOOK:
         value = f"{side} · no posted price available"
     else:
         line_s = _fmt_line(line, signed=market == "spread")
@@ -311,8 +306,8 @@ def _brief_bet(card: dict[str, Any], edge: dict[str, Any], *, label: str = "") -
 
 
 def _altitude_phrase(card: dict[str, Any], *, warmth: bool = False) -> str:
-    alt_m = _num(card.get("travel_alt"))
-    temp = _num((card.get("weather") or {}).get("temp_fg"))
+    alt_m = _strict_number(card.get("travel_alt"))
+    temp = _strict_number((card.get("weather") or {}).get("temp_fg"))
     climb = f"+{round(alt_m * 3.28084):,} ft climb" if alt_m is not None else "altitude climb"
     if warmth:
         temp_s = f"{round(temp)}°F" if temp is not None else "warm conditions"
@@ -332,7 +327,7 @@ def _driver_phrase(card: dict[str, Any]) -> str:
     if top == "rain":
         return f"Rain: {_fmt_line(wx.get('rain_fg'))} mm"
     if top in ("cold", "cold_away", "heat", "heat_away"):
-        t = _num(wx.get("temp_fg"))
+        t = _strict_number(wx.get("temp_fg"))
         return f"Temperature: {round(t) if t is not None else '?'}°F"
     if top == "alt":
         return _altitude_phrase(card)
@@ -372,7 +367,7 @@ def _impact(card: dict[str, Any]) -> dict[str, Any]:
 
 def _components(card: dict[str, Any]) -> dict[str, float]:
     comps = _impact(card).get("components") or {}
-    return {k: v for k, v in comps.items() if _num(v) is not None and v > 0}
+    return {k: v for k, v in comps.items() if _strict_number(v) is not None and v > 0}
 
 
 def _emoji_for(card: dict[str, Any]) -> str:
@@ -433,7 +428,7 @@ def _wx_numbers(card: dict[str, Any]) -> str:
     else:
         shown = wx
     def value(key: str, unit: str) -> str:
-        return f"{_fmt_line(shown[key])} {unit}" if _num(shown.get(key)) is not None else "unavailable"
+        return f"{_fmt_line(shown[key])} {unit}" if _strict_number(shown.get(key)) is not None else "unavailable"
     line = f"wind {value('wind_fg', 'mph')} · temp {value('temp_fg', '°F')} · rain {value('rain_fg', 'mm')}"
     source = str(wx.get("signal_source") or "")
     if source.startswith("ecmwf"):
@@ -443,7 +438,7 @@ def _wx_numbers(card: dict[str, Any]) -> str:
 
 def _cents(odds: Any) -> Optional[int]:
     """American odds → implied price in cents (Kalshi contracts): −108 → 52¢, +120 → 45¢."""
-    n = _num(odds)
+    n = _strict_number(odds)
     if n is None or n == 0:
         return None
     return int(round(100 * (abs(n) / (100 + abs(n)) if n < 0 else 100 / (100 + n))))
@@ -462,8 +457,8 @@ def _total_quotes(card: dict[str, Any], side: str) -> list[dict[str, Any]]:
     if not kickoff or kickoff <= now:
         return []
     return sorted((q for q in (card.get("total_prices") or {}).get("quotes", [])
-                   if q.get("book") in PRICE_EXCHANGES and q.get("side") == side and q.get("liquidity_status") != "empty" and _num(q.get("ev_roi")) is not None
-                   and _num(q.get("line")) is not None and _num(q.get("odds")) is not None
+                   if q.get("book") in PRICE_EXCHANGES and q.get("side") == side and q.get("liquidity_status") != "empty" and _strict_number(q.get("ev_roi")) is not None
+                   and _strict_number(q.get("line")) is not None and _strict_number(q.get("odds")) is not None
                    and _fresh_price(q.get("updated_at"), now)),
                   key=lambda q: (-q["ev_roi"], q["book"]))
 
@@ -563,10 +558,10 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
     def quote(data: dict[str, Any], venue: str, *, opener: bool = False) -> str:
         if market == "total":
-            line = _num(data.get("open_line" if opener else "line"))
+            line = _strict_number(data.get("open_line" if opener else "line"))
             odds = data.get(f"open_{side}" if opener else side)
         elif market == "spread":
-            line = _num(data.get("open_line" if opener else "home_line"))
+            line = _strict_number(data.get("open_line" if opener else "home_line"))
             if side == "away" and line is not None:
                 line = -line
             # The board stores only the home-side spread opening juice.
@@ -574,9 +569,9 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
         else:
             line = None
             odds = data.get(f"open_{side}" if opener else side)
-        if (market != "ml" and line is None) or (not opener and _num(odds) is None):
+        if (market != "ml" and line is None) or (not opener and _strict_number(odds) is None):
             return "unavailable"
-        if market == "ml" and _num(odds) is None:
+        if market == "ml" and _strict_number(odds) is None:
             return "unavailable"
         label = html.escape(_side_label(edge, card).title())
         if market != "ml":
@@ -657,7 +652,7 @@ def consensus_entry(card: dict[str, Any]) -> dict[str, Any]:
     (may be None), fair_line = fair.fair_total, edge_pts = total_now − fair_total when both exist."""
     cons = card.get("consensus") or {}
     fair = card.get("fair") or {}
-    line, fair_t = _num(cons.get("total_now")), _num(fair.get("fair_total"))
+    line, fair_t = _strict_number(cons.get("total_now")), _strict_number(fair.get("fair_total"))
     return {
         "game_id": card.get("game_id"), "market": "total", "side": "under", "book": CONSENSUS_BOOK,
         "line": line, "odds": None, "fair_line": fair_t,
@@ -685,23 +680,23 @@ def _play_edge(card: dict[str, Any]) -> dict[str, Any]:
                 if any(q.get("book") == book and q.get("side") == "under" and q.get("line") == total.get("line")
                        and q.get("liquidity_status") == "empty" for q in (card.get("total_prices") or {}).get("quotes", [])):
                     continue
-                if (_num(total.get("line")) is not None and _num(total.get("under")) is not None
+                if (_strict_number(total.get("line")) is not None and _strict_number(total.get("under")) is not None
                         and _fresh_price(total.get("updated_at"), now)):
                     quotes.append({"book": book, "line": total["line"], "odds": total["under"]})
             quotes.sort(key=lambda q: (-q["line"], -q["odds"], q["book"]))
         if quotes:
             q = quotes[0]
-            fair = _num(entry.get("fair_line"))
+            fair = _strict_number(entry.get("fair_line"))
             return dict(entry, book=q["book"], line=q["line"], odds=q["odds"],
                         edge_pts=round(q["line"] - fair, 2) if fair is not None else None)
         return dict(entry, line=None, odds=None, edge_pts=None)
     unders = [e for e in ((card.get("fair") or {}).get("edges") or [])
               if e.get("market") == "total" and e.get("side") == "under"
-              and _num(e.get("line")) is not None and _num(e.get("odds")) is not None
+              and _strict_number(e.get("line")) is not None and _strict_number(e.get("odds")) is not None
               and e.get("book") != "betcris"]
     if unders:   # ties on edge_pts → the best price for an under bettor (higher line, then better odds)
-        return max(unders, key=lambda e: (_num(e.get("edge_pts")) or 0.0, _num(e.get("line")) or -1e9,
-                                          _num(e.get("odds")) or -1e9))
+        return max(unders, key=lambda e: (_strict_number(e.get("edge_pts")) or 0.0, _strict_number(e.get("line")) or -1e9,
+                                          _strict_number(e.get("odds")) or -1e9))
     # A reference consensus is not an obtainable betting entry.
     return dict(entry, line=None, odds=None, edge_pts=None)
 
@@ -772,9 +767,9 @@ def _edge_record(card: dict[str, Any], e: dict[str, Any], run_id: Optional[str])
         "family": "edge", "game_id": card.get("game_id"), "sport": card.get("sport"), "season": card.get("season"),
         "week": card.get("week"), "market": e.get("market"), "side": e.get("side"), "book": e.get("book"),
         "tier": signal_slug(label), "model_version": e.get("model_version") or "v1",
-        "last_line": _num(e.get("line")), "last_odds": e.get("odds"), "last_fair": _num(e.get("fair_line")),
-        "last_edge": _num(e.get("edge_pts")), "status": "open", "run_id": run_id,
-        "last_wind": _num(wx.get("wind_fg")), "last_rain": _num(wx.get("rain_fg")), "last_signal": label,
+        "last_line": _strict_number(e.get("line")), "last_odds": e.get("odds"), "last_fair": _strict_number(e.get("fair_line")),
+        "last_edge": _strict_number(e.get("edge_pts")), "status": "open", "run_id": run_id,
+        "last_wind": _strict_number(wx.get("wind_fg")), "last_rain": _strict_number(wx.get("rain_fg")), "last_signal": label,
         "last_book": e.get("book"), "notification_active": True, "kickoff_utc": card.get("kickoff_utc"),
     }
 
@@ -834,7 +829,10 @@ def book_health_messages(health: dict, alerts: dict) -> list[tuple[str, str, str
         for sport, e in sorted((sports or {}).items()):
             mk = f"{sport}|{book}"
             empty = int(e.get("consecutive_empty") or 0)
-            if empty >= BOOK_HEALTH_MIN_EMPTY and int((health.get("horizon") or {}).get(sport) or 0) > 0 and mk not in markers:
+            from pipeline.scrape_outcomes import ScrapeOutcome
+            code = e.get('outcome_code')
+            if (code not in (ScrapeOutcome.UPSTREAM_STALE, ScrapeOutcome.SKIPPED, ScrapeOutcome.NOT_REQUESTED)
+                    and empty >= BOOK_HEALTH_MIN_EMPTY and int((health.get("horizon") or {}).get(sport) or 0) > 0 and mk not in markers):
                 last_ok = e.get("last_ok_utc") or "never"
                 err = e.get("last_error") or "returned 0 lines"
                 out.append(("down", sport, book, format_ops(
@@ -1096,19 +1094,19 @@ def postmortem_digest(backtest: Optional[dict[str, Any]], *, sport: Optional[str
     wins = sum(b.get("result") == "W" for b in graded)
     losses = sum(b.get("result") == "L" for b in graded)
     pushes = sum(b.get("result") == "P" for b in graded)
-    units = [_num(b.get("unit_profit")) for b in graded]
+    units = [_strict_number(b.get("unit_profit")) for b in graded]
     units = [x for x in units if x is not None]
-    clvs = [_num(b.get("clv_pts")) for b in bets]
+    clvs = [_strict_number(b.get("clv_pts")) for b in bets]
     clvs = [x for x in clvs if x is not None]
     thesis = [b for b in bets if b.get("wind_thesis")]
     thesis_checked = [b for b in thesis if b.get("wind_materialized") is not None]
     held = sum(b.get("wind_materialized") is True for b in thesis_checked)
     first_wind_errors = [abs(float(first) - float(actual)) for b in bets
-                         if (first := _num((b.get("first_weather") or {}).get("wind_mph"))) is not None
-                         and (actual := _num((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
+                         if (first := _strict_number((b.get("first_weather") or {}).get("wind_mph"))) is not None
+                         and (actual := _strict_number((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
     final_wind_errors = [abs(float(final) - float(actual)) for b in bets
-                         if (final := _num((b.get("final_forecast") or {}).get("wind_mph"))) is not None
-                         and (actual := _num((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
+                         if (final := _strict_number((b.get("final_forecast") or {}).get("wind_mph"))) is not None
+                         and (actual := _strict_number((b.get("actual_weather") or {}).get("wind_mph"))) is not None]
 
     start, end = _dt(latest.get("window_start")), _dt(latest.get("window_end"))
     def day(dt: Optional[datetime]) -> str:
@@ -1145,7 +1143,7 @@ def postmortem_digest(backtest: Optional[dict[str, Any]], *, sport: Optional[str
         else:
             team = home if side == "home" else away
             bet = f"{team} {_fmt_line(b.get('first_line'), True)}"
-        lead = _num(b.get("hours_before_kickoff"))
+        lead = _strict_number(b.get("hours_before_kickoff"))
         first = (f"Bet: {bet} {_fmt_odds(b.get('first_odds'))} · {_book_label(str(b.get('book') or ''))}"
                  f" · edge {_fmt_signed(b.get('first_edge'))} pts")
         if lead is not None:
@@ -1154,9 +1152,9 @@ def postmortem_digest(backtest: Optional[dict[str, Any]], *, sport: Optional[str
                  f"CLV {_fmt_signed(b.get('clv_pts'))} pts" if b.get("closing_line") is not None
                  else "Close: unavailable")
         final = f"game total {_fmt_line(b.get('actual_total'))}" if b.get("actual_total") is not None else "result pending"
-        fw = _num((b.get("first_weather") or {}).get("wind_mph"))
-        lw = _num((b.get("final_forecast") or {}).get("wind_mph"))
-        aw = _num((b.get("actual_weather") or {}).get("wind_mph"))
+        fw = _strict_number((b.get("first_weather") or {}).get("wind_mph"))
+        lw = _strict_number((b.get("final_forecast") or {}).get("wind_mph"))
+        aw = _strict_number((b.get("actual_weather") or {}).get("wind_mph"))
         wx = f"Wind: {_fmt_line(fw)} alert → {_fmt_line(lw)} final fcst → {_fmt_line(aw)} actual mph"
         if b.get("wind_thesis"):
             if b.get("wind_materialized") is None:

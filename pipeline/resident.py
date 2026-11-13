@@ -22,6 +22,7 @@ from typing import Any
 from pipeline.model import config
 from pipeline.outputs import r2
 from utils.env import load_repo_dotenv
+from utils.game_status import bettable_before_kickoff
 
 LIVE_KEY = 'board/live_quotes.json'
 REPO = Path(__file__).resolve().parents[1]
@@ -201,7 +202,7 @@ class ResidentCollector:
                           and (g.get('stadium') or {}).get('roof_state') not in ('dome', 'closed', 'indoor')
                           and not (g.get('sport') == 'cfb' and isinstance((g.get('consensus') or {}).get('spread_open'), (int, float))
                                    and abs(g['consensus']['spread_open']) > config.CFB_OPEN_SPREAD_MAX)
-                          and not any(term in str(g.get('status', '')).lower() for term in ('final', 'cancel', 'postpon', 'suspend', 'live', 'progress'))]
+                          and bettable_before_kickoff(g, now)]
             candidates.sort(key=lambda g: (self.last_checked.get(g['game_id'], ''), g['kickoff_utc'], g['game_id']))
             selected = candidates[:self.max_games]
             raw = self.root / 'raw' / f'{self.sequence:012d}-{uuid.uuid4().hex}'

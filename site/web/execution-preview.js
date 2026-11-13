@@ -3,8 +3,7 @@
 let executionSearch = "";
 
 function executionGames() {
-  return (DATA.games[STATE.sport] || []).filter(g => Date.parse(g.kickoff_utc) > Date.now()
-    && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || ""))
+  return (DATA.games[STATE.sport] || []).filter(g => bettableBeforeKickoff(g))
     .sort((a, b) => Date.parse(a.kickoff_utc) - Date.parse(b.kickoff_utc));
 }
 

@@ -62,7 +62,7 @@ def test_pipeline_captures_api_books_and_stamps_run_id(book, tmp_path, monkeypat
 
     degradations = []
     rows, scrapers = asyncio.run(build.scrape_books(
-        "nfl", [book], raw, "run-1", lambda *args: degradations.append(args)))
+        "nfl", [book], raw, "run-1", lambda *args, **kw: degradations.append(args)))
     assert not degradations and set(scrapers) == {book}
     assert rows[book] and all(row.run_id == "run-1" for row in rows[book])
     assert json.loads((raw.run_dir / raw.manifest[source]["path"]).read_text(encoding="utf-8")) == payload
@@ -80,7 +80,7 @@ def test_constructor_type_error_is_reported_once_by_pipeline_and_cli():
         monkeypatch.setattr(build, "load_scraper_class", lambda name: Broken)
         degradations = []
         assert asyncio.run(build.scrape_books(
-            "nfl", ["broken"], None, "run-1", lambda *args: degradations.append(args))) == ({}, {})
+            "nfl", ["broken"], None, "run-1", lambda *args, **kw: degradations.append(args))) == ({}, {})
     assert Broken.calls == 1
     assert degradations == [("odds", "nfl: broken init failed: TypeError: constructor bug", "warn")]
     with pytest.raises(TypeError, match="constructor bug"):

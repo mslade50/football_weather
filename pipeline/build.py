@@ -91,6 +91,7 @@ from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
 from pipeline.schedule import cfb as cfb_schedule
 from pipeline.schedule import nfl as nfl_schedule
+from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult, scraper_result
 from pipeline.stadiums import loader as stadium_loader
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import ecmwf_fallback as fallback_mod
@@ -585,12 +586,12 @@ async def scrape_books(
     for name in books:
         cls = load_scraper_class(name)
         if cls is None:
-            degrade("odds", f"{sport}: {name} unavailable (module/dependency missing)", "warn")
+            degrade("odds", f"{sport}: {name} unavailable (module/dependency missing)", "warn", outcome_code=ScrapeOutcome.SKIPPED)
             continue
         try:
             scraper = make_scraper(cls, raw, run_id)
         except Exception as exc:  # noqa: BLE001
-            degrade("odds", f"{sport}: {name} init failed: {type(exc).__name__}: {exc}", "warn")
+            degrade("odds", f"{sport}: {name} init failed: {type(exc).__name__}: {exc}", "warn", outcome_code=ScrapeOutcome.SKIPPED)
             continue
         names.append(name)
         scrapers[name] = scraper
@@ -600,21 +601,28 @@ async def scrape_books(
     results = await asyncio.gather(*tasks, return_exceptions=True)
     out: dict[str, list[GameLine]] = {}
     for name, res in zip(names, results, strict=True):
+        outcome = None
         if isinstance(res, asyncio.TimeoutError):
-            degrade("odds", f"{sport}: {name} timed out after {SCRAPE_TIMEOUT_S:.0f}s", "warn")
+            outcome = ScrapeOutcome.TIMEOUT
+            degrade("odds", f"{sport}: {name} timed out after {SCRAPE_TIMEOUT_S:.0f}s", "warn", outcome_code=outcome)
             out[name] = []
         elif isinstance(res, BaseException):
-            degrade("odds", f"{sport}: {name} failed: {type(res).__name__}: {res}", "warn")
+            outcome = ScrapeOutcome.FETCH_ERROR
+            degrade("odds", f"{sport}: {name} failed: {type(res).__name__}: {res}", "warn", outcome_code=outcome)
             out[name] = []
         else:
             out[name] = [ln for ln in (res or []) if isinstance(ln, GameLine)]
         # Page-based books can return partial/empty data after handling a network
         # error internally. Surface the cause on the board, not only in CI logs.
+        scrapers[name].scrape_result = scraper_result(
+            name, sport, len(out[name]), scrapers[name], outcome=outcome,
+            failure_detail=f"{type(res).__name__}: {res}" if isinstance(res, BaseException) else None)
         errors = getattr(scrapers[name], "fetch_errors", {})
         # A stale Betcris file is one warning from note_empty_book, not a fetch failure.
         if errors and upstream_stale_detail(scrapers[name]) is None:
             detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
-            degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
+            degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn",
+                    outcome_code=scrapers[name].scrape_result.outcome)
     return out, scrapers
 
 
@@ -624,16 +632,22 @@ def ingest_book_lines(ctx: RunContext, sport: str, name: str, ingest_dir: Path) 
     re-stamped, so ``scraped_at`` stays the time the book was actually seen."""
     ing = handoff.load_lines(ingest_dir, sport, name, now=ctx.now_utc, max_age=ODDS_CARRY_MAX_AGE)
     for problem in ing.problems:
-        ctx.degrade("odds.ingest", f"{sport}: {name} {problem}", "warn")
+        ctx.degrade("odds.ingest", f"{sport}: {name} {problem}", "warn", outcome_code=ScrapeOutcome.FETCH_ERROR)
     dropped = ing.rejected_stale + ing.rejected_expired + ing.rejected_invalid
+    previous = getattr(ing.scraper, 'scrape_result', None)
+    ing.scraper.scrape_result = scraper_result(
+        name, sport, len(ing.lines), ing.scraper,
+        outcome=previous.outcome if previous else None,
+        coverage_ok=not ing.missing and not dropped and (previous.coverage_ok if previous else True))
     if dropped:
         ctx.degrade("odds.ingest", f"{sport}: {name} handoff dropped {dropped} line(s) "
                     f"(older than {ODDS_CARRY_MAX_AGE}: {ing.rejected_stale}, expired: {ing.rejected_expired}, "
-                    f"invalid: {ing.rejected_invalid})", "warn")
+                    f"invalid: {ing.rejected_invalid})", "warn", outcome_code=ing.scraper.scrape_result.outcome)
     errors = getattr(ing.scraper, "fetch_errors", {})
     if errors and not ing.missing and upstream_stale_detail(ing.scraper, name) is None:
         detail = "; ".join(f"{page}: {reason}" for page, reason in errors.items())
-        ctx.degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn")
+        ctx.degrade(f"odds.{name}", f"{sport}: public lines fetch failed ({detail})", "warn",
+                    outcome_code=ing.scraper.scrape_result.outcome)
     oldest = min((ln.scraped_at for ln in ing.lines if ln.scraped_at is not None), default=None)
     age = f", oldest {int((ctx.now_utc - oldest).total_seconds())}s old" if oldest is not None else ""
     print(f"  ingest {name:<10} {sport}: {len(ing.lines)} lines from run {ing.run_id or '-'}{age}")
@@ -665,7 +679,7 @@ def scrape_only(sports: Sequence[str], out_dir: Path, *, books: Sequence[str] | 
             if scraper is None:
                 errors.setdefault(sport, "scraper unavailable")
             path = handoff.dump_lines(out_dir, sport, name, lines, run_id=ctx.run_id, raw_games=raw_games,
-                                      fetch_errors=errors)
+                                      fetch_errors=errors, scrape_result=getattr(scraper, 'scrape_result', None))
             print(f"  scrape-only {name:<10} {sport}: {len(lines):>4} lines / {len(raw_games):>3} games -> {path}")
     for line in ctx.summary_lines():
         print(line)
@@ -706,7 +720,7 @@ def upstream_stale_detail(scraper: Any, book: str | None = None) -> str | None:
     if not isinstance(errors, dict) or not errors:
         return None
     texts = [str(value) for value in errors.values() if str(value).strip()]
-    if not texts or not all("upstream stale" in text.lower() for text in texts):
+    if not texts or not getattr(scraper, "upstream_stale", False):
         return None
     return "; ".join(texts)
 
@@ -1074,6 +1088,7 @@ def card_odds(
 
 def note_empty_book(
     ctx: RunContext, sport: str, name: str, games: Sequence[Game], n_lines: int, scraper: Any,
+    result: ScrapeResult | None = None,
 ) -> None:
     """Warn, without failing the run, when an enabled book is dark and the league has games.
 
@@ -1094,7 +1109,8 @@ def note_empty_book(
         reason = f"{sport}: {name} returned 0 lines"
         if detail:
             reason = f"{reason} ({detail})"
-    ctx.degrade("odds", reason, "warn")
+    result = result or scraper_result(name, sport, n_lines, scraper)
+    ctx.degrade("odds", reason, "warn", outcome_code=result.outcome, empty_book=True)
     print(f"::warning::{reason}")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary:
@@ -1153,9 +1169,14 @@ def stage_odds(
                 per_book[name], scrapers[name] = ingest_book_lines(ctx, sport, name, ingest_dir)
     all_lines: list[GameLine] = []
     per_book_n: dict[str, int] = {}
+    outcomes: dict[str, ScrapeResult] = {}
     for name in books:
         lines = per_book.get(name, [])
         per_book_n[name] = len(lines)
+        scraper = scrapers.get(name)
+        outcomes[name] = getattr(scraper, 'scrape_result', None) or scraper_result(
+            name, sport, len(lines), scraper,
+            outcome=ScrapeOutcome.SKIPPED if scraper is None else None)
         all_lines.extend(lines)
         markets: dict[str, int] = {}
         for ln in lines:
@@ -1166,19 +1187,14 @@ def stage_odds(
         n_games = len({ln.game_id for ln in lines})
         detail = " ".join(f"{m}={markets[m]}" for m in ("spread", "total", "ml") if m in markets)
         print(f"  odds {name:<10} {sport}: {len(lines):>4} lines / {n_games:>3} games {detail}")
-        note_empty_book(ctx, sport, name, games, len(lines), scrapers.get(name))
+        note_empty_book(ctx, sport, name, games, len(lines), scraper, outcomes[name])
 
     # Cross-run per-book health (only books scraped this run; carried books are untouched).
     if not dry_run:
         try:
-            errs: dict[str, str] = {}
-            for name in books:
-                fe = getattr(scrapers.get(name), "fetch_errors", None)
-                if fe:
-                    errs[name] = "; ".join(f"{k}: {v}" if k != sport else str(v) for k, v in fe.items())
             health = pstate.load_book_health(state_dir)
-            pstate.update_book_health(health, sport, {n: per_book_n[n] for n in books if n in scrapers}, errs,
-                                      now=utc_iso(ctx.now_utc), horizon_games=len(games))
+            pstate.update_book_health(health, sport, {n: per_book_n[n] for n in books if n in scrapers},
+                                      now=utc_iso(ctx.now_utc), horizon_games=len(games), results=outcomes)
             pstate.save_book_health(state_dir, health)
         except Exception as exc:  # noqa: BLE001
             ctx.degrade("odds.health", f"{sport}: book health update failed (non-fatal): {exc}", "warn")
@@ -1190,7 +1206,7 @@ def stage_odds(
             scope = baseline_scope(sport, [g for g in games if in_window(g.kickoff_utc, ctx.now_utc)], games, season)
             baseline = pstate.load_baseline(state_dir, scope)
             excused = frozenset(
-                name for name in books if upstream_stale_detail(scrapers.get(name), name)
+                name for name in books if outcomes[name].outcome == ScrapeOutcome.UPSTREAM_STALE
             )
             drops = check_scrape_volume(scrape_counts(all_lines), baseline, books, excused=excused)
             if not dry_run:
@@ -1226,7 +1242,7 @@ def stage_odds(
     if os.environ.get("OBSLOG_SHADOW_PATH"):
         try:
             from pipeline.obslog.shadow import odds as shadow_odds
-            shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, scrapers)
+            shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, outcomes)
         except Exception as exc:  # noqa: BLE001
             ctx.degrade("obslog.odds", f"shadow unavailable: {type(exc).__name__}", "warn")
     # Books not scraped this run (the Playwright job runs --books betonline only)

@@ -205,6 +205,7 @@ def test_card_has_every_required_key_and_labels():
     assert card["date_label"] == "SUN 09/27"
     assert card["time_label"] == "01:00 PM"
     assert card["kickoff_utc"] == "2026-09-27T17:00:00Z"
+    assert card['status'] == 'scheduled' and card['status_code'] == 'scheduled'
     assert card["kickoff_local"].startswith("2026-09-27T13:00:00-04:00")
     assert card["home"] == {"team_id": "ne", "name": "New England Patriots", "short": "NE"}
     assert card["stadium"]["orient_deg"] == 158.0 and card["stadium"]["roof_state"] == "outdoors"

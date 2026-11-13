@@ -311,10 +311,10 @@ function warnBookHeader(label, bk, sport) {
   return {label: `${label} ⚠`, tip};
 }
 function gameStarted(g) {
-  const st = String(g.status || "").toLowerCase();
-  if (/final/.test(st)) return "Final";
-  if (/live|progress|in_play|half/.test(st)) return "Live";
-  if (/cancel|postpon|suspend|tbd|unknown/.test(st)) return "";
+  const code = gameStatusCode(g);
+  if (code === "final") return "Final";
+  if (code === "live") return "Live";
+  if (["cancelled", "postponed", "suspended", "tbd", "unknown"].includes(code)) return "";
   const t = Date.parse(g.kickoff_utc);
   return !Number.isNaN(t) && t < Date.now() ? "Live" : "";
 }

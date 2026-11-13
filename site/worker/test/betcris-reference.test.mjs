@@ -9,7 +9,7 @@ class Clock extends Date { static now() { return now; } }
 function board() {
   const ctx = vm.createContext({Date: Clock, console, localStorage: {getItem: () => null, setItem: () => {}}});
   for (const file of ['app.js', 'table.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   ctx.game = {game_id: 'nfl:2026:6:a@h', sport: 'nfl', kickoff_utc: '2026-10-18T17:00:00Z',
     home: {name: 'Home'}, away: {name: 'Away'}, fair: {edges: [
       {book: 'betcris', market: 'total', edge_pts: 4, tier: 'edge', side: 'under', fair_line: 44},

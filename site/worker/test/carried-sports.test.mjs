@@ -9,9 +9,9 @@ function load() {
     if (!nodes.has(id)) nodes.set(id, {});
     return nodes.get(id);
   } } });
-  const app = readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
   vm.runInContext(app.replace(/\nboot\(\);\s*$/, ''), ctx);
-  vm.runInContext(readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext('renderBookChips = () => {};', ctx);
   return { ctx, nodes };
 }

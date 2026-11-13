@@ -9,7 +9,7 @@ function harness() {
   const storage = {getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value)};
   const ctx = vm.createContext({AbortSignal, crypto: {randomUUID: () => `fixture-confirmation-${++id}`},
     sessionStorage: storage, fetch: (url, options) => new Promise((resolve, reject) => requests.push({url, options, resolve, reject}))});
-  vm.runInContext(readFileSync(new URL('../../web/bet-confirmation.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/bet-confirmation.js', import.meta.url), 'utf8'), ctx);
   const create = () => vm.runInContext(`new PlacedBetConfirmation('${game}')`, ctx);
   const controller = create();
   function fill(c = controller) { for (const [key, value] of Object.entries({book: 'kalshi', line: '48.5', stake: '125'})) c.update(key, value); }
@@ -99,10 +99,10 @@ test('Confirmation form requires actual venue/line/stake and survives price-only
   const h = harness(); assert.equal(h.controller.valid(), false);
   h.fill(); assert.equal(h.controller.valid(), true);
   h.controller.update('stake', '0'); assert.equal(h.controller.valid(), false);
-  const drawer = readFileSync(new URL('../../web/drawer.js', import.meta.url), 'utf8');
+  const drawer = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/drawer.js', import.meta.url), 'utf8');
   const refresh = drawer.slice(drawer.indexOf('function refreshDrawerQuotes'), drawer.indexOf('function renderDrawerTitle'));
   assert.doesNotMatch(refresh, /confirmationControls|placed-bet/);
-  const markup = readFileSync(new URL('../../web/bet-confirmation.js', import.meta.url), 'utf8');
+  const markup = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/bet-confirmation.js', import.meta.url), 'utf8');
   assert.match(markup, /ack.checked = false/);
   assert.match(markup, /if \(!IS_ADMIN\) return ''/);
   assert.match(markup, /document.getElementById\('placed-bet-form'\) !== form/);

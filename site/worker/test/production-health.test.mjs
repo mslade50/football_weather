@@ -16,7 +16,7 @@ test("health UI labels warning-only weather and thin books as degraded", () => {
   const el = {innerHTML: ""};
   const context = vm.createContext({document: {getElementById: () => el}, esc: String, bookLabel: String,
     QUOTES: {refreshOverdue: () => false}});
-  vm.runInContext(readFileSync(new URL("../../web/status.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL("../../web/status.js", import.meta.url), "utf8"), context);
   context.meta = {books: {pinnacle: {status: "green"}}, degradations: [{component: "weather", severity: "warn"}]};
   vm.runInContext("renderStatusbar(meta)", context);
   assert.match(el.innerHTML, /Degraded/);
@@ -34,7 +34,7 @@ test("an open drawer updates its title when a new snapshot has no consensus", ()
   const context = vm.createContext({document: {getElementById: () => title}, esc: String,
     gameLabel: () => "Game", signalPill: () => "", kickoffLabel: () => "Kickoff",
     isNum: v => v != null && Number.isFinite(v), fmtLine: String, fmtTotal: String});
-  vm.runInContext(readFileSync(new URL("../../web/drawer.js", import.meta.url), "utf8"), context);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL("../../web/drawer.js", import.meta.url), "utf8"), context);
   context.game = {sport: "nfl", week: 5, consensus: {spread_now: 3, total_now: 48}};
   vm.runInContext("renderDrawerTitle(game)", context);
   assert.match(title.innerHTML, /spread 3.*total 48/);

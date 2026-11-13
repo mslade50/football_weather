@@ -3,20 +3,20 @@
 from contextlib import closing
 from datetime import datetime, timezone
 
+from pipeline.scrape_outcomes import ScrapeOutcome
+
 from .store import append_forecasts, append_odds, connect
 
 
-def odds(path, ctx, sport, games, lines, books, scrapers):
+def odds(path, ctx, sport, games, lines, books, results):
     try:
-        # gather() failures can leave a scraper without fetch_errors. Degradation
-        # evidence must also veto coverage. Unknown/missing scraper is not success.
-        successful = {(name, sport) for name in books if name in scrapers
+        successful = {(name, sport) for name in books if name in results
                       and games
-                      and not getattr(scrapers[name], "fetch_errors", None)
-                      and not any((d.component == "odds.merge" and d.severity in ("warn", "error"))
-                                  or (name in d.reason and ("failed" in d.reason or "timed out" in d.reason
-                                                          or d.component == "odds.ingest"))
-                                  for d in ctx.degradations if d.component.startswith("odds"))}
+                      and results[name].coverage_ok
+                      and results[name].outcome in (ScrapeOutcome.OK, ScrapeOutcome.EMPTY)
+                      and results[name].attempted
+                      and not any(d.component == "odds.merge" and d.severity in ("warn", "error")
+                                  for d in ctx.degradations)}
         with closing(connect(path)) as conn:
             append_odds(conn, lines, games=games, run_id=ctx.run_id, observed_at=datetime.now(timezone.utc),
                         started_at=getattr(ctx, "started_at", ctx.now_utc), attempted={(b, sport) for b in books}, successful=successful)

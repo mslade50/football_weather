@@ -41,7 +41,7 @@ class Pair:
     def complete(self) -> bool:
         sides = {q.key.side for q in self.quotes}
         expected = {"over", "under"} if self.key.market == "total" else {"home", "away"}
-        return sides == expected and len({_number(q) for q in self.quotes}) == 1
+        return sides == expected and len({_canonical_line(q) for q in self.quotes}) == 1
 
     @property
     def same_capture(self) -> bool:
@@ -119,7 +119,8 @@ def pairs(quotes, *, complete_only: bool = False) -> dict[MarketKey, Pair]:
     return {k: p for k, p in result.items() if not complete_only or p.complete}
 
 
-def _number(q):
+def _canonical_line(q):
+    """Canonical home spread/total with two-decimal rounding, not scalar coercion."""
     return round(-q.line if q.key.market == "spread" and q.key.side == "away" else q.line, 2) if q.line is not None else None
 
 
@@ -164,7 +165,7 @@ def first_seen(conn, *, as_of: datetime, policy: str = "first_complete") -> dict
                     known.update(incoming)
             else:
                 for side, q in incoming.items():
-                    if key.market == "ml" or _number(q) == _number(next(iter(known.values()))):
+                    if key.market == "ml" or _canonical_line(q) == _canonical_line(next(iter(known.values()))):
                         known[side] = q
     return {key: Pair(key, tuple(rows.values())) for key, rows in selected.items() if rows}
 

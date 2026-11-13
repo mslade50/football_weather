@@ -1,3 +1,4 @@
+import { bettableBeforeKickoff } from './game-status.js';
 // Direct, request-correlated public quotes. No publication, dispatch or orders.
 import { alertLiquidity } from './alert-liquidity.js';
 import { DEPTH_ADAPTERS } from './execution-preview.js';
@@ -31,7 +32,7 @@ export async function exchangeRefresh(env, { sport, request_id, requested_at }, 
     await Promise.all(Array.from({ length: Math.min(4, games.length) }, async () => {
       while (cursor < games.length && !controller.signal.aborted) {
         const index = cursor++, game = games[index];
-        if (!(Date.parse(game.kickoff_utc) > Date.now()) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || '')) continue;
+        if (!bettableBeforeKickoff(game)) continue;
         const center = game.consensus?.total_now ?? 45.5;
         const refs = (game.execution_markets || []).filter(r => Object.hasOwn(DEPTH_ADAPTERS, r.book)
           && Number.isFinite(r.line) && r.line % 1 === .5)

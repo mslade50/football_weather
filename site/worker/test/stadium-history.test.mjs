@@ -40,7 +40,7 @@ test('History endpoint is authenticated GET-only, aggregate-only and does not ac
 function ui() {
   const ctx=vm.createContext({console});
   for(const name of ['discovery.js','app.js','backtest.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${name}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${name}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
   ctx.data=stadiumHistoryPayload();
   vm.runInContext('STADIUM_HISTORY.data=data',ctx);
   ctx.game={process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},sport:'nfl',season:2026,stadium:{stadium_id:'metlife-stadium',roof_state:'open'},

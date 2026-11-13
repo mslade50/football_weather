@@ -27,6 +27,36 @@ def ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
+def parse_iso_utc(
+    value: object, *, strip: bool = False, naive_utc: bool = True,
+    strings_only: bool = False, z_suffix_only: bool = False,
+) -> Optional[datetime]:
+    """ISO/datetime to aware UTC, or None; never interpret numbers as epochs.
+
+    Explicit policies preserve existing boundaries: state does not trim input;
+    alert/backtest clocks trim and translate only a terminal Z; provider clocks
+    accept strings only and can require an explicit timezone. parse_iso below
+    remains the raising, offset-preserving parser with a configurable default TZ.
+    """
+    if isinstance(value, datetime) and not strings_only:
+        parsed = value
+    elif isinstance(value, str):
+        text = value.strip() if strip else value
+        if z_suffix_only:
+            text = text[:-1] + '+00:00' if text.endswith('Z') else text
+        else:
+            text = text.replace('Z', '+00:00')
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None and not naive_utc:
+        return None
+    return ensure_utc(parsed)
+
+
 def to_et(dt: datetime) -> datetime:
     return ensure_utc(dt).astimezone(ET)
 
@@ -91,6 +121,7 @@ __all__ = [
     "now_utc",
     "now_et",
     "ensure_utc",
+    "parse_iso_utc",
     "to_et",
     "to_tz",
     "date_label",

@@ -23,13 +23,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 from pipeline.contracts import GameLine
+from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult
 from pipeline.state import parse_utc
 from utils.timeutil import utc_iso
 
@@ -61,6 +62,7 @@ def _raw_game_dict(g: Any) -> dict[str, Any]:
 
 def dump_lines(base: Path, sport: str, book: str, lines: list[GameLine], *, run_id: str | None,
                raw_games: Sequence[Any] = (), fetch_errors: dict[str, str] | None = None,
+               scrape_result: ScrapeResult | None = None,
                now: datetime | None = None) -> Path:
     """Write one sport/book handoff file (atomic rename); returns its path."""
     payload = {
@@ -70,6 +72,7 @@ def dump_lines(base: Path, sport: str, book: str, lines: list[GameLine], *, run_
         "run_id": run_id,
         "written_at": utc_iso(now) if now is not None else utc_iso(),
         "fetch_errors": dict(fetch_errors or {}),
+        "scrape_result": asdict(scrape_result) if scrape_result is not None else None,
         "games": [_raw_game_dict(g) for g in raw_games],
         "lines": [_line_dict(ln) for ln in lines if ln.sport == sport and ln.book == book],
     }
@@ -139,6 +142,12 @@ def load_lines(base: Path, sport: str, book: str, *, now: datetime, max_age: tim
                                          neutral=bool(g.get("neutral", False))))
     errors = payload.get("fetch_errors") or {}
     out.scraper = SimpleNamespace(last_games=games, fetch_errors=dict(errors) if isinstance(errors, dict) else {})
+    result = payload.get('scrape_result')
+    if isinstance(result, dict):
+        try:
+            out.scraper.scrape_result = ScrapeResult(**dict(result, outcome=ScrapeOutcome(result['outcome'])))
+        except (TypeError, ValueError, KeyError):
+            return missing(f"handoff {path.name} has invalid scrape evidence")
     for row in payload.get("lines") or []:
         try:
             line = _line_from_dict(row)
