@@ -36,9 +36,7 @@ from pipeline import state as pstate
 from pipeline.alert_liquidity import enrich_liquidity
 from pipeline.model import config as model_config
 from pipeline.model import process as process_screen
-from pipeline.model import signals as model_signals
 from pipeline.model.wind_history import stadium_wind_history
-from pipeline.stadiums.roofs import weather_exposed
 from utils.env import load_repo_dotenv
 from utils.telegram import football_telegram_enabled
 from utils.timeutil import ET, ensure_utc, now_utc, parse_iso, to_et, utc_iso
@@ -338,7 +336,7 @@ def _driver_phrase(card: dict[str, Any]) -> str:
         return f"Temperature: {round(t) if t is not None else '?'}°F"
     if top == "alt":
         return _altitude_phrase(card)
-    flags = [str(f) for f in ((card.get("signal") or {}).get("flags") or []) if f]
+    flags = [str(f) for f in process_screen.decision_for(card)["flags"] if f]
     return f"Signal: {flags[0]}" if flags else f"Weather: {_wx_numbers(card)}"
 
 
@@ -405,33 +403,8 @@ def _side_label(edge: dict[str, Any], card: dict[str, Any]) -> str:
 
 
 def _signal_label(card: dict[str, Any]) -> Optional[str]:
-    """Published tier when the process screen qualifies; otherwise No Impact.
-
-    A stored Low/Mid/High label is kept so a qualifying card does not get
-    relabeled. Stale "No Impact" text is recomputed from the signal-driving
-    weather when the screen says the game qualifies. Heat and altitude labels
-    do not qualify on their own. A warm game with sustained wind >= 15 mph
-    does qualify while the optional temperature gate is off.
-    """
-    proc = process_screen.evaluate_card(card)
-    if not proc.get("alert"):
-        return model_signals.NO
-    weather = card.get("weather") or {}
-    wind = proc.get("wind_mph") if proc.get("wind_mph") is not None else weather.get("wind_fg")
-    temp = proc.get("temp_f") if proc.get("temp_f") is not None else weather.get("temp_fg")
-    rain = proc.get("rain_mm") if proc.get("rain_mm") is not None else weather.get("rain_fg")
-    # CFB is recomputed so a stale "No Impact" label cannot hide a qualifying wind game.
-    # NFL keeps an explicit No Impact label; the build stamps the tier from the same screen.
-    if card.get("sport") == "cfb":
-        return model_signals.cfb_signal(
-            wind, temp, rain, (card.get("consensus") or {}).get("spread_open"),
-            card.get("travel_alt"), card.get("home_temp"), card.get("away_temp"), weekday=0,
-        ).label
-    lbl = (card.get("signal") or {}).get("label")
-    text = str(lbl).strip() if lbl else ""
-    if text and text.lower() != model_signals.NO.lower():
-        return text
-    return model_signals.NO
+    """Read the build decision, with the shared fallback for stored snapshots."""
+    return process_screen.decision_for(card)["alert_label"]
 
 
 def _in_signal(card: dict[str, Any]) -> bool:
@@ -631,10 +604,8 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
 
 
 def _opener_line_note(card: dict[str, Any]) -> list[str]:
-    """Surface a missing total opener. An absent flag is recomputed from the card."""
-    proc = card.get("process")
-    if not isinstance(proc, dict) or "line_open_missing" not in proc:
-        proc = process_screen.evaluate_card(card)
+    """Surface the opener evidence already evaluated at publication."""
+    proc = process_screen.decision_for(card)
     if proc.get("line_open_missing"):
         return ["Opener line unknown"]
     return []
@@ -748,10 +719,7 @@ def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
     unless that league's optional gate is on. ``TELEGRAM_MIN_TIER`` can still
     require a higher published tier.
     """
-    stadium = card.get("stadium") or {}
-    if not weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state")):
-        return False
-    proc = process_screen.evaluate_card(card)
+    proc = process_screen.decision_for(card)
     if not proc.get("alert"):
         return False
     return _tier_at_least(_signal_label(card), cfg.min_tier)

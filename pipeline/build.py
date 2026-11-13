@@ -99,7 +99,7 @@ from pipeline.weather import merge as merge_mod
 from pipeline.weather import nws as nws_mod
 from pipeline.weather import openmeteo as om_mod
 from utils.env import load_repo_dotenv
-from utils.timeutil import et_weekday, now_et, to_tz, utc_iso
+from utils.timeutil import now_et, to_tz, utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -1462,7 +1462,7 @@ def build_record(
         sig = signals.nfl_signal(drive_wind, drive_temp, drive_rain)
     else:
         sig = signals.cfb_signal(
-            drive_wind, drive_temp, drive_rain, signal_open_spread, travel_alt, home_temp, away_temp, et_weekday()
+            drive_wind, drive_temp, drive_rain, signal_open_spread, travel_alt, home_temp, away_temp
         )
     flags = signals.combined_flags(
         sport, drive_wind, drive_temp, signal_open_spread, travel_alt, home_temp, away_temp

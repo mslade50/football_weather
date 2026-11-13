@@ -41,6 +41,11 @@ GitHub Actions pipeline.yml            Cloudflare
          │ Telegram alerts             └──────────────────────────────────────┘
 ```
 
+* **Signal decisions**: Python publishes a complete `process` decision record on
+  each GameCard, including discovery reasons, pill label, flags and applied
+  thresholds. The UI renders it; older cards show their published label with
+  a neutral refresh-pending marker. Alerts use the same record, with one shared
+  Python fallback for stored snapshots. See `docs/PROCESS_SPEC.md`.
 * **Pipeline** (`pipeline/build.py`): one process per run; every external fetch
   is captured raw first; state (openers, history, alert markers, baselines)
   round-trips through R2 `board/` and is never committed.

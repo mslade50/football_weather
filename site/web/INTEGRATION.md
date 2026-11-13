@@ -1,10 +1,10 @@
 # Discovery UI integration contract
 
-UI branch: `codex/football-ui-audit`, base main `2e69a97`. Integration and deployment belong to the backend task. This branch modifies frontend files and UI tests only; `current-quotes.mjs` and Worker implementation are unchanged.
+Historical UI work began on `codex/football-ui-audit`, base main `2e69a97`. The current signal contract is the Python-published decision described below; `current-quotes.mjs` and the Worker implementation are unchanged by this decision-record change.
 
 ## Discovery
 
-Table, map and Signals presets share `filterDiscovery`. Closed roofs, CFB opening spreads beyond ±10, started/cancelled/postponed games never appear. Missing CFB opener or incomplete wind/temperature is an unknown case exposed by **Inspect low likelihood / unknown**. Clear signal and near-screening-margin cases are shown by default. Prices, edge filters and liquidity never gate discovery. Near margins are engineering screens, not calibrated probabilities. An optional `GameCard.discovery.signal_probability` in [0,1] supplies actual signal likelihood; below 5% is hidden by default. Confidence/impact/precipitation probability are never substituted.
+Table, map and Signals presets share `filterDiscovery`, rendering the published decision. Signal and near cases appear by default; Inspect shows quiet/unknown cases and Show all games also exposes roof/spread exclusions. Started, cancelled and postponed games remain excluded. Missing CFB opener or wind is unknown; temperature is informational unless its optional gate is on. Prices can mark a candidate moved; edge filters and liquidity never establish a weather signal. Near margins are engineering screens, not calibrated probabilities. An optional `GameCard.discovery.signal_probability` in [0,1] supplies actual signal likelihood; below 5% is quiet. Confidence/impact/precipitation probability are never substituted.
 
 The UI uses the published stadium coordinates at their original numeric precision; it does not substitute home-team coordinates. `venue_provenance.resolution`, `weather.ensemble_unverified_sources` and `weather.ensemble_verification_errors` are optional backend evidence shown in the drawer. All source clocks remain intact.
 
@@ -64,3 +64,8 @@ Stake-check requests and completed/error states are retained by game/request ide
 Run `node --test "test/*.test.mjs"` in `site/worker`, plus `python -m pytest tests/test_site_contract.py -q`. UI fixtures cover hard eligibility, liquidity-independent discovery, quiet/unknown inspection, preset consistency, exact copy and copy failure, exchange stake/fee/clock/rules rejection, mixed generations and unrelated refresh rejection/timeout. `stake-check-race.test.mjs` deterministically exercises delayed responses across a 15-second replacement, navigation, cancellation/restart, close/reopen, changed line and timeout. `search-input.test.mjs` exercises incremental multi-word typing, caret/selection preservation across renders, normalized comparison and unfocused hash-state synchronization.
 
 Safe browser checks use synthetic cards and a blank local MapLibre style under `connect-src 'none'`, with production boot disabled. Live-board browser access was explicitly denied; no alternate access route, production refresh, bets, communications or deployment was attempted. Browser clipboard API returned an empty value even after the UI's successful native clipboard promise; exact copy is verified in the unit fixture, and real system clipboard contents remain unverified.
+
+Signal classification is now published as `process.decision_version = "decision-v1"`.
+Discovery, flags and the pill use the record exclusively (PROCESS_SPEC.md). Cards
+without it retain their original published label and show neutral Refresh pending;
+no client-side threshold fallback is permitted. Execution requires a current record.

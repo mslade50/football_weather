@@ -83,7 +83,7 @@ test('Unqualified rows keep an explicit unusable state with no repeated global i
   const f = fixture();
   vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), f.ctx);
   vm.runInContext('verifiedOffer = () => null;', f.ctx);
-  f.ctx.game = {};
+  f.ctx.game = {process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},};
   const html = f.run('exchangeOfferHtml(game)');
   assert.match(html, /Liquidity unverified/); assert.match(html, /Pre-game checks only/);
   assert.doesNotMatch(html, /Fresh depth, fees and matching rules required|Tap game/);

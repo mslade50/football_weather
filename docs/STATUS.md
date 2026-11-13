@@ -1,5 +1,16 @@
 # STATUS — football_weather rebuild
 
+2026-11-13 implementation: GameCard.process now publishes decision-v1: discovery
+states/reasons, eligibility, final pill labels, flags and applied thresholds.
+UI signal consumers render the record; old cards show refresh pending. Alerts
+use the shared Python reader/fallback and CLEAR retains send-time evidence checks.
+No deployment or cloud-data changes were performed for this implementation.
+Local checks: 1691 Python tests passed; only the two known Windows
+snapshot-mirror environment failures remain. Worker tests passed 184/184;
+ruff passed. The 413-card parity harness preserved all 325 previously agreeing
+cards exactly and resolved the 88 prior disagreements. Offline screenshot QA
+could not launch because this machine lacks Playwright's Chromium executable.
+
 2026-11-13 implementation: retired Streamlit file generation and publication removed.
 Board fair JSON values, date/time labels, golden parquet fixtures and the separate
 backtest grid workbook remain. The unused recovery/extraction scripts were removed;

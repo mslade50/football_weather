@@ -111,23 +111,24 @@ PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond t
 PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
+PROCESS_SIGNAL_PROBABILITY_MIN = 0.05
 PROCESS_VERSION = "process-v5"            # v5: one book's own adverse move blocks, even if the average does not
 # Settled log of every exposed game. Not an under gate and not an alert.
 EXPOSED_FORECAST_VERSION = "exposed-forecast-v1"
 
 # ---- signals (§7.4) ----------------------------------------------------------
-# Retained name: the old Low-rain path required temp < 50°F and rain > 2 mm.
-# The process screen replaced that gate; nothing in the alert path reads this.
-LOW_RAIN_TEMP_MAX_F = 50.0
 NFL_WIND_VOL_LOW_BELOW = 11.99
-CFB_HIGH_OFFSET = 7.5
 # Shared wind flag (NFL and CFB): sustained wind >= PROCESS_WIND_FLAG_MPH.
 # CFB still also requires the opening spread within ±10. Temperature is not a
-# hard gate; CFB_WIND_MAX_TEMP_F is the threshold the optional gate uses when
-# that league turns it on. Severity (High / Very High) stays at 21.5 mph.
-CFB_WIND_MIN_MPH = PROCESS_WIND_FLAG_MPH
-CFB_WIND_MAX_TEMP_F = PROCESS_TEMP_MAX_F
+# hard gate. Severity (High / Very High) stays at 21.5 mph.
 CFB_HIGH_WIND_MPH = 21.5
+NFL_HIGH_TEMP_MIN_F = 32.0
+NFL_HIGH_TEMP_MAX_F = 45.0
+CFB_VERY_HIGH_TEMP_MAX_F = 50.0
+SIGNAL_HEAT_TEMP_F = 80.0
+SIGNAL_HOME_TEMP_MAX_F = 57.0
+SIGNAL_ALTITUDE_M = 800.0
+SIGNAL_ALT_TEMP_F = 75.0
 # Every CFB weather signal and combined-page flag is disqualified when the
 # absolute opening spread exceeds this value.
 CFB_OPEN_SPREAD_MAX = 10.0

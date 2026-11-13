@@ -15,11 +15,48 @@ from __future__ import annotations
 
 import math
 import os
+import re
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Optional
 
 from pipeline.model import config as C
 from pipeline.model.fair import american_to_prob, devig_pair, total_shift
 from pipeline.stadiums.roofs import weather_exposed
+
+
+class DiscoveryState(str, Enum):
+    INELIGIBLE = "ineligible"
+    UNKNOWN = "unknown"
+    QUIET = "quiet"
+    MOVED = "moved"
+    SIGNAL = "signal"
+    NEAR = "near"
+
+
+class Reason(str, Enum):
+    INDOOR = "indoor"
+    CLOSED_ROOF = "closed_roof"
+    ROOF_UNCONFIRMED = "roof_unconfirmed"
+    SPREAD_OUTSIDE = "spread_outside"
+    NOT_UPCOMING = "not_upcoming"
+    SPREAD_UNKNOWN = "spread_unknown"
+    FORECAST_INCOMPLETE = "forecast_incomplete"
+    TEMP_GATE = "temp_gate"
+    BELOW_MARGIN = "below_margin"
+    LOW_PROBABILITY = "low_probability"
+    PRICE_MOVED = "price_moved"
+    WIND_SIGNAL = "wind_signal"
+    RAIN_SIGNAL = "rain_signal"
+    WIND_WATCH = "wind_watch"
+    RAIN_WATCH = "rain_watch"
+    RAIN_ELEVATED = "rain_elevated"
+    RAIN_UNCONFIRMED = "rain_unconfirmed"
+    ECMWF_APART = "ecmwf_apart"
+    OPENER_UNKNOWN = "opener_unknown"
+
+
+DECISION_VERSION = "decision-v1"
 
 ECMWF_IFS = "ecmwf_ifs025"
 ECMWF_AIFS = "ecmwf_aifs025_single"
@@ -612,8 +649,8 @@ def forecast_observation(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
-    """Process block stored on a GameCard and read by alerts."""
+def evaluate_card(card: dict[str, Any], *, now: Optional[datetime] = None) -> dict[str, Any]:
+    """Complete build-time decision. Only ``decision_for`` handles old snapshots."""
     weather = card.get("weather") or {}
     stadium = card.get("stadium") or {}
     exposed = weather_exposed(stadium.get("roof_type"), stadium.get("roof_state") or card.get("roof_state"))
@@ -653,7 +690,7 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         exposed and spread_ok and temp_passes and not weather_hit
         and (band == "watch" or tier in ("watch", "elevated", "unverified", "disagree"))
     )
-    return {
+    result = {
         "version": C.PROCESS_VERSION,
         "forecast_source": driving["source"],
         "ecmwf_missing": bool(driving.get("ecmwf_missing")),
@@ -692,6 +729,151 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "alert": bool(weather_hit and not price["price_blocked"]),
         "books": price["books"],
     }
+    result.update(_decision_fields(card, result, exposed, spread_ok, temp_passes, now))
+    return result
+
+
+def _decision_fields(
+    card: dict[str, Any], proc: dict[str, Any], exposed: bool, spread_ok: bool,
+    temp_passes: bool, now: Optional[datetime],
+) -> dict[str, Any]:
+    # Local import avoids a cycle: severity helpers use this module's temp_gate.
+    from pipeline.model import signals
+
+    now = now or datetime.now(timezone.utc)
+    stadium = card.get("stadium") or {}
+    sport = card.get("sport")
+    spread = _f((card.get("consensus") or {}).get("spread_open"))
+    roof = stadium.get("roof_state") or card.get("roof_state")
+    ineligible = []
+    if not exposed:
+        if stadium.get("roof_type") == "dome" or roof in ("dome", "indoor"):
+            ineligible.append(Reason.INDOOR)
+        elif roof == "closed":
+            ineligible.append(Reason.CLOSED_ROOF)
+        else:
+            ineligible.append(Reason.ROOF_UNCONFIRMED)
+    if not spread_ok:
+        ineligible.append(Reason.SPREAD_UNKNOWN if spread is None else Reason.SPREAD_OUTSIDE)
+    wind, temp, rain = (proc[key] for key in ("wind_mph", "temp_f", "rain_mm"))
+    if sport == "cfb":
+        sig = signals.cfb_signal(wind if exposed else None, temp if exposed else None,
+                                 rain if exposed else None, spread, card.get("travel_alt"),
+                                 card.get("home_temp"), card.get("away_temp"))
+    else:
+        sig = signals.nfl_signal(wind if exposed else None, temp if exposed else None, rain if exposed else None)
+    flags = signals.combined_flags(sport, wind, temp, spread, card.get("travel_alt"),
+                                   card.get("home_temp"), card.get("away_temp")) if exposed else []
+    published = card.get("signal") or {}
+    label = str(published.get("label") or sig.label)
+    display = re.sub(r"\s*Impact$", "", label, flags=re.I) or "No"
+    if display == "No":
+        display = "No signal"
+    display_color = published.get("color") or {
+        "No signal": "green", "Low": "blue", "Mid": "orange", "High": "purple", "Very High": "darkred",
+    }.get(display, "green")
+    muted = False
+    if not exposed or (sport == "cfb" and spread is not None and not spread_ok):
+        display, muted = "Ineligible", True
+    elif ("rain" in (published.get("drivers") or sig.drivers) or "(rain)" in label.lower()) and proc["rain_agreement"] != "agree":
+        if proc["wind_band"] == "flag":
+            display = "Low (Wind)"
+        else:
+            display = "Rain models disagree" if proc["rain_agreement"] == "disagree" else "Rain not confirmed"
+            muted = True
+    # Preserve the established NFL alert policy for explicitly published No Impact.
+    alert_label = sig.label if sport == "cfb" else str(published.get("label") or signals.NO).strip()
+    if not proc["alert"]:
+        alert_label = signals.NO
+    probability = _f((card.get("discovery") or {}).get("signal_probability"))
+    if probability is not None and not 0 <= probability <= 1:
+        probability = None
+    try:
+        kickoff = datetime.fromisoformat(str(card.get("kickoff_utc")).replace("Z", "+00:00"))
+        upcoming = kickoff > now and not re.search(r"final|cancel|postpon|suspend|live|progress", str(card.get("status") or ""), re.I)
+    except (ValueError, TypeError):
+        upcoming = False
+    state, reasons = DiscoveryState.QUIET, [Reason.BELOW_MARGIN]
+    hard_reasons = [reason for reason in ineligible if reason != Reason.SPREAD_UNKNOWN]
+    if hard_reasons:
+        state, reasons = DiscoveryState.INELIGIBLE, hard_reasons
+    elif not upcoming:
+        state, reasons = DiscoveryState.INELIGIBLE, [Reason.NOT_UPCOMING]
+    elif sport == "cfb" and spread is None:
+        state, reasons = DiscoveryState.UNKNOWN, [Reason.SPREAD_UNKNOWN]
+    elif wind is None:
+        state, reasons = DiscoveryState.UNKNOWN, [Reason.FORECAST_INCOMPLETE]
+    elif probability is not None and probability < C.PROCESS_SIGNAL_PROBABILITY_MIN:
+        reasons = [Reason.LOW_PROBABILITY]
+    elif proc["price_blocked"]:
+        state, reasons = DiscoveryState.MOVED, [Reason.PRICE_MOVED]
+    elif proc["candidate"]:
+        state, reasons = DiscoveryState.SIGNAL, []
+        if proc["wind_band"] == "flag":
+            reasons.append(Reason.WIND_SIGNAL)
+        if proc["rain_tier"] == "signal_amount":
+            reasons.append(Reason.RAIN_SIGNAL)
+    elif proc["watch"]:
+        state, reasons = DiscoveryState.NEAR, []
+        if proc["wind_band"] == "watch":
+            reasons.append(Reason.WIND_WATCH)
+        rain_reason = {"watch": Reason.RAIN_WATCH, "elevated": Reason.RAIN_ELEVATED,
+                       "unverified": Reason.RAIN_UNCONFIRMED, "disagree": Reason.RAIN_UNCONFIRMED}
+        if proc["rain_tier"] in rain_reason:
+            reasons.append(rain_reason[proc["rain_tier"]])
+    elif not temp_passes:
+        reasons = [Reason.TEMP_GATE]
+    if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR) and (card.get("weather") or {}).get("ecmwf_apart"):
+        reasons.append(Reason.ECMWF_APART)
+    if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR, DiscoveryState.MOVED) and proc["line_open_missing"]:
+        reasons.append(Reason.OPENER_UNKNOWN)
+    clear_inputs_complete = not (sport == "cfb" and temp is not None and (
+        (temp > C.SIGNAL_ALT_TEMP_F and _f(card.get("travel_alt")) is None)
+        or (temp > C.SIGNAL_HEAT_TEMP_F and any(_f(card.get(key)) is None for key in ("home_temp", "away_temp")))
+    ))
+    return {
+        "decision_version": DECISION_VERSION,
+        "evaluated_at": now.isoformat(),
+        "eligible": bool(exposed and spread_ok),
+        "ineligible_reasons": ineligible,
+        "discovery_state": state,
+        "discovery_reasons": reasons,
+        "signal_probability": probability,
+        "display_label": display,
+        "display_color": "#8b949e" if muted else display_color,
+        "display_muted": muted,
+        "flags": flags,
+        "alert_label": alert_label,
+        "clear_signal_label": sig.label,
+        "clear_inputs_complete": clear_inputs_complete,
+        "price_gate_passed": not (proc["under_prob_move"] > proc["price_gate_max"]),
+        "thresholds": {
+            "temp_max_f": proc["temp_gate_max_f"], "temp_gate": proc["temp_gate"],
+            "wind_watch_mph": C.PROCESS_WIND_WATCH_MPH, "wind_flag_mph": C.PROCESS_WIND_FLAG_MPH,
+            "rain_ignore_mm": C.PROCESS_RAIN_IGNORE_MM, "rain_watch_mm": C.PROCESS_RAIN_WATCH_MM,
+            "rain_signal_mm": C.PROCESS_RAIN_SIGNAL_MM, "rain_agree_tol_mm": C.PROCESS_RAIN_AGREE_TOL_MM,
+            "under_prob_move_max": proc["price_gate_max"], "cfb_open_spread_max": C.CFB_OPEN_SPREAD_MAX,
+            "signal_probability_min": C.PROCESS_SIGNAL_PROBABILITY_MIN,
+            "heat_temp_f": C.SIGNAL_HEAT_TEMP_F, "home_temp_max_f": C.SIGNAL_HOME_TEMP_MAX_F,
+            "altitude_m": C.SIGNAL_ALTITUDE_M, "alt_temp_f": C.SIGNAL_ALT_TEMP_F,
+            "ecmwf_lead_h": C.PROCESS_ECMWF_LEAD_H, "cfb_high_wind_mph": C.CFB_HIGH_WIND_MPH,
+            "nfl_high_temp_min_f": C.NFL_HIGH_TEMP_MIN_F, "nfl_high_temp_max_f": C.NFL_HIGH_TEMP_MAX_F,
+            "cfb_very_high_temp_max_f": C.CFB_VERY_HIGH_TEMP_MAX_F,
+            "severity_temp_max_f": C.PROCESS_TEMP_MAX_F,
+        },
+    }
+
+
+def decision_for(card: dict[str, Any], *, recheck: bool = False, now: Optional[datetime] = None) -> dict[str, Any]:
+    """Trust published decisions; one fallback for historical cards and evidence rechecks."""
+    proc = card.get("process")
+    if not recheck and isinstance(proc, dict) and proc.get("decision_version") == DECISION_VERSION:
+        return proc
+    evaluated = evaluate_card(card, now=now)
+    # Legacy snapshots can carry this observation without a complete decision.
+    if not recheck and isinstance(proc, dict) and "line_open_missing" in proc:
+        evaluated["line_open_missing"] = proc["line_open_missing"]
+    return evaluated
 
 
 def model_rows(windows: dict[str, Any]) -> list[dict[str, Any]]:
@@ -713,6 +895,10 @@ def model_rows(windows: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 __all__ = [
+    "DECISION_VERSION",
+    "DiscoveryState",
+    "Reason",
+    "decision_for",
     "BASIS_IMPLIED",
     "BASIS_NOVIG",
     "BASIS_SINGLE",

@@ -7,7 +7,6 @@ stays NBM; ECMWF is the signal-driving forecast beside it.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
@@ -17,7 +16,6 @@ from pipeline.weather.merge import build_forecast
 from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.openmeteo import ParsedLocation
 
-WEB = Path(__file__).resolve().parents[1] / "site" / "web"
 UTC = timezone.utc
 
 
@@ -448,19 +446,3 @@ def test_optional_temp_gate_is_off_by_default(monkeypatch: pytest.MonkeyPatch) -
     assert P.evaluate_card(cfb)["alert"] is False
     cfb["weather"]["temp_fg"] = 69
     assert P.evaluate_card(cfb)["alert"] is True
-
-
-def test_dashboard_constants_match_the_python_screen() -> None:
-    src = (WEB / "discovery.js").read_text(encoding="utf8")
-    assert "const PROCESS_TEMP_GATE = false;" in src
-    for name, value in (
-        ("PROCESS_TEMP_MAX_F", C.PROCESS_TEMP_MAX_F),
-        ("PROCESS_WIND_WATCH_MPH", C.PROCESS_WIND_WATCH_MPH),
-        ("PROCESS_WIND_FLAG_MPH", C.PROCESS_WIND_FLAG_MPH),
-        ("PROCESS_RAIN_IGNORE_MM", C.PROCESS_RAIN_IGNORE_MM),
-        ("PROCESS_RAIN_WATCH_MM", C.PROCESS_RAIN_WATCH_MM),
-        ("PROCESS_RAIN_SIGNAL_MM", C.PROCESS_RAIN_SIGNAL_MM),
-        ("PROCESS_RAIN_AGREE_TOL_MM", C.PROCESS_RAIN_AGREE_TOL_MM),
-        ("PROCESS_UNDER_PROB_MOVE_MAX", C.PROCESS_UNDER_PROB_MOVE_MAX),
-    ):
-        assert f"const {name} = {int(value) if value >= 1 else value};" in src

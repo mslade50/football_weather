@@ -11,7 +11,7 @@ import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from pipeline.model import config
+from pipeline.model import process as process_screen
 
 
 def routine_slot(now):
@@ -63,7 +63,6 @@ def evidence_time(value):
 
 def clear_reason(card, cfg, now):
     from pipeline import alerts as A
-    from pipeline.model import signals
     from pipeline.stadiums.roofs import resolve_roof_state
     from pipeline.weather.first_pass import aged
     from pipeline.weather.member_cache import SOURCES, version
@@ -83,7 +82,8 @@ def clear_reason(card, cfg, now):
     if roof_type in ('open', 'dome', 'retractable') and roof in ('closed', 'dome'):
         return 'Stadium roof is closed'
     spread = A._num((card.get('consensus') or {}).get('spread_open'))
-    if sport == 'cfb' and spread is not None and abs(spread) > config.CFB_OPEN_SPREAD_MAX:
+    decision = process_screen.decision_for(card, recheck=True, now=now)
+    if 'spread_outside' in decision['ineligible_reasons']:
         return 'CFB spread exceeds the encoded eligibility limit'
     if roof_type not in ('open', 'dome', 'retractable') or roof not in ('outdoors', 'open') or (sport == 'cfb' and spread is None):
         return None
@@ -118,17 +118,12 @@ def clear_reason(card, cfg, now):
                     return None
     except (KeyError, TypeError, ValueError, AttributeError):
         return None
-    if sport == 'cfb':
-        # Missing ancillary inputs are unknown only where their predicate could
-        # still fire. A cold forecast does not need warm-climate/altitude data.
-        if (temp > 75 and A._num(card.get('travel_alt')) is None) or (
-                temp > 80 and any(A._num(card.get(key)) is None for key in ('home_temp', 'away_temp'))):
-            return None
-        signal = signals.cfb_signal(wind, temp, rain, spread, card.get('travel_alt'), card.get('home_temp'), card.get('away_temp'), 0)
-    else:
-        signal = signals.nfl_signal(wind, temp, rain)
+    if not decision['clear_inputs_complete']:
+        return None
     # A configured alert-tier threshold or an old label is not bet invalidation.
-    return 'Complete current weather no longer meets the encoded signal rules' if signal.label == signals.NO else None
+    return ('Complete current weather no longer meets the encoded signal rules'
+            if decision['clear_signal_label'] == 'No Impact' else None)
+
 
 
 def late_context(card):
@@ -198,9 +193,6 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
                             )
                         )
                 continue  # Explicit bet confirmation permits CLEAR only.
-            spread = A._num((card.get("consensus") or {}).get("spread_open"))
-            if card.get("sport") == "cfb" and spread is not None and abs(spread) > config.CFB_OPEN_SPREAD_MAX:
-                continue
             if not A._qualifying_signal(card, cfg):
                 continue
             first = A.edge_candidates(card, alerts, cfg, getattr(ctx, "run_id", None), now)

@@ -304,7 +304,7 @@ async function loadStadiumHistory(force = false) {
 }
 function stadiumSignalRule(g) {
   const wx = g.weather || {}, wind = wx.wind_fg, temp = wx.temp_fg;
-  if (!hardEligible(g) || !finiteValue(temp)) return null;
+  if (!decisionEligible(g) || !finiteValue(temp)) return null;
   const spread = g.sport === "cfb" ? "; |opening spread| ≤10" : "";
   if (g.sport === "cfb" && !finiteValue(g.consensus?.spread_open)) return null;
   if (finiteValue(wind) && temp < (g.sport === "cfb" ? 70 : 60)) {
@@ -358,9 +358,10 @@ function stadiumHistoricalRules(g) {
   return g.sport === 'cfb' ? ['cfb_wind'] : ['highwind_gt15_cool60', 'moderate8to15_cool60'];
 }
 function stadiumCurrentEligibility(g) {
+  if (!publishedDecision(g)) return 'Refresh pending';
   const current = stadiumSignalRule(g);
   return current ? `Qualifies for ${current.label} historical screen; execution eligibility checked separately`
-    : !hardEligible(g) ? `Not eligible: ${ineligibleReason(g)}`
+    : !decisionEligible(g) ? `Not eligible: ${ineligibleReason(g)}`
     : !finiteValue(g.weather?.wind_fg) || !finiteValue(g.weather?.temp_fg)
       || (g.sport === 'cfb' && !finiteValue(g.consensus?.spread_open)) ? 'Unknown: forecast / opening spread incomplete'
     : 'Forecast does not qualify for a supported historical wind rule; rain / heat / altitude history unavailable';

@@ -22,14 +22,14 @@ for (const sport of ['nfl','cfb']) {
     assert.equal(run('verifiedOffer(game)'), null);
     if (game.season===2026) {
       const offer = run('exchangeOfferHtml(game)');
-      if (run('hardEligible(game)')) assert.match(offer, /reference; \$500 depth unchecked/);
+      if (run('decisionEligible(game)')) assert.match(offer, /reference; \$500 depth unchecked/);
       else assert.match(offer, /Retractable roof not confirmed open|Not eligible/);
     }
     now += 180000;
     ctx.game=structuredClone(game);
     if (game.season===2026) {
       const offer = run('exchangeOfferHtml(game)');
-      if (run('hardEligible(game)')) assert.match(offer, /Exchange quotes stale/);
+      if (run('decisionEligible(game)')) assert.match(offer, /Exchange quotes stale/);
       else assert.match(offer, /Retractable roof not confirmed open|Not eligible/);
     }
     assert.equal(run('verifiedOffer(game)'),null);

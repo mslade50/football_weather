@@ -77,14 +77,14 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
     """
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     allows = _temp_allows("nfl", t)
-    if allows and _gt(w, 15) and _between(t, 32, 45):
+    if allows and _gt(w, C.PROCESS_WIND_FLAG_MPH) and _between(t, C.NFL_HIGH_TEMP_MIN_F, C.NFL_HIGH_TEMP_MAX_F):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
-    if allows and _gt(w, 15) and _lt(t, C.PROCESS_TEMP_MAX_F):
+    if allows and _gt(w, C.PROCESS_WIND_FLAG_MPH) and _lt(t, C.PROCESS_TEMP_MAX_F):
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("wind",))
     rain_cond = allows and _ge(r, C.PROCESS_RAIN_SIGNAL_MM)
     wind_flag = allows and _ge(w, C.PROCESS_WIND_FLAG_MPH)
     # Exactly 15 mph is a flag and stays Low. Mid/High still require wind above 15.
-    if rain_cond or (wind_flag and not (_gt(w, 15) and _lt(t, C.PROCESS_TEMP_MAX_F))):
+    if rain_cond or (wind_flag and not (_gt(w, C.PROCESS_WIND_FLAG_MPH) and _lt(t, C.PROCESS_TEMP_MAX_F))):
         driver = "rain" if rain_cond else "wind"
         return Signal(LOW, "blue", C.SIGNAL_SIZES[LOW], drivers=(driver,))
     return Signal(NO, "green", C.SIGNAL_SIZES[NO])
@@ -118,7 +118,7 @@ def cfb_wind_eligible(wind_fg: Optional[float], temp_fg: Optional[float], open_s
     on, the temperature must be strictly under that gate's max (default 65°F).
     """
     w, t = _f(wind_fg), _f(temp_fg)
-    return _cfb_spread_eligible(open_spread) and _temp_allows("cfb", t) and _ge(w, C.CFB_WIND_MIN_MPH)
+    return _cfb_spread_eligible(open_spread) and _temp_allows("cfb", t) and _ge(w, C.PROCESS_WIND_FLAG_MPH)
 
 
 def cfb_altitude_mid_trigger(
@@ -128,7 +128,7 @@ def cfb_altitude_mid_trigger(
 ) -> bool:
     """Whether CFB altitude plus warmth contributes an eligible Mid signal."""
     t, sp, alt = _f(temp_fg), _f(open_spread), _f(travel_alt)
-    return _gt(alt, 800) and _gt(t, 75) and _cfb_spread_eligible(sp)
+    return _gt(alt, C.SIGNAL_ALTITUDE_M) and _gt(t, C.SIGNAL_ALT_TEMP_F) and _cfb_spread_eligible(sp)
 
 
 def cfb_signal(
@@ -139,9 +139,8 @@ def cfb_signal(
     travel_alt: Optional[float],
     home_temp: Optional[float],
     away_temp: Optional[float],
-    weekday: int,
 ) -> Signal:
-    """CFB dot tier; ``weekday`` remains in the signature for caller compatibility."""
+    """CFB dot tier; weekday does not change the rule."""
     w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
     sp, alt = _f(open_spread), _f(travel_alt)
     ht, at = _f(home_temp), _f(away_temp)
@@ -155,12 +154,12 @@ def cfb_signal(
     hi = C.CFB_HIGH_WIND_MPH
 
     rain_cond = _temp_allows("cfb", t) and _ge(r, C.PROCESS_RAIN_SIGNAL_MM)
-    heat_cond = _gt(t, 80) and _lt(ht, 57) and _lt(at, 57)
+    heat_cond = _gt(t, C.SIGNAL_HEAT_TEMP_F) and _lt(ht, C.SIGNAL_HOME_TEMP_MAX_F) and _lt(at, C.SIGNAL_HOME_TEMP_MAX_F)
     altitude_mid = cfb_altitude_mid_trigger(t, sp, alt)
 
-    if wind_eligible and _gt(w, hi) and _lt(t, 50):
+    if wind_eligible and _gt(w, hi) and _lt(t, C.CFB_VERY_HIGH_TEMP_MAX_F):
         return Signal(VERY_HIGH, "darkred", C.SIGNAL_SIZES[VERY_HIGH], drivers=("wind",))
-    if wind_eligible and _gt(w, hi) and _lt(t, 65):
+    if wind_eligible and _gt(w, hi) and _lt(t, C.PROCESS_TEMP_MAX_F):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
     if altitude_mid:
         return Signal(MID, "orange", C.SIGNAL_SIZES[MID], drivers=("altitude_warmth",))
@@ -196,9 +195,9 @@ def combined_flags(
     elif sport == "nfl":
         if _temp_allows("nfl", t) and _ge(w, C.PROCESS_WIND_FLAG_MPH):
             flags.append("NFL Wind")
-    if _lt(ht, 57) and _lt(at, 57) and _gt(t, 80):
+    if _lt(ht, C.SIGNAL_HOME_TEMP_MAX_F) and _lt(at, C.SIGNAL_HOME_TEMP_MAX_F) and _gt(t, C.SIGNAL_HEAT_TEMP_F):
         flags.append("Heat")
-    if sport == "cfb" and _gt(alt, 800) and _gt(t, 75):
+    if sport == "cfb" and _gt(alt, C.SIGNAL_ALTITUDE_M) and _gt(t, C.SIGNAL_ALT_TEMP_F):
         flags.append("Alt+Heat")
     return flags
 

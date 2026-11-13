@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -15,9 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 OUT = ROOT / "tmp" / "ui-evidence"
 NOW = "2026-10-14T12:00:00Z"
+sys.path.insert(0, str(ROOT))
 
 
 def card(index: int) -> dict:
+    from pipeline.model.process import evaluate_card
+
     game = {
         "game_id": f"nfl:2026:6:away{index}@home{index}", "sport": "nfl", "run_id": "fixture",
         "season": 2026, "week": 6, "status": "scheduled", "kickoff_utc": "2026-10-18T20:25:00Z",
@@ -49,6 +54,7 @@ def card(index: int) -> dict:
                              "principal": 500, "fees": 5}]}
     elif index == 1:
         game["expired_markets"] = ["kalshi/total", "novig/total"]
+    game["process"] = evaluate_card(game, now=datetime.fromisoformat(NOW.replace("Z", "+00:00")))
     return game
 
 

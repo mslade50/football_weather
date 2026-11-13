@@ -28,6 +28,15 @@ function harness() {
       game(sport,'past',18,{kickoff_utc:'2026-10-09T18:00:00Z'}),game(sport,'live',18,{status:'in_progress'}),
       game(sport,'final',18,{status:'final'}),game(sport,'cancel',18,{status:'cancelled'}),
       game(sport,'postponed',18,{status:'postponed'}),game(sport,'other-week',18,{week:7})];
+    for (const card of ctx[sport]) {
+      const id = card.game_id.slice(sport.length+1);
+      const kind = {near:'near',quiet:'quiet',unknown:'unknown',closed:'ineligible',spread:'ineligible'}[id] || 'signal';
+      const reasons = {near:['rain_watch'],quiet:['below_margin'],unknown:['forecast_incomplete'],closed:['closed_roof'],spread:['spread_outside']}[id] || ['wind_signal'];
+      card.process = {decision_version:'decision-v1',eligible:!['closed','spread'].includes(id),
+        ineligible_reasons:kind==='ineligible'?reasons:[],discovery_state:kind,discovery_reasons:reasons,
+        flags:kind==='signal'?[sport==='cfb'?'CFB Wind':'NFL Wind']:[], display_label:kind==='ineligible'?'Ineligible':'Low (Wind)',
+        display_color:'blue',thresholds:{wind_flag_mph:15,wind_watch_mph:12,rain_ignore_mm:5,rain_watch_mm:15,cfb_open_spread_max:10}};
+    }
     vm.runInContext(`DATA.games.${sport}=${sport}; RAW_GAMES.${sport}=${sport};`,ctx);
   }
   const run=expression=>vm.runInContext(expression,ctx);
@@ -73,9 +82,9 @@ test('Toggle preserves week and raw search while clearing signal-only filters; U
 test('Expanded visibility has no effect on Signals presets or historical games and hard gates stay strict',()=>{
   const h=harness();h.run("STATE.sport='cfb'; STATE.week=6; STATE.showAllGames=true; STATE.view='signals';");
   assert.deepEqual(Array.from(h.run('currentGames().map(g=>g.game_id)')),['cfb-signal','cfb-near']);
-  assert.equal(h.run('presetGames(PRESETS.cfb_wind).some(g=>!hardEligible(g))'),false);
+  assert.equal(h.run('presetGames(PRESETS.cfb_wind).some(g=>!decisionEligible(g))'),false);
   h.run("STATE.view='table'; STATE.tableMode='history'");assert.equal(h.run('showAllBoardGames(STATE)'),false);
-  h.ctx.game=h.ctx.cfb.find(g=>g.game_id==='cfb-closed');assert.equal(h.run('hardEligible(game)'),false);
+  h.ctx.game=h.ctx.cfb.find(g=>g.game_id==='cfb-closed');assert.equal(h.run('decisionEligible(game)'),false);
   assert.match(h.run('discoveryHtml(game)'),/Closed roof/);assert.match(h.run('exchangeOfferHtml(game)'),/Not eligible/);
   h.ctx.game=h.ctx.cfb.find(g=>g.game_id==='cfb-spread');assert.match(h.run('discoveryHtml(game)'),/Opening spread outside ±10/);
   assert.equal(h.run('verifiedOffer(game)'),null);

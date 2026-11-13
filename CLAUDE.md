@@ -8,6 +8,10 @@ D1) + Telegram alerts. Design docs: `docs/AUDIT.md`, `docs/ARCHITECTURE.md`,
 `docs/PLAN.md` (phased build; read the phase you are working on first).
 Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 
+Signal decisions are published once in GameCard.process by model/process.py.
+The UI renders that record without threshold fallbacks; stored-snapshot alert
+compatibility uses process.decision_for. See docs/PROCESS_SPEC.md.
+
 ## Environment
 - Native Windows, Git Bash. `python` (3.10) not `python3`. No 3.11-only syntax
   (no `except*`, `StrEnum`, `tomllib`).

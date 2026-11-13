@@ -126,9 +126,9 @@ have no rain total, the status is `unverified`. Neither is a signal.
 Disagreement is shown and is not a signal.
 
 The comparison total is ECMWF's own window, not the short-range stitch.
-Telegram and the board use that same total. When the card already carries
-`process.rain_agreement`, the board uses that status. Otherwise it recomputes
-from the model rows with the same IFS-then-AIFS rule. A stitch of 25 mm with
+Telegram and the board use the decision's `process.rain_agreement` status.
+An older card without the decision shows refresh pending in the UI; only
+the shared Python snapshot fallback can evaluate its model rows. A stitch of 25 mm with
 ECMWF at 8 mm is not a signal. A stitch of 40 mm with ECMWF 24 mm and GFS
 25 mm is. Missing ECMWF is not a signal even when the stitch and GFS are heavy.
 
@@ -137,8 +137,8 @@ Watch and elevated rain, and unverified or disagreed heavy rain, show as
 Wind can still alert on the same game.
 
 The old Low-rain trigger (`> 2 mm` and temp `< 50°F`) is retired for signals,
-discovery, and alerts. `LOW_RAIN_TEMP_MAX_F` remains in config only as the
-name of that retired gate. v1's rain component is a different number and
+discovery, and alerts. Its unused config name has been removed.
+v1's rain component is a different number and
 still uses the frozen tiers.
 
 Code: `process.rain_tier`, `process.rain_agreement`. Constants
@@ -407,3 +407,71 @@ only and is not the current flag:
 | `PROCESS_ECMWF_FIRST` | on | env `0` / `false` / `off` uses the stitch for the signal too |
 | `PROCESS_ECMWF_LEAD_H` | 48 | `config.py` |
 | `TELEGRAM_MIN_TIER` | `low` | existing alert floor, applied after the process gate |
+
+## Published decision record (decision-v1)
+
+`json_out.build_card` calls `process.evaluate_card` once after assembling the
+card, using its pricing clock as `evaluated_at`. The existing `process` block
+now carries the complete decision beside its weather and price evidence.
+`signal` remains the legacy severity block; `process.display_label` is the
+final pill text, including unconfirmed-rain corrections. v1 impact is unchanged.
+
+New fields: `decision_version`, `evaluated_at`, `eligible`, `ineligible_reasons`,
+`discovery_state`, `discovery_reasons`, `signal_probability`, `display_label`,
+`display_color`, `display_muted`, `flags`, `alert_label`, `clear_signal_label`,
+`clear_inputs_complete`, `price_gate_passed`, and `thresholds`. Existing wind,
+rain, forecast, temperature and price evidence fields remain. `eligible` means
+roof exposure plus the opening-spread gate, independent of schedule, weather,
+prices and severity. Missing CFB spread is ineligible with unknown evidence,
+not positive evidence for CLEAR. `price_gate_passed` records the price check
+even when no weather candidate exists; `price_blocked` retains its historical
+candidate-only meaning.
+
+State codes (Python `DiscoveryState`): `ineligible`, `unknown`, `quiet`, `moved`,
+`signal`, `near`. Ordered reason codes (Python `Reason`): `indoor`, `closed_roof`,
+`roof_unconfirmed`, `spread_outside`, `not_upcoming`, `spread_unknown`,
+`forecast_incomplete`, `temp_gate`, `below_margin`, `low_probability`,
+`price_moved`, `wind_signal`, `rain_signal`, `wind_watch`, `rain_watch`,
+`rain_elevated`, `rain_unconfirmed`, `ecmwf_apart`, `opener_unknown`.
+Wind bands remain `none|watch|flag`; rain tiers remain
+`ignore|watch|elevated|signal_amount|unverified|disagree`; rain agreement remains
+`agree|disagree|unverified|missing_ecmwf`. Flag values remain `CFB Wind`,
+`NFL Wind`, `Heat`, `Alt+Heat`, in that order where applicable.
+
+Discovery priority is roof/spread exclusion, schedule exclusion, missing spread,
+missing wind, explicitly supplied low signal probability, adverse price move,
+signal, watch, then quiet. The optional temperature gate produces a quiet
+`temp_gate` reason. Wind and rain reasons precede ECMWF-apart and missing-opener
+annotations. The low-probability override is a discovery presentation rule;
+it does not change alert eligibility. Probability is never inferred from v1,
+confidence or precipitation probability.
+
+`thresholds` snapshots the applied temperature switch/max, wind watch/flag,
+rain bands/agreement tolerance, environment-adjusted adverse-price limit,
+opening-spread limit, explicit-probability cutoff, Heat and Alt+Heat limits,
+ECMWF lead switch and unchanged severity boundaries (see ARCHITECTURE §5).
+The browser owns only code-to-text formatting and uses these data for numbers.
+
+Python's existing process/roof policy wins over conflicting browser rules:
+fixed construction wins over contradictory roof metadata; an unknown roof type
+with literal `indoor` retains the existing Python exposure behavior. Retractable
+roofs require confirmed open. Heat/Alt+Heat do not require a wind observation.
+Stamped signal forecast fields are authoritative even for stitched/fallback
+sources. The browser's newer rain-pill correction is preserved in Python.
+The file history shows the shared process screen and browser rule arriving
+together in c759f66; subsequent presentation fixes do not supersede Python's
+eligibility screen.
+
+The UI never evaluates a legacy card: no record means no discovery classification
+or derived flags, its original signal label verbatim, and neutral `Refresh pending`
+markers. Such cards remain inspectable but cannot qualify an exchange offer.
+Current time/status filtering and exchange quote/depth checks remain independent.
+Frozen historical-cohort screens in backtest.js are retrospective research,
+not the current signal classifier.
+
+Alerts read `process` through `process.decision_for`; old snapshots fall back
+through that one function. A legacy `line_open_missing` observation is preserved.
+CLEAR intentionally requests a fresh shared evaluation as part of its current
+weather/member/model evidence checks. The existing tier semantics and evidence checks
+remain; missing ancillary inputs cannot establish invalidation. An explicit
+NFL No Impact label remains non-alerting under the existing alert policy.
