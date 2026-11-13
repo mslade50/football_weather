@@ -1,6 +1,5 @@
 -- Local shadow schema, deliberately NOT a production D1 migration.
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-INSERT OR IGNORE INTO schema_version VALUES (1);
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY, run_id TEXT NOT NULL, stage TEXT NOT NULL,
     started_at TEXT NOT NULL, finished_at TEXT NOT NULL,
@@ -33,3 +32,8 @@ CREATE TABLE IF NOT EXISTS forecast_observations (
     payload TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS forecast_asof ON forecast_observations(game_id, source, model, fetched_at);
+-- v2: whole-log clock scans and per-key series must not sort every receipt.
+CREATE INDEX IF NOT EXISTS quote_clock ON quote_observations(observed_at, recorded_at, id);
+CREATE INDEX IF NOT EXISTS forecast_clock ON forecast_observations(fetched_at, id);
+CREATE INDEX IF NOT EXISTS game_clock ON game_observations(observed_at, id);
+CREATE INDEX IF NOT EXISTS run_clock ON runs(finished_at);

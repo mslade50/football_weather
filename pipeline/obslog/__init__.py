@@ -1,4 +1,4 @@
-"""Local-only observation log; no production reader or uploader uses this package."""
+"""Cached shadow evidence; production pricing never reads the observation log."""
 
 from .store import (
     MarketKey,

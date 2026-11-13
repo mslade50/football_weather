@@ -71,9 +71,11 @@ def connect(path: str | Path = ":memory:") -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     try:
         existing = conn.execute("SELECT name FROM sqlite_master WHERE name='schema_version'").fetchone()
-        if existing and [r[0] for r in conn.execute("SELECT version FROM schema_version")] != [1]:
+        if existing and [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([1], [2]):
             raise ValueError("unsupported observation-log schema version")
-        conn.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+        schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
+        conn.executescript("BEGIN IMMEDIATE;\n" + schema + "\nDELETE FROM schema_version;\n"
+                           "INSERT INTO schema_version VALUES (2);\nCOMMIT;")
     except Exception:
         conn.close()
         raise

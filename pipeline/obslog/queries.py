@@ -66,17 +66,20 @@ def _observation(row):
                        instant(row["observed_at"]), instant(row["recorded_at"]), row["capture_id"], row["kind"], dict(row))
 
 
-def _rows(conn, as_of, main_only=True):
+def _rows(conn, as_of, main_only=True, game_id=None, key=None):
     stamp = utc(as_of)
     return [_observation(r) for r in conn.execute(
         "SELECT * FROM quote_observations WHERE observed_at<=? AND recorded_at<=? "
         + ("AND is_main=1 " if main_only else "")
-        + "ORDER BY observed_at, recorded_at, id", (stamp, stamp))]
+        + ("AND game_id=? " if game_id else "")
+        + ("AND book=? AND market=? AND side=? " if key else "")
+        + "ORDER BY observed_at, recorded_at, id",
+        (stamp, stamp, *((game_id,) if game_id else ()), *((key.book, key.market, key.side) if key else ())))]
 
 
 def series(conn, key: QuoteKey, *, as_of: datetime, main_only: bool = True,
            include_withdrawals: bool = True) -> list[Observation]:
-    return [q for q in _rows(conn, as_of, main_only) if q.key == key and (include_withdrawals or q.kind == "quote")]
+    return [q for q in _rows(conn, as_of, main_only, key.game_id, key) if include_withdrawals or q.kind == "quote"]
 
 
 def collapse(points: list[Observation], *, include_withdrawals: bool = False,
@@ -183,7 +186,7 @@ def first_attested(conn, *, as_of: datetime) -> dict[MarketKey, Pair]:
 
 
 def in_force(conn, *, at: datetime, as_of: datetime, late_fallback: bool = False,
-             change_points: bool = False, historical_quotes: bool = False) -> dict[MarketKey, Pair]:
+             change_points: bool = False, historical_quotes: bool = False, game_id: str | None = None) -> dict[MarketKey, Pair]:
     """Value in force at at, known by as_of. Withdrawals prevent resurrection.
 
     late_fallback explicitly permits first collection AFTER at (legacy T-6 rule).
@@ -193,7 +196,7 @@ def in_force(conn, *, at: datetime, as_of: datetime, late_fallback: bool = False
     """
     utc(at)
     by_key = {}
-    for q in _rows(conn, as_of):
+    for q in _rows(conn, as_of, game_id=game_id):
         if historical_quotes and q.kind == "withdrawn":
             continue
         by_key.setdefault(q.key, []).append(q)
@@ -222,7 +225,8 @@ def baseline(conn, *, as_of: datetime, cfb_t6: bool = True,
             if game["sport"] != "cfb":
                 continue
             target = instant(game["kickoff"]) - timedelta(days=6)
-            for pair in in_force(conn, at=target, as_of=as_of, late_fallback=True, change_points=True, historical_quotes=True).values():
+            for pair in in_force(conn, at=target, as_of=as_of, late_fallback=True, change_points=True,
+                                 historical_quotes=True, game_id=gid).values():
                 if pair.key.game_id == gid and pair.key.market == "total" and pair.key.book != "consensus":
                     for q in pair.quotes:
                         out[q.key] = Baseline(q, "t_minus_6d", target)

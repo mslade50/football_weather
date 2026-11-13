@@ -99,3 +99,26 @@ ordered reads/writes, ownership filtering, missing keys and fatal failures using
 fake transports. Notification tests also use fake openers. Actual credentials,
 Telegram delivery, R2 availability and GitHub skip/condition evaluation require
 a real workflow run and are not exercised by these offline checks.
+
+## Observation evidence and D1 checkpoint ordering
+
+Light and Playwright publish builds set `OBSLOG_SHADOW_PATH` to the exact
+`data/cache/obslog/observations.sqlite` Actions-cache file. Split v4 restore/save
+keys include OS, run, attempt and job; Playwright tries this run's light key
+before the shared latest-cache prefix. Best-effort parity, maintenance and save
+run even after build failure. The database is never in a state group, upload
+manifest, artifact path or remote upload. Parity JSON is under `data/raw_runs/`
+in each existing build-log artifact; the job summary contains its counts.
+See `docs/notes/observation-log.md` for retention and evidence gates.
+
+The D1 step now runs before the existing R2 publish sequence. Before it, the
+local `pipeline.obslog.archive prepare` adapter prepends `pending_d1_sql` from
+`archive_last.json` to fresh SQL and retains the exact combined text in that
+same existing state object. Success acknowledges it locally before the ordinary
+state upload. Failure leaves it queued, still publishes board/state/meta (meta
+last), then fails the job after self-check to retain failure/recovery paging.
+Replay uses existing idempotent inserts/upserts, including after partial D1
+application. There are no extra R2 upload calls, objects, tables or migrations.
+The original claim that upload-before-D1 could silently lose deltas was valid;
+the alert-receipt recovery step did not recover SQL. This fix changes failure
+ordering and the optional pending field, not healthy board or SQL generation.

@@ -209,7 +209,9 @@ def test_d1_execute_gated_by_hashfiles(text: str, name: str):
     assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql' in step
     assert "PUBLISH_GUARD" not in step
     assert "publication-window-seconds" not in step
-    assert "continue-on-error" not in step
+    # SQL survives inside existing state and the failure is raised after publish.
+    assert "continue-on-error: true" in step
+    assert "id: d1-archive" in step
 
 
 @pytest.mark.parametrize("name", ["Self-check published board", "Self-check published board (playwright)"])
@@ -226,8 +228,9 @@ def test_self_check_after_publish(text: str, name: str):
 
 def test_light_step_order(text: str):
     light = _job(text, "light")
-    order = ["Fetch board state from R2", "Build board", "Push to R2",
-             "Archive to D1 (change-only)", "Self-check published board", "Upload build logs"]
+    order = ["Fetch board state from R2", "Build board", "Retain unacknowledged D1 SQL",
+             "Archive to D1 (change-only)", "Acknowledge D1 SQL", "Push to R2",
+             "Self-check published board", "Report deferred D1 archive", "Upload build logs"]
     idx = [light.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
 
@@ -277,7 +280,8 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     assert "ECMWF_OD_CACHE_ONLY" not in _step(_job(text, "light"), "Build board")
     assert "contents: write" not in pw
     order = ["Download BetOnline handoff", "Fetch board state from R2 (playwright)", "Build board (BetOnline)",
-             "Push to R2 (playwright)", "Archive to D1 (change-only, playwright)", "Self-check published board (playwright)"]
+             "Retain unacknowledged D1 SQL (playwright)", "Archive to D1 (change-only, playwright)",
+             "Acknowledge D1 SQL (playwright)", "Push to R2 (playwright)", "Self-check published board (playwright)"]
     idx = [pw.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
     assert "Telegram on failure" not in pw
@@ -377,3 +381,57 @@ def test_read_only_contents_permission(text: str):
         assert "contents: read" in _job(text, job), job
     assert "contents: write" not in text
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in text
+
+
+@pytest.mark.parametrize("job,suffix,build", [("light", "", "Build board"),
+                                            ("playwright", " (playwright)", "Build board (BetOnline)")])
+def test_observation_log_cache_is_disposable_and_never_uploaded_to_cloud_state(text, job, suffix, build):
+    section = _job(text, job)
+    restore = _step(section, "Restore observation log" + suffix)
+    save = _step(section, "Save observation log" + suffix)
+    assert "actions/cache/restore@v4" in restore and "actions/cache/save@v4" in save
+    key = "obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-" + job
+    assert "key: " + key in restore and "key: " + key in save
+    assert "restore-keys: |\n" in restore
+    assert "obslog-v2-${{ runner.os }}-" in restore
+    assert "path: data/cache/obslog/observations.sqlite" in restore
+    assert "path: data/cache/obslog/observations.sqlite" in save
+    if job == "playwright":
+        # First fallback is the exact light key from this run/attempt. It wins
+        # over the broad prefix even if a previous Playwright entry exists.
+        fallback = restore.split("restore-keys: |\n", 1)[1].splitlines()
+        assert fallback[0].strip() == "obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light"
+        assert fallback[1].strip() == "obslog-v2-${{ runner.os }}-"
+        assert "needs: [gate, light, playwright_scrape]" in section
+    for name in ("Observation log parity", "Compact observation log", "Save observation log"):
+        step = _step(section, name + suffix)
+        assert "if: always()" in step and "continue-on-error: true" in step
+    assert "--keep-days 2 --max-mib 192" in section
+    assert "--prepare" in _step(section, "Prepare observation log" + suffix)
+    assert "OBSLOG_SHADOW_PATH: data/cache/obslog/observations.sqlite" in _step(section, build)
+    order = ["Restore observation log" + suffix, "Prepare observation log" + suffix, build,
+             "Observation log parity" + suffix, "Compact observation log" + suffix, "Save observation log" + suffix,
+             "Upload build logs" + suffix]
+    positions = [section.index(f"- name: {name}\n") for name in order]
+    assert positions == sorted(positions)
+    for line in section.splitlines():
+        if "publish_r2.py" in line:
+            assert "obslog" not in line and "cache" not in line
+    assert "data/raw_runs/" in _step(section, "Upload build logs" + suffix)
+    assert f"data/raw_runs/obslog-parity-{job}.json" in _step(section, "Observation log parity" + suffix)
+    assert "obslog" not in _job(text, "playwright_scrape")
+
+
+@pytest.mark.parametrize("job,suffix", [("light", ""), ("playwright", " (playwright)")])
+def test_d1_failure_cannot_advance_marker_without_replay_or_block_publication(text, job, suffix):
+    section = _job(text, job)
+    prepare = _step(section, "Retain unacknowledged D1 SQL" + suffix)
+    assert "python -m pipeline.obslog.archive prepare" in prepare
+    assert "continue-on-error" not in prepare  # never upload an unprotected marker
+    ack = _step(section, "Acknowledge D1 SQL" + suffix)
+    assert "if: steps.d1-archive.outcome == 'success'" in ack
+    assert "pipeline.obslog.archive acknowledge" in ack
+    deferred = _step(section, "Report deferred D1 archive" + suffix)
+    assert "if: steps.d1-archive.outcome == 'failure'" in deferred and "exit 1" in deferred
+    assert section.index("Push to R2" + suffix) < section.index("Report deferred D1 archive" + suffix)
+    assert section.index("Self-check published board" + suffix) < section.index("Report deferred D1 archive" + suffix)
