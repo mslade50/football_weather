@@ -32,6 +32,12 @@ For data validation without messages, dispatch `pipeline.yml` with
 failure notifications, while keeping normal publication integrity and action-time freshness gates.
 The pipeline does not place orders.
 
+Ops failure/recovery pages, including a Worker heartbeat older than 20 hours,
+stay on unless `FOOTBALL_FAILURE_ALERTS=0`, independently of retired pick alerts.
+`pipeline.failure_page` checks the heartbeat on GitHub backstop runs even when
+the build is skipped. Status displays the Python-published `heartbeat_health`
+verdict and its evaluation time; it cannot diagnose a stopped GitHub scheduler.
+
 ## Architecture
 
 ```

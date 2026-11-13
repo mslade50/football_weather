@@ -1971,6 +1971,7 @@ def write_outputs(
         book_health = {}
     weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     extra = {"book_health": book_health, "weeks": weeks,
+             "heartbeat_health": json_out.heartbeat_health(state_dir, finished, prev_meta),
              "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results)}
     ecmwf_status = ctx.weather_state.get("ecmwf_opendata")
     if ecmwf_status:

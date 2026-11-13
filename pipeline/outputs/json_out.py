@@ -142,6 +142,9 @@ WORKER_WINDOWS = ((5, 15, 4), (6, 15, 1), (3, 22, 2), (0, 22, 2))
 
 # Odd ET hours, 7 AM through 11 PM. Mirrors REFRESH_SLOT_HOURS in index.js.
 CADENCE_ET_HOURS = (7, 9, 11, 13, 15, 17, 19, 21, 23)
+# These mirrors predict slots only. Worker receipt spacing (90 minutes) and
+# GitHub run-created-at backstop suppression (100 minutes) are distinct gates;
+# neither affects the ETA calculation or the heartbeat health threshold.
 
 
 def next_worker_tick(now: datetime) -> Optional[datetime]:
@@ -904,6 +907,13 @@ def build_meta(
     return sanitize(meta)
 
 
+def heartbeat_health(state_dir: PathLike, now: datetime, previous: Optional[dict] = None) -> dict:
+    """Publish the same Python verdict used by the independent failure-page job."""
+    from pipeline.heartbeat import assess
+    return assess(pstate._load(Path(state_dir) / "cf_heartbeat.json"), now,
+                  (previous or {}).get("heartbeat_health"))
+
+
 def current_week(games: Any, now: datetime) -> Optional[int]:
     """Week of the earliest game not yet kicked off / final; else the latest week; else None."""
     live = [g for g in games if getattr(g, "week", None) is not None]
@@ -922,7 +932,10 @@ def current_weeks(games_by_sport: dict[str, Any], now: datetime) -> dict[str, Op
 
 def slim_meta(meta: dict[str, Any]) -> dict[str, Any]:
     keys = ("run_id", "last_updated", "season", "week", "sport_counts", "git_sha", "model_version", "next_run_eta", "degradations", "books_requested", "scope")
-    return {k: meta.get(k) for k in keys}
+    slim = {k: meta.get(k) for k in keys}
+    if "heartbeat_health" in meta:
+        slim["heartbeat_health"] = meta["heartbeat_health"]
+    return slim
 
 
 # ---- wx history (change-only) --------------------------------------------------------
@@ -1037,6 +1050,7 @@ def build_status(
         "books": books if books is not None else (meta.get("books") or {}),
         "stage_timings": meta.get("stage_timings") or {},
         "counts": meta.get("counts") or {},
+        "heartbeat_health": meta.get("heartbeat_health"),
     })
 
 

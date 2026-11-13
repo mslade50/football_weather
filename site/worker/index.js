@@ -66,6 +66,8 @@ const GAME_WINDOWS = [
 // A :30 tick catches up a missed slot, a failed attempt, or a league the last
 // dispatch left behind.
 export const REFRESH_SLOT_HOURS = [7, 9, 11, 13, 15, 17, 19, 21, 23];
+// Receipt-based slot/catch-up spacing, distinct from the GitHub backstop's
+// 100-minute run-created-at suppression window. Neither is a heartbeat TTL.
 export const REFRESH_MIN_GAP_MS = 90 * 60 * 1000;
 export const REFRESH_CATCHUP_MS = 150 * 60 * 1000;
 
@@ -329,6 +331,12 @@ async function apiRoute(url, request, env, identity) {
       const heartbeat = await readR2Json(env, "board/cf_heartbeat.json");
       const dispatch = await readR2Json(env, "board/cf_dispatch.json");
       const meta = await readR2Json(env, "board/meta.json");
+      const health = await readR2Json(env, "board/pipeline_health.json");
+      // The ops job runs even when the build skips. Forward the newest Python
+      // observation (or build snapshot); never derive a JS staleness threshold.
+      const heartbeatHealth = [health?.heartbeat, meta?.heartbeat_health]
+        .filter((value) => value && value.status && value.evaluated_at)
+        .sort((a, b) => Date.parse(b.evaluated_at) - Date.parse(a.evaluated_at))[0] || null;
       return jsonResponse({
         ok: true,
         role: identity.role,
@@ -338,6 +346,7 @@ async function apiRoute(url, request, env, identity) {
           failure_alerts_enabled: env.FOOTBALL_FAILURE_ALERTS !== "0",
         },
         heartbeat,
+        heartbeat_health: heartbeatHealth,
         dispatch,
         meta: meta ? {
           run_id: meta.run_id, last_updated: meta.last_updated, season: meta.season, week: meta.week,

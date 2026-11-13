@@ -576,6 +576,44 @@ Run-level failure/recovery paging remains in `pipeline/failure_page.py` behind
 `TELEGRAM_SYSTEM_ALERTS=1`. The removed in-run OPS candidate router is separate
 from these retained failure pages.
 
+Worker heartbeat paging also runs inside the existing `pipeline.failure_page
+plan` entry point in `notify_failure`, after every workflow outcome, including
+skipped builds. This covers the sparse GitHub `schedule:` backstop even when
+the Worker is silent; it needs no workflow change or new stored object. The
+independent `heartbeat` incident and last observation live inside the existing
+`board/pipeline_health.json`. A tick strictly older than
+`HEARTBEAT_STALE_HOURS=20` (`pipeline/model/config.py`) pages once; exactly 20
+hours is fresh. A fresh advancing tick sends one recovery. A missing, invalid
+or future clock is unknown until persisted unknown observations span more than
+20 hours with no observed usable tick. This establishes absence as far as
+existing observations show, not continuous monitoring between runs. An R2 read
+error breaks that observation window; unknown never clears an open incident.
+Observation clocks may be saved without sending, but the incident's `open`
+receipt changes only in the existing post-delivery `commit` step. Failed sends
+retry on the next run, including recoveries. Pipeline and heartbeat incidents
+can share one delivered message without clearing each other's receipts.
+
+`FOOTBALL_FAILURE_ALERTS=0`, safe refresh (`TELEGRAM_DISABLED=1`), explicit
+`SAFE_REFRESH`, and cancellation leave both incidents untouched. Neither
+`FOOTBALL_TELEGRAM_ENABLED=0` nor `TELEGRAM_SYSTEM_ALERTS=0` silences heartbeat
+pages. `pipeline/heartbeat.py` supplies the shared Python verdict published as
+`meta.heartbeat_health` and in `status.json`; `/api/status` forwards the newest
+Python observation from that meta or the existing failure marker, so a skipped
+build does not hide a stale verdict. Status
+shows its evaluation time, uses no JavaScript heartbeat threshold and falls
+back to neutral unknown for older publications. This is a publication-time
+observation, not a continuously updated uptime monitor.
+
+Worker cron failure or heartbeat-write failure is detectable if GitHub's
+backstop still runs and can read state and send Telegram. Detection occurs at
+the first successful check after the threshold, not necessarily at hour 20.
+A live heartbeat with broken dispatch is outside this check (run failure and
+refresh diagnostics remain separate). Disabled GitHub Actions, both schedulers
+stopping, an unavailable checker or failed notification transport cannot be
+detected reliably from inside the pipeline; those need an independent external
+uptime check. The Worker normally writes every 30 minutes year-round, so a
+2-hour threshold would be a reasonable future tuning; code retains 20 hours.
+
 The sole alert CLI digest is `--digest postmortem --email-fallback`, invoked by
 `backtest.yml` (CFB Sunday, NFL Tuesday), with sport/state/backtest file arguments.
 It renders results, same-book close/CLV and forecast-versus-actual weather; SMTP

@@ -168,10 +168,34 @@ test("api/runs clamps limit; api/alerts filters; api/status includes heartbeat",
   const status = await handleFetch(req("/api/status", { headers: basic("a", "viewer-pw") }), env);
   const body = await status.json();
   assert.equal(body.heartbeat.cron, "*/30 * * * *");
+  assert.equal(body.heartbeat_health, null);
   assert.equal(body.meta, null);
   assert.deepEqual(body.notifications, { football_telegram_enabled: false, failure_alerts_enabled: true });
   const nf = await handleFetch(req("/api/nope", { headers: basic("a", "viewer-pw") }), env);
   assert.equal(nf.status, 404);
+});
+
+test("api/status forwards Python heartbeat verdict without recomputing it", async () => {
+  const env = fakeEnv();
+  const health = { status: "stale", threshold_hours: 20, evaluated_at: "2026-11-13T12:00:00Z" };
+  env.ODDS._store.set("board/meta.json", JSON.stringify({ heartbeat_health: health }));
+  env.ODDS._store.set("board/cf_heartbeat.json", JSON.stringify({ ts: new Date().toISOString() }));
+  const response = await handleFetch(req("/api/status", { headers: basic("a", "viewer-pw") }), env);
+  assert.deepEqual((await response.json()).heartbeat_health, health);
+});
+
+test("api/status shows the latest ops observation after a skipped build, or newer build after safe refresh", async () => {
+  const env = fakeEnv();
+  const old = { status: "fresh", evaluated_at: "2026-11-12T12:00:00Z" };
+  const latest = { status: "stale", evaluated_at: "2026-11-13T12:00:00Z", open: false };
+  env.ODDS._store.set("board/meta.json", JSON.stringify({ heartbeat_health: old }));
+  env.ODDS._store.set("board/pipeline_health.json", JSON.stringify({ schema_version: 1, open: false, heartbeat: latest }));
+  let response = await handleFetch(req("/api/status", { headers: basic("a", "viewer-pw") }), env);
+  assert.deepEqual((await response.json()).heartbeat_health, latest);
+  const newer = { status: "fresh", evaluated_at: "2026-11-13T13:00:00Z" };
+  env.ODDS._store.set("board/meta.json", JSON.stringify({ heartbeat_health: newer }));
+  response = await handleFetch(req("/api/status", { headers: basic("a", "viewer-pw") }), env);
+  assert.deepEqual((await response.json()).heartbeat_health, newer);
 });
 
 // ── /refresh ─────────────────────────────────────────────────────────────────
