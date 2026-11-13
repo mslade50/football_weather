@@ -43,7 +43,7 @@ TIMEOUT_S = 20
 
 NFLVERSE_GAMES_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 CFBD_GAMES_URL = "https://api.collegefootballdata.com/games"
-USER_AGENT = "football_weather gate_check (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 
 SPORTS = ("nfl", "cfb")
 

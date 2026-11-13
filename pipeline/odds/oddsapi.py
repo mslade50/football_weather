@@ -29,7 +29,7 @@ BOOK_MAP = {
     "pinnacle": "pinnacle", "betonlineag": "betonline", "betcris": "betcris", "fanduel": "fanduel",
     "draftkings": "draftkings", "novig": "novig", "prophetx": "prophetx", "kalshi": "kalshi",
 }
-USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 NET_SLEEP_S = 1.0
 
 

@@ -377,6 +377,8 @@ __all__ = [
     "SEVERITIES",
     "make_game_id",
     "odds_key",
+    "actionable_lines",
+    "game_line",
     "Game",
     "Stadium",
     "Team",
