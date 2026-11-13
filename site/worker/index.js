@@ -13,7 +13,7 @@ import { exchangeRefresh } from './exchange-refresh.js';
 import { residentEvidence } from '../web/resident-quotes.mjs';
 import { pinPublication } from './publication.js';
 import { betConfirmationsRoute } from './bet-confirmations.js';
-import { expirePayload, expireQuoteMeta, refreshStatus } from "../web/current-quotes.mjs";
+import { refreshStatus } from "../web/current-quotes.mjs";
 import { stadiumHistoryPayload } from './stadium-history.js';
 import { stadiumClimatePayload } from './stadium-climate.js';
 
@@ -328,8 +328,7 @@ async function apiRoute(url, request, env, identity) {
       ).all();
       const heartbeat = await readR2Json(env, "board/cf_heartbeat.json");
       const dispatch = await readR2Json(env, "board/cf_dispatch.json");
-      const storedMeta = await readR2Json(env, "board/meta.json");
-      const meta = storedMeta ? expireQuoteMeta(storedMeta) : null;
+      const meta = await readR2Json(env, "board/meta.json");
       return jsonResponse({
         ok: true,
         role: identity.role,
@@ -560,7 +559,7 @@ async function handleFetchInner(request, env) {
       catch { return jsonResponse({ ok: false, error: 'Publication payload checksum failed', publication_status: 'unavailable' }, 503); }
     if (!obj) return new Response("not found", { status: 404 });
     if (/^(games_(nfl|cfb)|meta|status|board)\.json$/.test(name)) {
-        const payload = expirePayload(name, await obj.json());
+      const payload = await obj.json();
       if (name === 'meta.json') {
           const dispatch = await readR2Json(env, 'board/cf_dispatch.json');
           return jsonResponse({ ...payload, publication_status: env.PUBLICATION_META?.publication_status || 'legacy_unverified',

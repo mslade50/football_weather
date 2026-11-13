@@ -15,14 +15,16 @@ audit in `docs/AUDIT.md`; Cloudflare setup in `site/worker/SETUP.md`.
 BetCRIS catalog generation is global activity, not a documented confirmation
 of each unchanged league revision. The official widget uses that global clock,
 but the scraper keeps the league's own observation time and rejects stale
-league files. Source timestamps and strict provider/one-hour expiry remain
+league files. Source timestamps and provider/one-hour freshness at ingest and pricing remain
 separate from local retrieval time. The league's ID, name, and sport are
 validated directly. Provider expiry is retained through archive carry-forward;
-quotes cannot outlive a tighter provider TTL in a later publication.
+unusable quotes cannot enter pricing. Published prices remain unchanged as they age;
+quote hovers show observation age and derived values are marked stale after 150 minutes.
+Execution and alert freshness checks remain independent.
 
 For data validation without messages, dispatch `pipeline.yml` with
 `safe_refresh=true` and `force=false`. This suppresses Telegram, including
-failure notifications, while keeping normal publication and freshness gates.
+failure notifications, while keeping normal publication integrity and action-time freshness gates.
 The pipeline does not place orders.
 
 ## Architecture

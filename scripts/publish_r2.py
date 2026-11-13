@@ -40,8 +40,6 @@ STATE_FILES = (
     "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status",
     "ensemble_cache", "nws_points",
 )
-META_KEY = "board/meta.json"
-META_DEADLINE_SECONDS = 15
 
 _CLIENT_LOCK = threading.Lock()
 _CLIENTS: dict[tuple[r2.R2Config, bool], Any] = {}
@@ -97,8 +95,7 @@ def reset_clients() -> None:
         _CLIENTS.clear()
 
 
-def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: str, *, sleep, attempts: int,
-                  deadline: float | None) -> None:
+def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: str, *, sleep, attempts: int) -> None:
     for attempt in range(1, attempts + 1):
         try:
             client.put_object(Bucket=bucket, Key=key, Body=path.read_bytes(), ContentType=content_type)
@@ -107,8 +104,6 @@ def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: 
             detail = f"{type(exc).__name__}: {exc}"
         print(f"::warning::R2 put {key} failed (attempt {attempt}/{attempts}): {detail}", file=sys.stderr)
         if attempt < attempts:
-            if deadline is not None and time.monotonic() >= deadline:
-                break  # the commit marker must not outlast its freshness budget
             delay = r2.backoff_delay(attempt)
             print(f"::warning::R2 put {key} retrying in {delay:.2f}s after {detail}", file=sys.stderr)
             sleep(delay)
@@ -117,36 +112,24 @@ def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: 
 
 def upload_one(bucket: str, key: str, path: Path, content_type: str, *, run=subprocess.run,
                sleep=time.sleep, attempts: int = ATTEMPTS, timeout_seconds: int = 90,
-               client: Any = None, bounded_client: Any = None) -> None:
+               client: Any = None) -> None:
     """Upload a single R2 object, retrying transient CLI/API failures.
 
-    ``client`` (and ``bounded_client`` for the meta commit marker) force the boto3
-    transport with injected clients; otherwise boto3 is used only when the S3 keys are
+    ``client`` forces the boto3 transport with an injected client;
+    otherwise boto3 is used only when the S3 keys are
     configured, and the Wrangler CLI path is unchanged.
     """
-    is_meta = key == META_KEY
     if client is None:
         cfg = s3_config()
         if cfg is not None:
-            client = get_client(cfg, bounded=is_meta)
-    elif is_meta and bounded_client is not None:
-        client = bounded_client
+            client = get_client(cfg)
     if client is not None:
-        if is_meta:
-            _upload_boto3(client, bucket, key, path, content_type, sleep=sleep, attempts=min(attempts, 2),
-                          deadline=time.monotonic() + META_DEADLINE_SECONDS)
-        else:
-            _upload_boto3(client, bucket, key, path, content_type, sleep=sleep, attempts=attempts, deadline=None)
+        _upload_boto3(client, bucket, key, path, content_type, sleep=sleep, attempts=attempts)
         return
     command = [
         "npx", "--yes", "wrangler@4", "r2", "object", "put", f"{bucket}/{key}",
         f"--file={path}", f"--content-type={content_type}", "--remote",
     ]
-    # The commit marker is tiny and must not hang beyond the quotes' reserved
-    # freshness budget. Leave enough retries to ride out one transient response.
-    if is_meta:
-        attempts = min(attempts, 2)
-        timeout_seconds = min(timeout_seconds, META_DEADLINE_SECONDS)
     for attempt in range(1, attempts + 1):
         try:
             result = run(command, text=True, capture_output=True, check=False, timeout=timeout_seconds)

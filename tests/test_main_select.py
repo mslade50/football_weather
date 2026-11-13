@@ -99,4 +99,4 @@ def test_board_fair_and_opener_agree_for_a_multi_rung_book():
     assert board["spread"]["home_line"] == fair_spread["home"].line == -fair_spread["away"].line == board["spread"]["open_line"] == -3.0
     assert board["total"]["line"] == fair_total["over"].line == fair_total["under"].line == board["total"]["open_line"] == 47
     assert fair.consensus("nfl", rows, "spread").books["prophetx"] == -3.0
-    assert build._build_consensus("nfl", rows, build.RunContext(sport="nfl"))[(GID, "spread")].line == -3.0
+    assert build._build_consensus("nfl", rows, build.RunContext(sport="nfl"), now=T0)[(GID, "spread")].line == -3.0

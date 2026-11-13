@@ -1,4 +1,4 @@
-"""Schedule producers -> physical venue -> publication/expiry -> browser regressions.
+"""Schedule producers -> physical venue -> immutable publication -> browser regressions.
 
 No test supplies venue_provenance: it must originate in each schedule parser.
 """
@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from pipeline.contracts import GameLine, WeatherForecast
-from pipeline.current_quotes import publication_guard
 from pipeline.model.total_prices import compare_totals
 from pipeline.outputs import json_out
 from pipeline.schedule.cfb import parse_cfbd_games
@@ -22,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
 
 
-def test_schedule_publication_expiry_and_ui(tmp_path, monkeypatch):
+def test_schedule_publication_snapshot_and_ui(tmp_path, monkeypatch):
     book = load_stadium_book(ROOT / "data")
     cfb = [{"id": i, "season": 2026, "week": 7, "startDate": "2026-10-18T17:00:00Z",
             "homeTeam": home, "awayTeam": "Texas", "homeClassification": "fbs",
@@ -41,7 +40,7 @@ def test_schedule_publication_expiry_and_ui(tmp_path, monkeypatch):
     fallback = json.loads((ROOT / "tests/fixtures/raw/espn/scoreboard_cfb_sample.json").read_text())
     games += parse_espn_scoreboard(fallback, "cfb", 2025, book=book)[:1]
     cards = {"nfl": [], "cfb": []}
-    monkeypatch.setattr(json_out, "compare_totals", lambda sport, lines, fair: compare_totals(sport, lines, fair, now=NOW))
+    monkeypatch.setattr(json_out, "compare_totals", lambda sport, lines, fair, **kw: compare_totals(sport, lines, fair, now=NOW))
     fair = SimpleNamespace(fair_total=46, total=SimpleNamespace(thin=False, prob=.5), edges=[])
     for game in games:
         rg = book.resolve(game)
@@ -60,12 +59,9 @@ def test_schedule_publication_expiry_and_ui(tmp_path, monkeypatch):
         cards[game.sport].append(card)
     json_out.write_board(tmp_path, cards, {"run_id": "publication-regression", "sport_counts": {"nfl": 4, "cfb": 5}})
     original = {s: json.loads((tmp_path / f"games_{s}.json").read_text()) for s in cards}
-    publication_guard(tmp_path, NOW + timedelta(seconds=6))
-    guarded = {s: json.loads((tmp_path / f"games_{s}.json").read_text()) for s in cards}
     assert all(c["venue_provenance"]["source_id"] for p in original.values() for c in p["games"])
-    assert all(c["total_prices"]["quote_evidence"] for p in guarded.values() for c in p["games"])
-    assert guarded["cfb"]["games"][0]["total_prices"]["best_under"] is None
+    assert all(c["total_prices"]["quote_evidence"] for p in original.values() for c in p["games"])
     result = subprocess.run([shutil.which("node") or "node", "tests/helpers/dashboard-publication.mjs"],
-                            input=json.dumps({"original": original, "guarded": guarded}), text=True,
+                            input=json.dumps({"original": original}), text=True,
                             capture_output=True, cwd=ROOT, check=False)
     assert result.returncode == 0, result.stdout + result.stderr

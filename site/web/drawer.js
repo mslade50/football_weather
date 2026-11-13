@@ -137,7 +137,6 @@ function weatherTable(g) {
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
     ["Forecast coverage", `${esc(({nws_first_pass: "NWS first pass", global_first_pass: "Global first pass (wind/temp/rain)", refined_multimodel: "Detailed model refinement", refined_split_fields: "First-pass signals with added detail fields", unavailable: "Point forecast unavailable"})[wx.point_stage] || "-")}${wx.point_aged ? " — aged or unverified point source" : ""}`],
     ["Missing forecast fields", ["temp_fg", "wind_fg", "rain_fg"].filter(k => !isNum(wx[k])).map(k => ({temp_fg: "temperature", wind_fg: "wind", rain_fg: "rainfall"})[k]).join(", ") || "None"],
-    ...(g.expired_markets?.length ? [["Current prices", "Prices excluded for expiry; current comparisons unavailable"]] : []),
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
     ["Unverified ensemble sources", esc((wx.ensemble_unverified_sources || []).join(", ") || "None supplied")],
@@ -295,7 +294,7 @@ function oddsTable(g) {
   const head = `<tr><th>Book</th><th>Spread open</th><th>Spread now</th><th>${totalBaseline}</th><th>Total now</th><th>Edge</th></tr>`;
   const body = books.map((bk) => {
     if (bk === "consensus") {
-      return `<tr><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)})</span>` : ""}</td>`
+      return `<tr ${pricingStatusAttrs(g)}><td>Consensus${c.ref_book ? ` <span class="sub">(${esc(c.ref_book)})</span>` : ""}</td>`
         + `<td>${fmtLine(c.spread_open)}</td><td title="${esc(spreadSrcLabel(c.spread_src))}">${fmtLine(c.spread_now)} <span class="sub">${marketCoverage(g, "spread")} spread books${c.spread_src ? ` · ${esc(c.spread_src)}` : ""}</span>${moveTag(c.spread_open, c.spread_now)}</td>`
         + `<td title="${esc(totalBaselineLabel(g, c, true))}">${fmtTotal(c.total_open)}</td><td>${fmtTotal(c.total_now)} <span class="sub">${marketCoverage(g, "total")} total books</span>${moveTag(c.total_open, c.total_now)}</td><td></td></tr>`;
     }
@@ -306,18 +305,19 @@ function oddsTable(g) {
       + `<td>${fmtLine(s.home_line)} <span class="sub">${fmtOdds(s.home_odds)}/${fmtOdds(s.away_odds)}</span>${moveTag(s.open_line, s.home_line)}${oddsSourceClock(s)}</td>`
       + `<td>${fmtTotal(t.open_line)} <span class="sub">u${fmtOdds(t.open_under)}</span><span class="sub">${esc(totalBaselineLabel(g, t))}${t.open_ts ? ` · ${esc(fmtShortET(t.open_ts))}` : ""}</span></td>`
       + `<td>${fmtTotal(t.line)} <span class="sub">o${fmtOdds(t.over)}/u${fmtOdds(t.under)}</span>${moveTag(t.open_line, t.line)}${oddsSourceClock(t)}</td>`
-      + `<td>${tierChip(es)}${tierChip(et)}</td></tr>`;
+      + `<td ${pricingStatusAttrs(g)}>${tierChip(es)}${tierChip(et)}</td></tr>`;
   }).join("");
-  const fairRow = `<tr><td class="fair">Fair</td><td></td><td class="fair">${fmtLine(f.my_spread)}${isNum(f.fair_spread_v2) ? ` <span class="sub">v2 ${fmtLine(f.fair_spread_v2)}</span>` : ""}</td>`
+  const fairRow = `<tr ${pricingStatusAttrs(g)}><td class="fair">Fair${pricingAge(g) ? `<span class="sub">${esc(pricingAge(g))}</span>` : ""}</td><td></td><td class="fair">${fmtLine(f.my_spread)}${isNum(f.fair_spread_v2) ? ` <span class="sub">v2 ${fmtLine(f.fair_spread_v2)}</span>` : ""}</td>`
     + `<td></td><td class="fair">${fmtTotal(f.my_total)}${isNum(f.fair_total_v2) ? ` <span class="sub">v2 ${fmtTotal(f.fair_total_v2)}</span>` : ""}</td>`
     + `<td>${f.best_total ? `T ${esc(bookLabel(f.best_total.book || ""))} ${esc(f.best_total.side || "")}${tierChip(f.best_total)}` : ""}${f.best_spread ? ` S ${esc(bookLabel(f.best_spread.book || ""))} ${esc(f.best_spread.side || "")}${tierChip(f.best_spread)}` : ""}</td></tr>`;
   return `<table class="kv">${head}${body}${fairRow}</table>`;
 }
 
 function oddsSourceClock(quote) {
-  return `<span class="sub">Updated: ${quote.updated_at ? esc(clockLabel(quote.updated_at)) : "Unavailable"}</span>`
+  return `<span class="sub">${esc(quoteAgeText(quote.source_updated_at || quote.updated_at) || "Observation time unavailable")}</span>`
+    + `<span class="sub">Updated: ${quote.updated_at ? esc(clockLabel(quote.updated_at)) : "Unavailable"}</span>`
     + (quote.source_updated_at ? `<span class="sub">Source: ${esc(clockLabel(quote.source_updated_at))}</span>` : "")
-    + (quote.expires_at ? `<span class="sub">${quote.expired || !(Date.parse(quote.expires_at) > Date.now()) ? "Expired" : "Expires"}: ${esc(quote.expires_at)}</span>` : "");
+    + (quote.expires_at ? `<span class="sub">Provider expiry: ${esc(quote.expires_at)}</span>` : "");
 }
 
 function gameInfoTable(g) {

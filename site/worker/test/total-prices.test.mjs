@@ -49,7 +49,7 @@ test('Spread coverage is independent of total coverage in both new and older pay
   delete ctx.game.consensus.spread_n_books;
   ctx.game.odds = {pinnacle: {spread: {home_line: -3}, total: {line: 47}},
     betcris: {spread: {open_line: -2.5}, total: {line: 47}},
-    betonline: {spread: {home_line: -3, expired: true}, total: {line: 46.5}}};
+    betonline: {spread: {}, total: {line: 46.5}}};
   assert.match(vm.runInContext('consensusSpreadCell(game)', ctx), /1 book/);
 });
 

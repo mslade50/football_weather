@@ -1,6 +1,6 @@
 "use strict";
 // Table view: one row per GameCard. Columns: GAME (kickoff ET/local), STADIUM/WIND, TEMP, WIND, GUST, RAIN,
-// GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of Betcris/BetOnline/Pinnacle, src on hover),
+// GS %, AWAY %, SIGNAL, SPREAD (consensus = avg of BetOnline/Pinnacle, src on hover),
 // TOTAL (consensus, Pinnacle-weighted), then one TOTAL column per book (baseline → now, under price
 // + edge chip on hover). Per-book SPREAD columns are hidden behind the "book spreads" checkbox
 // (#bookspreads, remembered in localStorage). The Book filter narrows the per-book columns.
@@ -85,13 +85,14 @@ function openNow(open, now, fmt) {
   const n = isNum(now) ? fmt(now) : "—";
   return (isNum(open) && isNum(now) && Math.abs(open - now) < MOVE_EPS) ? n : `<span class="muted">${o}</span> → ${n}`;
 }
-function tierChip(e) {
+function tierChip(e, game = null) {
   if (!e || !isNum(e.edge_pts)) return "";
   const tier = e.tier || "none";
   const txt = (e.edge_pts >= 0 ? "+" : "") + Number(e.edge_pts).toFixed(1);
   const tip = `${e.side || ""} ${fmtLine(e.line)} @ ${fmtOdds(e.odds)} · fair ${fmtTotal(e.fair_line)} · ${tier}`
     + (isNum(e.confidence) ? ` · conf ${Number(e.confidence).toFixed(2)}` : "");
-  return `<span class="tierchip ${esc(tier)}" title="${esc(tip)}">${txt}</span>`;
+  const age = game ? pricingAge(game) : "";
+  return `<span class="tierchip ${esc(tier)}${age ? " pricing-stale" : ""}" title="${esc(tip + (age ? ' · ' + age : ''))}">${txt}</span>`;
 }
 function signalPill(sig, game) {
   if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
@@ -132,7 +133,7 @@ function marketCoverage(g, market) {
   // quotes independently until a refreshed payload supplies explicit counts.
   return Object.values(g.odds || {}).filter((markets) => {
     const q = markets[market];
-    return q && !q.expired && isNum(market === "spread" ? q.home_line : q.line);
+    return q && isNum(market === "spread" ? q.home_line : q.line);
   }).length;
 }
 function totalBaselineLabel(g, quote, consensus = false) {
@@ -159,9 +160,10 @@ function consensusSpreadCell(g) {
       ["now", fmtLine(c.spread_now)],
       ["spread coverage", `${nBooks} current main-line book${nBooks === 1 ? "" : "s"}${nBooks < 2 ? "; comparison needs at least 2" : ""}`],
       ...(isNum(f.fair_spread) ? [["fair", fmtLine(f.fair_spread)]] : []),
+      ...pricingStatusLines(g),
     ],
   };
-  return `<td data-hk="${hk}" title="${esc(spreadSrcLabel(c.spread_src))}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
+  return `<td ${pricingStatusAttrs(g, spreadSrcLabel(c.spread_src))} data-hk="${hk}">${openNow(c.spread_open, c.spread_now, fmtLine)}${moveTag(c.spread_open, c.spread_now)}`
     + `${nBooks < 2 ? ` <span class="sub" title="Fewer than two current main-line books; weather eligibility is independent">${nBooks === 1 ? "1 book" : "0 books"}</span>` : ""}</td>`;
 }
 function consensusTotalCell(g) {
@@ -178,33 +180,32 @@ function consensusTotalCell(g) {
       ...(c.total_open_ts ? [["baseline observed", fmtShortET(c.total_open_ts)]] : []),
       ["now", fmtTotal(c.total_now)],
       ...(isNum(f.fair_total) ? [["fair", fmtTotal(f.fair_total)]] : []),
+      ...pricingStatusLines(g),
     ],
   };
-  return `<td data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
+  return `<td ${pricingStatusAttrs(g)} data-hk="${hk}">${openNow(c.total_open, c.total_now, fmtTotal)}${moveTag(c.total_open, c.total_now)}</td>`;
 }
-function quoteAgeText(ts) {
-  const age = Date.now() - Date.parse(ts);
+const PRICING_STALE_MS = 150 * 60000;
+function pricingAge(g, now = Date.now()) {
+  const age = now - Date.parse(g.fair?.priced_at);
+  return Number.isFinite(age) && age > PRICING_STALE_MS ? `priced ${Math.floor(age / 60000)} min ago` : "";
+}
+function pricingStatusLines(g) {
+  const age = pricingAge(g);
+  return age ? [["pricing status", age]] : [];
+}
+function pricingStatusAttrs(g, label = "") {
+  const age = pricingAge(g);
+  const title = [label, age].filter(Boolean).join(" · ");
+  return (age ? 'class="pricing-stale" ' : '') + (title ? `title="${esc(title)}"` : '');
+}
+function quoteAgeText(ts, now = Date.now()) {
+  const age = now - Date.parse(ts);
   if (!Number.isFinite(age) || age < 0) return "";
-  const mins = Math.round(age / 60000);
-  if (mins < 1) return "<1m old";
-  if (mins < 60) return `${mins}m old`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h old`;
-  return `${Math.floor(mins / 1440)}d old`;
-}
-function betcrisReference(quote) {
-  const until = Date.parse(quote?.actionable_until);
-  return Number.isFinite(until) && Date.now() > until;
-}
-function betcrisAgeNote(quote) {
-  if (!quote) return "";
-  const age = quoteAgeText(quote.source_updated_at || quote.updated_at);
-  const reference = betcrisReference(quote);
-  if (!age && !reference) return "";
-  return `${age || "age unknown"}${reference ? " · reference" : ""}`;
+  return `observed ${Math.floor(age / 60000)} min ago`;
 }
 function blankOddsCell(g, bk, market, text) {
-  const expired = Array.isArray(g.expired_markets) && g.expired_markets.includes(`${bk}/${market}`);
-  return expired ? `<td class="muted" title="quote expired">${text}</td>` : `<td class="muted">${text}</td>`;
+  return `<td class="muted">${text}</td>`;
 }
 function bookSpreadCell(g, bk) {
   const o = (g.odds || {})[bk];
@@ -219,10 +220,12 @@ function bookSpreadCell(g, bk) {
       ["now", `${fmtLine(s.home_line)} ${fmtOdds(s.home_odds)} / ${fmtOdds(s.away_odds)}`],
       ...(e ? [["fair", `${fmtLine(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(s.updated_at ? [["updated", fmtShortET(s.updated_at)]] : []),
-      ...(bk === "betcris" && betcrisAgeNote(s) ? [["age", betcrisAgeNote(s)]] : []),
+      ["quote age", quoteAgeText(s.source_updated_at || s.updated_at) || "Unknown"],
+      ...(bk === "betcris" ? [["quote status", "reference, not an entry"]] : []),
+      ...pricingStatusLines(g),
     ],
   };
-  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${tierChip(e)}</td>`;
+  return `<td class="book" data-hk="${hk}">${openNow(s.open_line, s.home_line, fmtLine)}${moveTag(s.open_line, s.home_line)}${tierChip(e, g)}</td>`;
 }
 function bookTotalCell(g, bk) {
   const o = (g.odds || {})[bk];
@@ -242,7 +245,8 @@ function bookTotalCell(g, bk) {
       ...(e ? [["fair", `${fmtTotal(e.fair_line)} (${e.ref_book || "consensus"}, n=${e.n_books || "?"})`], ["edge", isNum(e.edge_pts) ? `${Number(e.edge_pts).toFixed(2)} pts ${e.side || ""} · ${e.tier}` : "Comparison unavailable"]] : []),
       ...(t.updated_at ? [["updated", fmtShortET(t.updated_at)]] : []),
       ...(observed ? [["quote age", quoteAgeText(observed.source_updated_at || observed.updated_at) || "Unknown"],
-        ["quote status", observed === t ? (t.expired ? "expired" : bk === "betcris" && betcrisReference(t) ? "reference" : "current") : observed.status || "unknown"]] : []),
+        ["quote status", observed === t ? (bk === "betcris" ? "reference, not an entry" : "observed at pricing") : observed.status || "unknown"]] : []),
+      ...pricingStatusLines(g),
       ...(t.last_observed ? [["last observed (reference only)", `U ${fmtTotal(t.last_observed.line)} ${fmtOdds(t.last_observed.under)}`],
         ["source clock", t.last_observed.updated_at || "Unknown"], ["reference status", t.last_observed.status]] : []),
       ...(typeof backtestHover === "function" ? backtestHover(g) : []),   // Record / ROI by first-match bucket

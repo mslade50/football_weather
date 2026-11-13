@@ -48,7 +48,7 @@ def _spec_keys() -> set[str]:
     keys |= {"home_id", "away_id", "roof_state"}
     keys |= STADIUM_EXTRA_KEYS
     # Optional backend contracts are documented in site/web/INTEGRATION.md.
-    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery", "expired"}
+    keys |= {"venue_provenance", "ensemble_unverified_sources", "ensemble_verification_errors", "execution_preview", "discovery"}
     return keys
 
 

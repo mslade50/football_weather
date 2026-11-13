@@ -198,8 +198,9 @@ unverified because direct live-board access is denied.
    Verify the remote pointer, every immutable object hash, exact sport counts,
    source SHA, run identity and unchanged original source clocks. Do not accept
    green CI or a uploaded artifact as publication proof. Measure immutable
-   upload/readback latency against the workflow freshness guard. Consumers must
-   expire any quotes that aged during publication; no TTL extension is allowed.
+   upload/readback latency against publication integrity checks. Published board cards
+   stay immutable; resident and execution consumers independently reject aged action evidence.
+   No TTL extension is allowed.
 4. Install disabled, inspect, then activate the selected resident owner only
    with separate approval. Demonstrate no overlapping local owner, no remote
    CAS overwrite, correct SHA/run, original raw receipts, and degraded status

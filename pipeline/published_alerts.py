@@ -12,12 +12,10 @@ from datetime import datetime
 from pathlib import Path
 
 from pipeline import alerts, state
-from pipeline.current_quotes import expire_card
 from pipeline.outputs import d1_out, json_out
 from pipeline.publication import verify_generation
 from pipeline.run_context import RunContext
 from utils.telegram import football_telegram_enabled
-from utils.timeutil import now_utc
 
 
 def verify_published(bucket: str, run_id: str) -> None:
@@ -74,7 +72,6 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
     if uploader is None:
         from scripts.publish_r2 import upload_one
         uploader = upload_one
-    clock = now or now_utc()
     cards = {}
     for sport in ("nfl", "cfb"):
         path = board_dir / f"games_{sport}.json"
@@ -83,7 +80,7 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, dict) and payload.get("meta", {}).get("run_id") != run_id:
             raise RuntimeError(f"{sport} cards belong to a different publication")
-        cards[sport] = [expire_card(c, clock) for c in (payload if isinstance(payload, list) else payload["games"])]
+        cards[sport] = payload if isinstance(payload, list) else payload["games"]
     ctx = RunContext(sport="all", scope="published-alerts", run_id=run_id, git_sha=meta.get("git_sha"))
 
     def checkpoint(alert_state: dict, telegram_state: dict) -> None:

@@ -229,3 +229,11 @@ Note: `SETUP.md` §2 lists migrations 0001–0003; `0004_v2.sql` (v2 columns on
 - Legacy backtest sheet row 110 has an inconsistent `+ CLV` value (183 > Sample 87); carried through as a `legacy` reference only.
 - `ODDS_API_KEY` opener seeding is not called from any workflow (manual use).
 - `.env.example` does not exist yet; the table in §4 is the reference.
+
+## Immutable pricing snapshots
+
+Retroactive quote expiry/repricing has been removed from build output, upload, Worker reads
+and browser rendering. Python uses one pricing clock, published as `fair.priced_at`.
+Quote ages remain visible in hovers/details; derived values retain their numbers with a
+stale marker after 150 minutes. Generation pinning, publication checks/retries, resident
+overlays, review outbox, confirmations and execution/alert freshness checks remain intact.

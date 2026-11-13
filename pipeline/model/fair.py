@@ -27,7 +27,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -280,7 +280,9 @@ def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> li
 
     BetCris stays on the board as a reference. It never prices the fair line,
     including while it is still inside the provider timer. Any other line past
-    its own actionable_until is also excluded when ``now`` is set.
+    its own actionable_until is also excluded when ``now`` is set. Provider
+    expiry and the one-hour observation ceiling are checked at this pricing
+    clock, never reapplied to the published card.
     """
     kept: list[GameLine] = []
     for gl in lines:
@@ -288,6 +290,12 @@ def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> li
             continue
         if now is not None and gl.reference_only(now):
             continue
+        if now is not None:
+            if gl.expires_at is not None and (gl.expires_at.tzinfo is None or now > gl.expires_at):
+                continue
+            if gl.scraped_at is not None and (gl.scraped_at.tzinfo is None
+                    or now - gl.scraped_at > timedelta(hours=1)):
+                continue
         kept.append(gl)
     return kept
 

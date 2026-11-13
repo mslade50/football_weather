@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {expireQuoteMeta} from '../../web/current-quotes.mjs';
 
 function fixture() {
   const details = {open: false}, books = {open: false};
@@ -91,21 +90,26 @@ test('Unqualified rows keep an explicit unusable state with no repeated global i
 });
 
 
-test('Expiry refreshes preserve book scroll and focused disclosure while retaining updated diagnostic clocks', () => {
+
+
+
+
+
+test('Health refreshes preserve book scroll, focused disclosure and diagnostic clocks', () => {
   const f = fixture(), now = Date.now();
-  const raw = {...f.ctx.meta, quote_expiries: [{book: 'kalshi', sport: 'cfb', market: 'total', count: 3,
-    expires_at: new Date(now - 1000).toISOString()}]};
-  f.ctx.meta = expireQuoteMeta(raw, now); f.run('renderStatusbar(meta)');
+  f.ctx.meta.degradations = [{component: 'weather', severity: 'warn', reason: 'Source unavailable',
+    ts: new Date(now).toISOString()}];
+  f.run('renderStatusbar(meta)');
   f.details.open = f.books.open = true; f.scroll.scrollTop = 80; f.scroll.scrollLeft = 340;
   f.ctx.document.activeElement = f.bookSummary;
-  f.ctx.meta = expireQuoteMeta(raw, now + 15000); f.run('renderStatusbar(meta)');
+  f.ctx.meta.degradations[0].ts = new Date(now + 15000).toISOString();
+  f.run('renderStatusbar(meta)');
   assert.equal(f.scroll.scrollTop, 80); assert.equal(f.scroll.scrollLeft, 340);
   assert.equal(f.details.open, true); assert.equal(f.books.open, true);
   assert.equal(f.ctx.document.activeElement, f.bookSummary);
-  assert.match(f.el.innerHTML, /3 expired quotes excluded/);
+  assert.match(f.el.innerHTML, /Source unavailable/);
   assert.ok(f.el.innerHTML.includes(new Date(now + 15000).toISOString()));
 });
-
 
 test('Historical and execution views retain the compact health area for pipeline failures without load errors', () => {
   const nodes = new Map();
@@ -115,7 +119,7 @@ test('Historical and execution views retain the compact health area for pipeline
     location: {hash: ''}, history: {replaceState() {}}});
   for (const file of ['discovery.js', 'status.js', 'app.js'])
     vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
-  vm.runInContext(`IS_ADMIN=true; QUOTES={expireQuoteMeta:m=>m, expireCardQuotes:g=>g, refreshOverdue:()=>true};
+  vm.runInContext(`IS_ADMIN=true; QUOTES={refreshOverdue:()=>true};
     RAW_META={publication_status:'manifest_verified',resident:{status:'fresh'},degradations:[{component:'pipeline',severity:'critical',reason:'Verification failed'}]};
     renderHeader=()=>{}; renderExecution=()=>{}; closeDrawer=()=>{}; renderHistoricalTable=()=>{};`, ctx);
   for (const state of ['STATE.view="execution"', 'STATE.view="table"; STATE.tableMode="history"']) {

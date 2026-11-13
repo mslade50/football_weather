@@ -16,9 +16,7 @@ regular full refresh with notifications disabled, without restoring old prices.
 Partial builds now retain an optional `odds.<book>.total.last_observed` reference
 with its original clocks and a distinct stale, expired, unavailable or unknown
 status. This evidence never becomes a current GameLine, consensus input or
-execution price. Serialized quotes without a provider TTL expire after the same
-one-hour ceiling already used by carrying and comparisons; shorter explicit
-provider expiry is preserved. The producer-to-Worker-route regression also
+execution price. Serialized quotes retain original observation and provider expiry clocks as plain data. The browser shows observation age without expiring or repricing the snapshot; derived blocks gain a stale marker after 150 minutes. Execution freshness gates remain independent. The producer-to-Worker-route regression also
 checks default NFL/CFB table alignment and current/stale/missing book cells.
 
 The Exchange under column requires a fresh, verified principal allocation before

@@ -259,7 +259,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
  home {team_id, name, short}, away {...}, neutral, status,
  stadium {stadium_id, name, lat, lon, orient_deg, orient, roof_type, roof_state, elevation_m, year_built,
           wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind, avg_wind_month},
- travel_alt, home_temp, away_temp, expired_markets[] (runtime/publication expiry only),
+ travel_alt, home_temp, away_temp,
  weather {temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg, precip_prob,
           precip_prob_ens, wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
           point_stage, point_source_updated_at {nws}, point_aged,
@@ -287,7 +287,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
                 ml     {home, away, open_home, open_away}}},
  consensus {spread_open, spread_now, spread_src, total_open, total_now, move_s, move_t, ref_book, n_books, thin,
             spread_n_books, spread_thin, total_n_books, total_thin, total_open_ts?, total_open_target_ts?, total_open_basis?},
- fair {my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
+ fair {priced_at (ISO UTC pricing clock), my_total, my_spread, fair_total, fair_spread, fair_total_v2, fair_spread_v2, confidence, weather_driven,
        edges [Edge...], best_total, best_spread},
  total_prices {method, model_version, fair_total, best_under, best_over,
                quotes [{book, side, line, odds, cost_prob, fair_cost, win_prob, push_prob, loss_prob, ev_roi, updated_at}]},
@@ -390,7 +390,7 @@ All: `class XScraper(BaseScraper)`, `BOOK_NAME`, `async scrape(sport) -> list[Ga
 | Book | Transport | Endpoint / params | Parse notes |
 |---|---|---|---|
 | betonline | Playwright chromium + stealth; job B | `offering-by-league {Sport:'football', League: 'nfl'|'nfl-preseason'|'college-football', filterTime:0}` | `GamesDescription[].Game{AwayTeam,HomeTeam,ScheduleText,AwayLine{Spread,Total,MoneyLine},HomeLine{...}}` — key names locked by recon fixture |
-| betcris | httpx + public JSON | `/assets/odds/v1/league/{1,2}.json` | Open pregame full-game markets; actual prices and UTC kickoffs; provider observation/TTL freshness, display expiry and actionable deadline; CFB same-URL revalidation. The retired HTML viewer is unsupported. |
+| betcris | httpx + public JSON | `/assets/odds/v1/league/{1,2}.json` | Open pregame full-game markets; actual prices and UTC kickoffs; provider observation/TTL freshness at ingest/pricing and actionable deadline; CFB same-URL revalidation. The retired HTML viewer is unsupported. |
 | fanduel | httpx | `content-managed-page?page=CUSTOM&customPageId={nfl,ncaaf}&_ak=FhMFpcPWXMeyZxOx`; fallback `competition-page?eventTypeId=1&competitionId=` (12282733 NFL, 11432305 NFL Preseason, 12529073 NCAA Games) | `MONEY_LINE`, `MATCH_HANDICAP_(2-WAY)`, `TOTAL_POINTS_(OVER/UNDER)`; runner `handicap`, `result.type`; event name 'Away @ Home', `openDate` |
 | kalshi | httpx | `/events?series_ticker={KXNFLGAME,KXNFLSPREAD,KXNFLTOTAL,KXNCAAFGAME,KXNCAAFSPREAD,KXNCAAFTOTAL}&status=open&with_nested_markets=true&limit=200` | ticker `{SERIES}-{YY}{MON}{DD}{AWAY}{HOME}-{TEAMn|n}`; `floor_strike`; `yes_bid_dollars/yes_ask_dollars`; fee 0.07·P(1−P); main line = strike nearest consensus (else nearest 0.5 prob); ladder → alternates with `is_main=False`; abbr aliases in `aliases/*.json` |
 | novig | httpx REST, no browser impersonation | `GET https://api.novig.com/v3/public/catalog/{events,markets}` plus paced `.../markets/{id}/book?depth=1` for NFL/NCAAF moneylines and the spread/total strikes around the two-sided price nearest 50 cents (the public catalog throttles each IP, so the far wings of a ladder are not read). On HTTP 401/403, NBX client-credentials (`NOVIG_CLIENT_ID` + `NOVIG_CLIENT_SECRET` → `POST /nbx/v1/auth/emm-token`, then open markets and `getMarketsByEvent`) | strike is the home handicap; spread outcome text identifies the side; totals use Over/Under; taker price is 1 − best opposing bid; outcomes without an executable taker price are skipped, including NBX last-trade-only prints; no consensus flag, so the pair nearest 50 cents is main; legacy GraphQL captures still replay |
@@ -428,7 +428,7 @@ jobs:
            -> on non-NoSuchKey error: exit 1;
          recover recent sent-alert receipts from failed main-branch Actions artifacts before build;
          python -m pipeline.build --sport $sport --scope light --run-id $RUN_ID --no-alerts;
-         bounded R2 uploads (8 workers): raw/, snapshots/, freshness guard and content-floor preflight,
+         bounded R2 uploads (8 workers): raw/, snapshots/, content-floor preflight,
            board payloads, state files, meta.json LAST (bounded retries, --remote);
          d1 execute --remote --yes --file=data/d1_inserts.sql if hashFiles;
          python -m pipeline.outputs.r2 --self-check (re-fetch meta, assert run_id, content floor);
@@ -441,7 +441,7 @@ jobs:
          publish, archive, self-check and notify in the same order as light;
   notify_failure: needs [gate, light, playwright_scrape, playwright]; if: always() so a skipped Playwright job cannot hide it. One Telegram page when a gate or light failure starts, including a rejected publish, and one page when a later run's main build succeeds. Repeats while the incident is open do not page. The marker is R2 `board/pipeline_health.json`, written only after the send. `FOOTBALL_FAILURE_ALERTS=0` silences it; the pick-alert switch does not. A Playwright/BetOnline failure alone pages only when `TELEGRAM_SYSTEM_ALERTS=1`. Cancelled runs and safe_refresh stay quiet. Other workflows still require `TELEGRAM_SYSTEM_ALERTS=1` and stay on unless `FOOTBALL_FAILURE_ALERTS=0`.
 ```
-The 30-minute per-build backstop accommodates cold weather retrievals. Upload concurrency avoids serial CLI startup overhead. A 120-second quote-freshness reserve and an 80-second critical-upload budget prevent a delayed final marker from claiming stale prices.
+The 30-minute per-build backstop accommodates cold weather retrievals. Upload concurrency avoids serial CLI startup overhead. Publication integrity checks and generation readback protect the final marker; quote freshness is decided at pricing rather than by an upload deadline.
 
 ### 9.3 Other workflows
 - `deploy.yml`: on push paths `site/**` → `wrangler d1 migrations apply football-odds --remote` then `cloudflare/wrangler-action@v3` deploy from `site/worker`.
@@ -613,45 +613,15 @@ Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cut
 
 ### Total price comparison
 
-Current prices retain upstream `source_updated_at` and `expires_at`. Expired
-quotes are excluded and current consensus/fair comparisons recalculated before
-alerts and board output; historical openers and captured line history are kept.
-After raw uploads, a publication guard rechecks board current fields.
-BetCRIS CFB may revalidate the same public league URL once with `Cache-Control:
-no-cache` when a valid observation is stale. Both responses are captured separately.
-Recovery requires a genuinely fresh league observation. CFB is shown for 30
-minutes from `feed_fetched_at` (1800s). NFL is shown until the earlier of the
-provider TTL and one hour (`ODDS_CARRY_MAX_AGE`, 3600s), because league/1.json
-refreshes about once an hour. A price older than that sport's ceiling is rejected.
-The cell shows the age (`20m old`). A price older than the provider's own
-`stale_after_seconds` adds `reference`. BetCris never contributes to consensus,
-the fair line, edges, `n_books`, or the spread average, including while it is
-still inside the provider timer. Exchange books (Kalshi, Polymarket US, Novig,
-ProphetX) plus BetOnline and Pinnacle remain the pricing sources. It cannot
-create a PLAY, a Telegram alert, or the best price used for entry or CLV. A
-published card that already folded BetCris into the fair line is rebuilt from
-the other books on the publication guard and on the Worker read; best price
-falls through to the next book. Catalog generation and download
-times do not renew prices. An unchanged stale response, invalid payload or denied
-request remains unavailable. Stale diagnostics include the observation time, age
-and both the display ceiling and the provider TTL. The 120-second publication
-reserve still withholds other books that would expire during upload; it does not
-hide a BetCris print that is still inside its display window. The read-time
-guard then marks that BetCris cell expired at its `expires_at` (`feed_fetched_at`
-plus 30 minutes for CFB, or plus `min(provider TTL, 3600s)` for NFL). That
-clock is not the compact row's earliest expiry, and it does not clear the
-game's fair line, edges, or best price while a pricing book is still fresh.
-The workflow reserves 120 seconds for the remaining board/state puts: quotes
-expiring within that window are withheld with their original expiry and opening
-fields. The guard records its actual check time separately; source clocks are
-never shifted. This covers expiry during the final upload loop while the
-read-time guard continues to enforce expiry if uploads run unusually slowly.
-The authenticated Worker and browser also enforce expiry, preserving opening
-fields. A pricing book's expiry withholds derived current comparisons until a
-new calculation. A BetCris expiry only expires the BetCris cell.
-Runtime `quote_expiries` metadata adjusts book health/counts without renewing
-source clocks. Quotes can expire between publication steps; the read-time guard
-is authoritative for current display.
+Published cards are immutable pricing snapshots. Python selects usable lines at one pricing clock, retaining the one-hour age ceiling, provider expiry, actionable deadlines and REFERENCE_BOOKS exclusion. That clock is published as `fair.priced_at` (ISO UTC); it remains intact when an unrebuilt league is retained under a new run ID. Original quote observations, `source_updated_at`, `updated_at`, provider `expires_at`, `actionable_until` and `last_observed` remain plain data. Synthetic scrape-plus-one-hour expiry remains for action-time consumers. Historical openers and captured line history remain intact.
+
+BetCris is always reference, not an entry: Python excludes it from consensus, fair, edges, n_books and the spread average. Its scraper still validates league identity, observation clocks and sport-specific ingest ceilings, including CFB same-URL revalidation. Download and catalog clocks never renew observations.
+
+Serialization, upload, Worker reads and browser renders never expire quotes or recalculate derived values. Publication retains content-floor checks, ordered phases, normal retries, generation hashing/readback verification and meta-last pinning. There is no quote look-ahead reserve or freshness deadline on the commit marker.
+
+The browser shows quote age as "observed N min ago" in existing hovers/details. Derived consensus/fair/edge displays keep their numbers; after 150 minutes they gain a muted stale style and "priced N min ago" in the existing status/hover. The single presentation threshold is in table.js. The 15-second render timer continues updating ages, scheduler health and stake-check lifecycle. Scheduler refresh health and retained-league warnings are separate from quote age.
+
+Execution previews, fresh-odds, exchange refresh, resident quote overlays, alert liquidity enrichment and alert policy freshness gates still require their original live clocks and expiry checks; a saved board never authorizes action.
 
 Final merged temperature, wind and rainfall are checked independently of signal
 eligibility and point handoff. Missing values remain null and emit current

@@ -115,7 +115,6 @@ def test_liquidity_delay_crossing_kickoff_does_not_send(board, monkeypatch):
     payload = json.loads(path.read_text())
     payload["games"][0]["kickoff_utc"] = (NOW + timedelta(minutes=1)).isoformat()
     json_out.dump_json(path, payload)
-    monkeypatch.setattr(published_alerts, "now_utc", lambda: NOW)
     clock = iter((NOW, NOW + timedelta(minutes=2)))
     monkeypatch.setattr(alerts, "now_utc", lambda: next(clock))
     messages = []

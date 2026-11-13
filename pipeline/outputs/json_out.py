@@ -35,7 +35,6 @@ from typing import Any, Optional, Union
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast
 from pipeline.model.config import (
-    REFERENCE_BOOKS,
     SPREAD_AVG_DP,
     SPREAD_CONSENSUS_BOOKS,
     SPREAD_SRC_FALLBACK,
@@ -676,6 +675,7 @@ def build_card(
     avg_wind_month: Optional[float] = None,
     alerts: Sequence[str] = (),
     run_id: Optional[str] = None,
+    priced_at: datetime | None = None,
     impact_v2: Any = None,
     fair_v2: Any = None,
     model_version: Optional[str] = None,
@@ -728,8 +728,8 @@ def build_card(
                                 for basis, rows in (openers.get('references') or {}).items()},
         },
         "consensus": consensus_block(game.game_id, consensus, openers),
-        "fair": fair_block(fair, legacy_derived, fair_v2),
-        "total_prices": compare_totals(sport, lines, fair),
+        "fair": {**fair_block(fair, legacy_derived, fair_v2), "priced_at": utc_iso(priced_at)},
+        "total_prices": compare_totals(sport, lines, fair, now=priced_at),
         "execution_markets": execution_markets(lines),
         "alerts": list(alerts),
         "run_id": run_id,
@@ -757,12 +757,6 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
     fair = card.get("fair") or {}
     best_t = fair.get("best_total") or {}
     best_s = fair.get("best_spread") or {}
-    # A reference book's own clock (BetCris, feed time + 30 minutes) must not
-    # become the row's earliest expiry. That clock only retires the reference
-    # cell. A pricing book's expiry still clears the row's fair and best price.
-    expiries = [quote["expires_at"] for book, markets in (card.get("odds") or {}).items()
-                if book not in REFERENCE_BOOKS
-                for quote in markets.values() if quote.get("expires_at") and not quote.get("expired")]
     row = {
         "game_id": card["game_id"],
         "sport": card["sport"],
@@ -798,7 +792,6 @@ def table_row(card: dict[str, Any]) -> dict[str, Any]:
         "spread_thin": cons.get("spread_thin"),
         "total_n_books": cons.get("total_n_books"),
         "total_thin": cons.get("total_thin"),
-        "quote_expires_at": min(expiries) if expiries else None,
         "fair_total": fair.get("fair_total"),
         "fair_spread": fair.get("fair_spread"),
         "best_total_edge": best_t.get("edge_pts"),
@@ -1042,7 +1035,6 @@ def build_status(
         "books": books if books is not None else (meta.get("books") or {}),
         "stage_timings": meta.get("stage_timings") or {},
         "counts": meta.get("counts") or {},
-        "quote_expiries": meta.get("quote_expiries") or [],
     })
 
 

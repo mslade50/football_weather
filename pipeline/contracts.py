@@ -241,8 +241,9 @@ class GameLine(_AsDict):
     # Retain upstream observation time and provider expiry across publications.
     source_updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
-    # BetCris: display lasts until expires_at, but a price past this instant is
-    # reference-only and cannot price edges, alerts, entries, or CLV.
+    # Provider action deadline: after this instant a price is reference-only
+    # and cannot price edges, alerts, entries, or CLV. Published displays keep
+    # the original quote and clocks. BetCris is always a pricing reference.
     actionable_until: Optional[datetime] = None
     # Only explicit provider original-line evidence, never first-seen/created-time inference.
     opening_line: Optional[float] = None

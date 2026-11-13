@@ -172,8 +172,8 @@ Now (`.github/workflows/pipeline.yml`):
    D1 -> self-check -> notify. Still under `concurrency: football-refresh`.
 
 Freshness: `--ingest-lines` reads BetOnline lines with their original
-`scraped_at` (archive_last `ts`, `ODDS_CARRY_MAX_AGE`, `current_quotes` and the
-`scraped_at + 1h` expiry all see the true age). At ingest, lines older than
+`scraped_at` (archive_last `ts`, `ODDS_CARRY_MAX_AGE`, pricing selection and
+action-time expiry checks all see the true age). At ingest, lines older than
 `ODDS_CARRY_MAX_AGE`, already expired, undated, or more than 2 min in the future
 are dropped with an `odds.ingest` warn degradation. A missing/corrupt handoff
 reads exactly like a failed in-build scrape: BetOnline 0 lines, its previous
