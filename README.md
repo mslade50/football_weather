@@ -48,13 +48,12 @@ GitHub Actions pipeline.yml            Cloudflare
   SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), `legacy.py`
   column-exact `nfl_weather.csv` / `cfb_weather.xlsx` (now uploaded to R2
   `legacy/`, no longer committed), `r2.py` publisher + self-check.
-* **Alerts** (`pipeline/alerts.py`): concise SIGNAL / UPDATE / CLOSED messages;
-  operational SYSTEM paging is disabled by default
-  messages. Telegram defaults to Low-or-higher weather signals, including CFB Low Wind,
-  regardless of price availability or model edge. Prices and estimated fair values are context. Stable game-level keys,
-  one update per game/run, no post-kickoff betting alerts, current-price morning
-  summaries, and a four-message default cap keep the channel readable. Keys are
-  marked only after a successful send.
+* **Alerts** (`pipeline/alerts.py`, `pipeline/alert_policy.py`): first weather
+  notices, scheduled 08:00/17:00 ET reminders and explicit confirmed-bet CLEAR
+  notices. Telegram delivery is retired by default behind
+  `FOOTBALL_TELEGRAM_ENABLED`. Weather eligibility and stable game-level keys
+  remain independent of price availability or model edge. Only successful sends
+  create delivery receipts and feed entries; weekly postmortems retain SMTP fallback.
 * **Site** (`site/web/`, vanilla JS, no build step): NFL/CFB maps (MapLibre +
   OpenFreeMap), Table, Alerts, Status tabs; game drawer with weather / odds by
   book / line-history uPlot (fair overlay + alert markers). `site/worker/` is
@@ -101,7 +100,7 @@ cd site/worker && npx wrangler dev
 | `pipeline/model/` | `config.py` constants, `impact.py` v1/v2, `signals.py`, `fair.py` |
 | `pipeline/odds/` | per-book scrapers (`BaseScraper`) + pure `parsers/` |
 | `pipeline/state.py` | R2-round-tripped state: openers, history, alerts dedup, baseline (`schema_version` + `migrate()`) |
-| `pipeline/alerts.py` | Telegram alert families, keys, quiet hours, digest |
+| `pipeline/alerts.py` | Notification formatting, receipts, policy orchestration, postmortem |
 | `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
 | `utils/` | `telegram.py`, `state.py`, `timeutil.py` |
 | `scripts/` | `recon_book.py`, `recover_static.py`, `extract_golden.py` |
@@ -132,7 +131,6 @@ Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | bet alerts; optional `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` routing |
 | `TELEGRAM_MIN_TIER` | minimum weather signal tier (default: `low`); no price/edge gate |
 | `TELEGRAM_MAX_LEAD_DAYS` | furthest valid future kickoff for betting alerts (default: `7` days); board and odds windows are independent |
-| `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | volume controls (defaults: `4`, `0`) |
 | `TELEGRAM_SYSTEM_ALERTS` | opt in to aggregated SYSTEM pages (`0` by default). A rejected pipeline publish, or a failed gate or light build, pages without it; a Playwright-only failure still needs it |
 | `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | complete weekly report fallback when Telegram fails or cannot fit every game; optional `SMTP_USE_SSL` / `SMTP_STARTTLS` |
 | `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID` | wrangler R2 / D1 / deploy in the workflows |

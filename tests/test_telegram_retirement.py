@@ -71,7 +71,7 @@ def test_retired_published_sender_does_not_read_or_write(monkeypatch, tmp_path):
     assert not list(tmp_path.iterdir())
 
 
-@pytest.mark.parametrize("args", [["--digest", "postmortem", "--email-fallback"], ["--digest"], ["--flush"]])
+@pytest.mark.parametrize("args", [["--digest", "postmortem", "--email-fallback"]])
 def test_retired_cli_does_not_send_or_trigger_email_fallback(monkeypatch, args):
     monkeypatch.delenv("FOOTBALL_TELEGRAM_ENABLED", raising=False)
     monkeypatch.setattr(alerts, "default_sender", lambda: pytest.fail("sender must not be created"))

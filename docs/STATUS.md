@@ -51,7 +51,19 @@ field populated by `weather/merge.py` and emitted in the GameCard weather block
 `odds_history` export, newest `SNAPSHOT_MAX=120`) — no S3 keys anywhere in the
 workflows.
 
-Telegram weather policy (2026-09-27): SIGNAL alerts default to Low+ (including CFB Low Wind), with no price or model-edge gate; one game-level identity survives best-book churn and model promotion, concurrent signal/fair/line changes collapse to one UPDATE, and notifications stop at kickoff. Quiet-hour messages are rebuilt from current prices, openers are opt-in, and three individual alerts are followed by one bounded SUMMARY. SYSTEM paging is off by default (`TELEGRAM_SYSTEM_ALERTS=1` opts in). The pipeline still pages, without that switch, when a publish is rejected or the gate or light build fails; a Playwright-only failure still needs the switch. Repeated provider issues collapse by component and the pipeline owns only one run-level failure page. Open-Meteo batches now preserve earlier successful batches during a later 429, fail rate limits without immediate retry traffic, route only a rate-limited full-ensemble batch through the lighter GEFS ensemble-mean/spread call, aggregate NWS/no-source fallbacks, and publish degraded data without turning a temporary provider outage into a failed run (ARCH §10; `pipeline/alerts.py`).
+Telegram uses the single `pipeline/alert_policy.py` policy: first notices,
+08:00/17:00 ET reminders and explicit confirmed-bet CLEAR notices, with delivery
+retired by default. Weather eligibility, stable game-level identity and successful
+delivery receipts remain; the old follow-up, opener digest, quiet-hour batching
+and snapshot engine has been deleted. Waiting candidates rebuild from current
+cards and legacy stored snapshots are never replayed. Book-health and pipeline
+failure/recovery paging remain independent (ARCH §10).
+
+Open-Meteo batches preserve earlier successful batches during a later 429, fail
+rate limits without immediate retry traffic, route only a rate-limited
+full-ensemble batch through the lighter GEFS ensemble-mean/spread call, aggregate
+NWS/no-source fallbacks, and publish degraded data without turning a temporary
+provider outage into a failed run.
 
 ## 2. What is implemented, per phase
 
@@ -76,7 +88,7 @@ Telegram weather policy (2026-09-27): SIGNAL alerts default to Low+ (including C
 - `site/web/{index.html,app.js,map.js,table.js,drawer.js,styles.css}` + vendored MapLibre / uPlot (`site/web/vendor`, no CDN); `deploy.yml` (tests → `d1 migrations apply --remote` → wrangler deploy on push to `main` touching `site/**`).
 
 ### Phase 4 — Telegram alerts, Alerts + Status tabs: DONE (Telegram sends fixture-tested only)
-- `pipeline/alerts.py`: PLAY / UPDATE / CLOSED UX over the EDGE / MOVE / GONE / WX records, with SYSTEM opt-in only; stable dedup in `state/alerts.json` (cap 500), chat routing `TELEGRAM_CHAT_ID_NFL` / `_CFB` → `TELEGRAM_CHAT_ID`, `--alerts-stdout` / `--no-alerts`, `--digest postmortem` (`--digest clv` retained manually).
+- `pipeline/alerts.py`: single policy orchestration, first-notice/reminder/CLEAR formatting, stable receipts/feed, book-health paging and `--digest postmortem`; delivery defaults off.
 - `board/alerts_feed.json`, `board/status.json`, `site/web/{alerts,status}.js`; D1 `alerts` + `runs` tables; records retain the originating `ALERT_MODEL`, while a model promotion does not re-page the same play.
 
 ### Phase 5 — Better weather + stadiums, v2 model side by side: DONE
@@ -126,7 +138,7 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `GITHUB_SHA`, `GITHUB_OUTPUT` | `run_context.py` meta sha, `gate_check.py` outputs | provided by Actions | — |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `utils/telegram.py`, `pipeline/alerts.py`; optional workflow/Worker failure paging | .env, GH, wrangler | required for bet alerts |
 | `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB` | `pipeline/alerts.py` per-sport routing (fallback `TELEGRAM_CHAT_ID`) | .env, GH (pipeline.yml) | optional |
-| `TELEGRAM_MIN_TIER`, `TELEGRAM_MAX_LEAD_DAYS`, `TELEGRAM_MAX_PER_RUN`, `TELEGRAM_INCLUDE_OPENERS` | Telegram policy; defaults `low`, `7`, `4`, `0` | .env / workflow env | optional |
+| `TELEGRAM_MIN_TIER`, `TELEGRAM_MAX_LEAD_DAYS` | Weather eligibility; defaults `low`, `7` | .env / workflow env | optional |
 | `TELEGRAM_SYSTEM_ALERTS` | aggregated in-run/workflow/Worker operations paging; default `0` | GH repo variable / Worker var | optional |
 | `POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`, `SMTP_STARTTLS` | `backtest.yml` full weekly post-mortem fallback | GH | optional — without them Telegram still sends, but a failed/truncated Telegram report has no email fallback |
 | `CLOUDFLARE_API_TOKEN` | `pipeline.yml`, `deploy.yml`, `backtest.yml`, `calibrate.yml`, `build-stadiums.yml` (wrangler r2/d1/deploy) — needs Workers Scripts: Edit, R2 Storage: Edit, D1: Edit | GH | required for any Cloudflare workflow |

@@ -100,16 +100,12 @@ def notify_published(board_dir: Path, state_dir: Path, run_id: str, bucket: str,
         uploader(bucket, "board/alerts_live_feed.json", feed_path, "application/json")
 
     checkpoint(state.load_alerts(state_dir), state.load_telegram_state(state_dir))  # Preflight receipt storage.
-    inputs_path = board_dir.parent / "alert_inputs.json"
-    inputs = json.loads(inputs_path.read_text(encoding="utf-8")) if inputs_path.is_file() else {}
-    if inputs and inputs.get("run_id") != run_id:
-        raise RuntimeError("Alert inputs belong to a different build")
     # Keep production time live: liquidity retrieval may cross kickoff. Only a
     # caller-supplied test/replay clock should freeze run_alerts' time refresh.
     result = alerts.run_alerts(ctx, cards, state_dir, sender=sender, now=now,
-                              new_keys_by_sport=inputs.get("new_keys_by_sport"), receipt_checkpoint=checkpoint,
+                              receipt_checkpoint=checkpoint,
                               confirmation_reader=confirmation_reader)
-    checkpoint(result.alerts, result.telegram_state)  # Persist unsent first observations and queues too.
+    checkpoint(result.alerts, result.telegram_state)  # Persist unsent first observations too.
     records = list(result.alerts.get("records", {}).values())
     # A previous attempt may have saved R2 receipts but failed the D1 write.
     # Re-upsert retained receipts, including those deduped on this attempt.

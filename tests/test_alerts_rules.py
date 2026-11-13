@@ -1,5 +1,4 @@
-"""pipeline/alerts.py rules: actionable PLAY gating, stable play identity, consolidated
-follow-ups, quiet-hours revalidation, low-volume batching, persistence, and output wiring."""
+"""Live signal eligibility, stable identity, delivery receipts and output wiring."""
 
 from __future__ import annotations
 
@@ -17,9 +16,9 @@ from pipeline.outputs import d1_out, json_out
 from pipeline.run_context import RunContext
 
 KICK = datetime(2026, 9, 20, 17, 0, tzinfo=timezone.utc)      # Sun 1:00p ET
-NOW = datetime(2026, 9, 18, 15, 0, tzinfo=timezone.utc)        # Fri 11:00a ET (not quiet)
+NOW = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)        # Fri 08:00 ET routine slot
 QUIET = datetime(2026, 9, 19, 3, 30, tzinfo=timezone.utc)      # Fri 23:30 ET
-MORNING = datetime(2026, 9, 19, 11, 30, tzinfo=timezone.utc)   # Sat 07:30 ET
+MORNING = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)   # Sat 08:00 ET routine slot
 GID = "nfl:2026:3:sea@ne"
 EKEY = f"edge|2026|3|{GID}|total|under|best|v1"
 LEGACY_EKEY = f"edge|2026|3|{GID}|total|under|betonline|v1"
@@ -36,12 +35,10 @@ def _enable_mock_delivery(monkeypatch):
 @pytest.mark.parametrize("roof_type,state", [("dome", "outdoors"), ("dome", None),
                                             ("retractable", None), ("retractable", "closed"),
                                             ("retractable", "outdoors"), (None, "closed")])
-def test_stale_covered_signals_cannot_alert_or_enter_open_summary(sport, roof_type, state):
+def test_stale_covered_signals_cannot_alert(sport, roof_type, state):
     c = card(sport=sport)
     c["stadium"].update(roof_type=roof_type, roof_state=state)
     assert not A.edge_candidates(c, {}, CFG, now=NOW)
-    pages = A.open_signal_summaries({sport: [c]}, CFG, NOW)
-    assert pages and all("No open weather signals" in page.text for page in pages)
 
 
 def _edge(book: str = "betonline", market: str = "total", side: str = "under", line: float = 38.0, odds: int = -110,
@@ -126,15 +123,12 @@ def test_confidence_and_lead_bypass():
 # ---- Weather signals: Low+ regardless of posted price or model value ----
 
 def test_notification_policy_defaults_and_env_overrides():
-    assert CFG.max_per_run == 4 and CFG.min_tier == "low"
+    assert CFG.min_tier == "low"
     assert CFG.max_lead_days == 7
-    assert not CFG.include_openers and not CFG.system_alerts
     cfg = A.Config.from_env({"TELEGRAM_MIN_TIER": "high", "TELEGRAM_MIN_EDGE_PTS": "2.5",
                              "TELEGRAM_MAX_LEAD_DAYS": "9",
-                             "TELEGRAM_MAX_PER_RUN": "7", "TELEGRAM_INCLUDE_OPENERS": "true",
-                             "TELEGRAM_SYSTEM_ALERTS": "1"})
-    assert (cfg.min_tier == "high" and cfg.max_per_run == 7
-            and cfg.include_openers and cfg.system_alerts and cfg.max_lead_days == 9)
+                             "BOOK_HEALTH_ALERTS": "1"})
+    assert cfg.min_tier == "high" and cfg.book_health and cfg.max_lead_days == 9
 
 
 def test_default_notification_gate_is_weather_only():
@@ -163,22 +157,19 @@ def test_betting_notifications_stop_at_kickoff():
     assert A.edge_candidates(card(), alerts, CFG, None, KICK) == []
     assert A.edge_candidates(card(), alerts, CFG, None, KICK + timedelta(hours=2)) == []
 
-    open_alerts = _with_open_edge()
-    pulled = card([_edge(line=None, odds=None)], kickoff=KICK)
-    assert A.followup_candidates(pulled, open_alerts, CFG, KICK) == []
 
 
 def test_collect_candidates_applies_the_kickoff_gate():
     alerts, _ = _fresh()
     cards = {"nfl": [card()]}
-    before = A.collect_candidates(_ctx(), cards, alerts, CFG, KICK - timedelta(seconds=1), include_ops=False)
+    before = A.collect_candidates(_ctx(), cards, alerts, CFG, KICK - timedelta(seconds=1))
     assert "edge" in {c.family for c in before}
-    started = A.collect_candidates(_ctx(), cards, alerts, CFG, KICK, include_ops=False)
+    started = A.collect_candidates(_ctx(), cards, alerts, CFG, KICK)
     assert [c.family for c in started] == []
 
 
-def test_betting_alert_horizon_rejects_far_future_invalid_and_queued_games():
-    alerts, tg = _fresh()
+def test_betting_alert_horizon_rejects_far_future_invalid_and_missing_kickoffs():
+    alerts, _ = _fresh()
     boundary = card(kickoff=NOW + timedelta(days=7))
     far = card(kickoff=NOW + timedelta(days=8))
     missing = card()
@@ -186,14 +177,7 @@ def test_betting_alert_horizon_rejects_far_future_invalid_and_queued_games():
     assert len(A.edge_candidates(boundary, alerts, CFG, now=NOW)) == 1
     assert A.edge_candidates(far, alerts, CFG, now=NOW) == []
     assert A.edge_candidates(missing, alerts, CFG, now=NOW) == []
-    assert A.followup_candidates(far, _with_open_edge(), CFG, NOW) == []
-    assert A.collect_candidates(_ctx(), {"nfl": [far, missing]}, alerts, CFG, NOW, include_ops=False) == []
-    far_candidate = A.Candidate("edge|far", "edge", "nfl", "far", game_id=GID,
-                                kickoff_utc=NOW + timedelta(days=8))
-    p = A.plan([far_candidate], alerts, tg, NOW, CFG)
-    assert not p.send and not p.digest and not p.queued
-    pages = A.open_signal_summaries({"nfl": [far]}, CFG, NOW)
-    assert all("Seattle Seahawks" not in page.text for page in pages)
+    assert A.collect_candidates(_ctx(), {"nfl": [far, missing]}, alerts, CFG, NOW) == []
 
 
 def test_no_impact_never_alerts():
@@ -204,7 +188,7 @@ def test_no_impact_never_alerts():
     assert A._alertable_edges(card(signal="")) == []
 
 
-def test_cfb_wind_filter_overrides_stale_no_impact_for_alerts_and_snapshots():
+def test_cfb_wind_filter_overrides_stale_no_impact_for_alerts():
     alerts, _ = _fresh()
     duke = card(sport="cfb", signal="No Impact", wind=23.66)
     duke["weather"]["temp_fg"] = 64.0
@@ -216,8 +200,6 @@ def test_cfb_wind_filter_overrides_stale_no_impact_for_alerts_and_snapshots():
     assert A.edge_candidates({**duke, "weather": {**duke["weather"], "wind_fg": 14.9}}, alerts, CFG, now=NOW) == []
     assert len(A.edge_candidates({**duke, "weather": {**duke["weather"], "temp_fg": 75.0}}, alerts, CFG, now=NOW)) == 1
     assert A.edge_candidates({**duke, "consensus": {**duke["consensus"], "spread_open": 10.01}}, alerts, CFG, now=NOW) == []
-    pages = A.open_signal_summaries({"cfb": [duke]}, CFG, NOW)
-    assert any("No open weather signals" not in page.text for page in pages)
 
 
 @pytest.mark.parametrize("sport,label", [("nfl", "Low Impact"), ("cfb", "Low (Wind)")])
@@ -230,32 +212,6 @@ def test_wind_flag_does_not_use_temperature_unless_the_gate_is_on(sport, label, 
     if sport == "cfb":
         c["consensus"]["spread_open"] = -3.0
     assert len(A.edge_candidates(c, alerts, CFG, now=NOW)) == 1
-    pages = A.open_signal_summaries({sport: [c]}, CFG, NOW)
-    assert any("No open weather signals" in page.text for page in pages) is False
-
-
-def test_warming_low_rain_closes_silently_and_stops_updates():
-    alerts = _with_open_edge(signal="Low (Rain)")
-    _, tg = _fresh()
-    warm = card([_edge(line=42, fair_line=37)], signal="Low (Rain)", wind=12, rain=0)
-    warm["weather"]["temp_fg"] = 65
-    changes = A.followup_candidates(warm, alerts, CFG, NOW)
-    assert [c.family for c in changes] == ["gone"]
-    _, sender, _ = _live(changes, alerts, tg)
-    assert sender.sent == []
-    assert A.followup_candidates(warm, alerts, CFG, NOW + timedelta(hours=5)) == []
-
-
-def test_leaving_the_wind_flag_drops_queued_alert():
-    alerts, tg = _fresh()
-    flagged = card(signal="Low (Wind)", wind=16, rain=0)
-    edge = A.edge_candidates(flagged, alerts, CFG, now=QUIET)[0]
-    _live([edge], alerts, tg, now=QUIET)
-    assert tg["queue"]
-    flagged["weather"]["wind_fg"] = 14
-    current = A.collect_candidates(_ctx(), {"nfl": [flagged]}, alerts, CFG, MORNING, include_ops=False)
-    out, sender, plan = _live(current, alerts, tg, now=MORNING)
-    assert plan.flush == [] and out.n_sent == 0 and sender.sent == [] and tg["queue"] == []
 
 
 def test_warm_game_below_the_flag_does_not_alert():
@@ -303,16 +259,7 @@ def test_weather_signal_alerts_without_a_price_or_positive_model_edge():
     assert "no posted price available" in got[0].text
 
 
-def test_price_loss_or_missing_fair_does_not_close_weather_signal():
-    alerts = _with_open_edge()
-    for edge in (_edge(edge_pts=-1), _edge(line=None, odds=None), _edge(fair_line=None, edge_pts=None)):
-        got = A.followup_candidates(card([edge]), alerts, CFG, NOW)
-        assert all(c.family != "gone" for c in got)
-    got = A.followup_candidates(card(signal="Low (Wind)"), alerts, CFG, NOW)
-    assert len(got) == 1 and got[0].family == "wx"
-
-
-def test_first_signal_quote_survives_quiet_hours_separately_from_delivery():
+def test_first_signal_quote_survives_waiting_for_routine_delivery():
     alerts, tg = _fresh()
     first = A.edge_candidates(card([_edge(line=38)], signal="Low (Wind)"), alerts, CFG, now=QUIET)
     _live(first, alerts, tg, now=QUIET)
@@ -324,21 +271,6 @@ def test_first_signal_quote_survives_quiet_hours_separately_from_delivery():
     assert rec["first_signal_book"] == "betonline"
     assert rec["first_line"] == 36
     assert rec["first_sent_at"] == A.utc_iso(MORNING)
-
-
-def test_weather_signal_can_return_after_closing_without_duplicate_entry():
-    alerts, tg = _fresh()
-    _live(A.edge_candidates(card(), alerts, CFG, now=NOW), alerts, tg)
-    for hour in (1, 3):
-        gone = A.followup_candidates(card(signal="No Impact"), alerts, CFG, NOW + timedelta(hours=hour))
-        assert len(gone) == 1 and gone[0].family == "gone"
-        _live(gone, alerts, tg, now=NOW + timedelta(hours=hour))
-        back = A.followup_candidates(card(signal="Low (Wind)"), alerts, CFG, NOW + timedelta(hours=hour + 1))
-        assert len(back) == 1 and back[0].family == "wx"
-        _live(back, alerts, tg, now=NOW + timedelta(hours=hour + 1))
-        assert A.edge_candidates(card(), alerts, CFG, now=NOW) == []
-        assert pstate.get_alert_record(alerts, EKEY)["first_line"] == 38
-        assert pstate.get_alert_record(alerts, EKEY)["status"] == "open"
 
 
 def test_cfb_wide_opener_never_becomes_a_telegram_play():
@@ -390,20 +322,8 @@ def test_best_book_churn_keeps_one_stable_play_identity():
                     _edge(book="betcris", line=41.0, edge_pts=9.0),
                     _edge(book="novig", line=38.5, edge_pts=3.9)])
     assert A.edge_candidates(churned, alerts, CFG) == []
-    assert A.followup_candidates(churned, alerts, CFG, NOW + timedelta(hours=1)) == []
     assert [r["alert_key"] for r in pstate.open_edge_records(alerts, GID)] == [EKEY]
 
-    # A material change in the best available offer is useful, but it must not
-    # be described as though one book's market line moved.
-    better = card([_edge(book="betonline", line=38.0, edge_pts=3.4),
-                   _edge(book="betcris", line=42.0, edge_pts=9.0),
-                   _edge(book="novig", line=40.0, edge_pts=5.4)])
-    update = A.followup_candidates(better, alerts, CFG, NOW + timedelta(hours=5))
-    assert len(update) == 1 and update[0].family == "move"
-    assert "Play price: Under 38 (−110) · BetOnline → Under 40 (−110) · Novig" in update[0].text
-    assert "Betcris" not in update[0].text
-    assert "Line:" not in update[0].text
-    assert "Play price:" in update[0].summary and "BetOnline → Under 40" in update[0].summary
 
 
 def test_consensus_entry_synthesised_when_no_under_edge():
@@ -420,16 +340,6 @@ def test_no_line_posted_still_reports_weather():
     c["consensus"]["total_now"] = None
     c["odds"] = {}
     assert "no posted price available" in A.edge_candidates(c, alerts, CFG)[0].text
-
-
-def test_bypass_quiet_for_high_tiers_and_gone():
-    mk = lambda tier, fam="edge": A.Candidate("k", fam, "nfl", "<b>x</b>\ny", tier=tier)  # noqa: E731
-    assert mk("high").bypass_quiet and mk("very_high").bypass_quiet
-    assert not mk("mid").bypass_quiet and not mk("low").bypass_quiet and not mk(None).bypass_quiet
-    assert mk("low", "gone").bypass_quiet
-    alerts, _ = _fresh()
-    assert A.edge_candidates(card(signal="Very High Impact"), alerts, CFG)[0].tier == "very_high"
-    assert A.edge_candidates(card(signal="High Impact"), alerts, CFG)[0].bypass_quiet
 
 
 def test_edge_key_roundtrip_unchanged():
@@ -449,409 +359,11 @@ def test_edge_dedup_accepts_stable_and_legacy_book_markers():
 
 
 def test_model_promotion_does_not_create_a_second_telegram_play():
-    alerts = _with_open_edge()
+    alerts, tg = _fresh()
+    _live(A.edge_candidates(card(), alerts, CFG), alerts, tg)
     promoted = card([dict(_edge(book="betcris"), model_version="v2")])
     assert A.edge_candidates(promoted, alerts, CFG) == []
 
-    v2_key = A.edge_key(2026, 3, GID, "total", "under", "best", "v2")
-    duplicate = dict(pstate.get_alert_record(alerts, EKEY) or {})
-    duplicate.update({"alert_key": v2_key, "model_version": "v2"})
-    alerts["records"][v2_key] = duplicate
-    alerts["sent"][v2_key] = "2026-09-18T14:05:00Z"
-    assert len(A._canonical_signal_edges(alerts, GID)) == 1
-
-
-# ---- move buckets / gone / signal change / forecast move: only on games with an open EDGE ----
-
-def _with_open_edge(line: float = 38.0, fair_line: float = 34.6, edge_pts: float = 3.4, wind: float = 18.0,
-                    signal: str = "Mid Impact", edges: list[dict[str, Any]] | None = None) -> dict:
-    alerts, tg = _fresh()
-    edges = [_edge(line=line, fair_line=fair_line, edge_pts=edge_pts)] if edges is None else edges
-    cands = A.edge_candidates(card(edges, wind=wind, signal=signal), alerts, CFG)
-    out, _, _ = _live(cands, alerts, tg)
-    assert out.n_sent == 1
-    return alerts
-
-
-def test_move_bucket_steps():
-    assert A.move_bucket("total", 38.0, 38.5) == 0
-    assert A.move_bucket("total", 39.49, 38.0) == 0
-    assert A.move_bucket("total", 39.5, 38.0) == 1
-    assert A.move_bucket("total", 41.0, 38.0) == 2
-    assert A.move_bucket("spread", -3.99, -3.0) == 0
-    assert A.move_bucket("spread", -4.0, -3.0) == 1
-    assert A.move_bucket("spread", -5.0, -3.0) == 2
-    assert A.move_direction("total", "under", 37.0, 38.0, 34.6) == "toward fair"
-    assert A.move_direction("total", "under", 39.0, 38.0, 34.6) == "away from fair"
-
-
-def test_move_only_for_games_with_open_edge():
-    alerts, _ = _fresh()
-    moved = card([_edge(line=39.5, edge_pts=4.9)])
-    assert [c for c in A.followup_candidates(moved, alerts, CFG, NOW) if c.family == "move"] == []
-    alerts = _with_open_edge()
-    below_step = card([_edge(line=39.49, edge_pts=4.89)])
-    assert A.followup_candidates(below_step, alerts, CFG, NOW) == []
-    c = A.followup_candidates(moved, alerts, CFG, NOW)
-    assert [x.key for x in c] == [f"move|{EKEY}|1"]
-    assert "Line: Under 38 → 39.5 · BetOnline −110" in c[0].text
-    assert c[0].record["direction"] == "away from fair"
-
-
-def test_move_cooldown_and_rebasing_after_send():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    c = A.followup_candidates(card([_edge(line=39.5, edge_pts=4.9)]), alerts, CFG, NOW)
-    out, _, _ = _live(c, alerts, tg)
-    assert out.n_sent == 1
-    assert pstate.get_alert_record(alerts, EKEY)["last_line"] == 39.5
-    second_bucket = card([_edge(line=41.0, edge_pts=6.4)])
-    assert A.followup_candidates(second_bucket, alerts, CFG, NOW + timedelta(hours=3, minutes=59)) == []
-    c2 = A.followup_candidates(second_bucket, alerts, CFG, NOW + timedelta(hours=4))
-    assert [x.key for x in c2] == [f"move|{EKEY}|2"] and "39.5 → 41" in c2[0].text
-    _live(c2, alerts, tg, now=NOW + timedelta(hours=4))
-    # Drifting back to the first bucket is silent because that bucket was already sent.
-    assert A.followup_candidates(card([_edge(line=39.5, edge_pts=4.9)]), alerts, CFG,
-                                 NOW + timedelta(hours=8)) == []
-
-
-def test_signal_gone_closes_record_and_suppresses_move():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    gone = card([_edge(line=35.0, edge_pts=0.4)], signal="No Impact", wind=6.0)
-    c = A.followup_candidates(gone, alerts, CFG, NOW)
-    assert [x.family for x in c] == ["gone"] and c[0].bypass_quiet
-    assert c[0].key == f"gone|{EKEY}|1"
-    assert "Reason: Signal Mid Impact → No Impact" in c[0].text
-    assert "Was: Under 38 · Now: 35" in c[0].text
-    out, _, _ = _live(c, alerts, tg)
-    assert out.n_sent == 0 and out.n_messages == 0
-    rec = pstate.get_alert_record(alerts, EKEY)
-    assert rec["status"] == "closed" and rec["last_signal"] == "No Impact"
-    assert pstate.open_edge_records(alerts, GID) == []
-    assert A.followup_candidates(card([_edge(line=45.0, edge_pts=10.0)]), alerts, CFG, NOW)[0].family == "wx"
-
-
-def test_value_below_one_point_reports_line_move_without_closing():
-    alerts = _with_open_edge()
-    c = A.followup_candidates(card([_edge(line=35.0, edge_pts=0.4)]), alerts, CFG, NOW)
-    assert [x.family for x in c] == ["move"]
-    assert "Line: Under 38 → 35" in c[0].text
-
-
-def test_signal_change_key_message_and_no_duplicate():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge(signal="Mid Impact")
-    assert pstate.get_alert_record(alerts, EKEY)["last_signal"] == "Mid Impact"
-    assert A.followup_candidates(card(signal="Mid Impact"), alerts, CFG, NOW) == []
-    c = A.followup_candidates(card(signal="High Impact", wind=17.0), alerts, CFG, NOW)
-    assert [x.key for x in c] == [f"wx|{EKEY}|sig-high|1"] and c[0].family == "wx" and c[0].tier == "high"
-    assert "Signal: <b>Mid Impact → High Impact</b>" in c[0].text
-    assert "<b>Current price: Under 38 (−110) · BetOnline</b>" in c[0].text and c[0].bypass_quiet
-    out, _, _ = _live(c, alerts, tg)
-    assert out.n_sent == 1
-    rec = pstate.get_alert_record(alerts, EKEY)
-    assert rec["last_signal"] == "High Impact" and rec["status"] == "open" and rec["tier"] == "high"
-    assert A.followup_candidates(card(signal="High Impact"), alerts, CFG, NOW) == []
-    back = A.followup_candidates(card(signal="Mid Impact"), alerts, CFG, NOW)
-    assert [x.key for x in back] == [f"wx|{EKEY}|sig-mid|2"]
-    _live(back, alerts, tg)
-    again = A.followup_candidates(card(signal="High Impact"), alerts, CFG, NOW)
-    assert [x.key for x in again] == [f"wx|{EKEY}|sig-high|3"]  # a new transition, not a duplicate
-    # a record without last_signal (pre-change rows / D1 rehydrate) never guesses a change
-    rec.pop("last_signal")
-    assert A.followup_candidates(card(signal="High Impact"), alerts, CFG, NOW) == []
-
-
-def test_simultaneous_signal_fair_and_line_change_produces_one_message():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    changed = card([_edge(line=39.5, fair_line=36.6, edge_pts=2.9)], signal="High Impact", wind=16.0, rain=0.0)
-    c = A.followup_candidates(changed, alerts, CFG, NOW)
-    assert len(c) == 1 and c[0].key == f"wx|{EKEY}|sig-high|1"
-    assert "Signal: <b>Mid Impact → High Impact</b>" in c[0].text
-    assert "Line:" not in c[0].text and "Forecast: wind 16 mph · temp 41.2 °F · rain 0 mm" in c[0].text
-    out, rec, _ = _live(c, alerts, tg)
-    assert out.n_sent == 1 and out.n_messages == 1 and len(rec.sent) == 1
-
-
-def test_legacy_duplicate_parents_collapse_to_one_followup_and_close_together():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    legacy = dict(pstate.get_alert_record(alerts, EKEY) or {})
-    legacy.update({"alert_key": LEGACY_EKEY, "book": "betonline", "last_book": "betonline"})
-    alerts["records"][LEGACY_EKEY] = legacy
-    alerts["sent"][LEGACY_EKEY] = "2026-09-18T14:00:00Z"
-
-    c = A.followup_candidates(card(signal="No Impact"), alerts, CFG, NOW)
-    assert len(c) == 1 and c[0].key == f"gone|{EKEY}|1"
-    assert c[0].record["related_edge_keys"] == [LEGACY_EKEY]
-    out, _, _ = _live(c, alerts, tg)
-    assert out.n_messages == 0
-    assert pstate.get_alert_record(alerts, EKEY)["status"] == "closed"
-    assert pstate.get_alert_record(alerts, LEGACY_EKEY)["status"] == "closed"
-
-
-def test_forecast_move_bucket_on_fair_line():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    same = card([_edge(fair_line=36.59, edge_pts=1.41)], wind=15.0)
-    assert [x.family for x in A.followup_candidates(same, alerts, CFG, NOW)] == []
-    moved = card([_edge(fair_line=36.6, edge_pts=1.4)], wind=16.0, rain=0.0)
-    c = A.followup_candidates(moved, alerts, CFG, NOW)
-    assert [x.key for x in c] == [f"wx|{EKEY}|1"]
-    assert "Weather: wind 18 → 16 mph" in c[0].text
-    assert "18 → 16 mph" in c[0].text and "0.8 → 0 mm" in c[0].text
-    out, _, _ = _live(c, alerts, tg)
-    assert out.n_sent == 1
-    rec = pstate.get_alert_record(alerts, EKEY)
-    assert rec["last_fair"] == 36.6 and rec["last_wind"] == 16.0
-    assert A.followup_candidates(moved, alerts, CFG, NOW) == []
-
-
-def test_captured_uva_fsu_reactivation_then_unchanged_playwright_is_silent(tmp_path):
-    replay = json.loads((Path(__file__).parent / "fixtures" / "uva_fsu_alert_replay.json").read_text())
-    alerts = replay["alerts_before"]
-    current = replay["card"]
-    # The capture is 12.1 mph, which is the display watch, not a flag.
-    # Raise the wind so this still exercises duplicate reactivation.
-    current["weather"]["wind_fg"] = 16
-    current["weather"]["temp_fg"] = 49.9
-    current.setdefault("consensus", {})["spread_open"] = -3.0
-    ekey = replay["edge_key"]
-    light_at = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
-    playwright_at = datetime.fromisoformat(replay["playwright_at"].replace("Z", "+00:00"))
-    original = {k: v for k, v in alerts["records"][ekey].items() if k.startswith("first_")}
-    tg = pstate.migrate(None, "telegram_state")
-
-    returning = A.followup_candidates(current, alerts, CFG, light_at)
-    assert len(returning) == 1 and returning[0].key.startswith("activate|")
-    out, sent, _ = _live(returning, alerts, tg, now=light_at)
-    assert out.n_messages == 1 and "Weather signal active again" in sent.sent[0][0]
-    assert alerts["records"][ekey]["last_fair"] == 47.1225
-    assert not pstate.alert_sent(alerts, f"wx|{ekey}|2")
-
-    # Replay the light -> R2 -> Playwright boundary; the unsent first-entry bucket
-    # must not repeat the forecast already included in the reactivation message.
-    pstate.save_alerts(tmp_path, alerts)
-    restored = pstate.load_alerts(tmp_path)
-    repeated = A.followup_candidates(current, restored, CFG, playwright_at)
-    out, sent, _ = _live(repeated, restored, tg, now=playwright_at)
-    assert repeated == [] and out.n_messages == 0 and sent.sent == []
-    assert {k: v for k, v in restored["records"][ekey].items() if k.startswith("first_")} == original
-
-    # A changed fair still qualifies under the existing original-entry bucket;
-    # do not impose a new two-point threshold against the last delivered fair.
-    current["fair"]["edges"][0]["fair_line"] = 46.9
-    changed = A.followup_candidates(current, restored, CFG, playwright_at)
-    assert [c.key for c in changed] == [f"wx|{ekey}|2"]
-
-
-def test_captured_warm_uva_fsu_rain_no_longer_reactivates():
-    replay = json.loads((Path(__file__).parent / "fixtures" / "uva_fsu_alert_replay.json").read_text())
-    now = datetime.fromisoformat(replay["light_at"].replace("Z", "+00:00"))
-    assert A.followup_candidates(replay["card"], replay["alerts_before"], CFG, now) == []
-    assert A.edge_candidates(replay["card"], replay["alerts_before"], CFG, now=now) == []
-
-
-@pytest.mark.parametrize("notice", ["reactivation", "tier", "price"])
-def test_higher_priority_message_absorbs_unchanged_price_and_forecast(notice):
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    parent = alerts["records"][EKEY]
-    original = {k: v for k, v in parent.items() if k.startswith("first_")}
-    if notice == "reactivation":
-        parent.update(status="closed", notification_active=False)
-    elif notice == "price":
-        parent.update(last_line=None, last_odds=None)
-    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)],
-                   signal="High Impact" if notice == "tier" else "Mid Impact")
-    update = A.followup_candidates(current, alerts, CFG, NOW)
-    assert len(update) == 1
-    prefix = {"reactivation": "activate|", "tier": "wx|", "price": "price|"}[notice]
-    assert update[0].key.startswith(prefix)
-    out, _, _ = _live(update, alerts, tg)
-    assert out.n_sent == 1
-    assert A.followup_candidates(current, alerts, CFG, NOW + timedelta(hours=5)) == []
-    assert {k: v for k, v in parent.items() if k.startswith("first_")} == original
-
-
-def test_line_move_absorbs_unchanged_forecast_but_changed_forecast_can_follow():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)])
-    update = A.followup_candidates(current, alerts, CFG, NOW)
-    assert [c.key for c in update] == [f"move|{EKEY}|2"]
-    _live(update, alerts, tg)
-    assert A.followup_candidates(current, alerts, CFG, NOW + timedelta(hours=5)) == []
-    current["fair"]["edges"][0]["fair_line"] = 30.5
-    assert [c.key for c in A.followup_candidates(current, alerts, CFG, NOW)] == [f"wx|{EKEY}|2"]
-
-
-@pytest.mark.parametrize("change", ["line", "odds", "book"])
-def test_genuinely_changed_price_after_reactivation_keeps_existing_bucket_rule(change):
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    alerts["records"][EKEY].update(status="closed", notification_active=False)
-    current = card([_edge(line=41.0, fair_line=34.6, edge_pts=6.4)])
-    _live(A.followup_candidates(current, alerts, CFG, NOW), alerts, tg)
-    assert not pstate.alert_sent(alerts, f"move|{EKEY}|2")
-    edge = current["fair"]["edges"][0]
-    edge[{"line": "line", "odds": "odds", "book": "book"}[change]] = {
-        "line": 41.5, "odds": 102, "book": "novig",
-    }[change]
-    assert [c.key for c in A.followup_candidates(current, alerts, CFG, NOW)] == [f"move|{EKEY}|2"]
-
-
-def test_failed_reactivation_does_not_advance_last_delivered_baseline():
-    alerts, tg = _fresh()
-    alerts = _with_open_edge()
-    parent = alerts["records"][EKEY]
-    parent.update(status="closed", notification_active=False)
-    before = dict(parent)
-    current = card([_edge(line=41.0, fair_line=30.6, edge_pts=10.4)])
-    returning = A.followup_candidates(current, alerts, CFG, NOW)
-    out, _, _ = _live(returning, alerts, tg, ok=False)
-    assert out.n_sent == 0 and parent == before
-    retry = A.followup_candidates(current, alerts, CFG, NOW)
-    assert [c.key for c in retry] == [c.key for c in returning]
-    _live(retry, alerts, tg)
-    assert A.followup_candidates(current, alerts, CFG, NOW) == []
-
-
-# ---- quiet hours -----------------------------------------------------------------
-
-def test_quiet_hours_window():
-    assert A.in_quiet_hours(QUIET)
-    assert A.in_quiet_hours(datetime(2026, 9, 19, 10, 59, tzinfo=timezone.utc))   # 06:59 ET
-    assert not A.in_quiet_hours(datetime(2026, 9, 19, 11, 0, tzinfo=timezone.utc))  # 07:00 ET
-    assert not A.in_quiet_hours(NOW)
-
-
-def test_quiet_hours_queue_bypass_and_flush(tmp_path: Path):
-    alerts, tg = _fresh()
-    edge = A.edge_candidates(card(), alerts, CFG)[0]  # Mid → queued
-    strong = A.edge_candidates(card([_edge(book="betcris", edge_pts=4.0)], signal="Very High Impact",
-                                    game_id="nfl:2026:3:a@b"), alerts, CFG)[0]
-    soon_card = card([_edge(book="fanduel")], kickoff=QUIET + timedelta(hours=2), game_id="nfl:2026:3:c@d")
-    soon = A.edge_candidates(soon_card, alerts, CFG)[0]
-    assert strong.tier == "very_high" and strong.bypass_quiet and not edge.bypass_quiet
-    out, rec, p = _live([edge, strong, soon], alerts, tg, now=QUIET)
-    assert {c.key for c in p.send} == {strong.key, soon.key}
-    assert [c.key for c in p.queued] == [edge.key]
-    assert out.n_sent == 2 and not pstate.alert_sent(alerts, edge.key)
-    assert [q["key"] for q in tg["queue"]] == [edge.key]
-    # persisted + reloaded queue survives the R2 round-trip
-    pstate.save_telegram_state(tmp_path, tg)
-    tg2 = pstate.load_telegram_state(tmp_path)
-    assert tg2["queue"][0]["key"] == edge.key and tg2["schema_version"] == pstate.SCHEMA_VERSION
-    # re-queue during the night replaces (latest text), never duplicates
-    out2, _, _ = _live([edge], alerts, tg2, now=QUIET + timedelta(hours=1))
-    assert len(tg2["queue"]) == 1 and out2.n_sent == 0
-    # 07:30 ET: the still-current key validates the snapshot; it is released as one digest.
-    out3, rec3, p3 = _live([edge], alerts, tg2, now=MORNING)
-    assert len(p3.flush) == 1 and out3.n_messages == 1 and out3.n_sent == 1
-    assert rec3.sent[0][0].startswith("<b>MORNING SUMMARY (1)</b>") and rec3.sent[0][1] == "CNFL"
-    assert pstate.alert_sent(alerts, edge.key) and tg2["queue"] == []
-
-
-def test_quiet_queue_drops_snapshot_when_signal_is_no_longer_current():
-    alerts, tg = _fresh()
-    edge = A.edge_candidates(card(), alerts, CFG)[0]
-    _live([edge], alerts, tg, now=QUIET)
-    assert [q["key"] for q in tg["queue"]] == [EKEY]
-
-    # The morning collection has no candidate for this key (for example the
-    # signal fell below Mid overnight), so stale PLAY text must not be delivered.
-    out, rec, p = _live([], alerts, tg, now=MORNING)
-    assert p.flush == [] and out.n_sent == 0 and rec.sent == [] and tg["queue"] == []
-
-
-def test_morning_summary_uses_current_price_not_overnight_snapshot():
-    alerts, tg = _fresh()
-    overnight = A.edge_candidates(card([_edge(line=38.0, edge_pts=3.4)]), alerts, CFG)[0]
-    _live([overnight], alerts, tg, now=QUIET)
-
-    current = A.edge_candidates(card([_edge(line=39.0, edge_pts=4.4)]), alerts, CFG)[0]
-    out, rec, p = _live([current], alerts, tg, now=MORNING)
-    assert len(p.flush) == 1 and out.n_messages == 1
-    assert "Under 39 (−110)" in rec.sent[0][0] and "Under 38 (−110)" not in rec.sent[0][0]
-    assert "Week open: Under 38 (?) · BetOnline" in rec.sent[0][0]
-    assert pstate.get_alert_record(alerts, EKEY)["first_line"] == 39.0
-
-
-def test_flush_skips_keys_sent_meanwhile():
-    alerts, tg = _fresh()
-    edge = A.edge_candidates(card(), alerts, CFG)[0]
-    _live([edge], alerts, tg, now=QUIET)
-    pstate.mark_alert(alerts, edge.key, "t")   # e.g. sent from the playwright job
-    out, rec, p = _live([], alerts, tg, now=MORNING)
-    assert p.flush == [] and rec.sent == [] and tg["queue"] == []
-
-
-# ---- low-volume run cap + summary -------------------------------------------------
-
-def _many(n: int) -> list[A.Candidate]:
-    alerts, _ = _fresh()
-    out = []
-    for i in range(n):
-        gid = f"nfl:2026:3:t{i}@ne"
-        out += A.edge_candidates(card([_edge(book="betonline")], game_id=gid), alerts, CFG)
-    assert len(out) == n
-    return out
-
-
-def test_default_cap_is_three_individuals_then_one_summary():
-    alerts, tg = _fresh()
-    out, rec, p = _live(_many(40), alerts, tg)
-    assert len(p.send) == 3 and len(p.digest) == 37
-    assert out.n_messages == 4 and out.n_sent == 40
-    assert rec.sent[-1][0].startswith("<b>SUMMARY (37)</b>")
-    assert all(pstate.alert_sent(alerts, c.key) for c in p.send + p.digest)
-    assert len(alerts["feed"]) == 40
-
-
-def test_under_cap_sends_individually():
-    alerts, tg = _fresh()
-    out, _, p = _live(_many(3), alerts, tg)
-    assert len(p.send) == 3 and p.digest == [] and out.n_messages == 3
-
-
-def test_tight_cap_defers_fresh_play_when_morning_and_system_groups_use_budget():
-    alerts, tg = _fresh()
-    queued = A.edge_candidates(card(), alerts, CFG)[0]
-    _live([queued], alerts, tg, now=QUIET)
-    current = A.edge_candidates(card(), alerts, CFG)[0]
-    fresh = A.edge_candidates(card(game_id="nfl:2026:3:new@game"), alerts, CFG)[0]
-    ops = A.Candidate("ops|x", "ops", "", "⚠️ <b>DATA ISSUE</b>",
-                      record={"family": "ops"}, summary="⚠️ DATA ISSUE")
-    cfg = A.Config(board_url=CFG.board_url, chat_default=CFG.chat_default,
-                   chat_by_sport=CFG.chat_by_sport, max_per_run=2)
-
-    out, _, p = _live([current, fresh, ops], alerts, tg, now=MORNING, cfg=cfg)
-    assert out.n_messages == 2 and len(p.flush) == 1 and len(p.ops) == 1
-    assert p.send == [] and p.digest == []
-    assert [q["key"] for q in tg["queue"]] == [fresh.key]
-    assert not pstate.alert_sent(alerts, fresh.key)
-
-
-def test_high_tier_and_imminent_prioritised_before_cap():
-    cands = _many(30)
-    late = A.edge_candidates(card([_edge(book="novig", edge_pts=5.0)], game_id="nfl:2026:3:zz@ne", signal="High Impact"),
-                             _fresh()[0], CFG)[0]
-    alerts, tg = _fresh()
-    _, _, p = _live(cands + [late], alerts, tg)
-    assert p.send[0].key == late.key
-
-
-def test_digest_failure_marks_nothing():
-    alerts, tg = _fresh()
-    out, rec, p = _live(_many(30), alerts, tg, ok=False)
-    assert out.n_sent == 0 and out.n_messages == 0 and alerts["sent"] == {}
-    assert len(out.failed) == 30
-
-
-# ---- mark only after send ------------------------------------------------------
 
 def test_mark_only_after_successful_send():
     alerts, tg = _fresh()
@@ -859,13 +371,13 @@ def test_mark_only_after_successful_send():
     out, rec, _ = _live(c, alerts, tg, ok=False)
     assert out.n_sent == 0 and out.failed and alerts["sent"] == {} and alerts.get("records", {}) == {}
     out2, rec2, _ = _live(c, alerts, tg, ok=True)
-    assert out2.n_sent == 1 and rec2.sent[0][1] == "CNFL"
+    assert out2.n_sent == 1 and rec2.sent[0][1] == "C0"
     r = pstate.get_alert_record(alerts, c[0].key)
     assert r["first_line"] == 38.0 and r["first_edge"] == 3.4 and r["sends"] == 1 and r["status"] == "open"
     assert alerts["feed"][-1]["alert_key"] == c[0].key and alerts["feed"][-1]["text_html"] == c[0].text
     # re-run: dedup, nothing sent
     out3, rec3, p3 = _live(A.edge_candidates(card(), alerts, CFG) + c, alerts, tg)
-    assert out3.n_sent == 0 and rec3.sent == [] and p3.skipped == [c[0].key]
+    assert out3.n_sent == 0 and rec3.sent == [] and not p3.send and not p3.digest
 
 
 def test_sender_exception_is_a_failed_send():
@@ -879,80 +391,19 @@ def test_sender_exception_is_a_failed_send():
     assert out.n_sent == 0 and out.failed and alerts["sent"] == {}
 
 
-def test_chat_routing_per_sport_and_ops_default():
+def test_chat_routing_per_sport_and_shared_routine_default():
     cfg = A.Config.from_env({"TELEGRAM_CHAT_ID": "D", "TELEGRAM_CHAT_ID_CFB": "CF", "BOARD_URL": "https://x/"})
-    cfg.interview_policy = False  # This fixture tests the retained legacy OPS router.
     assert cfg.chat_for("cfb") == "CF" and cfg.chat_for("nfl") == "D" and cfg.chat_for(None) == "D"
     assert cfg.board_url == "https://x"
     alerts, tg = _fresh()
     cfb = A.edge_candidates(card(sport="cfb", game_id="cfb:2026:3:a@b"), alerts, cfg)[0]
-    ops = A.Candidate("degr|x|y|2026-09-18", "ops", "cfb", "t")
-    out, rec, _ = _live([cfb, ops], alerts, tg, cfg=cfg)
-    chats = {c.key: chat for c, (_, chat) in zip(out.sent, rec.sent, strict=True)}
-    assert chats[cfb.key] == "CF" and chats[ops.key] == "D"
+    out, rec, _ = _live([cfb], alerts, tg, cfg=cfg)
+    assert out.n_sent == 1 and rec.sent[0][1] == "D"  # Routine notices share the default chat.
+    immediate = A.Plan(send=[cfb])
+    routed = Recorder()
+    A.dispatch(immediate, {}, routed, NOW, cfg)
+    assert routed.sent[0][1] == "CF"
 
-
-# ---- openers digest / ops ------------------------------------------------------------
-
-def test_openers_are_disabled_by_default_and_available_by_opt_in():
-    alerts, _ = _fresh()
-    calm = card(game_id="nfl:2026:3:a@b", wind=5.0, gs=-1.0)
-    windy = card(game_id="nfl:2026:3:c@d", wind=12.0, gs=-1.0)
-    cold = card(game_id="nfl:2026:3:e@f", wind=3.0, gs=-2.0)
-    keys = ["nfl:2026:3:a@b|total|over|betcris", "nfl:2026:3:c@d|total|over|betcris", "nfl:2026:3:e@f|spread|home|fanduel",
-            "nfl:2026:3:c@d|total|under|consensus"]
-    assert A.opener_candidates("nfl", [calm, windy, cold], keys, alerts, CFG, NOW) == []
-    enabled = A.Config(board_url=CFG.board_url, chat_default=CFG.chat_default,
-                       chat_by_sport=CFG.chat_by_sport, include_openers=True)
-    c = A.opener_candidates("nfl", [calm, windy, cold], keys, alerts, enabled, NOW)
-    assert len(c) == 1 and c[0].key == "openers|nfl|2026|3|2026-09-18"
-    assert "2 weather game" in c[0].text and "Betcris" in c[0].text and "Consensus" not in c[0].text
-    assert A.opener_candidates("nfl", [calm], keys[:1], alerts, enabled, NOW) == []
-    assert A.opener_candidates("nfl", [windy], [], alerts, enabled, NOW) == []
-    pstate.mark_alert(alerts, c[0].key, "t")
-    assert A.opener_candidates("nfl", [windy], keys, alerts, enabled, NOW) == []
-
-
-def test_opener_digest_filters_far_members_and_expires_at_earliest_kickoff():
-    alerts, tg = _fresh()
-    near = card(game_id="nfl:2026:3:near@ne", kickoff=NOW + timedelta(days=6), wind=12)
-    far = card(game_id="nfl:2026:3:far@ne", kickoff=NOW + timedelta(days=8), wind=12)
-    keys = [f"{near['game_id']}|total|over|betcris", f"{far['game_id']}|total|over|betcris"]
-    cfg = A.Config(board_url=CFG.board_url, chat_default=CFG.chat_default, include_openers=True)
-    candidates = A.opener_candidates("nfl", [near, far], keys, alerts, cfg, NOW)
-    assert len(candidates) == 1
-    digest = candidates[0]
-    assert digest.kickoff_utc == NOW + timedelta(days=6)
-    assert "1 weather game(s)" in digest.text
-    assert A.plan(candidates, alerts, tg, NOW, cfg).send == candidates
-
-    # A stored aggregate cannot survive beyond its earliest member's kickoff.
-    queued = A._to_queue_item(digest, NOW)
-    assert A._queue_item_within_alert_window(queued, NOW, cfg)
-    assert not A._queue_item_within_alert_window(queued, NOW + timedelta(days=6), cfg)
-    # A malformed legacy game alert is not treated as an operational notice.
-    assert not A._queue_item_within_alert_window({"family": "edge"}, NOW, cfg)
-
-
-def test_ops_candidates_keys():
-    ctx = _ctx()
-    ctx.degrade("weather", "open-meteo 503 for 3 games", "warn")
-    ctx.degrade("odds.merge", "info only", "info")
-    ctx.unresolved_names.extend(["betcris:Ohio St", "betcris:Ohio St", "nfl:2026:3:x@y:stadium"])
-    alerts, _ = _fresh()
-    cards = {"nfl": [card(stadium=False)]}
-    c = A.ops_candidates(ctx, cards, alerts, NOW, heartbeat_ts=NOW - timedelta(hours=21), prev_meta_ts=NOW - timedelta(hours=1))
-    keys = sorted(x.key for x in c)
-    assert keys == sorted([
-        "degr|weather|2026-09-18",
-        "heartbeat|cf-cron-heartbeat|2026-09-18",
-        "names|betcris|2026-09-18",
-        "stadium|nfl|2026-09-18",
-    ])
-    assert all(x.family == "ops" for x in c)
-    empty = {"nfl": [dict(card(), consensus={"total_now": None, "thin": True})]}
-    c2 = A.ops_candidates(_ctx(), empty, alerts, NOW)
-    assert "noref|nfl|2026-09-18" in {x.key for x in c2}
 
 
 # ---- run_alerts: dry-run prints, live persists, rehydrate ----------------------------
@@ -970,16 +421,14 @@ def test_run_alerts_dry_run_prints_and_writes_nothing(tmp_path: Path, capsys):
 
 def test_run_alerts_live_persists_and_unchanged_rerun_is_silent(tmp_path: Path):
     rec = Recorder()
-    run = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW, sender=rec,
-                       new_keys_by_sport={"nfl": [f"{GID}|total|over|betonline"]})
+    run = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW, sender=rec)
     assert run.n_alerts == 1 and len(rec.sent) == 1      # New signal only
     assert run.keys_for(GID) == [EKEY]
     saved = json.loads((tmp_path / "alerts.json").read_text(encoding="utf-8"))
     assert saved['schema_version'] == pstate.KIND_VERSIONS['alerts'] and len(saved['sent']) == 1 and len(saved['feed']) == 1
     assert (tmp_path / "telegram_state.json").exists()
     rec2 = Recorder()
-    run2 = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW + timedelta(hours=1), sender=rec2,
-                        new_keys_by_sport={"nfl": [f"{GID}|total|over|betonline"]})
+    run2 = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW + timedelta(hours=1), sender=rec2)
     assert run2.n_alerts == 0 and len(rec2.sent) == 0 and run2.source == "r2"
 
 
@@ -992,13 +441,16 @@ def test_empty_light_and_playwright_runs_do_not_notify(tmp_path):
     assert sender.sent == []
 
 
-def test_legacy_snapshots_can_be_explicitly_restored(tmp_path):
-    cfg = A.Config(**{**CFG.__dict__, "open_signal_snapshots": True})
+def test_legacy_queue_loads_but_never_replays(tmp_path):
+    legacy = {"schema_version": 1, "queue": [{"key": "legacy", "text": "stale price"}], "extra": "retained"}
+    pstate.save_telegram_state(tmp_path, legacy)
+    loaded = pstate.load_telegram_state(tmp_path)
+    assert loaded["queue"] == legacy["queue"] and loaded["extra"] == "retained"
     sender = Recorder()
-    A.run_alerts(_ctx(), {"nfl": [], "cfb": []}, tmp_path, cfg=cfg, now=NOW, sender=sender)
-    assert len(sender.sent) == 2 and all("No open weather signals" in text for text, _ in sender.sent)
-    assert not A.Config.from_env({}).open_signal_snapshots
-    assert A.Config.from_env({"TELEGRAM_OPEN_SIGNAL_SNAPSHOTS": "1"}).open_signal_snapshots
+    run = A.run_alerts(_ctx(), {"nfl": []}, tmp_path, cfg=CFG, now=NOW, sender=sender)
+    assert sender.sent == [] and run.alerts["sent"] == {} and not run.alerts.get("feed")
+    saved = pstate.load_telegram_state(tmp_path)
+    assert saved["queue"] == [] and saved["extra"] == "retained"
 
 
 def test_first_observation_persists_across_failed_send_and_restart(tmp_path: Path):
@@ -1007,23 +459,25 @@ def test_first_observation_persists_across_failed_send_and_restart(tmp_path: Pat
     assert run.n_alerts == 0 and not pstate.alert_sent(run.alerts, EKEY)
     later = card([_edge(line=47, edge_pts=-1.5)], sport="cfb", signal="Low (Wind)")
     delivered = A.run_alerts(_ctx(), {"cfb": [later]}, tmp_path, cfg=CFG,
-                             now=NOW + timedelta(hours=1), sender=Recorder())
+                             now=NOW + timedelta(hours=9), sender=Recorder())
     rec = pstate.get_alert_record(delivered.alerts, EKEY)
     assert delivered.n_alerts == 1
     assert (rec["first_signal_at"], rec["first_signal_line"], rec["first_line"]) == (A.utc_iso(NOW), 49, 47)
-    assert rec["first_sent_at"] == A.utc_iso(NOW + timedelta(hours=1))
+    assert rec["first_sent_at"] == A.utc_iso(NOW + timedelta(hours=9))
 
 
 def test_initially_unpriced_signal_never_gains_a_retrospective_betting_entry():
     alerts, tg = _fresh()
     unpriced = card([])
     _live(A.edge_candidates(unpriced, alerts, CFG, now=NOW), alerts, tg)
-    quoted = A.followup_candidates(card(), alerts, CFG, NOW + timedelta(hours=1))
-    assert len(quoted) == 1 and "Price now available" in quoted[0].text
-    _live(quoted, alerts, tg, now=NOW + timedelta(hours=1))
+    # The next routine reminder can display a price without rewriting the entry.
+    later = NOW + timedelta(hours=9)
+    reminders = A.collect_candidates(_ctx(), {"nfl": [card()]}, alerts, CFG, later)
+    assert len(reminders) == 1 and reminders[0].family == "reminder"
+    _live(reminders, alerts, tg, now=later)
     rec = pstate.get_alert_record(alerts, EKEY)
     assert rec["first_line"] is None and rec["first_odds"] is None and rec["first_signal_line"] is None
-    assert rec["last_line"] == 38 and rec["status"] == "open"
+    assert rec["last_line"] is None and rec["status"] == "open"
 
 
 def test_rehydrate_from_d1_export_when_alerts_json_missing(tmp_path: Path):
@@ -1043,12 +497,12 @@ def test_rehydrate_from_d1_export_when_alerts_json_missing(tmp_path: Path):
     assert source2 == "api" and pstate.alert_sent(alerts2, key)
     alerts3, source3 = pstate.load_alerts_rehydrated(tmp_path, lambda: (_ for _ in ()).throw(RuntimeError("x")))
     assert source3 == "fresh" and alerts3["sent"] == {}
-    # The legacy book-keyed marker dedupes a new stable PLAY while its record
-    # still drives follow-up detection at the new 1.5-point threshold.
+    # Legacy book-keyed markers still suppress a duplicate first notice.
+    # At a routine slot the single policy emits a reminder instead.
     rec = Recorder()
     run = A.run_alerts(_ctx(), {"nfl": [card([_edge(line=39.5, edge_pts=4.9)])]}, tmp_path, cfg=CFG, now=NOW,
                        sender=rec, fetch_rows=lambda: rows)
-    assert run.source == "api" and [c.family for c in run.outcome.sent] == ["move"]
+    assert run.source == "api" and [c.family for c in run.outcome.sent] == ["reminder"]
 
 
 def test_alert_records_pruned_closed_first():
@@ -1150,64 +604,3 @@ def test_build_alert_stage_failure_is_a_warn_degradation(tmp_path: Path, monkeyp
     ctx = _ctx()
     assert build.run_alert_stage(ctx, [_sport_result([card()], [])], tmp_path, enabled=True, dry_run=False) is None
     assert [d.component for d in ctx.degradations] == ["alerts"] and ctx.degradations[0].severity == "warn"
-
-
-def test_rerun_closes_silently_without_empty_snapshot(tmp_path):
-    first = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG, now=NOW, sender=Recorder())
-    delivered_at = pstate.get_alert_record(first.alerts, EKEY)["last_sent_at"]
-    sender = Recorder()
-    run = A.run_alerts(_ctx(), {"nfl": [card(signal="No Impact")]}, tmp_path, cfg=CFG,
-                       now=NOW + timedelta(hours=1), sender=sender)
-    assert sender.sent == []
-    parent = pstate.get_alert_record(run.alerts, EKEY)
-    assert parent["status"] == "closed" and parent["last_sent_at"] == delivered_at
-    assert len(run.alerts["feed"]) == 1  # no fabricated delivery for a silent transition
-    again = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=CFG,
-                         now=NOW + timedelta(hours=2), sender=Recorder())
-    assert pstate.get_alert_record(again.alerts, EKEY)["status"] == "open"
-    assert any("active again" in c.text for c in again.outcome.sent)
-
-
-def test_open_snapshot_paginates_all_games_with_weather_and_excludes_inactive():
-    games = []
-    for i in range(55):
-        c = card(game_id=f"game-{i}", wind=15, rain=0)
-        c["away"]["short"] = f"TEAM-{i:02d}"
-        games.append(c)
-    games += [card(game_id="past", kickoff=NOW), card(game_id="resolved", signal="No Impact"),
-              dict(card(game_id="cancelled"), status="cancelled")]
-    pages = A.open_signal_summaries({"nfl": games, "cfb": []}, CFG, NOW)
-    nfl = [c.text for c in pages if c.sport == "nfl"]
-    assert len(nfl) > 1 and all(len(text) <= A.TELEGRAM_MAX_CHARS for text in nfl)
-    text = "\n".join(nfl)
-    for i in range(55):
-        assert text.count(f"TEAM-{i:02d} @") == 1
-    assert text.count("wind 15 mph · temp 41.2 °F · rain 0 mm") == 55
-    assert "see board" not in text and "· 55</b>" in text
-    assert "No open weather signals" in pages[-1].text
-
-
-def test_quiet_rerun_summary_failure_retries_current_data_not_stored_snapshot(tmp_path):
-    quiet = NOW.replace(hour=6)
-    failed = A.run_alerts(_ctx(), {"nfl": [card()]}, tmp_path, cfg=A.Config(**{**CFG.__dict__, "open_signal_snapshots": True}), now=quiet, sender=Recorder(False))
-    assert failed.plan.queued and len(failed.outcome.failed) == 1
-    assert failed.outcome.failed[0].family == "snapshot"
-    assert failed.alerts["sent"] == {}
-    sender = Recorder()
-    run = A.run_alerts(_ctx(), {"nfl": [card(wind=20, rain=1.5)]}, tmp_path, cfg=A.Config(**{**CFG.__dict__, "open_signal_snapshots": True}),
-                       now=quiet + timedelta(minutes=10), sender=sender)
-    assert len(sender.sent) == 1 and sender.sent[0][1] == "CNFL"
-    assert "wind 20 mph · temp 41.2 °F · rain 1.5 mm" in sender.sent[0][0]
-    assert run.n_alerts == 0  # snapshot never overwrites original entry/CLV records
-
-
-def test_legacy_closed_queue_never_sends_and_missing_weather_is_explicit():
-    alerts, _ = _fresh()
-    sender, outcome = Recorder(), A.Outcome()
-    A._send_group("MANUAL QUEUE", [A.Candidate("old", "gone", "nfl", "CLOSED")],
-                  sender, alerts, NOW, outcome, CFG)
-    assert sender.sent == [] and outcome.n_messages == 0
-    c = card()
-    c["weather"] = {}
-    for text in (A.format_edge(c, _edge()), A._play_summary(c, _edge())):
-        assert "wind unavailable · temp unavailable · rain unavailable" in text

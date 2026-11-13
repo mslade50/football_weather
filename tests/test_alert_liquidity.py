@@ -48,10 +48,8 @@ def test_bridge_updates_price_and_size_together_without_mutating_source_quotes(m
     assert "debit $2.40" in text
     assert "$500 minimum not met" in text
     assert "shares" not in text and "Ranked by" not in text
-    summary = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
-    assert "$2.40 cash stake available" in summary and "rain 0.8 mm" in summary
     assert A._liquidity_context(c) == [
-        "Cash stake capacity · taker fees separate · 11:00 AM EDT",
+        "Cash stake capacity · taker fees separate · 08:00 AM EDT",
         "1) Polymarket US U46.5 (+150): $2.40 cash stake available · fees $0.00 · debit $2.40",
         "$2.40 cash stake capacity · $500 minimum not met",
         "Fees $0.00 · total debit $2.40 · winning payout $6.00",
@@ -84,7 +82,7 @@ def test_novig_alert_formats_native_cent_contracts_and_manual_submission(monkeyp
     monkeypatch.setattr(L.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=json.dumps({c["game_id"]: snap})))
     monkeypatch.setattr(L, "now_utc", lambda: NOW)
     L.enrich_liquidity([c])
-    for text in [A.format_edge(c, A._play_edge(c)), A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text]:
+    for text in [A.format_edge(c, A._play_edge(c))]:
         assert "$2.40 cash stake available · fees $0.00 · debit $2.40 · manual" in text
         assert "contracts" not in text
         assert "$500 minimum not met" in text
@@ -105,9 +103,6 @@ def test_long_price_ladders_are_sent_in_full_without_marking_partial_delivery():
     pages = A.telegram_pages(text)
     assert len(pages) > 1 and all(len(p) <= A.TELEGRAM_MAX_CHARS for p in pages)
     assert "65) Polymarket US" in "\n".join(pages)
-    summaries = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)
-    assert all(len(s.text) <= A.TELEGRAM_MAX_CHARS for s in summaries)
-    assert "65) Polymarket US" in "\n".join(s.text for s in summaries)
     alerts, _ = _fresh()
     sender, outcome = Recorder(), A.Outcome()
     candidate = A.Candidate("test", "edge", "nfl", text)

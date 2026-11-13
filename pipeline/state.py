@@ -659,28 +659,10 @@ def _load_any(path: PathLike) -> Any:
         return None
 
 
-# ---- telegram quiet-hours queue -------------------------------------------------------
+# ---- telegram state (legacy snapshots are ignored by the policy) -------------------------------------------------------
 
 def load_telegram_state(data_dir: PathLike) -> dict:
     return _load_kind(data_dir, TELEGRAM_STATE_FILE, "telegram_state")
-
-
-def queue_alert(tg: dict, item: dict[str, Any]) -> None:
-    """Park an alert during quiet hours. ``item`` = ``{key, text, chat, family,
-    sport, game_id, tier, ts, record}``; duplicates (same key) are replaced so a
-    line that keeps moving overnight yields one message at flush."""
-    queue = tg.setdefault("queue", [])
-    for i, q in enumerate(queue):
-        if isinstance(q, dict) and q.get("key") == item.get("key"):
-            queue[i] = item
-            return
-    queue.append(item)
-
-
-def drain_queue(tg: dict) -> list[dict[str, Any]]:
-    queue = [q for q in (tg.get("queue") or []) if isinstance(q, dict)]
-    tg["queue"] = []
-    return queue
 
 
 def save_telegram_state(data_dir: PathLike, tg: dict) -> None:

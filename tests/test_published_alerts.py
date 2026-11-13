@@ -125,7 +125,7 @@ def test_liquidity_delay_crossing_kickoff_does_not_send(board, monkeypatch):
     assert not messages and result.n_alerts == 0
 
 
-def test_unsent_first_observation_and_queue_are_durable_without_a_send(board):
+def test_unsent_first_observation_is_durable_without_a_send(board):
     remote = {}
     def upload(bucket, key, path, content_type):
         remote[key] = json.loads(path.read_text(encoding='utf8'))
@@ -134,7 +134,7 @@ def test_unsent_first_observation_and_queue_are_durable_without_a_send(board):
         uploader=upload, archiver=lambda *_: None, sender=lambda *_: pytest.fail('Outside routine slot'), now=when)
     assert result.plan.queued
     assert remote['board/alerts.json']['first_signals']
-    assert remote['board/telegram_state.json']['queue']
+    assert remote['board/telegram_state.json']['queue'] == []
     assert not remote['board/alerts.json']['sent']
     observed = remote['board/alerts.json']['first_signals']
     published_alerts.notify_published(*board, RUN, 'bucket', verifier=lambda *_: None,
