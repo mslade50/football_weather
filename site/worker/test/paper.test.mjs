@@ -5,8 +5,8 @@ import vm from 'node:vm';
 
 function load() {
   const ctx = vm.createContext({Intl});
-  vm.runInContext(readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
-  vm.runInContext(readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
   return ctx;
 }
 

@@ -23,6 +23,7 @@ from typing import Any, Optional
 from pipeline.model import config as C
 from pipeline.model.fair import american_to_prob, devig_pair, total_shift
 from pipeline.stadiums.roofs import weather_exposed
+from utils.game_status import bettable_before_kickoff
 
 
 class DiscoveryState(str, Enum):
@@ -790,7 +791,7 @@ def _decision_fields(
         probability = None
     try:
         kickoff = datetime.fromisoformat(str(card.get("kickoff_utc")).replace("Z", "+00:00"))
-        upcoming = kickoff > now and not re.search(r"final|cancel|postpon|suspend|live|progress", str(card.get("status") or ""), re.I)
+        upcoming = kickoff > now and bettable_before_kickoff(card, now)
     except (ValueError, TypeError):
         upcoming = False
     state, reasons = DiscoveryState.QUIET, [Reason.BELOW_MARGIN]

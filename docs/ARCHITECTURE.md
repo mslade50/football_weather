@@ -253,10 +253,19 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
 | `raw/{sport}/{run_id}/{source}.json` + `raw/{sport}/{run_id}/manifest.json` | verbatim captures; manifest `{source: {sha256, bytes, fetched_at, url}}` |
 | `snapshots/{sport}/{season}/{week}/{run_id}.json` | full GameCard list per run (backtest input) |
 
+`Game.__post_init__` normalizes schedule status once using `utils/game_status.py`.
+`status` remains the original text; additive `status_code` is one of `scheduled`,
+`tbd`, `live`, `final`, `postponed`, `cancelled`, `suspended`, `unknown`, `unspecified`.
+`bettable_before_kickoff` is the Python eligibility predicate. Each JS runtime
+has a `game-status.js` helper; only these helpers interpret old snapshot text
+when `status_code` is absent. TBD/unknown remain eligible with a future kickoff.
+Display badges and evidence-confirmed CLEAR retain their distinct policies.
+See `docs/BOUNDARY_TYPES.md` for the status-filter audit and drift fixes.
+
 **GameCard**:
 ```
 {game_id, sport, season, week, kickoff_utc, kickoff_local, tz, date_label 'SUN 11/09', time_label '01:00 PM',
- home {team_id, name, short}, away {...}, neutral, status,
+ home {team_id, name, short}, away {...}, neutral, status, status_code,
  stadium {stadium_id, name, lat, lon, orient_deg, orient, roof_type, roof_state, elevation_m, year_built,
           wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind, avg_wind_month},
  travel_alt, home_temp, away_temp,

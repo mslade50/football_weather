@@ -28,7 +28,7 @@ test('Admin exchange refresh loads its direct correlated result; full refresh di
       setTimeout: () => {}, fetch: async (url, init) => handleFetch(new Request('https://board.example/refresh', {
         ...init, headers: { ...init.headers, Authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` },
       }), env) });
-    const source = readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
     vm.runInContext(source.replace(/\nboot\(\);\s*$/, ''), ctx);
     vm.runInContext('pollForNewData = (baseline, done) => done(); render = () => {}; STATE.sport = "cfb";', ctx);
     vm.runInContext('setupRefresh({role: "viewer"})', ctx);

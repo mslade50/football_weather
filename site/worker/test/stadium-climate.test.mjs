@@ -41,7 +41,7 @@ function climateUi(payload, game) {
     document: {addEventListener() {}},
     esc: value => String(value ?? ''),
   });
-  vm.runInContext(readFileSync(new URL('../../web/stadium-climate.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/stadium-climate.js', import.meta.url), 'utf8'), ctx);
   ctx.payload = payload;
   ctx.game = game;
   vm.runInContext('STADIUM_CLIMATE.data = payload', ctx);
@@ -73,7 +73,7 @@ function samplePayload() {
 }
 
 test('climate rows keep season order, show N, and do not rank a thin windy cell', () => {
-  const source = readFileSync(new URL('../../web/stadium-climate.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/stadium-climate.js', import.meta.url), 'utf8');
   assert.equal(/sort\([^)]*wind/.test(source), false);
   const run = climateUi(samplePayload(), {
     kickoff_utc: '2024-10-13T17:00:00Z',

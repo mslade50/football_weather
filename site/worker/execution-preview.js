@@ -1,3 +1,4 @@
+import { bettableBeforeKickoff } from './game-status.js';
 // Public-depth simulation only. This module never authenticates with an exchange,
 // submits an order, or reserves funds. Do not reuse a preview as an order ticket.
 const KALSHI = "https://api.elections.kalshi.com/trade-api/v2";
@@ -299,7 +300,7 @@ export const DEPTH_ADAPTERS = { kalshi: kalshiDepth, polymarket_us: polymarketDe
 
 export async function previewGame(game, { line, budget, stake = null, maxPrice }, fetchImpl = fetch, now = Date.now()) {
   const started = Date.now();
-  if (!(Date.parse(game.kickoff_utc) > now) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || ""))
+  if (!bettableBeforeKickoff(game, now))
     throw new Error("Pre-game previews only; this game has started or is unavailable");
   const refs = (game.execution_markets || []).filter(r => r.line === line);
   const results = await Promise.all(BOOKS.map(async book => {

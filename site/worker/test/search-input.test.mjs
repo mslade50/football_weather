@@ -19,7 +19,7 @@ function harness() {
   const ctx = vm.createContext({document, URLSearchParams, clearTimeout() {}, setTimeout() {},
     location: {hash: ''}, history: {replaceState() {}}});
   for (const file of ['discovery.js', 'app.js']) {
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   }
   vm.runInContext('renderTable = () => {}; setupSearch();', ctx);
   document.activeElement = input;

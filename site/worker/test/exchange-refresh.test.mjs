@@ -43,7 +43,7 @@ test('Direct refresh correlates request, preserves publication/model/source cloc
   assert.ok(Date.parse(result.completed_at) >= Date.parse(req.requested_at));
   const ctx = vm.createContext({ Date, payload: result, request: { id: req.request_id, sport: req.sport,
     scope: 'exchanges', started: Date.parse(req.requested_at) }, document: { getElementById: () => null } });
-  vm.runInContext(readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   vm.runInContext('render = () => {}', ctx);
   assert.equal(vm.runInContext('applyRefresh(payload, request)', ctx), true);
 });

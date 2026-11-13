@@ -43,6 +43,7 @@ from pipeline.model.config import (
 from pipeline.model.process import evaluate_card, model_rows
 from pipeline.model.total_prices import compare_totals
 from pipeline.stadiums.roofs import resolve_roof_state
+from utils.game_status import bettable_before_kickoff
 from utils.timeutil import date_label, time_label, to_et, to_tz, utc_iso
 
 PathLike = Union[str, Path]
@@ -706,6 +707,7 @@ def build_card(
         "away": _team_block(away_team, game.away_id),
         "neutral": bool(game.neutral),
         "status": game.status,
+        "status_code": game.status_code,
         "stadium": _stadium_block(stadium, roof_state, avg_wind, avg_wind_month),
         "venue_provenance": {"source": game.source, "source_name": game.venue_name,
                              "source_id": game.venue_source_id, "resolution": game.venue_resolution,
@@ -740,7 +742,7 @@ def build_card(
 
 REQUIRED_CARD_KEYS = (
     "game_id", "sport", "season", "week", "kickoff_utc", "kickoff_local", "tz", "date_label", "time_label",
-    "home", "away", "neutral", "status", "stadium", "travel_alt", "home_temp", "away_temp", "weather",
+    "home", "away", "neutral", "status", "status_code", "stadium", "travel_alt", "home_temp", "away_temp", "weather",
     "impact", "signal", "odds", "consensus", "fair", "alerts", "run_id",
 )
 
@@ -907,7 +909,7 @@ def current_week(games: Any, now: datetime) -> Optional[int]:
     live = [g for g in games if getattr(g, "week", None) is not None]
     if not live:
         return None
-    open_ = [g for g in live if g.kickoff_utc > now and str(getattr(g, "status", "") or "").lower() not in ("final", "cancelled", "canceled", "postponed")]
+    open_ = [g for g in live if bettable_before_kickoff(g, now)]
     if open_:
         return int(min(open_, key=lambda g: g.kickoff_utc).week)
     return int(max(g.week for g in live))

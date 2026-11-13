@@ -7,11 +7,11 @@ No transport is called from this module.
 from __future__ import annotations
 
 import html
-import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from pipeline.model import process as process_screen
+from utils.game_status import GameStatus, bettable_before_kickoff, status_code
 
 
 def routine_slot(now):
@@ -71,7 +71,7 @@ def clear_reason(card, cfg, now):
     # positive evidence of invalidation, never the negation of eligibility.
     sport, kickoff = card.get('sport'), evidence_time(card.get('kickoff_utc'))
     if (sport not in ('nfl', 'cfb') or not card.get('game_id')
-            or str(card.get('status') or '').lower() != 'scheduled'
+            or status_code(card) != GameStatus.SCHEDULED
             or not A._within_alert_window(kickoff, now, cfg)
             or any(not isinstance(card.get(team), dict) or not any(card[team].get(key) for key in ('id', 'short', 'name'))
                    for team in ('home', 'away'))):
@@ -165,7 +165,7 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
         for card in cards:
             if not A._card_within_alert_window(card, now, cfg):
                 continue
-            if re.search(r'final|cancel|postpon|suspend|live|progress', str(card.get('status') or ''), re.I):
+            if not bettable_before_kickoff(card, now):
                 continue
             gid = card.get("game_id")
             bets = confirmed_for(confirmations, gid)

@@ -8,7 +8,7 @@ function publishedDecision(g) {
 }
 function decisionEligible(g) { return publishedDecision(g)?.eligible === true; }
 function upcomingGame(g) {
-  return Date.parse(g.kickoff_utc) > Date.now() && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || "");
+  return bettableBeforeKickoff(g);
 }
 function showAllBoardGames(state) {
   return !!state.showAllGames && (state.view === "map" || (state.view === "table" && state.tableMode !== "history"));

@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pipeline.scrape_outcomes import ScrapeOutcome
+from utils.game_status import GameStatus, normalize_status
 
 SPORTS = ("nfl", "cfb")
 CONSENSUS_BOOK = "consensus"
@@ -67,8 +68,10 @@ class Game(_AsDict):
     venue_name: Optional[str] = None
     venue_source_id: Optional[str] = None
     venue_resolution: Optional[str] = None
+    status_code: GameStatus = field(init=False)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, 'status_code', normalize_status(self.status))
         _check_in(self.sport, SPORTS, "sport")
         if self.roof_state is not None:
             _check_in(self.roof_state, ROOF_STATES, "roof_state")

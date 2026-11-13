@@ -1,3 +1,4 @@
+import { bettableBeforeKickoff } from './game-status.js';
 // Alert snapshots share the execution preview's validated public depth and fee math.
 import { DEPTH_ADAPTERS, sliceCost, PREVIEW_TTL_MS } from './execution-preview.js';
 
@@ -17,7 +18,7 @@ export async function alertLiquidity(game, fetchImpl = fetch, now = Date.now(), 
     // Capacity is independent of the user's chosen bet size. Never a $500 budget.
     capacity_status: 'unknown', spend: 0, unspent: REQUIRED_CASH_STAKE, can_execute: false,
     probability_status: game.total_prices?.probability_status || 'empirically_unvalidated' };
-  if (!(Date.parse(game.kickoff_utc) > now) || /final|cancel|postpon|suspend|live|progress/i.test(game.status || '')) return result;
+  if (!bettableBeforeKickoff(game, now)) return result;
   const books = await Promise.all(quotes.map(async q => {
     const refs = (game.execution_markets || []).filter(r => r.book === q.book && r.line === q.line);
     const update = { book: q.book, line: q.line, side: 'under', liquidity_status: 'unknown' };

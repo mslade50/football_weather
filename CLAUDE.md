@@ -12,6 +12,10 @@ Signal decisions are published once in GameCard.process by model/process.py.
 The UI renders that record without threshold fallbacks; stored-snapshot alert
 compatibility uses process.decision_for. See docs/PROCESS_SPEC.md.
 
+Scrape outcomes use `pipeline/scrape_outcomes.py`; schedule status codes and
+pre-kickoff eligibility use `utils/game_status.py`. Preserve raw card `status`;
+new cards also publish `status_code`. See docs/BOUNDARY_TYPES.md.
+
 ## Environment
 - Native Windows, Git Bash. `python` (3.10) not `python3`. No 3.11-only syntax
   (no `except*`, `StrEnum`, `tomllib`).

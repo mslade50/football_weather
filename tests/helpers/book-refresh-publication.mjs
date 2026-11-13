@@ -9,7 +9,7 @@ const nodes=new Map();
 const document={activeElement:null,querySelector(selector){if(!nodes.has(selector))
   nodes.set(selector,{innerHTML:'',querySelectorAll:()=>[]});return nodes.get(selector);}};
 const ctx=vm.createContext({console,document});
-for(const file of ['discovery.js','app.js','table.js'])
+for(const file of ['game-status.js','discovery.js','app.js','table.js'])
   vm.runInContext(readFileSync(new URL(`../../site/web/${file}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
 const run=code=>vm.runInContext(code,ctx);
 for(const sport of ['nfl','cfb']) {

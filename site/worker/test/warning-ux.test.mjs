@@ -18,7 +18,7 @@ function fixture() {
     esc: v => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
     fmtShortET: String, bookLabel: String, isNum: v => typeof v === 'number' && Number.isFinite(v),
     QUOTES: {refreshOverdue: () => false}, LOAD_ERRORS: {}});
-  vm.runInContext(readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
   ctx.meta = {run_id: 'run-a', publication_status: 'manifest_verified', publication: {generation: 'gen-a'},
     resident: {status: 'fresh', fresh_games: 2}, books: {kalshi: {status: 'green', count: 3}}, degradations: []};
   return {ctx, el, banners, details, books, summary, bookSummary, scroll, writes: () => writes,
@@ -81,7 +81,7 @@ test('Book failures and provider reasons remain accessible; OK still requires th
 });
 test('Unqualified rows keep an explicit unusable state with no repeated global instruction paragraph', () => {
   const f = fixture();
-  vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), f.ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), f.ctx);
   vm.runInContext('verifiedOffer = () => null;', f.ctx);
   f.ctx.game = {process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},};
   const html = f.run('exchangeOfferHtml(game)');
@@ -118,7 +118,7 @@ test('Historical and execution views retain the compact health area for pipeline
   const ctx = vm.createContext({document, URLSearchParams, clearTimeout() {}, setTimeout() {},
     location: {hash: ''}, history: {replaceState() {}}});
   for (const file of ['discovery.js', 'status.js', 'app.js'])
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   vm.runInContext(`IS_ADMIN=true; QUOTES={refreshOverdue:()=>true};
     RAW_META={publication_status:'manifest_verified',resident:{status:'fresh'},degradations:[{component:'pipeline',severity:'critical',reason:'Verification failed'}]};
     renderHeader=()=>{}; renderExecution=()=>{}; closeDrawer=()=>{}; renderHistoricalTable=()=>{};`, ctx);
@@ -133,7 +133,7 @@ test('Historical and execution views retain the compact health area for pipeline
 });
 
 test('Compact offers retain fees and separate quote/depth ages; drawer retains exact source clocks', () => {
-  const f = fixture(); vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), f.ctx);
+  const f = fixture(); vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), f.ctx);
   const quote = new Date(Date.now()-5000).toISOString(), depth = new Date(Date.now()-8000).toISOString();
   f.ctx.game = {offer:{line:46.5,average_price:.505,principal:500,fees:5,allocations:[{book:'kalshi'}],fetched_at:quote,depth_fetched_at:depth}};
   f.ctx.fmtTotal=String; f.run('verifiedOffer = g => g.offer;');
@@ -145,7 +145,7 @@ test('Compact offers retain fees and separate quote/depth ages; drawer retains e
 
 test('Weather coverage is compact and distinguishes missing, aged, partial and unverified forecasts', () => {
   const f = fixture();
-  for(const file of ['discovery.js','table.js']) vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8'), f.ctx);
+  for(const file of ['discovery.js','table.js']) vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8'), f.ctx);
   f.ctx.game={weather:{temp_fg:58,wind_fg:18,rain_fg:0,ensemble_status:'ok'}};
   assert.equal(f.run('weatherCoverageHtml(game)'), '');
   for (const [patch, label] of [[{point_aged:true},'Point forecast aged'],[{ensemble_status:'partial_members_degraded'},'Partial ensemble'],

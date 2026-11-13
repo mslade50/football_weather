@@ -36,7 +36,7 @@ function harness() {
       return new Promise(resolve => requests.push({url, options, resolve}));
     }});
   for (const file of ['discovery.js', 'app.js', 'table.js', 'signals.js', 'drawer.js']) {
-    vm.runInContext(readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, ''), ctx);
   }
   vm.runInContext(`writeHash = () => {}; render = () => {};
     renderDrawerTitle = () => {}; weatherTable = () => ''; oddsTable = () => '';

@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
 
-JS_FILES = ["discovery.js", "app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
+JS_FILES = ["game-status.js", "discovery.js", "app.js", "status.js", "table.js", "map.js", "drawer.js", "signals.js", "backtest.js"]
 
 # variable names that hold GameCard (sub)objects in the JS, mapped to the spec section
 CARD_VARS = ("g", "wx", "st", "c", "s", "t", "o", "v1", "v2", "e", "be", "es", "et", "f", "p", "sig")

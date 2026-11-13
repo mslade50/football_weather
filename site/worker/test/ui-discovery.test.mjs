@@ -9,7 +9,7 @@ function ui() {
   const ctx = vm.createContext({Date: Clock, URLSearchParams, Map, Set, console,
     document: {}, navigator: {clipboard: {writeText: async value => {ctx.copied = value;}}}});
   for (const file of ['discovery.js', 'app.js', 'signals.js', 'table.js', 'map.js', 'drawer.js']) {
-    const source = readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, '');
+    const source = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8').replace(/\nboot\(\);\s*$/, '');
     vm.runInContext(source, ctx);
   }
   vm.runInContext("RAW_META = {run_id: 'fixture', publication_status: 'manifest_verified', publication: {generation: 'fixture-generation'}}", ctx);

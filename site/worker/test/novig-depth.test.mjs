@@ -104,7 +104,7 @@ test('Novig participates in preview and alert $500 ladders without suggesting an
   assert.equal((await alertLiquidity(game, fetcher({ book: { orders: {} } }))).quotes[0].liquidity_status, 'empty');
 
   const ctx = vm.createContext({ result, Date, fmtOdds: String, fmtET: String, bookLabel: String, esc: String });
-  vm.runInContext(readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
   const html = vm.runInContext('executionResultHtml(result)', ctx);
   assert.match(html, /submit manually/);
   assert.match(html, /limit price 40.0%/);

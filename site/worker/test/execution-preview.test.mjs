@@ -178,7 +178,7 @@ test('Principal stake targets $500 cash separately from fees and qualifies in th
   assert.ok(result.allocations.every(a => a.line === 57.5 && a.side === 'under' && a.rules_key === result.rules_key));
   assert.ok(calls.every(c => c.options.method === 'GET' && !c.options.headers.Authorization));
   const ctx = vm.createContext({ Date, g: { process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'}, ...game, consensus: {total_now: 57.5}, execution_preview: result }, LOAD_ERRORS: {} });
-  vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
   assert.equal(vm.runInContext('verifiedOffer(g)?.principal', ctx), 500);
 });
 
@@ -220,7 +220,7 @@ test('Execution game picker includes upcoming games regardless of table filters 
     DATA: { games: { cfb: [game, { ...game, game_id: 'live', status: 'live' },
       { ...game, game_id: 'old', kickoff_utc: '2020-01-01' },
       { ...game, game_id: 'later', kickoff_utc: '2030-10-03T01:00:00Z' }], nfl: [] } } });
-  vm.runInContext(readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
   assert.equal(vm.runInContext('JSON.stringify(executionGames().map(g => g.game_id))', ctx), JSON.stringify([game.game_id, 'later']));
   vm.runInContext('STATE.sport = "nfl"', ctx);
   assert.equal(vm.runInContext('executionGames().length', ctx), 0);
@@ -229,7 +229,7 @@ test('Execution game picker includes upcoming games regardless of table filters 
 test('Preview UI defaults to $500, exact totals, escapes venue errors, and has no execution button', () => {
   const ctx = vm.createContext({ Date, fmtOdds: String, fmtET: String, bookLabel: String,
     esc: s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') });
-  vm.runInContext(readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/execution-preview.js', import.meta.url), 'utf8'), ctx);
   ctx.game = game;
   const html = vm.runInContext('executionPreviewPanel(game)', ctx);
   assert.match(html, /value="500"/);

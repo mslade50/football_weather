@@ -12,11 +12,11 @@ test('Kickoff, details and update header use Eastern regardless of venue or view
       if (!nodes.has(id)) nodes.set(id, {});
       return nodes.get(id);
     } } });
-    const app = readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
-    vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
+    const app = readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/app.js', import.meta.url), 'utf8');
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext(app.replace(/\nboot\(\);\s*$/, ''), ctx);
-    vm.runInContext(readFileSync(new URL('../../web/drawer.js', import.meta.url), 'utf8'), ctx);
-    vm.runInContext(readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/drawer.js', import.meta.url), 'utf8'), ctx);
+    vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../web/status.js', import.meta.url), 'utf8'), ctx);
     vm.runInContext('renderBookChips = () => {};', ctx);
     ctx.game = { kickoff_utc: '2026-09-28T02:00:00Z', kickoff_local: '2026-09-27T19:00:00-07:00',
       date_label: 'WRONG DATE', time_label: '07:00 PM', tz: 'America/Los_Angeles' };
