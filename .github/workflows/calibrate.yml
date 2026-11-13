@@ -73,22 +73,7 @@ jobs:
         # games.parquet is the fit input; backtest.json feeds the promotion verdict.
         # Absent objects (no backtest run yet) leave calibrate with nothing to fit
         # -> exit 2 -> no PR. Any other wrangler error fails the job.
-        run: |
-          mkdir -p data/backtest data/board
-          get() {  # get <r2 key> <local file>
-            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/$1" --file="$2" --remote 2>&1)"; then
-              echo "$1 fetched"
-            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
-              echo "::notice::$1 absent"
-              rm -f "$2"
-            else
-              echo "$OUT"
-              echo "::error::R2 fetch failed for $1 (not NoSuchKey)"
-              exit 1
-            fi
-          }
-          get "backtest/games.parquet" data/backtest/games.parquet
-          get "board/backtest.json" data/board/backtest.json
+        run: python scripts/fetch_r2.py inputs --group calibrate --dest data
       - name: Refit v2 coefficients
         id: fit
         run: |
@@ -145,8 +130,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          MSG=$(printf '🚨 SYSTEM · Calibration failed\nTrigger: %s\nOpen run: %s' \
-            '${{ github.event_name }}' '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
-            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true
+          python scripts/notify_failure.py --title "🚨 SYSTEM · Calibration failed" \
+            --body "Trigger: ${{ github.event_name }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

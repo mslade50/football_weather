@@ -13,8 +13,6 @@ from pathlib import Path
 import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "pipeline.yml"
-STATE_FILES = ("openers", "history", "wx_history", "archive_last", "wx_last", "alerts", "scrape_baseline",
-               "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache", "nws_points")
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +94,9 @@ def test_cloudflare_env_and_state_file_list(text: str):
     assert "R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}" in text
     assert "R2_BUCKET: football-board" in text
     assert "D1_DATABASE: football-odds" in text
-    assert "STATE_FILES: " + " ".join(STATE_FILES) in text
+    assert "STATE_FILES:" not in text
+    assert text.count("scripts/fetch_r2.py state --group pipeline") == 2
+    assert text.count("scripts/publish_r2.py state --group pipeline") == 2
 
 
 def test_gate_job_is_httpx_only_and_fail_open(text: str):
@@ -151,7 +151,7 @@ def test_r2_state_fetch_fails_on_non_nosuchkey(text: str, name: str):
     step = _step(text, name)
     # The fail-closed loop (NoSuchKey -> empty, anything else -> exit 1, ::error:: message) lives in
     # scripts/fetch_r2.py and is pinned by tests/test_fetch_r2.py; the step must be a bare call.
-    assert "run: python scripts/fetch_r2.py state --dest data/state" in step
+    assert "run: python scripts/fetch_r2.py state --group pipeline --dest data/state" in step
     assert "|| true" not in step and "continue-on-error" not in step
     assert "wrangler" not in step
 
@@ -172,7 +172,7 @@ def test_r2_publisher_is_bounded_and_meta_remains_last(text: str, name: str):
     step = _step(text, name)
     phases = ["python scripts/publish_r2.py raw", "python scripts/publish_r2.py snapshots",
               "python scripts/publish_r2.py board",
-              "python scripts/publish_r2.py state", "python scripts/publish_r2.py meta"]
+              "python scripts/publish_r2.py state --group pipeline", "python scripts/publish_r2.py meta"]
     assert all(phase in step for phase in phases)
     assert [step.index(phase) for phase in phases] == sorted(step.index(phase) for phase in phases)
     assert "--meta-file data/board/meta.json --prev-meta data/state/prev_meta.json" in step
@@ -358,9 +358,10 @@ def test_telegram_on_failure(text: str):
     assert 'PLAYWRIGHT_SCRAPE_RESULT: ${{ needs.playwright_scrape.result }}' in step
     assert "TELEGRAM_SYSTEM_ALERTS: ${{ vars.TELEGRAM_SYSTEM_ALERTS || '0' }}" in step
     # The marker is stored only after the send succeeds.
-    assert step.index('sendMessage') < step.index('pipeline.failure_page commit')
-    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in step
-    assert "--max-time 15" in step
+    assert step.index('scripts/notify_failure.py') < step.index('pipeline.failure_page commit')
+    assert 'python scripts/notify_failure.py --body "$MSG" --strict; then' in step
+    assert '[ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]' in step
+    assert "Failure page was not delivered; the next run will try again" in step
     assert "FOOTBALL_FAILURE_ALERTS: ${{ vars.FOOTBALL_FAILURE_ALERTS || '1' }}" in text
 
 

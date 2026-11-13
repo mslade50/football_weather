@@ -147,8 +147,7 @@ env:
   # r2.config_from_env() returns None and the Wrangler path is used.
   R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-  # State files that round-trip through R2 board/ (ARCH §5).
-  STATE_FILES: openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings status ensemble_cache nws_points bet_confirmations book_health
+  # R2 state membership is selected by --group pipeline (pipeline/outputs/r2.py).
 
 jobs:
   gate:
@@ -249,7 +248,7 @@ jobs:
         # NoSuchKey (first run / new file) -> empty default. ANY other failure
         # (auth, 5xx, network) -> exit 1: running on blank state would re-record
         # openers and re-send every alert. This step must always fail the job.
-        run: python scripts/fetch_r2.py state --dest data/state
+        run: python scripts/fetch_r2.py state --group pipeline --dest data/state
       - name: Fetch wind-signal history
         run: |
           python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json \
@@ -305,7 +304,7 @@ jobs:
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           python scripts/publish_r2.py board
-          python scripts/publish_r2.py state
+          python scripts/publish_r2.py state --group pipeline
           python scripts/publish_r2.py meta
       - name: Archive to D1 (change-only)
         if: hashFiles('data/d1_inserts.sql') != ''
@@ -440,7 +439,7 @@ jobs:
       - name: Run id (playwright)
         run: echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}-${{ github.run_attempt }}-pw" >> "$GITHUB_ENV"
       - name: Fetch board state from R2 (playwright)
-        run: python scripts/fetch_r2.py state --dest data/state
+        run: python scripts/fetch_r2.py state --group pipeline --dest data/state
       - name: Fetch wind-signal history (playwright)
         run: |
           python scripts/fetch_r2.py object backtest/wind-history-v1.json data/state/wind-history-v1.json \
@@ -484,7 +483,7 @@ jobs:
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           python scripts/publish_r2.py board
-          python scripts/publish_r2.py state
+          python scripts/publish_r2.py state --group pipeline
           python scripts/publish_r2.py meta
       - name: Archive to D1 (change-only, playwright)
         if: hashFiles('data/d1_inserts.sql') != ''
@@ -570,9 +569,8 @@ jobs:
             exit 0
           fi
           MSG="$(cat "$RUNNER_TEMP/failure-message")"
-          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -fsS --max-time 15 \
-            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null; then
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && \
+            python scripts/notify_failure.py --body "$MSG" --strict; then
             python -m pipeline.failure_page commit --state-file "$RUNNER_TEMP/failure-state.json" \
               || echo "::warning::Page sent but the incident marker was not saved; the next run may page again"
           else

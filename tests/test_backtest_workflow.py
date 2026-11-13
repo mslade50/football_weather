@@ -90,17 +90,16 @@ def test_backtest_concurrency_and_readonly_permissions(bt: str):
 
 def test_backtest_state_fetch_is_readonly_and_fails_on_non_nosuchkey(bt: str):
     step = _step(bt, "Fetch board state from R2 (read-only)")
-    assert "STATE_FILES: alerts closings history wx_history openers" in bt
-    assert 'npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1' in step
-    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in step
-    assert "exit 1" in step and "::error::R2 state fetch failed" in step
-    assert "continue-on-error" not in step
+    assert "STATE_FILES:" not in bt
+    assert "run: python scripts/fetch_r2.py state --group backtest --dest data/state" in step
+    assert "continue-on-error" not in step and "|| true" not in step
+    # Shared fetch behavior (missing only, all other errors fatal) has fake-transport
+    # coverage in test_fetch_r2.py and test_workflow_r2_groups.py.
     # the state files are never pushed back: only backtest.json + parquet leave this job
     push = _step(bt, "Push backtest to R2")
-    assert 'put "board/meta.json"' not in push and 'put "board/$f.json"' not in push and "for f in $STATE_FILES" not in push
-    assert 'put "board/backtest.json" "data/board/backtest.json" "application/json"' in push
-    assert 'put "backtest/$(basename "$p")" "$p" "application/octet-stream"' in push
-    assert "for i in 1 2 3; do" in push and "::error::R2 put $1 failed after 3 attempts" in push
+    assert "run: python scripts/publish_r2.py backtest" in push
+    assert "scripts/publish_r2.py state" not in bt and "scripts/publish_r2.py meta" not in bt
+    assert "continue-on-error" not in push and "|| true" not in push
     assert "if: env.DRY_RUN == ''" in push
 
 
@@ -137,12 +136,17 @@ def test_backtest_exports_d1_and_runs_module(bt: str):
     assert "continue-on-error" not in mirror and "exit 0" not in mirror
 
 
-def test_backtest_and_calibrate_use_no_s3_keys(bt: str, cal: str):
+def test_backtest_and_calibrate_use_no_s3_keys(bt: str, cal: str, monkeypatch):
     """R2 access is wrangler-only (CLOUDFLARE_API_TOKEN + CF_ACCOUNT_ID); the S3 keys do not exist."""
     for text in (bt, cal):
         for token in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "boto3", "r2.cloudflarestorage.com"):
             assert token not in text, token
-        assert "npx --yes wrangler@4 r2 object get" in text
+        assert "python scripts/fetch_r2.py" in text
+    # With no S3 keys, the shared scripts must use the existing Wrangler fallback.
+    from scripts import publish_r2
+    for key in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    assert publish_r2.s3_config() is None
     d1 = _step(bt, "Archive backtest rows to D1 (closings / stadium_results)")
     assert "hashFiles('data/d1_backtest.sql') != ''" in d1
     assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_backtest.sql' in d1
@@ -180,7 +184,7 @@ def test_backtest_step_order_and_failure_ping(bt: str):
     assert idx == sorted(idx)
     tg = _step(bt, "Telegram on failure")
     assert "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in tg
-    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg and "--max-time 15" in tg
+    assert "python scripts/notify_failure.py" in tg and "--strict" not in tg
 
 
 def test_backtest_no_git_commit_no_playwright_only_paper_is_isolated(bt: str):
@@ -215,11 +219,10 @@ def test_calibrate_permissions_and_concurrency(cal: str):
 
 def test_calibrate_fetches_backtest_inputs_readonly(cal: str):
     step = _step(cal, "Fetch backtest inputs from R2 (read-only)")
-    assert 'get "backtest/games.parquet" data/backtest/games.parquet' in step
-    assert 'get "board/backtest.json" data/board/backtest.json' in step
-    assert "grep -qiE 'NoSuchKey|does not exist|not found|404'" in step
-    assert "exit 1" in step
+    assert "run: python scripts/fetch_r2.py inputs --group calibrate --dest data" in step
+    assert "continue-on-error" not in step and "|| true" not in step
     assert "r2 object put" not in cal      # calibrate never writes to R2
+    assert "scripts/publish_r2.py" not in cal
 
 
 def test_calibrate_runs_module_with_four_week_guard(cal: str):
@@ -258,7 +261,7 @@ def test_calibrate_opens_pr_touching_only_calibration_json(cal: str):
 def test_calibrate_failure_ping(cal: str):
     tg = _step(cal, "Telegram on failure")
     assert "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in tg
-    assert "api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" in tg
+    assert "python scripts/notify_failure.py" in tg and "--strict" not in tg
 
 
 def test_promotion_rule_documented_in_config_and_calibrate():

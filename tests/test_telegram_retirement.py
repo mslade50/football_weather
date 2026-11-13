@@ -94,15 +94,18 @@ def test_retired_planner_preserves_delivery_state_and_skips_liquidity(monkeypatc
 
 def test_failure_pages_are_not_behind_the_pick_alert_switch():
     directory = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+    found = 0
     for path in directory.glob("*.yml"):
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         for job in workflow.get("jobs", {}).values():
             for step in job.get("steps", []):
-                if "api.telegram.org" not in step.get("run", ""):
+                if "scripts/notify_failure.py" not in step.get("run", ""):
                     continue
+                found += 1
                 condition = str(step.get("if", ""))
                 assert "FOOTBALL_TELEGRAM_ENABLED" not in condition, path.name
                 assert "FOOTBALL_FAILURE_ALERTS" in condition, path.name
+    assert found == 6
 
 
 def test_pipeline_and_weekly_delivery_steps_are_default_off():
