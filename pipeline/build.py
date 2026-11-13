@@ -546,6 +546,12 @@ def stage_weather(
     missing = [g.game_id for g in games if g.game_id not in fc]
     if missing:
         ctx.degrade("weather", f"{sport}: {len(missing)} games without forecast", "warn")
+    if os.environ.get("OBSLOG_SHADOW_PATH"):
+        try:
+            from pipeline.obslog.shadow import weather as shadow_weather
+            shadow_weather(os.environ["OBSLOG_SHADOW_PATH"], ctx, games, fc)
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("obslog.weather", f"shadow unavailable: {type(exc).__name__}", "warn")
     return fc
 
 
@@ -1217,6 +1223,12 @@ def stage_odds(
                 ctx.degrade("odds.merge", f"{sport}: {n_off} book games outside the schedule (of {n_book_games} book games)", "info")
         ctx.count("merge", sport, len(lines))
 
+    if os.environ.get("OBSLOG_SHADOW_PATH"):
+        try:
+            from pipeline.obslog.shadow import odds as shadow_odds
+            shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, scrapers)
+        except Exception as exc:  # noqa: BLE001
+            ctx.degrade("obslog.odds", f"shadow unavailable: {type(exc).__name__}", "warn")
     # Books not scraped this run (the Playwright job runs --books betonline only)
     # keep their last snapshot from archive_last so consensus / FD_now do not
     # collapse to a one-book view between the light and playwright commits.
