@@ -35,11 +35,14 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from pipeline import state as pstate
-from utils.timeutil import ensure_utc, parse_iso, utc_iso
+from utils.timeutil import ensure_utc, parse_iso_utc, utc_iso
+
+_dt = partial(parse_iso_utc, strip=True, z_suffix_only=True)
 
 PathLike = Union[str, Path]
 
@@ -72,18 +75,9 @@ class Closing:
 
 # ---- helpers ------------------------------------------------------------------------
 
-def _dt(v: Any) -> Optional[datetime]:
-    if isinstance(v, datetime):
-        return ensure_utc(v)
-    if isinstance(v, str) and v.strip():
-        try:
-            return ensure_utc(parse_iso(v))
-        except ValueError:
-            return None
-    return None
 
-
-def _num(v: Any) -> Optional[float]:
+def _number_allow_infinity(v: Any) -> Optional[float]:
+    """Historical CLV coercion rejects bool/NaN but retains infinity."""
     if isinstance(v, bool) or v is None:
         return None
     try:
@@ -112,7 +106,7 @@ def clv_pts(market: str, side: str, first_line: Any, closing_line: Any, *, home_
     ``home_relative=True`` means both spread numbers are the home team's number
     regardless of ``side`` (the ``fair.py`` convention); default is side-relative.
     Moneylines have no line → None."""
-    a, b = _num(first_line), _num(closing_line)
+    a, b = _number_allow_infinity(first_line), _number_allow_infinity(closing_line)
     if a is None or b is None or market not in ("total", "spread"):
         return None
     if market == "total":
@@ -127,7 +121,7 @@ def clv_pts(market: str, side: str, first_line: Any, closing_line: Any, *, home_
 def clv_status(open_total: Any, now_total: Any) -> Optional[str]:
     """Legacy 'CLV from Open' label for the under: Positive when the total came
     down (``open > now``), Negative otherwise (ties included)."""
-    o, n = _num(open_total), _num(now_total)
+    o, n = _number_allow_infinity(open_total), _number_allow_infinity(now_total)
     if o is None or n is None:
         return None
     return POSITIVE if o > n else NEGATIVE
@@ -160,7 +154,7 @@ def freeze_from_rows(
     for key, (ts, r) in best.items():
         gid, market, side, book = key.split("|")
         odds = r.get("odds")
-        out[key] = Closing(gid, book, market, side, _num(r.get("line")),
+        out[key] = Closing(gid, book, market, side, _number_allow_infinity(r.get("line")),
                            int(odds) if isinstance(odds, (int, float)) and odds == odds else None,
                            utc_iso(ts), utc_iso(kickoffs[gid]), frozen)
     return out
@@ -273,7 +267,7 @@ def settle_alerts(alerts: dict[str, Any], closings: Mapping[str, Any], now: Opti
             c = {"line": c.line}
         if not isinstance(c, dict):
             continue
-        rec["closing_line"] = _num(c.get("line"))
+        rec["closing_line"] = _number_allow_infinity(c.get("line"))
         rec["clv_pts"] = clv_pts(str(rec.get("market")), str(rec.get("side")), rec.get("first_line"), rec.get("closing_line"))
         rec["status"] = SETTLED
         if now:

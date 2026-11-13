@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult
+from utils.timeutil import parse_iso_utc as parse_utc
 
 logger = logging.getLogger(__name__)
 
@@ -758,19 +759,6 @@ def _line_tuple(ln: Any) -> tuple[str, str, str, str, Optional[float], Optional[
         get("line"),
         get("odds"),
     )
-
-
-def parse_utc(value: Any) -> Optional[datetime]:
-    if isinstance(value, datetime):
-        dt = value
-    elif isinstance(value, str) and value:
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
 def _utc_text(value: datetime) -> str:

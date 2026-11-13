@@ -63,7 +63,8 @@ def parse_index_entries(payload: str) -> list[dict]:
     return rows
 
 
-def _number(row: dict) -> Optional[int]:
+def _member_number(row: dict) -> Optional[int]:
+    """GRIB member identifier, parsed as int rather than a floating value."""
     raw = row.get("number")
     if raw in (None, ""):
         return None
@@ -97,7 +98,7 @@ def select_indexed(
             continue
         if step is not None and row.get("step") not in (None, "", str(int(step)), int(step)):
             continue
-        number = _number(row)
+        number = _member_number(row)
         if deterministic:
             if number not in (None, 0):
                 continue

@@ -15,6 +15,8 @@ compatibility uses process.decision_for. See docs/PROCESS_SPEC.md.
 Scrape outcomes use `pipeline/scrape_outcomes.py`; schedule status codes and
 pre-kickoff eligibility use `utils/game_status.py`. Preserve raw card `status`;
 new cards also publish `status_code`. See docs/BOUNDARY_TYPES.md.
+Finite coercion lives in `utils/numbers.py`; nullable UTC parsing lives in
+`utils/timeutil.parse_iso_utc`. Specialized legacy/provider policies stay explicit.
 
 ## Environment
 - Native Windows, Git Bash. `python` (3.10) not `python3`. No 3.11-only syntax

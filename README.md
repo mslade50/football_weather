@@ -109,12 +109,15 @@ cd site/worker && npx wrangler dev
 | `pipeline/state.py` | R2-round-tripped state: openers, history, alerts dedup, baseline (`schema_version` + `migrate()`) |
 | `pipeline/alerts.py` | Notification formatting, receipts, policy orchestration, postmortem |
 | `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
-| `utils/` | `telegram.py`, `state.py`, `timeutil.py` |
+| `utils/` | `telegram.py`, `state.py`, `timeutil.py`, shared `numbers.py` and `game_status.py` |
 | `scripts/` | `recon_book.py`, `_git_history.py` (historical backtest reader) |
 | `site/worker/` | Cloudflare Worker (`index.js`, `wrangler.toml`, `migrations/`, `SETUP.md`) |
 | `site/web/` | static board (`app.js`, `table.js`, `map.js`, `drawer.js`, `alerts.js`, `status.js`, `vendor/`) |
 | `tests/fixtures/legacy/` | backtest grid workbook used by `pipeline/backtest.py` |
 | `.github/workflows/` | `pipeline.yml` (build + publish), `deploy.yml` (Worker), `backtest.yml` |
+
+Scrape/status codes, legacy-state compatibility, and scalar acceptance policies
+are documented in [Boundary types](docs/BOUNDARY_TYPES.md).
 
 ## Execution preview and liquidity
 

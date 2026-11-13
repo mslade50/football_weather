@@ -579,7 +579,8 @@ def evaluate_game_v2(
 
 
 # ---- board projection values (§7.2) ---------------------------------------------------
-def _num(x: float | None) -> float | None:
+def _numeric_nan_to_none(x: float | None) -> float | None:
+    """Numeric-only legacy inputs; retain bool/infinity and reject strings."""
     if x is None:
         return None
     try:
@@ -599,9 +600,9 @@ def legacy_derived(
 
     Preserve the 2024 CFB arithmetic, including missing impacts as zero.
     Inputs are PERCENT impact values; ``spread`` is home-relative."""
-    tp, sp, fd = _num(total_proj), _num(spread), _num(fd_now)
-    gs = _num(gs_fg_pct) or 0.0
-    aw = _num(away_fg_pct) or 0.0
+    tp, sp, fd = _numeric_nan_to_none(total_proj), _numeric_nan_to_none(spread), _numeric_nan_to_none(fd_now)
+    gs = _numeric_nan_to_none(gs_fg_pct) or 0.0
+    aw = _numeric_nan_to_none(away_fg_pct) or 0.0
     my_total = tp * (1.0 + gs / 100.0) if tp is not None else None
     edge = (fd - my_total) / my_total if (my_total not in (None, 0.0) and fd is not None) else None
     my_spread = sp * (1.0 + aw / 100.0) if sp is not None else None

@@ -32,7 +32,8 @@ class Signal:
             object.__setattr__(self, "label", self.level)
 
 
-def _f(x: Optional[float]) -> Optional[float]:
+def _number_allow_bool_and_infinity(x: Optional[float]) -> Optional[float]:
+    """Legacy signal coercion: bool/infinity allowed, NaN missing."""
     if x is None:
         return None
     try:
@@ -75,7 +76,7 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
     labels (wind above 15 mph inside a cold band). A warm flag is Low unless
     the optional temperature gate is on, in which case a warm game is No Impact.
     """
-    w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
+    w, t, r = _number_allow_bool_and_infinity(wind_fg), _number_allow_bool_and_infinity(temp_fg), _number_allow_bool_and_infinity(rain_fg)
     allows = _temp_allows("nfl", t)
     if allows and _gt(w, C.PROCESS_WIND_FLAG_MPH) and _between(t, C.NFL_HIGH_TEMP_MIN_F, C.NFL_HIGH_TEMP_MAX_F):
         return Signal(HIGH, "purple", C.SIGNAL_SIZES[HIGH], drivers=("wind",))
@@ -91,14 +92,14 @@ def nfl_signal(wind_fg: Optional[float], temp_fg: Optional[float], rain_fg: Opti
 
 
 def nfl_wind_vol(wind_vol_static: Optional[str], wind_fg: Optional[float]) -> Optional[str]:
-    w = _f(wind_fg)
+    w = _number_allow_bool_and_infinity(wind_fg)
     if w is not None and w < C.NFL_WIND_VOL_LOW_BELOW:
         return "Low"
     return wind_vol_static
 
 
 def wind_diff(wind_fg: Optional[float], avg_wind: Optional[float]) -> Optional[float]:
-    w, a = _f(wind_fg), _f(avg_wind)
+    w, a = _number_allow_bool_and_infinity(wind_fg), _number_allow_bool_and_infinity(avg_wind)
     if w is None or a is None:
         return None
     return w - a
@@ -107,7 +108,7 @@ def wind_diff(wind_fg: Optional[float], avg_wind: Optional[float]) -> Optional[f
 # ---- CFB ---------------------------------------------------------------------
 
 def _cfb_spread_eligible(open_spread: Optional[float]) -> bool:
-    spread = _f(open_spread)
+    spread = _number_allow_bool_and_infinity(open_spread)
     return _between(spread, -C.CFB_OPEN_SPREAD_MAX, C.CFB_OPEN_SPREAD_MAX)
 
 
@@ -117,7 +118,7 @@ def cfb_wind_eligible(wind_fg: Optional[float], temp_fg: Optional[float], open_s
     Temperature is not a hard gate. When the optional CFB temperature gate is
     on, the temperature must be strictly under that gate's max (default 65°F).
     """
-    w, t = _f(wind_fg), _f(temp_fg)
+    w, t = _number_allow_bool_and_infinity(wind_fg), _number_allow_bool_and_infinity(temp_fg)
     return _cfb_spread_eligible(open_spread) and _temp_allows("cfb", t) and _ge(w, C.PROCESS_WIND_FLAG_MPH)
 
 
@@ -127,7 +128,7 @@ def cfb_altitude_mid_trigger(
     travel_alt: Optional[float],
 ) -> bool:
     """Whether CFB altitude plus warmth contributes an eligible Mid signal."""
-    t, sp, alt = _f(temp_fg), _f(open_spread), _f(travel_alt)
+    t, sp, alt = _number_allow_bool_and_infinity(temp_fg), _number_allow_bool_and_infinity(open_spread), _number_allow_bool_and_infinity(travel_alt)
     return _gt(alt, C.SIGNAL_ALTITUDE_M) and _gt(t, C.SIGNAL_ALT_TEMP_F) and _cfb_spread_eligible(sp)
 
 
@@ -141,9 +142,9 @@ def cfb_signal(
     away_temp: Optional[float],
 ) -> Signal:
     """CFB dot tier; weekday does not change the rule."""
-    w, t, r = _f(wind_fg), _f(temp_fg), _f(rain_fg)
-    sp, alt = _f(open_spread), _f(travel_alt)
-    ht, at = _f(home_temp), _f(away_temp)
+    w, t, r = _number_allow_bool_and_infinity(wind_fg), _number_allow_bool_and_infinity(temp_fg), _number_allow_bool_and_infinity(rain_fg)
+    sp, alt = _number_allow_bool_and_infinity(open_spread), _number_allow_bool_and_infinity(travel_alt)
+    ht, at = _number_allow_bool_and_infinity(home_temp), _number_allow_bool_and_infinity(away_temp)
     if not _cfb_spread_eligible(sp):
         return Signal(NO, "green", C.SIGNAL_SIZES[NO])
 
@@ -184,8 +185,8 @@ def combined_flags(
     away_temp: Optional[float],
 ) -> list[str]:
     """Flags in the order the combined page concatenated them."""
-    w, t, sp, alt = _f(wind_fg), _f(temp_fg), _f(open_spread), _f(travel_alt)
-    ht, at = _f(home_temp), _f(away_temp)
+    w, t, sp, alt = _number_allow_bool_and_infinity(wind_fg), _number_allow_bool_and_infinity(temp_fg), _number_allow_bool_and_infinity(open_spread), _number_allow_bool_and_infinity(travel_alt)
+    ht, at = _number_allow_bool_and_infinity(home_temp), _number_allow_bool_and_infinity(away_temp)
     flags: list[str] = []
     if sport == "cfb":
         if not _cfb_spread_eligible(sp):
@@ -207,7 +208,7 @@ def combined_color(flag: str) -> str:
 
 
 def dot_size(gs_fg_pct: Optional[float]) -> float:
-    g = _f(gs_fg_pct)
+    g = _number_allow_bool_and_infinity(gs_fg_pct)
     if g is None:
         return C.DOT_SIZE_BASE
     return abs(g) * C.DOT_SIZE_SLOPE + C.DOT_SIZE_BASE

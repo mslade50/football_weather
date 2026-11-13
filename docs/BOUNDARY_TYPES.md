@@ -12,12 +12,14 @@ the previous health summary. No numeric, alert, severity or text behavior change
 are intended by this refactor.
 
 The live scrape and handoff boundaries create results. Book health, volume
-exemptions, shadow coverage, run warning/pruning eligibility and health paging
+exemptions, shadow coverage, run warning status and health paging
 read codes. `fetch_errors` remains source diagnostic input, never a substring
 protocol. Degradations publish additive `outcome_code` and `empty_book` evidence.
 Book-health schema 2 migrates known schema-0/1 text once in `state.migrate` and
 exports `outcome_code` alongside the existing health fields. Handoff files keep
 schema 1 with optional typed evidence; older handoffs still load.
+The audited sentence check in `d1_out._warning_status` was a run-status selector,
+not a D1 history-pruning guard; its existing role is preserved.
 
 ## Game status
 
@@ -59,3 +61,59 @@ Converted consumers: Python `alert_policy.collect`, `alert_policy.clear_reason`,
 `model.process.evaluate_card`, `resident`, `outputs.json_out.current_week`,
 `schedule.cfb` include-final; web `app`, `discovery`, `execution-preview`, `table`;
 Worker `alert-liquidity`, `exchange-refresh`, `execution-preview`, `fresh-odds`.
+
+## Scalar coercion
+
+`utils/numbers.finite_number` is the low-level finite float coercion. The old
+`odds.parsers.common` name re-exports it, preserving all provider imports.
+Native bools are rejected by default; `allow_bool=True` preserves wind-history
+and existing provider exceptions. Float conversion accepts signed/whitespace
+strings and numpy/pandas numeric scalars; commas, empty text, NaN and infinity
+are missing. Overflow still raises, and negative zero retains its sign.
+
+Replaced identical number bodies: `backtest._num`, `calibrate._num`,
+`model.process._f`, `model.wind_history._number` (bool-enabled partial), and
+`odds.parsers.common.finite_number`. No numeric behavior changes.
+
+`utils/timeutil.parse_iso_utc` owns nullable ISO/datetime-to-UTC parsing. Numbers
+are never epochs. Its explicit boundary options preserve the old differences:
+
+| Consumer | Shared policy |
+| --- | --- |
+| `state.parse_utc` | Alias; no trimming, naive treated as UTC, any Z translated |
+| `alerts._dt`, `backtest._dt`, `model.clv._dt` | Partials; trim, naive UTC, terminal Z only |
+| `odds.parsers.common.parse_utc` | Thin string-only adapter; no trim; retains `naive_utc` option |
+
+Before replacement, the original functions were compared offline on 22 numeric
+and 20 timestamp cases, including None, native/numpy bool, whitespace, nonfinite
+values, commas/signs, overflow, numpy/pandas scalars, naive/aware datetimes, Z,
+offsets and epoch numbers: zero differences for every replaced body. Golden
+tables in `tests/test_scalar_helpers.py` pin these policies and the retained
+differences, including pandas' existing NaT datetime-subclass behavior.
+
+Retained special policies (bodies unchanged; descriptive names where permitted):
+
+| Module/helper | Why it is distinct |
+| --- | --- |
+| `alerts._strict_number` | Actual int/float only, no strings/native bool; rejects nonfinite |
+| `model.fair._numeric_nan_to_none` | Numeric-only, bool/infinity allowed, NaN missing |
+| `model.clv._number_allow_infinity` | Converts strings, no native bool, infinity allowed |
+| `weather.climatology_blend._number_allow_infinity` | Same historical infinity policy, preserved for compatibility |
+| `model.signals._number_allow_bool_and_infinity` | Native bool/infinity allowed, NaN missing |
+| `backtest_git._number_allow_bool_and_infinity` | Legacy sheet bool/infinity behavior |
+| `odds.parsers.betonline._num` | Invalid/missing becomes zero; bool/nonfinite allowed |
+| `odds.parsers.novig._num` | Two-decimal rounding; bool/infinity allowed; NaN missing |
+| `weather.parsers.ensemble._num`, `weather.parsers.openmeteo._num` | Float conversion retains bool/NaN/infinity |
+| `weather.parsers.ensemble_mean._nums` | List mapper with the same permissive float conversion |
+| `weather.ecmwf_ranges._member_number` | Integer GRIB member ID from a row, not scalar float coercion |
+| `obslog.queries._canonical_line` | Home-side spread normalization and rounding, not coercion |
+| `calibrate._offset_preserving_dt` | Stringifies sheet scalars, retains offsets for run-month selection |
+| `alert_policy.evidence_time` | Rejects timezone assumptions; retains evidence's source offset |
+| `timeutil.parse_iso` | Raises on invalid input, configurable default timezone, retains offsets |
+| `timeutil.ensure_utc` | Datetime-only timezone operation, not a nullable string parser |
+
+Provider-specific parser files were intentionally not renamed/edited. Their
+special behavior cannot be replaced by finite coercion without changing values.
+`weather/openmeteo.py` has no private `_num` body; the permissive helper is in
+its parser. No new persisted shape or JSON fields are introduced by scalar
+consolidation; part 1's migration and part 2's legacy-card fallback still apply.

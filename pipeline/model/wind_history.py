@@ -1,20 +1,14 @@
 """Stadium under records for the board's named wind signals, from graded games."""
 from __future__ import annotations
 
-import math
 from datetime import datetime
-from typing import Any
+from functools import partial
 
 from pipeline.model.signals import combined_flags
+from utils.numbers import finite_number
 from utils.timeutil import parse_iso
 
-
-def _number(value: Any) -> float | None:
-    try:
-        value = float(value)
-        return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
-        return None
+_number = partial(finite_number, allow_bool=True)
 
 
 def stadium_wind_history(card: dict, payload: dict | None, *, now: datetime,

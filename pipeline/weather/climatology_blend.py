@@ -99,7 +99,8 @@ def _curve_kind(kind: str) -> str:
     return "wind" if kind == "gust" else kind
 
 
-def _num(v: Any) -> Optional[float]:
+def _number_allow_infinity(v: Any) -> Optional[float]:
+    """Legacy curve inputs reject bool/NaN but retain infinity."""
     if v is None or isinstance(v, bool):
         return None
     try:
@@ -119,12 +120,12 @@ def parse_curve(raw: Any, kind: str) -> Curve:
         return base
     pts: list[tuple[float, float]] = []
     for p in raw.get("points") or []:
-        if isinstance(p, (list, tuple)) and len(p) == 2 and _num(p[0]) is not None and _num(p[1]) is not None:
+        if isinstance(p, (list, tuple)) and len(p) == 2 and _number_allow_infinity(p[0]) is not None and _number_allow_infinity(p[1]) is not None:
             pts.append((float(p[0]), float(p[1])))
     return Curve(
-        full_h=_num(raw.get("full_h")) if _num(raw.get("full_h")) is not None else base.full_h,
-        floor_h=_num(raw.get("floor_h")) if _num(raw.get("floor_h")) is not None else base.floor_h,
-        floor=_clamp01(_num(raw.get("floor"))) if _num(raw.get("floor")) is not None else base.floor,
+        full_h=_number_allow_infinity(raw.get("full_h")) if _number_allow_infinity(raw.get("full_h")) is not None else base.full_h,
+        floor_h=_number_allow_infinity(raw.get("floor_h")) if _number_allow_infinity(raw.get("floor_h")) is not None else base.floor_h,
+        floor=_clamp01(_number_allow_infinity(raw.get("floor"))) if _number_allow_infinity(raw.get("floor")) is not None else base.floor,
         points=tuple(pts),
     )
 
@@ -138,12 +139,12 @@ def parse_blend_block(block: Any, origin: str = "calibration") -> BlendConfig:
     raw_mw = block.get("medium_range_weights")
     if isinstance(raw_mw, dict):
         for k, v in raw_mw.items():
-            f = _num(v)
+            f = _number_allow_infinity(v)
             if f is not None and f >= 0.0:
                 mw[str(k)] = f
     if sum(mw.values()) <= 0.0:
         mw = dict(DEFAULT_MEDIUM_WEIGHTS)
-    start = _num(block.get("medium_range_start_h"))
+    start = _number_allow_infinity(block.get("medium_range_start_h"))
     return BlendConfig(curves=curves, medium_weights=mw, medium_start_h=start if start is not None else DEFAULT_MEDIUM_START_H, origin=origin)
 
 
@@ -239,12 +240,12 @@ class ClimoCell:
 
 
 def cell_from_row(row: Mapping[str, Any]) -> Optional[ClimoCell]:
-    wk, tb = _num(row.get("iso_week")), _num(row.get("tod_bin"))
+    wk, tb = _number_allow_infinity(row.get("iso_week")), _number_allow_infinity(row.get("tod_bin"))
     sid = str(row.get("stadium_id") or "")
     if not sid or wk is None or tb is None:
         return None
-    vals = {f: _num(row.get(f)) for f in CELL_FIELDS}
-    return ClimoCell(stadium_id=sid, iso_week=int(wk), tod_bin=int(tb), n_hours=int(_num(row.get("n_hours")) or 0), **vals)
+    vals = {f: _number_allow_infinity(row.get(f)) for f in CELL_FIELDS}
+    return ClimoCell(stadium_id=sid, iso_week=int(wk), tod_bin=int(tb), n_hours=int(_number_allow_infinity(row.get("n_hours")) or 0), **vals)
 
 
 class ClimoTable:
@@ -276,7 +277,7 @@ class ClimoTable:
         with path.open(newline="", encoding="utf-8") as fh:
             for row in csv.DictReader(fh):
                 sid = row.get("stadium_id") or ""
-                la, lo = _num(row.get("lat")), _num(row.get("lon"))
+                la, lo = _number_allow_infinity(row.get("lat")), _number_allow_infinity(row.get("lon"))
                 if sid and la is not None and lo is not None and sid not in table.points:
                     table.points[sid] = (la, lo)
                 c = cell_from_row(row)

@@ -24,6 +24,7 @@ from pipeline.model import config as C
 from pipeline.model.fair import american_to_prob, devig_pair, total_shift
 from pipeline.stadiums.roofs import weather_exposed
 from utils.game_status import bettable_before_kickoff
+from utils.numbers import finite_number as _f
 
 
 class DiscoveryState(str, Enum):
@@ -80,18 +81,6 @@ BASIS_NOVIG = "novig_consensus"
 BASIS_IMPLIED = "under_only_implied"
 BASIS_SINGLE = "single_book"
 BASIS_UNAVAILABLE = "unavailable"
-
-
-def _f(value: Any) -> Optional[float]:
-    if isinstance(value, bool) or value is None:
-        return None
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    if math.isnan(out) or math.isinf(out):
-        return None
-    return out
 
 
 def under_prob_move_max() -> float:

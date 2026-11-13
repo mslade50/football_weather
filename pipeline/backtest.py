@@ -54,6 +54,7 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -64,7 +65,10 @@ from pipeline.outputs import d1_out, json_out
 from pipeline.run_context import REPO_ROOT
 from pipeline.weather.merge import compass16, mean3, vector_mean_deg
 from utils.env import load_repo_dotenv
-from utils.timeutil import ensure_utc, now_utc, parse_iso, utc_iso
+from utils.numbers import finite_number as _num
+from utils.timeutil import ensure_utc, now_utc, parse_iso_utc, utc_iso
+
+_dt = partial(parse_iso_utc, strip=True, z_suffix_only=True)
 
 PathLike = Union[str, Path]
 
@@ -104,26 +108,6 @@ POSTMORTEM_WINDOW_DAYS = 7
 
 
 # ---- helpers ------------------------------------------------------------------------
-
-def _num(v: Any) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return None
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return None
-    return f if math.isfinite(f) else None
-
-
-def _dt(v: Any) -> Optional[datetime]:
-    if isinstance(v, datetime):
-        return ensure_utc(v)
-    if isinstance(v, str) and v.strip():
-        try:
-            return ensure_utc(parse_iso(v))
-        except ValueError:
-            return None
-    return None
 
 
 def _round(v: Optional[float], nd: int = 3) -> Optional[float]:
