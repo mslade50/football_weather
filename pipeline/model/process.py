@@ -48,7 +48,6 @@ class Reason(str, Enum):
     FORECAST_AGED = "forecast_aged"
     TEMP_GATE = "temp_gate"
     BELOW_MARGIN = "below_margin"
-    LOW_PROBABILITY = "low_probability"
     PRICE_MOVED = "price_moved"
     WIND_SIGNAL = "wind_signal"
     RAIN_SIGNAL = "rain_signal"
@@ -726,20 +725,43 @@ def evaluate_card(card: dict[str, Any], *, now: Optional[datetime] = None) -> di
     # fail closed as well if a malformed retained card lost its aged marker.
     unavailable = weather.get("point_aged") is True or bool(weather.get("retained"))
     if unavailable:
-        result.update(candidate=False, watch=False, alert=False, price_blocked=False)
-    result.update(_decision_fields(card, result, exposed, spread_ok, temp_passes, now))
-    if unavailable:
-        reason = Reason.FORECAST_RETAINED if weather.get("retained") else Reason.FORECAST_AGED
-        result.update(discovery_state=DiscoveryState.UNKNOWN, discovery_reasons=[reason],
-                      display_label="Forecast retained" if weather.get("retained") else "Forecast aged",
-                      display_color="#8b949e", display_muted=True, flags=[], alert_label="No Impact")
+        result.update(candidate=False, watch=False, price_blocked=False)
+    # The one decision: state, reasons, label, tier and the alert flag are all
+    # derived together inside _decision_fields so they cannot disagree.
+    result.update(_decision_fields(card, result, exposed, spread_ok, temp_passes, now,
+                                   unavailable=unavailable, apart=apart))
     return result
+
+
+_TIER_ORDER = ("No", "Low", "Mid", "High", "Very High")
+
+
+def _tier_of(label: str) -> str:
+    """Severity tier (No/Low/Mid/High/Very High) of a long or short signal label."""
+    short = re.sub(r"\s*Impact$", "", str(label or ""), flags=re.I).strip()
+    if not short or short.lower() in ("no", "no signal"):
+        return "No"
+    if short.lower().startswith("low"):
+        return "Low"
+    for tier in _TIER_ORDER:
+        if short.lower() == tier.lower():
+            return tier
+    return "No"
 
 
 def _decision_fields(
     card: dict[str, Any], proc: dict[str, Any], exposed: bool, spread_ok: bool,
-    temp_passes: bool, now: Optional[datetime],
+    temp_passes: bool, now: Optional[datetime], *, unavailable: bool = False,
+    apart: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
+    """Derive state, reasons, label, tier and the alert flag once, together.
+
+    ``alert`` is true exactly when the weather state is ``signal`` and the
+    signal label is not No Impact. The single exception is the schedule
+    overlay: a game that is not upcoming keeps the weather decision in
+    ``alert`` while ``discovery_state`` reads ineligible / not_upcoming.
+    Nothing downstream recomputes any of them.
+    """
     # Local import avoids a cycle: severity helpers use this module's temp_gate.
     from pipeline.model import signals
 
@@ -768,48 +790,58 @@ def _decision_fields(
     flags = signals.combined_flags(sport, wind, temp, spread, card.get("travel_alt"),
                                    card.get("home_temp"), card.get("away_temp")) if exposed else []
     published = card.get("signal") or {}
-    label = str(published.get("label") or sig.label)
-    display = re.sub(r"\s*Impact$", "", label, flags=re.I) or "No"
+    # One label. CFB is recomputed from this record's inputs, so a stale stored
+    # "No Impact" cannot hide a qualifying wind game. NFL keeps the published
+    # label, and a missing one is No Impact (the established alert policy for
+    # stored snapshots; the build stamps it from the same screen). Display,
+    # colour, tier, state and alert all read this one label.
+    published_label = str(published.get("label") or "").strip()
+    if sport != "cfb":
+        label, drivers = published_label or signals.NO, published.get("drivers") or sig.drivers
+        label_color = published.get("color") if published_label else None
+    else:
+        label, drivers, label_color = sig.label, sig.drivers, sig.color
+    label_is_no = _tier_of(label) == "No"
+    shown = label
+    muted = False
+    spread_gate_failed = sport == "cfb" and spread is not None and not spread_ok
+    if not exposed or spread_gate_failed:
+        shown, muted = "Ineligible", True
+    elif ("rain" in drivers or "(rain)" in label.lower()) and proc["rain_agreement"] != "agree":
+        if proc["wind_band"] == "flag":
+            shown = "Low (Wind)"
+        else:
+            shown = "Rain models disagree" if proc["rain_agreement"] == "disagree" else "Rain not confirmed"
+            muted = True
+    display = re.sub(r"\s*Impact$", "", shown, flags=re.I) or "No"
     if display == "No":
         display = "No signal"
-    display_color = published.get("color") or {
+    display_color = label_color or {
         "No signal": "green", "Low": "blue", "Mid": "orange", "High": "purple", "Very High": "darkred",
     }.get(display, "green")
-    muted = False
-    if not exposed or (sport == "cfb" and spread is not None and not spread_ok):
-        display, muted = "Ineligible", True
-    elif ("rain" in (published.get("drivers") or sig.drivers) or "(rain)" in label.lower()) and proc["rain_agreement"] != "agree":
-        if proc["wind_band"] == "flag":
-            display = "Low (Wind)"
-        else:
-            display = "Rain models disagree" if proc["rain_agreement"] == "disagree" else "Rain not confirmed"
-            muted = True
-    # Preserve the established NFL alert policy for explicitly published No Impact.
-    alert_label = sig.label if sport == "cfb" else str(published.get("label") or signals.NO).strip()
-    if not proc["alert"]:
-        alert_label = signals.NO
-    probability = _f((card.get("discovery") or {}).get("signal_probability"))
-    if probability is not None and not 0 <= probability <= 1:
-        probability = None
-    try:
-        kickoff = datetime.fromisoformat(str(card.get("kickoff_utc")).replace("Z", "+00:00"))
-        upcoming = kickoff > now and bettable_before_kickoff(card, now)
-    except (ValueError, TypeError):
-        upcoming = False
+    upcoming = bettable_before_kickoff(card, now)
     state, reasons = DiscoveryState.QUIET, [Reason.BELOW_MARGIN]
     hard_reasons = [reason for reason in ineligible if reason != Reason.SPREAD_UNKNOWN]
     if hard_reasons:
+        # Weather-independent ineligibility wins over retained/aged weather.
         state, reasons = DiscoveryState.INELIGIBLE, hard_reasons
-    elif not upcoming:
-        state, reasons = DiscoveryState.INELIGIBLE, [Reason.NOT_UPCOMING]
     elif sport == "cfb" and spread is None:
         state, reasons = DiscoveryState.UNKNOWN, [Reason.SPREAD_UNKNOWN]
-    elif wind is None:
+    elif unavailable:
+        weather = card.get("weather") or {}
+        retained = bool(weather.get("retained"))
+        state = DiscoveryState.UNKNOWN
+        reasons = [Reason.FORECAST_RETAINED if retained else Reason.FORECAST_AGED]
+        display, display_color, muted = "Forecast retained" if retained else "Forecast aged", "#8b949e", True
+        flags = []
+    elif wind is None and not proc["candidate"]:
+        # A heavy-rain candidate that ECMWF and a partner confirmed does not need wind.
         state, reasons = DiscoveryState.UNKNOWN, [Reason.FORECAST_INCOMPLETE]
-    elif probability is not None and probability < C.PROCESS_SIGNAL_PROBABILITY_MIN:
-        reasons = [Reason.LOW_PROBABILITY]
     elif proc["price_blocked"]:
         state, reasons = DiscoveryState.MOVED, [Reason.PRICE_MOVED]
+    elif proc["candidate"] and label_is_no:
+        # An explicitly published No Impact (NFL stored cards) is not alertable.
+        state, reasons = DiscoveryState.QUIET, [Reason.BELOW_MARGIN]
     elif proc["candidate"]:
         state, reasons = DiscoveryState.SIGNAL, []
         if proc["wind_band"] == "flag":
@@ -826,10 +858,20 @@ def _decision_fields(
             reasons.append(rain_reason[proc["rain_tier"]])
     elif not temp_passes:
         reasons = [Reason.TEMP_GATE]
-    if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR) and (card.get("weather") or {}).get("ecmwf_apart"):
+    if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR) and (apart or {}).get("apart"):
         reasons.append(Reason.ECMWF_APART)
     if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR, DiscoveryState.MOVED) and proc["line_open_missing"]:
         reasons.append(Reason.OPENER_UNKNOWN)
+    # The weather decision. Schedule is an overlay applied next: a game that is
+    # no longer bettable is published as ineligible / not_upcoming, while the
+    # alert engine enforces its own window and status gate (alert_policy.collect),
+    # exactly as at 1f1c58d, so ``alert`` never depends on the evaluation clock.
+    alert = state == DiscoveryState.SIGNAL
+    if not hard_reasons and not upcoming:
+        state, reasons = DiscoveryState.INELIGIBLE, [Reason.NOT_UPCOMING]
+    # Tier / size follow what the pill shows: a game that is not a live, eligible
+    # reading (ineligible, unknown, retained, unconfirmed rain) ranks as No.
+    tier = "No" if muted or state in (DiscoveryState.INELIGIBLE, DiscoveryState.UNKNOWN) else _tier_of(shown)
     return {
         "decision_version": DECISION_VERSION,
         "evaluated_at": now.isoformat(),
@@ -837,12 +879,15 @@ def _decision_fields(
         "ineligible_reasons": ineligible,
         "discovery_state": state,
         "discovery_reasons": reasons,
-        "signal_probability": probability,
         "display_label": display,
         "display_color": "#8b949e" if muted else display_color,
         "display_muted": muted,
+        "severity_tier": tier,
+        "severity_rank": _TIER_ORDER.index(tier),
+        "severity_size": C.SIGNAL_SIZES[signals.NO if tier == "No" else f"{tier} Impact"],
         "flags": flags,
-        "alert_label": alert_label,
+        "alert": alert,
+        "alert_label": label if alert else signals.NO,
         "price_gate_passed": not (proc["under_prob_move"] > proc["price_gate_max"]),
         "thresholds": {
             "temp_max_f": proc["temp_gate_max_f"], "temp_gate": proc["temp_gate"],
@@ -850,7 +895,6 @@ def _decision_fields(
             "rain_ignore_mm": C.PROCESS_RAIN_IGNORE_MM, "rain_watch_mm": C.PROCESS_RAIN_WATCH_MM,
             "rain_signal_mm": C.PROCESS_RAIN_SIGNAL_MM, "rain_agree_tol_mm": C.PROCESS_RAIN_AGREE_TOL_MM,
             "under_prob_move_max": proc["price_gate_max"], "cfb_open_spread_max": C.CFB_OPEN_SPREAD_MAX,
-            "signal_probability_min": C.PROCESS_SIGNAL_PROBABILITY_MIN,
             "heat_temp_f": C.SIGNAL_HEAT_TEMP_F, "home_temp_max_f": C.SIGNAL_HOME_TEMP_MAX_F,
             "altitude_m": C.SIGNAL_ALTITUDE_M, "alt_temp_f": C.SIGNAL_ALT_TEMP_F,
             "ecmwf_lead_h": C.PROCESS_ECMWF_LEAD_H, "cfb_high_wind_mph": C.CFB_HIGH_WIND_MPH,
@@ -879,9 +923,11 @@ def clear_signal_label(card: dict[str, Any], wind: float, temp: float, rain: flo
 def decision_for(card: dict[str, Any], *, recheck: bool = False, now: Optional[datetime] = None) -> dict[str, Any]:
     """Trust published decisions; one fallback for historical cards and evidence rechecks."""
     proc = card.get("process")
-    if (not recheck and not (card.get("weather") or {}).get("retained")
-            and isinstance(proc, dict) and proc.get("decision_version") == DECISION_VERSION):
-        return proc
+    if not recheck and isinstance(proc, dict) and proc.get("decision_version") == DECISION_VERSION:
+        # A retained forecast is display-only. A published record that still
+        # alerts on one predates that rule, so fail closed and re-evaluate it.
+        if not ((card.get("weather") or {}).get("retained") and proc.get("alert")):
+            return proc
     evaluated = evaluate_card(card, now=now)
     # Legacy snapshots can carry this observation without a complete decision.
     if not recheck and isinstance(proc, dict) and "line_open_missing" in proc:

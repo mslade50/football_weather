@@ -100,11 +100,6 @@ function signalLabel(sig) {
   const short = String(l).replace(/\s*Impact$/i, "") || "No";
   return short === "No" ? "No signal" : short;
 }
-function signalTier(sig) {
-  const l = signalLabel(sig);
-  if (l === "No signal") return "No";
-  return l.startsWith("Low") ? "Low" : l;
-}
 
 const isNum = (v) => v !== null && v !== undefined && Number.isFinite(Number(v));
 const fmtNum = (v, nd = 1) => (isNum(v) ? Number(v).toFixed(nd) : "—");

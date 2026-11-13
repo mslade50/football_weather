@@ -41,24 +41,42 @@ def normalize_status(value) -> GameStatus:
     return GameStatus.SCHEDULED if text == 'scheduled' else GameStatus.UNSPECIFIED
 
 
+BETTABLE = (GameStatus.SCHEDULED, GameStatus.TBD, GameStatus.UNKNOWN, GameStatus.UNSPECIFIED)
+
+
+def _recognized(code) -> bool:
+    try:
+        GameStatus(code)
+    except ValueError:
+        return False
+    return True
+
+
 def status_code(game) -> GameStatus:
     get = game.get if isinstance(game, Mapping) else lambda key: getattr(game, key, None)
     code = get('status_code')
     if code is not None:
-        try:
-            return GameStatus(code)
-        except ValueError:
-            return GameStatus.UNKNOWN
+        # Display only. bettable_before_kickoff rejects an unrecognized code outright.
+        return GameStatus(code) if _recognized(code) else GameStatus.UNKNOWN
     return normalize_status(get('status'))
 
 
 def bettable_before_kickoff(game, now: datetime) -> bool:
-    """Preserve TBD/unknown eligibility; require a future kickoff and no stopped/live state."""
+    """Preserve TBD/unknown eligibility; require a future kickoff and no stopped/live state.
+
+    A published ``status_code`` outside the vocabulary (including an empty
+    string) is not bettable. ``site/web/game-status.js`` and
+    ``site/worker/game-status.js`` make the same choice, pinned by
+    ``tests/fixtures/game_status_table.json``. Only a missing code falls back
+    to the raw ``status`` text.
+    """
     get = game.get if isinstance(game, Mapping) else lambda key: getattr(game, key, None)
     kickoff = get('kickoff_utc')
     try:
         kickoff = ensure_utc(kickoff) if isinstance(kickoff, datetime) else ensure_utc(parse_iso(kickoff))
     except (TypeError, ValueError, AttributeError):
         return False
-    return kickoff > ensure_utc(now) and status_code(game) in (
-        GameStatus.SCHEDULED, GameStatus.TBD, GameStatus.UNKNOWN, GameStatus.UNSPECIFIED)
+    published = get('status_code')
+    if published is not None and not _recognized(published):
+        return False
+    return kickoff > ensure_utc(now) and status_code(game) in BETTABLE

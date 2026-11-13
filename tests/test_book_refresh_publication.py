@@ -12,6 +12,7 @@ from pathlib import Path
 from pipeline import build
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, WeatherForecast
+from pipeline.model import signals
 from pipeline.outputs import json_out
 from pipeline.outputs.raw_out import NullRawStore
 from pipeline.publication import prepare_generation
@@ -58,8 +59,10 @@ def test_partial_and_full_refresh_producer_to_served_default_board(tmp_path, mon
         assert odds.last_observed[gid]["polymarket_us"]["status"] == "unavailable"
         assert odds.last_observed[gid]["pinnacle"]["updated_at"] == (now - timedelta(minutes=10)).isoformat()
         fc = WeatherForecast(gid, "fixture", now, 24, temp_fg=55, wind_fg=18)
+        # The build always publishes a severity label; an NFL card without one is No Impact.
+        severity = signals.nfl_signal(18, 55, None) if sport == "nfl" else None
         partial[sport] = [json_out.build_card(sport, game, book.find_stadium(stadium), None, None,
-            fc, None, None, [], lines=odds.lines, openers=odds.openers, consensus=odds.consensus,
+            fc, None, severity, [], lines=odds.lines, openers=odds.openers, consensus=odds.consensus,
             last_observed=odds.last_observed[gid], run_id="book-refresh")]
         # A regular refresh restores current fields only from newly observed lines.
         full = build.stage_odds(ctx, sport, [game], book, NullRawStore(sport, "fixture"),

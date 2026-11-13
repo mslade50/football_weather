@@ -170,6 +170,8 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
                 continue
             if not bettable_before_kickoff(card, now):
                 continue
+            # Stored snapshots without a record are evaluated at the run clock.
+            card = dict(card, _alert_at=A.utc_iso(now))
             gid = card.get("game_id")
             bets = confirmed_for(confirmations, gid)
             if bets:

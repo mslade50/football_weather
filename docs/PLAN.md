@@ -23,7 +23,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - Historical extraction produced `tests/fixtures/golden_v1.parquet` and `tests/fixtures/golden_fair_2024.parquet`; both fixtures remain tracked and tested.
 - `pipeline/__init__.py`, `pipeline/contracts.py` (ARCH §4.2), `pipeline/run_context.py`, `pipeline/model/config.py`, `pipeline/model/impact.py` (v1 only), `pipeline/model/signals.py`, `utils/timeutil.py`.
 - `utils/telegram.py` ← copy `golf_scraping/utils/telegram.py` verbatim (keep `send_message`; delete golf `format_alert`).
-- `utils/state.py` ← copy `golf_scraping/utils/state.py`; key fn `game_key(game_id, market, book)`.
+- `utils/state.py` ← copy `golf_scraping/utils/state.py`; key fn `game_key(game_id, market, book)`. (Never adopted; `utils/state.py` was removed as unused.)
 - `pipeline/state.py` ← copy `golf_scraping/board/state.py` (L40-50, 55-116, 213-256, 258-290, 294-391); add `SCHEMA_VERSION=1`, `migrate()`, ALERTS_CAP=500, HISTORY_CAP=120.
 - `pipeline/odds/base.py` ← copy `golf_scraping/scrapers/base.py`; add `GameLine` dataclass; keep BaseScraper.
 - `main.py` ← copy `golf_scraping/main.py`, args `--book --sport --market --output --headed`.
@@ -69,7 +69,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 ## Phase 2 — Odds scrapers (ship: legacy files carry Spread/Total open/now; openers persisted; fair/edge columns filled)
 
 ### Recon prerequisite (once, user-run locally with Playwright; outputs committed as scrubbed fixtures)
-`python scripts/recon_book.py --url https://www.betonline.ag/sportsbook/football/nfl --keyword offering --out tests/fixtures/raw/betonline/` (also college-football, nfl-preseason) → lock `League` slugs and `AwayLine/HomeLine` spread/total key names. `python scripts/recon_book.py` for FanDuel ncaaf/nfl, Novig, Kalshi, ProphetX, Betcris public league JSON saved via httpx (the HTML viewer is retired). `scripts/fixtures_scrub.py` trims to ≤20 games per fixture.
+`python scripts/recon_book.py --url https://www.betonline.ag/sportsbook/football/nfl --keyword offering --out tests/fixtures/raw/betonline/` (also college-football, nfl-preseason) → lock `League` slugs and `AwayLine/HomeLine` spread/total key names. `python scripts/recon_book.py` for FanDuel ncaaf/nfl, Novig, Kalshi, ProphetX, Betcris public league JSON saved via httpx (the HTML viewer is retired). Fixtures were trimmed to ≤20 games by hand (the planned `scripts/fixtures_scrub.py` was never written).
 
 ### Files to create (order of ease) [P after recon]
 - `pipeline/odds/teams.py` (normalize_team with aliases + rapidfuzz ≥92 + unresolved log), `pipeline/odds/merge.py` (game_key match ±36 h, neutral flip, pivot, main-line selection, openers via `pipeline/state.py`).
@@ -161,7 +161,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - `pipeline/calibrate.py`: refit v2 coefficients (wind curve, gust blend, rain prob threshold, alt slope, heat-away delta) minimizing closing-total error / maximizing under ROI on ≥4 weeks → `data/calibration.json` PR; promotion rule: set `ALERT_MODEL=v2` in `model/config.py` only when v2 CLV ≥ v1 over ≥4 weeks (manual merge).
 - `.github/workflows/backtest.yml` (Sunday morning CFB after Saturday games, Tuesday morning NFL after Monday night + dispatch; league-specific results/CLV/weather post-mortem via `pipeline.alerts --digest postmortem`, with SMTP fallback when Telegram fails or must omit games), `calibrate.yml`.
 - `site/web/`: Backtest tab (weekly post-mortem, season rollups, grid, stadium results, matched games list = old bottom table), CLV columns in Alerts tab, drawer CLV timeline; hover Record/ROI lookup by first-match.
-- Optional: `pipeline/odds/oddsapi.py` (The Odds API historical seeding of true openers, `ODDS_API_KEY`), `draftkings.py` enablement.
+- Optional: `draftkings.py` enablement. (The Odds API opener seeding module `oddsapi.py` was never wired in and has been removed.)
 - Tests: `tests/test_clv.py` (freeze picks last pre-kickoff row; sign conventions per side), `tests/test_backtest_grid.py` (bucket assignment reproduces xlsx rows from fixture games; first-match semantics), `tests/test_calibrate.py` (writes valid calibration.json schema; never touches v1 constants), workflow contract tests for backtest/calibrate.
 
 ### Acceptance
@@ -178,7 +178,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 
 **Copy-verbatim manifest** (source → target):
 - `golf_scraping/utils/telegram.py` → `utils/telegram.py`
-- `golf_scraping/utils/state.py` → `utils/state.py`
+- `golf_scraping/utils/state.py` → `utils/state.py` (removed later: unused)
 - `golf_scraping/board/state.py` → `pipeline/state.py`
 - `golf_scraping/scrapers/base.py` → `pipeline/odds/base.py`
 - `golf_scraping/scrapers/{betonline,betcris,fanduel,kalshi,kalshi_fill,novig,pinnacle,prophetx,draftkings}.py` → `pipeline/odds/*.py` (transport) + `pipeline/odds/parsers/*.py` (new)

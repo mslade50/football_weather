@@ -71,7 +71,7 @@ Raw files now without executable readers: data/raw/nfl_stadium_curated.csv, nfl_
 
 Other scripts inventory (exact filename/module references searched, then inspected):
 - alert_liquidity.mjs: docs/ARCHITECTURE.md, pipeline/alert_liquidity.py
-- check_dashboard_ui.py: docs/STADIUM_EXCHANGE_UI.md
+- check_dashboard_ui.py: deleted (stale selector, no caller)
 - export_stadium_climate.py: .github/workflows/stadium-climate.yml, tests/test_stadium_climate.py
 - export_wind_history.py: docs/ARCHITECTURE.md, tests/test_alert_context.py
 - fetch_r2.py: .github/workflows/pipeline.yml, scripts/publish_r2.py, tests/test_fetch_r2.py, tests/test_pipeline_workflow.py

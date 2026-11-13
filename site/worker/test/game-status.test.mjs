@@ -30,3 +30,15 @@ test('Browser and Worker share code authority, fallback and kickoff boundaries',
     assert.equal(bettableBeforeKickoff({ status_code: 'scheduled', kickoff_utc }, now), false);
   }
 });
+
+test('Python, browser and Worker agree on the shared status table', () => {
+  const { cases } = JSON.parse(readFileSync(new URL('../../../tests/fixtures/game_status_table.json', import.meta.url), 'utf8'));
+  const kickoffs = { future: '2026-11-13T01:00:00+00:00', past: new Date(now).toISOString(), invalid: 'invalid' };
+  for (const c of cases) {
+    const game = { status: c.status, kickoff_utc: kickoffs[c.kickoff], ...(c.status_code === null ? {} : { status_code: c.status_code }) };
+    browser.game = game; browser.now = now;
+    const label = JSON.stringify(c);
+    assert.equal(bettableBeforeKickoff(game, now), c.bettable, `worker ${label}`);
+    assert.equal(vm.runInContext('bettableBeforeKickoff(game, now)', browser), c.bettable, `browser ${label}`);
+  }
+});

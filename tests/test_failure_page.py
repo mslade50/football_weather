@@ -211,3 +211,24 @@ def test_plan_cli_switch_off_does_not_page(monkeypatch, tmp_path):
     assert main(["plan", "--action-out", str(action), "--message-out", str(tmp_path / "m"),
                  "--state-out", str(tmp_path / "s")]) == 0
     assert action.read_text(encoding="utf-8") == "none\n"
+
+
+def test_unreadable_marker_never_persists_or_pages_a_stale_heartbeat(monkeypatch, tmp_path):
+    """A closed placeholder must not be committed over a possibly open incident."""
+    def boom():
+        raise RuntimeError("R2 down")
+
+    stale = json.dumps({"ts": "2020-01-01T00:00:00Z"}).encode()
+    monkeypatch.setattr("pipeline.failure_page.read_health_bytes", boom)
+    monkeypatch.setattr("pipeline.failure_page.read_heartbeat_bytes", lambda: stale)
+    monkeypatch.setenv("GATE_RESULT", "success")
+    monkeypatch.setenv("LIGHT_RESULT", "success")
+    monkeypatch.setenv("PLAYWRIGHT_SCRAPE_RESULT", "skipped")
+    monkeypatch.setenv("PLAYWRIGHT_RESULT", "skipped")
+    monkeypatch.delenv("FOOTBALL_FAILURE_ALERTS", raising=False)
+    for _ in range(2):  # repeated runs while reads keep failing: still quiet
+        action, state = tmp_path / "action", tmp_path / "state.json"
+        assert main(["plan", "--action-out", str(action), "--message-out", str(tmp_path / "m"),
+                     "--state-out", str(state)]) == 0
+        assert action.read_text(encoding="utf-8") == "none\n"
+        assert not state.exists()

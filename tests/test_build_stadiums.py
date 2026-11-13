@@ -353,3 +353,27 @@ def test_build_stadiums_workflow_contract() -> None:
     assert "git commit" not in runs and "git push" not in runs
     assert "CFBD_API_KEY" in text and "failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text
     assert wf["permissions"]["contents"] == "write" and wf["permissions"]["pull-requests"] == "write"
+
+
+def test_output_guard_checks_resolved_real_paths_for_out_and_report(tmp_path):
+    from pipeline.stadiums import build_stadiums as BS
+    from pipeline.stadiums.loader import DATA_DIR
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "stadiums.csv").write_text("stadium_id\n", encoding="utf-8")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    BS.guard_output_path(scratch / "out.csv", data, "--out")  # ordinary path is fine
+    # a spelling that resolves to the curated file, under data-dir and under the repo data dir
+    for target in (data / "sub" / ".." / "stadiums.csv", DATA_DIR / "x" / ".." / "stadiums.csv",
+                   DATA_DIR / "teams.csv", DATA_DIR / "aliases" / "nfl.json"):
+        with pytest.raises(ValueError, match="must not overwrite"):
+            BS.guard_output_path(target, data, "--out")
+    with pytest.raises(ValueError, match="--report"):
+        BS.guard_output_path(DATA_DIR / "stadiums.csv", data, "--report")
+    rc = None
+    with pytest.raises(ValueError, match="--report"):
+        rc = BS.main(["--data-dir", str(data), "--dry-run", "--offline",
+                      "--report", str(DATA_DIR / "stadiums.csv")])
+    assert rc is None

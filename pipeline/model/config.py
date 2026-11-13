@@ -7,6 +7,7 @@ never refit. Values are in PERCENT; legacy NFL output divides by 100.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 
 # Ops threshold: Worker ticks every 30 minutes; retain the legacy 20-hour page.
 HEARTBEAT_STALE_HOURS = 20
@@ -118,7 +119,6 @@ PROCESS_ECMWF_LEAD_H = 48.0               # ECMWF-first signal forecast beyond t
 PROCESS_ECMWF_WIND_APART_MPH = 5.0
 PROCESS_ECMWF_TEMP_APART_F = 5.0
 PROCESS_ECMWF_RAIN_APART_MM = 5.0
-PROCESS_SIGNAL_PROBABILITY_MIN = 0.05
 PROCESS_VERSION = "process-v5"            # v5: one book's own adverse move blocks, even if the average does not
 # Settled log of every exposed game. Not an under gate and not an alert.
 EXPOSED_FORECAST_VERSION = "exposed-forecast-v1"
@@ -172,6 +172,11 @@ DEFAULT_BOOK_WEIGHT = 0.5   # books absent from BOOK_WEIGHTS (e.g. polymarket_us
 # ``BOOK_WEIGHTS["betcris"]`` stays so an old lookup still resolves, and it is
 # not applied. One posted pricing book is enough for a number; thin is fewer
 # than two pricing books.
+# Pricing-time quote freshness (fair.quote_usable_for_pricing is the one predicate).
+# A quote prices only if it carries a tz-aware scraped_at no older than the ceiling
+# and no further in the future than the skew tolerance, and its expires_at is still ahead.
+PRICING_MAX_QUOTE_AGE = timedelta(hours=1)
+PRICING_CLOCK_SKEW = timedelta(minutes=2)
 REFERENCE_BOOKS: frozenset[str] = frozenset({"betcris"})
 # Consensus SPREAD = simple average of these books' home main lines (whichever are
 # posted); none posted -> the weighted-median fallback of the other pricing books.

@@ -1,6 +1,5 @@
 """pipeline/model/clv.py: closing freeze (last pre-kickoff row per key), clv_pts sign
-conventions per side, closings.json first-write-wins, alert settlement, D1 wiring;
-pipeline/odds/oddsapi.py opener seeding (never overwrites)."""
+conventions per side, closings.json first-write-wins, alert settlement, D1 wiring."""
 
 from __future__ import annotations
 
@@ -12,7 +11,6 @@ import pytest
 
 from pipeline import state as pstate
 from pipeline.model import clv
-from pipeline.odds import oddsapi
 from pipeline.outputs import d1_out
 
 GID = "nfl:2026:3:sea@ne"
@@ -196,56 +194,3 @@ def test_load_closings_rejects_newer_schema(tmp_path: Path):
         clv.load_closings(tmp_path)
     (tmp_path / clv.CLOSINGS_FILE).write_text("not json")
     assert clv.load_closings(tmp_path)["closings"] == {}
-
-
-# ---- oddsapi (optional seeding) -------------------------------------------------------------
-
-ODDSAPI_PAYLOAD = {
-    "timestamp": "2026-09-21T12:00:00Z",
-    "data": [{
-        "id": "abc", "commence_time": "2026-09-27T17:00:00Z", "home_team": "New England Patriots", "away_team": "Seattle Seahawks",
-        "bookmakers": [
-            {"key": "pinnacle", "last_update": "2026-09-21T11:58:00Z", "markets": [
-                {"key": "spreads", "outcomes": [{"name": "New England Patriots", "price": -108, "point": -3.0},
-                                                {"name": "Seattle Seahawks", "price": -102, "point": 3.0}]},
-                {"key": "totals", "outcomes": [{"name": "Over", "price": -110, "point": 44.5},
-                                               {"name": "Under", "price": -110, "point": 44.5}]},
-                {"key": "h2h", "outcomes": [{"name": "New England Patriots", "price": -150}, {"name": "Seattle Seahawks", "price": 130}]},
-            ]},
-            {"key": "unknownbook", "markets": [{"key": "totals", "outcomes": [{"name": "Over", "price": -110, "point": 40.0}]}]},
-        ],
-    }],
-}
-
-
-def test_oddsapi_parse_and_seed_never_overwrites(monkeypatch):
-    resolve = {"New England Patriots": "ne", "Seattle Seahawks": "sea"}.get
-    rows = oddsapi.parse_historical(ODDSAPI_PAYLOAD, "nfl", resolve)
-    keys = {(r["market"], r["side"], r["line"], r["odds"]) for r in rows}
-    assert ("spread", "home", -3.0, -108) in keys and ("spread", "away", 3.0, -102) in keys
-    assert ("total", "under", 44.5, -110) in keys and ("ml", "away", None, 130) in keys
-    assert all(r["book"] == "pinnacle" for r in rows) and len(rows) == 6
-
-    openers = pstate.migrate({}, "openers")
-    openers["openers"][pstate.odds_key(GID, "total", "under", "pinnacle")] = {"line": 46.0, "odds": -110, "ts": "x"}
-    added = oddsapi.seed_openers(openers, rows, {("ne", "sea"): GID})
-    assert added == 5
-    assert openers["openers"][pstate.odds_key(GID, "total", "under", "pinnacle")]["line"] == 46.0
-    assert openers["openers"][pstate.odds_key(GID, "spread", "away", "pinnacle")] == {"line": 3.0, "odds": -102, "ts": "2026-09-21T11:58:00Z", "source": "oddsapi"}
-
-    monkeypatch.delenv("ODDS_API_KEY", raising=False)
-    assert not oddsapi.enabled()
-    assert oddsapi.seed_from_dates("nfl", ["2026-09-21T12:00:00Z"], openers, {}, resolve) == 0
-    with pytest.raises(RuntimeError):
-        oddsapi.fetch_historical("nfl", "2026-09-21T12:00:00Z")
-    calls = []
-
-    def fake_get(url, params):
-        calls.append((url, dict(params)))
-        return ODDSAPI_PAYLOAD
-
-    n = oddsapi.seed_from_dates("nfl", ["2026-09-21T12:00:00Z"], pstate.migrate({}, "openers"), {("ne", "sea"): GID},
-                                resolve, key="k", get=fake_get, sleep=lambda s: None)
-    assert n == 6
-    assert calls[0][0].endswith("/historical/sports/americanfootball_nfl/odds")
-    assert calls[0][1]["oddsFormat"] == "american" and calls[0][1]["apiKey"] == "k"

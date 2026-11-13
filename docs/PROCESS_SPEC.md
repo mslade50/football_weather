@@ -417,9 +417,11 @@ now carries the complete decision beside its weather and price evidence.
 final pill text, including unconfirmed-rain corrections. v1 impact is unchanged.
 
 New fields: `decision_version`, `evaluated_at`, `eligible`, `ineligible_reasons`,
-`discovery_state`, `discovery_reasons`, `signal_probability`, `display_label`,
-`display_color`, `display_muted`, `flags`, `alert_label`,
-`price_gate_passed`, and `thresholds`. Existing wind,
+`discovery_state`, `discovery_reasons`, `display_label`,
+`display_color`, `display_muted`, `severity_tier`, `severity_rank`, `severity_size`,
+`flags`, `alert_label`, and `price_gate_passed` and `thresholds`.
+The retired `signal_probability` key and `signal_probability_min` threshold are gone:
+nothing in the pipeline ever supplied a probability. Existing wind,
 rain, forecast, temperature and price evidence fields remain. `eligible` means
 roof exposure plus the opening-spread gate, independent of schedule, weather,
 prices and severity. Missing CFB spread is ineligible with unknown evidence,
@@ -430,7 +432,7 @@ candidate-only meaning.
 State codes (Python `DiscoveryState`): `ineligible`, `unknown`, `quiet`, `moved`,
 `signal`, `near`. Ordered reason codes (Python `Reason`): `indoor`, `closed_roof`,
 `roof_unconfirmed`, `spread_outside`, `not_upcoming`, `spread_unknown`,
-`forecast_incomplete`, `temp_gate`, `below_margin`, `low_probability`,
+`forecast_incomplete`, `forecast_retained`, `forecast_aged`, `temp_gate`, `below_margin`,
 `price_moved`, `wind_signal`, `rain_signal`, `wind_watch`, `rain_watch`,
 `rain_elevated`, `rain_unconfirmed`, `ecmwf_apart`, `opener_unknown`.
 Wind bands remain `none|watch|flag`; rain tiers remain
@@ -438,13 +440,30 @@ Wind bands remain `none|watch|flag`; rain tiers remain
 `agree|disagree|unverified|missing_ecmwf`. Flag values remain `CFB Wind`,
 `NFL Wind`, `Heat`, `Alt+Heat`, in that order where applicable.
 
-Discovery priority is roof/spread exclusion, schedule exclusion, missing spread,
-missing wind, explicitly supplied low signal probability, adverse price move,
-signal, watch, then quiet. The optional temperature gate produces a quiet
-`temp_gate` reason. Wind and rain reasons precede ECMWF-apart and missing-opener
-annotations. The low-probability override is a discovery presentation rule;
-it does not change alert eligibility. Probability is never inferred from v1,
-confidence or precipitation probability.
+Discovery priority is roof/spread exclusion, missing CFB spread, retained or aged
+weather (`forecast_retained` / `forecast_aged`, display-only), missing wind, adverse
+price move, signal, watch, then quiet; a game that is not upcoming is then published as
+ineligible / `not_upcoming`. Roof and spread ineligibility depends on no weather, so it
+wins over retained or aged weather. A missing wind reading is `unknown` only when no
+confirmed heavy-rain signal exists: agreed heavy rain is a `signal` without wind, as it
+alerted at 1f1c58d. The optional temperature gate produces a quiet `temp_gate` reason.
+Wind and rain reasons precede ECMWF-apart and missing-opener annotations. The
+`ecmwf_apart` reason reads the record's own `ecmwf_apart` comparison.
+
+One decision, derived once. `alert` is true exactly when the weather state is `signal`
+and the label is not No Impact, so `discovery_state`, `display_label`, `severity_*`,
+`alert` and `alert_label` cannot disagree. The label is recomputed from the record's
+inputs for CFB, so a stale stored "No Impact" cannot hide a qualifying wind game. NFL
+keeps the published label and a missing one is No Impact (the established alert policy
+for stored snapshots); a flagged NFL card published as No Impact is `quiet`, not
+`signal`, and does not alert. The one exception is the schedule overlay: a game that is
+no longer bettable keeps the weather decision in `alert` while its state reads
+`not_upcoming`, because the alert engine enforces its own window and status gate.
+
+`severity_tier` (`No|Low|Mid|High|Very High`), `severity_rank` (0-4) and `severity_size`
+(the marker size bucket) follow the pill: ineligible, unknown, retained, aged and
+unconfirmed-rain games rank as `No`. The browser's severity filter, Signal sort,
+cluster colour and marker size read these, never the raw `signal` label or size.
 
 `thresholds` snapshots the applied temperature switch/max, wind watch/flag,
 rain bands/agreement tolerance, environment-adjusted adverse-price limit,
@@ -469,8 +488,12 @@ Current time/status filtering and exchange quote/depth checks remain independent
 Frozen historical-cohort screens in backtest.js are retrospective research,
 not the current signal classifier.
 
-Alerts read `process` through `process.decision_for`; old snapshots fall back
-through that one function. A legacy `line_open_missing` observation is preserved.
+Alerts read `process` through `process.decision_for`, once per card; old snapshots fall
+back through that one function, evaluated at the alert clock rather than the wall clock.
+A published record is trusted even on a retained card, unless it still says `alert`
+(which predates retention and fails closed). A legacy `line_open_missing` observation is
+preserved: a stored `process` block that carries only that key is still read for the
+"Opener line unknown" note (tests/test_alert_format.py).
 CLEAR intentionally requests a fresh shared evaluation as part of its current
 weather/member/model evidence checks. The existing tier semantics and evidence checks
 remain; missing ancillary inputs cannot establish invalidation. An explicit

@@ -6,8 +6,8 @@ from contextlib import closing
 from datetime import timedelta
 
 from pipeline import state as pstate
-from pipeline.obslog import archive
 from pipeline.outputs import d1_out
+from pipeline.outputs import d1_pending as archive
 from tests.test_obslog import T, game, line, text
 
 
@@ -77,3 +77,25 @@ def test_invalid_pending_sql_fails_closed(tmp_path):
     pstate.save_archive_last(tmp_path, {"last": {}, archive.PENDING: ["not SQL text"]})
     with pytest.raises(ValueError, match="refusing to discard"):
         archive.prepare(tmp_path, tmp_path / "d1.sql")
+
+
+def test_pending_queue_drops_oldest_chunks_loudly_instead_of_failing_forever(tmp_path, capsys):
+    state, output = tmp_path / "state", tmp_path / "d1.sql"
+    state.mkdir()
+    for n in range(archive.MAX_PENDING_CHUNKS + 5):  # D1 keeps rejecting: nothing is acknowledged
+        output.write_text(f"-- run {n}\nSELECT {n};\n")
+        archive.prepare(state, output)
+    pending = json.loads((state / "archive_last.json").read_text())[archive.PENDING]
+    chunks = [c for c in pending.split(archive.SEPARATOR) if c.strip()]
+    assert len(chunks) == archive.MAX_PENDING_CHUNKS
+    assert "-- run 0\n" not in pending and f"-- run {archive.MAX_PENDING_CHUNKS + 4}\n" in pending
+    assert output.read_text() == pending
+    assert "::warning::Pending D1 SQL exceeded its bound" in capsys.readouterr().out
+
+
+def test_pending_queue_byte_bound_never_drops_the_fresh_chunk():
+    big = "SELECT '" + "x" * 600_000 + "';\n"
+    combined, dropped = archive.bound(big + archive.SEPARATOR + big, big)
+    assert dropped == 2 and combined == big
+    combined, dropped = archive.bound("", big * 3)  # fresh alone may exceed the bound
+    assert dropped == 0 and combined == big * 3

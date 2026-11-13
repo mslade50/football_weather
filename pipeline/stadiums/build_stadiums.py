@@ -746,6 +746,29 @@ def merge_cfbd(row: dict[str, str], venue: dict[str, Any]) -> None:
             row[k_dst] = str(venue[k_src])
 
 
+_HUMAN_OWNED = ("stadiums.csv", "climatology.csv", "teams.csv")
+
+
+def _real(path: Path) -> str:
+    return os.path.normcase(os.path.realpath(path))
+
+
+def guard_output_path(path: Path, data_dir: Path, what: str) -> None:
+    """Refuse to write over a human-owned/curated data file.
+
+    Compares resolved real paths (symlinks, case, ``..``) against those files under
+    both ``data_dir`` and the repo's own data directory, plus the alias files.
+    """
+    protected: set[str] = set()
+    for base in (data_dir, DATA_DIR):
+        protected.update(_real(base / name) for name in _HUMAN_OWNED)
+        aliases = base / "aliases"
+        if aliases.is_dir():
+            protected.update(_real(p) for p in aliases.iterdir())
+    if _real(path) in protected:
+        raise ValueError(f"{what} must not overwrite curated or climatology inputs: {path}")
+
+
 def build(
     data_dir: Path = DATA_DIR,
     cache_dir: Optional[Path] = None,
@@ -943,8 +966,7 @@ def build(
         output.append(result)
     rows = output
     if out_path is not None:
-        if out_path.resolve() in {(data_dir / "stadiums.csv").resolve(), (data_dir / "climatology.csv").resolve(), (data_dir / "teams.csv").resolve()}:
-            raise ValueError("builder output must not overwrite curated or climatology inputs")
+        guard_output_path(out_path, data_dir, "builder output")
         write_rows(out_path, rows, columns)
     return rows, columns, report
 
@@ -961,6 +983,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--out", type=Path, default=None, help="write to this path instead of data/stadiums_enriched.csv")
     a = ap.parse_args(argv)
     out = None if a.dry_run else (a.out or a.data_dir / "stadiums_enriched.csv")
+    if out is not None:
+        guard_output_path(out, a.data_dir, "--out")
+    if a.report is not None:
+        guard_output_path(a.report, a.data_dir, "--report")
     _rows, _cols, rep = build(a.data_dir, cache_dir=a.cache_dir, offline=a.offline, all_rows=a.all,
                               espn_ids=a.espn_ids, out_path=out)
     d = rep.as_dict()

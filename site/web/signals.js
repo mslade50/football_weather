@@ -4,16 +4,17 @@
 
 const PRESETS = {
   cfb_wind: { id: "cfb_wind", label: "CFB Wind", flag: "CFB Wind", sports: ["cfb"],
-    desc: (t) => `CFB wind flag: opening spread within ±${t.cfb_open_spread_max} · sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => wxNum(g, "wind_fg") },
+    desc: (t) => `CFB wind flag: opening spread within ±${t.cfb_open_spread_max} · sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => decisionNum(g, "wind_mph") },
   nfl_wind: { id: "nfl_wind", label: "NFL Wind", flag: "NFL Wind", sports: ["nfl"],
-    desc: (t) => `Sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag. Gusts are not the gate.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => wxNum(g, "wind_fg") },
+    desc: (t) => `Sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag. Gusts are not the gate.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => decisionNum(g, "wind_mph") },
   heat: { id: "heat", label: "Heat", flag: "Heat", sports: ["nfl", "cfb"],
-    desc: (t) => `Temp > ${t.heat_temp_f} °F · both teams' home avg temp < ${t.home_temp_max_f} °F · CFB spread within ±${t.cfb_open_spread_max}`, sort: (g) => wxNum(g, "temp_fg") },
+    desc: (t) => `Temp > ${t.heat_temp_f} °F · both teams' home avg temp < ${t.home_temp_max_f} °F · CFB spread within ±${t.cfb_open_spread_max}`, sort: (g) => decisionNum(g, "temp_f") },
   alt_heat: { id: "alt_heat", label: "Alt+Heat", flag: "Alt+Heat", sports: ["cfb"],
     desc: (t) => `Travel altitude > ${t.altitude_m} m · spread within ±${t.cfb_open_spread_max} · temp > ${t.alt_temp_f} °F`, sort: (g) => (isNum(g.travel_alt) ? Number(g.travel_alt) : -Infinity) },
 };
 const PRESET_ORDER = ["cfb_wind", "nfl_wind", "heat", "alt_heat"];
-const wxNum = (g, k) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
+// Sort on the forecast that drove the decision (process.wind_mph / temp_f), not the stitched fields.
+const decisionNum = (g, key) => { const value = decisionNumber(g, key); return value === null ? -Infinity : value; };
 
 // Rule text is built from the thresholds the pipeline published on the cards.
 function presetDesc(pr) {
@@ -90,7 +91,7 @@ function renderSignals() {
   if (preset) rows = presetSort(presetGames(preset), preset);
   else {
     rows = currentGames();
-    rows.sort((a, b) => wxNum(b, "wind_fg") - wxNum(a, "wind_fg"));
+    rows.sort((a, b) => decisionNum(b, "wind_mph") - decisionNum(a, "wind_mph"));
   }
   document.getElementById("rowcount").textContent = rows.length
     ? `${rows.length} ${preset ? preset.label : STATE.focus === "all" ? "inspected" : "signal / near-signal"} game${rows.length === 1 ? "" : "s"}`

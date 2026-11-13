@@ -109,7 +109,6 @@ football_weather/
       data/                                # gitignored build output
   scripts/
     recon_book.py            # generic Playwright response logger (copied recon_betcris.py)
-    fixtures_scrub.py        # raw capture -> scrubbed test fixture
   tests/
     fixtures/raw/{betonline,betcris,fanduel,kalshi,novig,prophetx,pinnacle,openmeteo,nws,nflverse,cfbd}/
     fixtures/golden_v1.parquet
@@ -331,12 +330,12 @@ See `docs/BOUNDARY_TYPES.md` for the status-filter audit and drift fixes.
           line_open_missing, under_prob_move, book_adverse_max, under_prob_basis, price_gate_max, price_blocked,
           candidate, watch, alert, ecmwf_missing, rain_partner, rain_partner_mm, ecmwf_mm, books,
           decision_version, evaluated_at, eligible, ineligible_reasons,
-          discovery_state, discovery_reasons, signal_probability,
+          discovery_state, discovery_reasons,
           display_label, display_color, display_muted, flags, alert_label,
           price_gate_passed,
           thresholds {temp_max_f, temp_gate, wind_watch_mph, wind_flag_mph, rain_ignore_mm,
                       rain_watch_mm, rain_signal_mm, rain_agree_tol_mm, under_prob_move_max,
-                      cfb_open_spread_max, signal_probability_min, heat_temp_f, home_temp_max_f,
+                      cfb_open_spread_max, heat_temp_f, home_temp_max_f,
                       altitude_m, alt_temp_f, ecmwf_lead_h, cfb_high_wind_mph,
                       nfl_high_temp_min_f, nfl_high_temp_max_f, cfb_very_high_temp_max_f,
                       severity_temp_max_f}},   (docs/PROCESS_SPEC.md; v1 impact inputs are unchanged)
@@ -457,7 +456,7 @@ Historical NFL fixtures store fractions (`gs_fg=-0.035`); CFB fixtures store per
 - NFL severity, highest tier first: `wind_fg>15 and 32≤temp_fg≤45` → High/purple/40; `wind_fg>15 and temp_fg<65` → Mid/orange/25; heavy rain `≥ 23` mm, or sustained wind `≥ 15` that is not already Mid/High, → Low/blue/15; else No/green/7. A warm flag is Low while the temperature gate is off. Exactly 15 mph is Low, not Mid.
 - CFB: every weather signal first requires `|consensus.spread_open|≤10`; a missing or wider opening spread is No Impact. Wind eligibility is sustained wind `≥ 15` mph. Temperature does not block unless the optional CFB gate is on. It guarantees at least Low (Wind). Severity stays at the historical boundary: wind `> 21.5` with temp `< 65` is High, and wind `> 21.5` with temp `< 50` is Very High, so a warm flag stays Low. Mid (orange,25): travel_alt>800 & temp>75; Low rain: rain `≥ 23` mm; Low heat: temp>80 & home_temp<57 & away_temp<57. Low rain is black, Low heat red, Low wind blue; No is green (7). Heat and altitude are not under-screen alerts.
 - Combined flags: every CFB flag first requires `|consensus.spread_open|≤10`; `CFB Wind` and `NFL Wind`: sustained wind `≥ 15` (temperature only when that league's optional gate is on); `Heat`: home_temp<57 & away_temp<57 & temp>80; `Alt+Heat` (CFB): travel_alt>800 & temp>75. Colors purple/blue/red/saddlebrown; `dot_size = |gs_fg_pct|*4+7` (NOTE: old NFL used fraction → ≈7; new uses percent for both, marked improvement).
-- Backtest bucket lookup reproduces `pages/cfb_weather.py` first-match semantics against `backtest.json`.
+- Backtest bucket lookup reproduces the legacy Streamlit `pages/cfb_weather.py` (since removed) first-match semantics against `backtest.json`.
 
 ### 7.5 v2 (additive, `model_version='v2'`, shown side by side)
 - `w_eff = 0.7*wind_fg + 0.3*gust_fg`; `w_dir = sqrt(cross² + 0.5·head²)` computed from `w_eff` components; `wind_c2 = min(12, 0.55*max(0, w_dir−10)^1.15)`.
@@ -744,7 +743,7 @@ Table view: all GameCard columns, sortable, filters (sport, week, signal, min ed
 - Workflow Telegram failure steps outside the pipeline require explicit `TELEGRAM_SYSTEM_ALERTS=1`. The pipeline pages, without that switch, when a publish is rejected or the gate or light job fails. A Playwright-only failure still requires the switch. The pipeline owns one run-level notification after all jobs. Concurrency group `football-refresh` remains on pipeline/backtest/calibrate/build-stadiums.
 
 ## 14. Secrets
-GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts:Edit, R2:Edit, D1:Edit), `CF_ACCOUNT_ID` (= ba4875f01f2bc46dd48e1e26d2ec9080, exported as `CLOUDFLARE_ACCOUNT_ID`), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (+ optional `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB`), optional weekly-report SMTP (`POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`, `SMTP_STARTTLS`), `CFBD_API_KEY`, `PROPHETX_API_KEY` or `PROPHETX_ACCESS_KEY`+`PROPHETX_SECRET_KEY`, optional `ODDS_API_KEY`, optional `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (boto3 path), optional `NOVIG_CLIENT_ID`/`NOVIG_CLIENT_SECRET` (NBX fallback, passed into the pipeline light job; the public catalog does not use them). Optional variable `TELEGRAM_SYSTEM_ALERTS=1` enables aggregated operations paging; default is `0`. Derived env: `PROPHETX_ENABLED`, `BOOK_*_ENABLED`.
+GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts:Edit, R2:Edit, D1:Edit), `CF_ACCOUNT_ID` (= ba4875f01f2bc46dd48e1e26d2ec9080, exported as `CLOUDFLARE_ACCOUNT_ID`), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (+ optional `TELEGRAM_CHAT_ID_NFL`, `TELEGRAM_CHAT_ID_CFB`), optional weekly-report SMTP (`POSTMORTEM_EMAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`, `SMTP_STARTTLS`), `CFBD_API_KEY`, `PROPHETX_API_KEY` or `PROPHETX_ACCESS_KEY`+`PROPHETX_SECRET_KEY`, optional `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (boto3 path), optional `NOVIG_CLIENT_ID`/`NOVIG_CLIENT_SECRET` (NBX fallback, passed into the pipeline light job; the public catalog does not use them). Optional variable `TELEGRAM_SYSTEM_ALERTS=1` enables aggregated operations paging; default is `0`. Derived env: `PROPHETX_ENABLED`, `BOOK_*_ENABLED`.
 Worker secrets (`wrangler secret put`): `BOARD_PASSWORD`, `BOARD_ADMIN_USERNAME`, `BOARD_ADMIN_PASSWORD`, `GH_DISPATCH_TOKEN` (fine-grained PAT, Actions:write on football_weather; expiry tracked), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 Local dev: `.env` (python-dotenv), never committed.
 

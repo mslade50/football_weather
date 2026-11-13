@@ -27,7 +27,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -275,13 +275,31 @@ def average_spread(books: dict[str, float]) -> tuple[float | None, str]:
     return round(sum(vals) / len(vals), C.SPREAD_AVG_DP), spread_src_label(b for b in C.SPREAD_CONSENSUS_BOOKS if b in books)
 
 
+def quote_usable_for_pricing(gl: GameLine, now: datetime) -> bool:
+    """The one pricing-time freshness rule, shared by consensus and total comparison.
+
+    Not usable: no tz-aware ``scraped_at``, a ``scraped_at`` later than ``now`` by more
+    than ``PRICING_CLOCK_SKEW``, older than ``PRICING_MAX_QUOTE_AGE``, or an
+    ``expires_at`` that is naive or at/before ``now``.
+    """
+    scraped = gl.scraped_at
+    if scraped is None or scraped.tzinfo is None or now.tzinfo is None:
+        return False
+    age = now - scraped
+    if age < -C.PRICING_CLOCK_SKEW or age > C.PRICING_MAX_QUOTE_AGE:
+        return False
+    if gl.expires_at is not None and (gl.expires_at.tzinfo is None or gl.expires_at <= now):
+        return False
+    return True
+
+
 def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> list[GameLine]:
     """Lines that may move consensus, the spread average, edges, or n_books.
 
     BetCris stays on the board as a reference. It never prices the fair line,
     including while it is still inside the provider timer. Any other line past
     its own actionable_until is also excluded when ``now`` is set. Provider
-    expiry and the one-hour observation ceiling are checked at this pricing
+    expiry and the observation ceiling are checked (quote_usable_for_pricing) at this pricing
     clock, never reapplied to the published card.
     """
     kept: list[GameLine] = []
@@ -290,12 +308,8 @@ def _pricing_lines(lines: Iterable[GameLine], now: datetime | None = None) -> li
             continue
         if now is not None and gl.reference_only(now):
             continue
-        if now is not None:
-            if gl.expires_at is not None and (gl.expires_at.tzinfo is None or now > gl.expires_at):
-                continue
-            if gl.scraped_at is not None and (gl.scraped_at.tzinfo is None
-                    or now - gl.scraped_at > timedelta(hours=1)):
-                continue
+        if now is not None and not quote_usable_for_pricing(gl, now):
+            continue
         kept.append(gl)
     return kept
 

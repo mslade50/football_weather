@@ -44,7 +44,7 @@ Already extracted copies (scratchpad, session-local, may vanish): `C:/Users/McKi
 - Odds: CFB totals from FanDuel (Fd_open/FD_now + under prices Odds_o/Odds_n); CFB Open/Current = home spread (source unstated, likely FanDuel); NFL Spread/Total/Odds/Under from BetOnline (naming matches bol_ncaaf.db schema; Game key 'away vs home' lowercase city = BOL names minus mascots).
 - Projection feed (Spread/Total_proj) dead since Oct 2024; My_total/Edge/My_spread/Edge_s NaN since.
 
-## 4. Column specs (the contract `pipeline/outputs/legacy.py` must reproduce)
+## 4. Column specs (the legacy contract; the writer `pipeline/outputs/legacy.py` has since been removed)
 
 ### 4.1 nfl_weather.csv (31 cols, in order)
 `Game` ('away vs home', lowercase city: 'n.y. giants vs chicago', 'l.a. rams vs san francisco'), `Date` ('SUN 11/09'), `Time` ('01:00 PM' local kickoff), `stadium`, `avg_wind` (static mph, 0.0 domes), `wind_vol` (static low/mid/high/very high), `orient` (N-S, NW-SE, E-W, NE-SW; domes 'E'/'NE'), `wind_impact` (static low/med; NaN domes), `weakest_wind_effect` ('all','E/W','x N','x S','x N/W','S/E,N/W'), `game_loc` ('lat, lon'), `travel_alt` (home elev − away elev, m, int), `home_temp`, `away_temp` (annual avg F per team city), `year_built`, `wind_dir_1h`, `wind_dir_2h` (16-pt compass), `temp_fg` (mean F over window, unrounded), `wind_fg` (mean mph, unrounded), `wind_dir_fg`, `rain_fg` (sum mm), `gs_fg` (negative FRACTION e.g. -0.035), `away_fg` (fraction), `Spread_now`, `Odds_now`, `Total_now`, `Under_now`, `Spread_open`, `Odds_open`, `Total_open`, `Under_open`, `Timestamp` (ISO local ET, no tz).
@@ -90,7 +90,7 @@ Line counts: build.py 3262, state.py 539, worker/index.js 1156, telegram.py 120,
 |---|---|---|
 | `golf_scraping/utils/telegram.py` | `utils/telegram.py` | keep `send_message`; rewrite `format_alert` |
 | `golf_scraping/board/state.py` L40-50 `_load/_save`, L55-116 openers, L213-256 archive_last+scrape_baseline, L258-290 alerts (load_alerts/alert_sent/mark_alert/save_alerts), L294-391 change-only history | `pipeline/state.py` | rename player→side/team keys; ALERTS_CAP 200→500; HISTORY_CAP 60→120; add `schema_version` + `migrate()` |
-| `golf_scraping/utils/state.py` (compute_delta/save_state/today_et) | `utils/state.py` | key = `game_id|market|book` |
+| `golf_scraping/utils/state.py` (compute_delta/save_state/today_et) | `utils/state.py` (removed; unused) | key = `game_id|market|book` |
 | `golf_scraping/scrapers/base.py` | `pipeline/odds/base.py` | keep BaseScraper/scrape_with_retry/to_dataframe; add `GameLine` dataclass |
 | `golf_scraping/board/d1_schema.sql` | `site/worker/migrations/0001_init.sql` | replaced by ARCHITECTURE §4 schema, same style |
 | `golf_scraping/board/build.py` L150-170 + L891-910 (`american_to_prob/prob_to_american/american_to_decimal/_best/_median`), L911 `_retry`, L1887-1983 (`_d1_sql_value/_write_d1_deltas/_archive_rows`), L2255-2357 `_check_scrape_volume`, L2494-2502 `_alert_once`, L3196-3204 payload write loop `allow_nan=False`, L3220-3238 `push_to_r2` boto3 | `pipeline/build.py`, `pipeline/model/fair.py`, `pipeline/outputs/d1_out.py` | rename keys to `game_id|market|side|book` |

@@ -9,20 +9,28 @@ are atomic; queries are read-only. SQLite files and sidecars are ignored by git.
 
 The exact cached file is `data/cache/obslog/observations.sqlite`. Split
 `actions/cache/restore@v4` and `actions/cache/save@v4` use immutable keys
-`obslog-v2-<runner.os>-<run_id>-<run_attempt>-<job>`. Light falls back to the
-`obslog-v2-<runner.os>-` prefix (newest entry). Playwright waits for light and
-first tries the full light key from the **same run and attempt**, then that
-prefix. Thus it includes light's rows whenever light's best-effort save succeeds,
-independently of any older Playwright cache. Workflow concurrency
-`football-refresh` serializes runs. A cache service/save outage can lose evidence;
-it cannot affect publication. A rerun may start with already-seen receipts;
-identical appends are idempotent.
+`obslog-v2-<runner.os>-<run_id>-<run_attempt>-<job>` and restore the
+`obslog-v2-<runner.os>-` prefix (newest entry). **One cache entry per run:** when a
+Playwright job follows (`need_playwright`), light does not save; it uploads the log
+as the one-day artifact `obslog-handoff-<run_id>` (no attempt in the name, uploaded
+with `overwrite`, so a re-run of only the Playwright job still finds it). Playwright
+restores the older cache, then downloads the handoff over it, so its log has light's
+rows, and it saves the run's single cache entry. If Playwright never publishes
+(light red before publication), that run's light rows are lost. Without a Playwright
+job light saves itself. This keeps GitHub's 10 GB cache from being churned by two
+large unique entries per run. Workflow concurrency `football-refresh` serializes
+runs. A cache service/save outage can lose evidence; it cannot affect publication.
+A rerun may start with already-seen receipts; identical appends are idempotent.
+Every shadow step has `timeout-minutes` of 5 or less so it cannot consume the job's
+30 minutes. Shadow problems go to the run log only (`::warning::Observation log
+shadow: ...`); they are never published degradations, never reach `meta` or D1
+`runs`, and never change the Status tab.
 
 A cold/evicted cache starts empty. Prepare performs `PRAGMA quick_check`; corrupt
 files and sidecars are renamed beside the database to `*.corrupt-<UTC>.sqlite`,
-excluded from the cache. Hook recovery records a warn degradation; workflow
-prepare emits an Actions warning. Unknown future schema versions are rejected,
-not discarded. All evidence/report/cache steps are best effort. Database contents
+excluded from the cache. Hook recovery and workflow prepare emit run-log
+Actions warnings only. An unknown or newer schema version is
+quarantined the same way (bytes kept beside the file, empty log started). All evidence/report/cache steps are best effort. Database contents
 persist **only in Actions cache**, never a state group, upload manifest, R2 object,
 D1 table or migration. JSON parity evidence is in the existing build-log artifact.
 
@@ -209,7 +217,9 @@ applying `d1_inserts.sql`. `stage_odds` computes deltas then advances the marker
 `weather_deltas` advances its marker too. No pending SQL, retry or failure-page/
 receipt recovery covered the resulting lost-delta risk.
 
-The local `pipeline.obslog.archive` workflow adapter prepares exact pending-plus-
+The local `pipeline.outputs.d1_pending` workflow adapter (not part of the
+observation log; the queue is bounded at 48 run chunks / 1 MiB and drops the oldest
+chunks with a loud warning rather than failing forever on a rejected statement) prepares exact pending-plus-
 fresh SQL, attempts the existing D1 execution, acknowledges success, then publishes
 the board/state/meta in their existing order. D1 failure is reported as a failed
 job **after** publication/self-check, so failure/recovery paging remains intact.

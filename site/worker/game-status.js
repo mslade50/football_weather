@@ -7,6 +7,8 @@ export function gameStatusCode(game) {
     [/tbd/i, "tbd"], [/unknown/i, "unknown"]].find(([pattern]) => pattern.test(raw));
   return match ? match[1] : raw.toLowerCase() === "scheduled" ? "scheduled" : "unspecified";
 }
+// A published status_code outside the vocabulary (or empty) is not bettable, as in
+// utils/game_status.py. tests/fixtures/game_status_table.json pins all three copies.
 export function bettableBeforeKickoff(game, now = Date.now()) {
   return Date.parse(game.kickoff_utc) > now
     && ["scheduled", "tbd", "unknown", "unspecified"].includes(gameStatusCode(game));

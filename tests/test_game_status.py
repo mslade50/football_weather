@@ -46,3 +46,18 @@ def test_week_selection_drift_is_fixed(status):
     def game(week, hours, raw):
         return Game(f'nfl:2026:{week}:a@b', 'nfl', 2026, week, NOW + timedelta(hours=hours), NOW, 'UTC', 'b', 'a', None, status=raw)
     assert json_out.current_week([game(10, 1, status), game(11, 5, 'scheduled')], NOW) == 11
+
+
+def _table():
+    import json
+    from pathlib import Path
+    return json.loads((Path(__file__).parent / 'fixtures' / 'game_status_table.json').read_text(encoding='utf-8'))['cases']
+
+
+@pytest.mark.parametrize('case', _table(), ids=lambda c: f"{c['status_code']!r}-{c['status']!r}-{c['kickoff']}")
+def test_shared_status_table_matches_python(case):
+    kickoff = {'future': (NOW + timedelta(hours=1)).isoformat(), 'past': NOW.isoformat(), 'invalid': 'invalid'}[case['kickoff']]
+    card = {'status': case['status'], 'kickoff_utc': kickoff}
+    if case['status_code'] is not None:
+        card['status_code'] = case['status_code']
+    assert bettable_before_kickoff(card, NOW) is case['bettable']

@@ -83,6 +83,7 @@ from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.model.impact import ImpactV1, ImpactV2, compute_impact_v1, compute_impact_v2
 from pipeline.odds import handoff
 from pipeline.odds import merge as odds_merge
+from pipeline.odds.base import book_enabled  # single BOOK_<NAME>_ENABLED resolver
 from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
@@ -204,10 +205,6 @@ def books_for_scope(scope: str, books: Sequence[str] | None = None) -> list[str]
     # BOOK_<NAME>_ENABLED=0 (repo variable / .env) drops a book from the run entirely:
     # no scrape, no "returned 0 lines" degradation, not judged by the volume check.
     return [b for b in chosen if book_enabled(b)]
-
-
-def book_enabled(name: str) -> bool:
-    return os.environ.get(f"BOOK_{name.upper()}_ENABLED", "1").strip() != "0"
 
 
 # ---- stages ---------------------------------------------------------------------
@@ -573,7 +570,7 @@ def stage_weather(
             from pipeline.obslog.shadow import weather as shadow_weather
             shadow_weather(os.environ["OBSLOG_SHADOW_PATH"], ctx, games, fc)
         except Exception as exc:  # noqa: BLE001
-            ctx.degrade("obslog.weather", f"shadow unavailable: {type(exc).__name__}", "warn")
+            print(f"::warning::Observation log shadow: weather unavailable ({type(exc).__name__})")
     return fc
 
 
@@ -1270,7 +1267,7 @@ def stage_odds(
                               for name, result in outcomes.items()}
             shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, shadow_results)
         except Exception as exc:  # noqa: BLE001
-            ctx.degrade("obslog.odds", f"shadow unavailable: {type(exc).__name__}", "warn")
+            print(f"::warning::Observation log shadow: odds unavailable ({type(exc).__name__})")
     # Books not scraped this run (the Playwright job runs --books betonline only)
     # keep their last snapshot from archive_last so consensus / FD_now do not
     # collapse to a one-book view between the light and playwright commits.

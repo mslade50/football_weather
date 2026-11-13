@@ -22,31 +22,27 @@ curl's whole-transfer `--max-time` deadline. No send is retried by the transport
 
 ## State membership
 
-`pipeline/outputs/r2.py` owns state names and ordered `STATE_GROUPS`. The shared
-scripts accept `--group`; workflows contain no literal `STATE_FILES` environment
-list. Explicit groups take precedence over the legacy environment override,
-which remains available to existing standalone callers. Fetching a state group
-also reads `board/meta.json` into `data/state/prev_meta.json`. Publishing state
-still skips absent local files and `BUILD_PROTECTED_NAMES` (including alerts,
-telegram_state, cf_heartbeat and bet_confirmations).
-
-The first twelve historical state names, in order, are openers, history,
+`pipeline/outputs/r2.py` owns the state names. `STATE_FILES` is the single
+pipeline list (the first twelve historical names in order: openers, history,
 wx_history, archive_last, wx_last, alerts, scrape_baseline, telegram_state,
-cf_heartbeat, closings, status and ensemble_cache. The former lists are preserved
-as these named groups:
+cf_heartbeat, closings, status, ensemble_cache; then nws_points, bet_confirmations,
+book_health). It is the `pipeline` group, the build's publication manifest, and the
+default for module and standalone callers. `STATE_GROUPS` holds only `pipeline` and
+`backtest` (alerts, closings, history, wx_history, openers: deliberate read-only
+subset). The shared scripts accept `--group`; workflows contain no literal
+`STATE_FILES` environment list. Explicit groups take precedence over the legacy
+environment override, which remains available to existing standalone callers.
+Fetching a state group also reads `board/meta.json` into `data/state/prev_meta.json`.
+Publishing state still skips absent local files and `BUILD_PROTECTED_NAMES`
+(including alerts, telegram_state, cf_heartbeat and bet_confirmations).
 
-| Former caller/list | Group | Ordered membership |
-| --- | --- | --- |
-| `pipeline.outputs.r2.STATE_FILES` | module | First twelve, bet_confirmations, book_health |
-| `scripts.publish_r2.STATE_FILES` (also fetch default) | default | First twelve, nws_points |
-| `pipeline.yml` environment | pipeline | First twelve, nws_points, bet_confirmations, book_health |
-| `backtest.yml` environment | backtest | alerts, closings, history, wx_history, openers |
+The former `module` and `default` groups and `scripts.publish_r2.STATE_FILES` were
+removed: they only served fallbacks and had drifted (the module list lacked
+nws_points, the script default lacked bet_confirmations/book_health). Ad-hoc
+callers without `--group` now also read those two receipt files; missing objects
+are tolerated and workflows always pass `--group pipeline`.
 
-`STATE_FILES` in the module retains its original module-default tuple, including
-the existing publisher key ranking. The script's compatibility alias points to
-the centralized default group. No default gains a read or a write.
-
-Local history audit:
+Local history audit (historical; the drift below has since been removed):
 
 - `f01b955` added nws_points to pipeline.yml. `1117a54` carried it into the new
   standalone publisher list. The module list never received it: historical drift,
@@ -104,19 +100,22 @@ a real workflow run and are not exercised by these offline checks.
 
 Light and Playwright publish builds set `OBSLOG_SHADOW_PATH` to the exact
 `data/cache/obslog/observations.sqlite` Actions-cache file. Split v4 restore/save
-keys include OS, run, attempt and job; Playwright tries this run's light key
-before the shared latest-cache prefix. Best-effort parity, maintenance and save
+keys include OS, run, attempt and job, and each run saves one entry; light hands its
+log to Playwright as the attempt-free one-day artifact `obslog-handoff-<run_id>`. Best-effort parity, maintenance and save
 run even after build failure. The database is never in a state group, upload
 manifest, artifact path or remote upload. Parity JSON is under `data/raw_runs/`
 in each existing build-log artifact; the job summary contains its counts.
 See `docs/notes/observation-log.md` for retention and evidence gates.
 
 The D1 step now runs before the existing R2 publish sequence. Before it, the
-local `pipeline.obslog.archive prepare` adapter prepends `pending_d1_sql` from
+local `pipeline.outputs.d1_pending prepare` adapter prepends `pending_d1_sql` from
 `archive_last.json` to fresh SQL and retains the exact combined text in that
 same existing state object. Success acknowledges it locally before the ordinary
 state upload. Failure leaves it queued, still publishes board/state/meta (meta
-last), then fails the job after self-check to retain failure/recovery paging.
+last), and the job's final step reports the deferred failure so the run ends red
+(failure paging) after everything else ran. The Playwright job gates on light's
+`published` output, not its result. Same-workflow artifacts carry no attempt number
+and upload with `overwrite`, so "Re-run failed jobs" finds them.
 Replay uses existing idempotent inserts/upserts, including after partial D1
 application. There are no extra R2 upload calls, objects, tables or migrations.
 The original claim that upload-before-D1 could silently lose deltas was valid;

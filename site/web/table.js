@@ -120,8 +120,7 @@ function retainedWeatherAttrs(wx) {
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];
   if (wx.retained) return `<span class="coverage-note pricing-stale muted">${esc(retainedForecastText(wx))}</span>`;
-  const missing = ["temp_fg", "wind_fg", "rain_fg"].filter(key => !finiteValue(wx[key]));
-  if (missing.length) issues.push("Forecast incomplete");
+  if (missingForecastFields(g).length) issues.push("Forecast incomplete");
   if (wx.point_aged) issues.push("Point forecast aged");
   if (wx.ensemble_status === "retained_members_degraded" || (wx.ensemble_unverified_sources || []).length) issues.push("Ensemble unverified");
   else if (wx.ensemble_status === "partial_members_degraded") issues.push("Partial ensemble");
@@ -339,7 +338,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
   const cons = (k) => (g) => (g.consensus && isNum(g.consensus[k]) ? Number(g.consensus[k]) : -Infinity);
   const cols = [
     ["Game", "Away @ Home · kickoff Eastern (EDT/EST), then stadium local time if different. Click for detail.", (g) => parseTs(g.kickoff_utc) ? parseTs(g.kickoff_utc).getTime() : 0],
-    ["Discovery", "Process screen: cold + sustained wind or heavy rain. Likelihood is separate from impact severity", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
+    ["Discovery", "Process screen: sustained wind or agreed heavy rain. Severity is separate", g => ({signal: 0, near: 1, moved: 2, unknown: 3, quiet: 4})[discoveryState(g).kind] ?? 5],
     ["Stadium / wind", "Field axis and wind blowing from the reported bearing. Exact coordinates and retrospective same-venue signal records; details show rules and coverage.", coordinateLabel],
     ["Temp", "Forecast temp °F at kickoff (3h mean)", w("temp_fg")],
     ["Wind", "Forecast wind mph (3h mean) · direction", w("wind_fg")],
@@ -347,7 +346,7 @@ function tableColumns(books, withSpreads = BOOK_SPREADS) {
     ["Rain", "Rain mm over kickoff..+2h · precip prob", w("rain_fg")],
     ["GS %", "v1 game-score impact % (negative = under lean)", (g) => impactPct(g, "gs_fg_pct")],
     ["Away %", "v1 away-team impact %", (g) => impactPct(g, "away_fg_pct")],
-    ["Signal", "Weather signal severity + matched filters", (g) => ["No", "Low", "Mid", "High", "Very High"].indexOf(signalTier(g.signal))],
+    ["Signal", "Weather signal severity + matched filters", severityRank],
     ["Spread", "Consensus spread (home) open → now = average of Betcris / BetOnline / Pinnacle (hover for the books used)", cons("spread_now")],
     ["Total", "Consensus baseline → now. CFB targets kickoff minus 6 days, falling back to first observed if collected later; NFL uses first seen. Pinnacle-weighted.", cons("total_now")],
   ];
@@ -400,7 +399,7 @@ function renderTable(rows, opts = {}) {
     rows.sort((a, b) => (parseTs(a.kickoff_utc) || 0) - (parseTs(b.kickoff_utc) || 0) || String(a.game_id).localeCompare(String(b.game_id)));
   }
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">${typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[STATE.sport]) ? "Game data unavailable; reload to retry." : "No eligible candidates for these filters. Inspect low likelihood / unknown to review other open-air games."}</td></tr>`;
+    tbody.innerHTML = `<tr><td class="empty" colspan="${cols.length}">${typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[STATE.sport]) ? "Game data unavailable; reload to retry." : "No eligible candidates for these filters. Inspect or Show all games to review quiet and unknown open-air games."}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((g) => {

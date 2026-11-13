@@ -70,8 +70,8 @@ Checks are `python -m pytest tests -q` and `node --test site/worker/test/*.test.
 ```
 pipeline/   build.py contracts.py state.py gate_check.py run_context.py alerts.py
             schedule/ stadiums/ weather/ model/ odds/ outputs/
-utils/      telegram.py state.py timeutil.py
-scripts/    recon_book.py _git_history.py fixtures_scrub.py
+utils/      telegram.py timeutil.py
+scripts/    recon_book.py _git_history.py
 site/       worker/ (wrangler.toml index.js migrations/ SETUP.md test/)
             web/ (index.html app.js table.js map.js drawer.js alerts.js status.js vendor/)
 tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test/*.test.mjs` for the Worker)

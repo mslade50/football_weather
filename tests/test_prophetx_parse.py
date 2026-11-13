@@ -169,3 +169,28 @@ def test_scraped_at_threaded(cfb_payload: dict) -> None:
     ts = datetime(2026, 8, 23, 12, 0, tzinfo=timezone.utc)
     lines = px.parse_payload(cfb_payload, "cfb", scraped_at=ts)
     assert all(ln.scraped_at == ts for ln in lines)
+
+
+def test_config_error_is_fatal_and_not_retried(monkeypatch):
+    import asyncio
+
+    from pipeline.odds import prophetx as px_scraper
+    from pipeline.odds.base import FatalScrapeError
+
+    assert issubclass(px_scraper.ProphetXConfigError, FatalScrapeError)
+    monkeypatch.setattr(px_scraper, "_load_dotenv", lambda: None)
+    for var in ("PROPHETX_API_KEY", "PROPHETX_ACCESS_KEY", "PROPHETX_SECRET_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    scraper = px_scraper.ProphetXScraper()
+    assert scraper.MAX_RETRIES > 1
+    calls = []
+    real = scraper.scrape
+
+    async def counting(*a, **k):
+        calls.append(1)
+        return await real(*a, **k)
+
+    monkeypatch.setattr(scraper, "scrape", counting)
+    assert asyncio.run(scraper.scrape_with_retry("nfl")) == []
+    assert len(calls) == 1
+    assert "not configured" in scraper.fetch_errors["nfl"]

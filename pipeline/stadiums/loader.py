@@ -304,6 +304,17 @@ def read_climatology_summary(path: Path) -> dict[str, dict[str, str]]:
     return {r["stadium_id"]: r for r in _read_csv(path) if _blank(r.get("iso_week"))}
 
 
+def _unique_by_id(rows: list[dict[str, str]], source: str) -> dict[str, dict[str, str]]:
+    """Index rows by stadium_id; a repeated id is a data error, never last-one-wins."""
+    out: dict[str, dict[str, str]] = {}
+    for r in rows:
+        sid = r["stadium_id"]
+        if sid in out:
+            raise ValueError(f"duplicate stadium_id {sid!r} in {source}")
+        out[sid] = r
+    return out
+
+
 def load_stadium_rows(data_dir: Path = DATA_DIR) -> list[dict[str, str]]:
     """Curated rows own identity; each nonblank curated value wins over enrichment.
 
@@ -311,10 +322,10 @@ def load_stadium_rows(data_dir: Path = DATA_DIR) -> list[dict[str, str]]:
     retain their existing absent monthly wind values (static indoor wind is zero).
     Enriched-only ids are proposals, not new identities.
     """
-    enriched = {r["stadium_id"]: r for r in _read_csv(data_dir / "stadiums_enriched.csv")}
+    enriched = _unique_by_id(_read_csv(data_dir / "stadiums_enriched.csv"), "stadiums_enriched.csv")
     climate = read_climatology_summary(data_dir / "climatology.csv")
     rows = []
-    for curated in _read_csv(data_dir / "stadiums.csv"):
+    for curated in _unique_by_id(_read_csv(data_dir / "stadiums.csv"), "stadiums.csv").values():
         sid = curated["stadium_id"]
         row = dict(enriched.get(sid, {}))
         row.update({k: v for k, v in curated.items() if not _blank(v)})

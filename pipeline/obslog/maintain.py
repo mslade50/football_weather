@@ -9,7 +9,7 @@ from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .store import connect, instant, utc
+from .store import UnsupportedSchema, connect, instant, utc
 
 KEEP_DAYS = 2
 MAX_MIB = 192
@@ -47,7 +47,9 @@ def recover_connect(path, warn=None, *, check=False):
         if check and conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise sqlite3.DatabaseError("integrity check failed")
         return conn
-    except sqlite3.DatabaseError:
+    except (sqlite3.DatabaseError, UnsupportedSchema):
+        # A corrupt file and a newer/unknown schema are both unusable here; the
+        # cache is disposable, so keep the bytes beside it and start empty.
         if conn is not None:
             conn.close()
         quarantine(path)

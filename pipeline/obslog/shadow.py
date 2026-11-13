@@ -1,4 +1,9 @@
-"""Best-effort local shadow receipt. These helpers cannot affect pipeline values."""
+"""Best-effort local shadow receipt. These helpers cannot affect pipeline values.
+
+Problems are reported to the run log only. They must never reach ``ctx.degrade``:
+degradations are published in meta, archived to D1 and drive the Status tab, and
+the shadow log is not allowed to change anything production publishes.
+"""
 
 from contextlib import closing
 from datetime import datetime, timezone
@@ -10,6 +15,11 @@ from .maintain import recover_connect
 from .store import append_forecasts, append_odds
 
 
+def note(message):
+    """Run-log line (GitHub annotation); deliberately not a published degradation."""
+    print(f"::warning::Observation log shadow: {message}")
+
+
 def connect(path):
     return recover_connect(path)
 
@@ -17,7 +27,7 @@ def connect(path):
 def recovery_degradation(path, ctx):
     notice = Path(path).with_suffix(".recovered")
     if notice.exists():
-        ctx.degrade("obslog.cache", "corrupt cache moved aside; starting an empty log", "warn")
+        note("corrupt or unsupported cache moved aside; starting an empty log")
         notice.unlink()
 
 
@@ -33,7 +43,7 @@ def odds(path, ctx, sport, games, lines, books, results):
             append_odds(conn, lines, games=games, run_id=ctx.run_id, observed_at=datetime.now(timezone.utc),
                         started_at=getattr(ctx, "started_at", ctx.now_utc), attempted=attempted, successful=successful)
     except Exception as exc:  # noqa: BLE001
-        ctx.degrade("obslog.odds", f"local shadow append failed: {type(exc).__name__}", "warn")
+        note(f"odds append failed: {type(exc).__name__}")
 
 
 def weather(path, ctx, games, forecasts):
@@ -43,4 +53,4 @@ def weather(path, ctx, games, forecasts):
             append_forecasts(conn, list(forecasts.values()), games=games, run_id=ctx.run_id,
                              fetched_at=datetime.now(timezone.utc), started_at=getattr(ctx, "started_at", ctx.now_utc))
     except Exception as exc:  # noqa: BLE001
-        ctx.degrade("obslog.weather", f"local shadow append failed: {type(exc).__name__}", "warn")
+        note(f"weather append failed: {type(exc).__name__}")

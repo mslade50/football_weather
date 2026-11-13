@@ -109,7 +109,6 @@ provider outage into a failed run.
 ### Phase 2 — Odds scrapers: DONE
 - httpx books `pipeline/odds/{pinnacle,betcris,fanduel,kalshi,novig,prophetx}.py` + `parsers/`; Playwright book `betonline.py` (own job in `pipeline.yml`, `--scope odds --books betonline --merge-into-r2`; `BETONLINE_CHANNEL` picks an installed Chrome).
 - `pipeline/odds/merge.py` + `teams.py` aliases (57 tests), `pipeline/model/fair.py` (fair/edge, golden `golden_fair_2024`), openers persisted in `state/openers.json` (CFB totals use the line in force at kickoff−6 days; spreads and NFL remain first-seen), scrape-volume baseline (`test_scrape_volume`), per-book `BOOK_<NAME>_ENABLED` switches.
-- `pipeline/odds/oddsapi.py` (Phase 6 add-on): optional The Odds API historical opener seeding, off unless `ODDS_API_KEY` set.
 
 ### Phase 3 — Cloudflare Worker + R2 + D1 + JSON board: CODE DONE, NOT DEPLOYED
 - `site/worker/index.js` (Basic-Auth gate, `/data/*.json` from R2, `/api/{history,wx,alerts,runs,status}` from D1, `/auth/me`, admin `POST /refresh` → workflow_dispatch, `scheduled()` heartbeat + cron→dispatch with ET trimming), `wrangler.toml` (free plan: 2 crons), migrations `0001_init 0002_alerts 0003_runs 0004_v2`, 22 node tests, `SETUP.md`.
@@ -146,7 +145,7 @@ Fixture / unit-test only (never exercised against the real service):
 - Telegram sends (`utils/telegram.py`, `pipeline/alerts.py` real sender), Worker Telegram pings.
 - Cloudflare: Worker deploy, R2 bucket, D1 database/migrations, `wrangler r2 object put` / `d1 execute` loops, boto3 `--publish` / `--merge-into-r2`, `/refresh` → GitHub dispatch, cron `scheduled()`. Worker logic is covered by the 21 node tests only.
 - All GitHub Actions workflows (`pipeline deploy backtest calibrate build-stadiums ci`) — contract-tested by `test_*_workflow.py`, never run on GitHub.
-- The Odds API historical client (`oddsapi.py`), CFBD `/games` with a real key.
+- CFBD `/games` with a real key.
 - Backtest grading, CLV settlement and calibration on real settled games (season starts 2026-08-29; all runs so far produce empty samples).
 - Frontend rendered only via `node --check` + contract tests; no browser session against the Worker.
 
@@ -159,9 +158,8 @@ Where: **.env** = local `python -m pipeline.*` runs (python-dotenv); **GH** = re
 | `CFBD_API_KEY` | `pipeline/schedule` (CFB schedule/results), `pipeline/backtest.py` results | .env, GH | optional — ESPN scoreboard fallback (warn degradation) |
 | `PROPHETX_API_KEY`, `PROPHETX_SECRET_KEY`, `PROPHETX_ACCESS_KEY`, `PROPHETX_API_BASE_URL` | `pipeline/odds/prophetx.py` | .env, GH (`_API_BASE_URL` optional, defaults in code) | optional — book returns 0 lines without them |
 | `NOVIG_CLIENT_ID`, `NOVIG_CLIENT_SECRET` | `pipeline/odds/novig.py` NBX fallback after the public catalog returns 401/403 | .env, GH (pipeline.yml light job) | optional — the public catalog at `api.novig.com/v3/public/catalog` needs neither; both must be set together or the fallback names them in the warning |
-| `BOOK_PINNACLE_ENABLED`, `BOOK_BETCRIS_ENABLED`, `BOOK_FANDUEL_ENABLED`, `BOOK_KALSHI_ENABLED`, `BOOK_NOVIG_ENABLED`, `BOOK_PROPHETX_ENABLED`, `BOOK_BETONLINE_ENABLED` | each `pipeline/odds/<book>.py` (`"0"` disables the book); `BOOK_BETONLINE_ENABLED` also read as a GH **variable** by `pipeline.yml` to skip the Playwright job | .env, GH variable | optional (default enabled) |
+| `BOOK_PINNACLE_ENABLED`, `BOOK_BETCRIS_ENABLED`, `BOOK_FANDUEL_ENABLED`, `BOOK_KALSHI_ENABLED`, `BOOK_NOVIG_ENABLED`, `BOOK_PROPHETX_ENABLED`, `BOOK_BETONLINE_ENABLED` | each `pipeline/odds/<book>.py` (`0`/`false`/`no`/`off` disables the book; one resolver, `pipeline/odds/base.py:book_enabled`); `BOOK_BETONLINE_ENABLED` also read as a GH **variable** by `pipeline.yml` to skip the Playwright job | .env, GH variable | optional (default enabled) |
 | `BETONLINE_CHANNEL` | `pipeline/odds/betonline.py` Playwright channel (e.g. `chrome`) | .env | optional |
-| `ODDS_API_KEY`, `ODDS_API_ENABLED` | `pipeline/odds/oddsapi.py` opener seeding (`ODDS_API_ENABLED=0` disables) | .env, GH (not yet referenced by any workflow) | optional |
 | `ALERT_MODEL` | `pipeline/model/config.py` — `v1` (default) or `v2` picks which impact drives alerts | .env / workflow env | optional |
 | `PIPELINE_FORCE` | `pipeline/gate_check.py` (`1` bypasses the off-season gate) | GH dispatch input / .env | optional |
 | `GITHUB_SHA`, `GITHUB_OUTPUT` | `run_context.py` meta sha, `gate_check.py` outputs | provided by Actions | — |
@@ -246,7 +244,6 @@ Note: `SETUP.md` §2 lists migrations 0001–0003; `0004_v2.sql` (v2 columns on
 - betonline Playwright job requires `playwright install chromium` (or `BETONLINE_CHANNEL=chrome`) and was not run in this pass.
 - Telegram sending, Worker `/refresh` dispatch and CF crons are unit-tested only. Free plan limits the Worker to 2 cron triggers; the full scrape cadence lives in `pipeline.yml`.
 - Legacy backtest sheet row 110 has an inconsistent `+ CLV` value (183 > Sample 87); carried through as a `legacy` reference only.
-- `ODDS_API_KEY` opener seeding is not called from any workflow (manual use).
 - `.env.example` does not exist yet; the table in §4 is the reference.
 
 ## Immutable pricing snapshots

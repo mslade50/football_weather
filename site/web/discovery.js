@@ -7,6 +7,24 @@ function publishedDecision(g) {
   return g?.process?.decision_version === "decision-v1" ? g.process : null;
 }
 function decisionEligible(g) { return publishedDecision(g)?.eligible === true; }
+// Severity, ranking and size come from the published record; a card without one has none.
+function severityTier(g) { return publishedDecision(g)?.severity_tier ?? null; }
+function severityRank(g) { const rank = publishedDecision(g)?.severity_rank; return finiteValue(rank) ? rank : null; }
+function severitySize(g) { const size = publishedDecision(g)?.severity_size; return finiteValue(size) ? size : null; }
+// The forecast that drove the decision (signal-driving), not the stitched display fields.
+function decisionNumber(g, key) { const value = publishedDecision(g)?.[key]; return finiteValue(value) ? value : null; }
+// Retained or aged weather is display-only: never drawn or described as current.
+function forecastCurrent(g) { const wx = g?.weather || {}; return !(wx.retained || wx.point_aged); }
+function staleForecastText(g) {
+  const wx = g?.weather || {};
+  return wx.retained ? retainedForecastText(wx) : wx.point_aged ? "Point forecast aged" : "";
+}
+// Fields the decision's own forecast lacks; none when the card has no record.
+function missingForecastFields(g) {
+  if (!publishedDecision(g)) return [];
+  return [["temp_f", "temperature"], ["wind_mph", "wind"], ["rain_mm", "rainfall"]]
+    .filter(([key]) => decisionNumber(g, key) === null).map(([, name]) => name);
+}
 function upcomingGame(g) {
   return bettableBeforeKickoff(g);
 }
@@ -20,8 +38,8 @@ function reasonText(code, thresholds = {}) {
     not_upcoming: "Not an upcoming scheduled game", spread_unknown: "Opening spread unknown",
     forecast_incomplete: "Forecast incomplete", forecast_retained: "Forecast retained; fresh evidence unavailable",
     forecast_aged: "Point forecast aged", source_unavailable: "source unavailable", incomplete_point: "incomplete point",
-    temp_gate: "Below screening margin", below_margin: "Below screening margin",
-    low_probability: "Very low signal likelihood", price_moved: "Under moved vs opener",
+    temp_gate: thresholds.temp_max_f == null ? "Temperature gate not met" : `Temperature gate: needs under ${thresholds.temp_max_f} °F`,
+    below_margin: "Below screening margin", price_moved: "Under moved vs opener",
     wind_signal: `wind ≥${thresholds.wind_flag_mph} mph`, rain_signal: "heavy rain",
     wind_watch: `Watch · ${thresholds.wind_watch_mph}–${thresholds.wind_flag_mph} mph wind · not a flag`,
     rain_watch: `Watch · rain ${thresholds.rain_ignore_mm}–${thresholds.rain_watch_mm} mm`,
@@ -35,13 +53,9 @@ function ineligibleReason(g) {
   const record = publishedDecision(g);
   return record ? record.ineligible_reasons.map(code => reasonText(code, record.thresholds)).join(" · ") : "Refresh pending";
 }
-function crosswindFactor(dir, orient) {
-  if (!finiteValue(dir) || !finiteValue(orient)) return null;
-  return Math.abs(Math.sin((Number(dir) - Number(orient)) * Math.PI / 180));
-}
 function discoveryState(g) {
   const record = publishedDecision(g);
-  if (!record) return {kind: "pending", label: "Refresh pending", probability: null, note: ""};
+  if (!record) return {kind: "pending", label: "Refresh pending"};
   const reasons = record.discovery_reasons || [];
   let label = reasons.map((code, index) => {
     let text = reasonText(code, record.thresholds);
@@ -49,16 +63,13 @@ function discoveryState(g) {
     return text;
   }).join(" · ");
   if (record.discovery_state === "signal") label = "Signal · " + label;
-  const probability = record.signal_probability ?? null;
-  const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
-    : `Signal likelihood ${(probability * 100).toFixed(1)}%`;
   const early = ["ineligible", "unknown"].includes(record.discovery_state);
   return early ? {kind: record.discovery_state, label}
-    : {kind: record.discovery_state, label, probability, note, windBand: record.wind_band, rainTier: record.rain_tier};
+    : {kind: record.discovery_state, label, windBand: record.wind_band, rainTier: record.rain_tier};
 }
 function discoveryHtml(g) {
   const s = discoveryState(g);
-  return `<span class="discovery ${s.kind}">${esc(s.label)}</span>${s.probability == null ? "" : `<span class="sub">${esc(s.note)}</span>`}`;
+  return `<span class="discovery ${s.kind}">${esc(s.label)}</span>`;
 }
 function filterDiscovery(rows, state, preset = null) {
   return rows.filter(g => {
@@ -68,7 +79,7 @@ function filterDiscovery(rows, state, preset = null) {
     if (!expanded && d.kind === "ineligible") return false;
     if (!expanded && state.focus !== "all" && !["signal", "near", "pending"].includes(d.kind)) return false;
     if (state.week != null && String(g.week) !== String(state.week)) return false;
-    if (state.signal && signalTier(g.signal) !== state.signal) return false;
+    if (state.signal && severityTier(g) !== state.signal) return false;
     if (preset && (!preset.sports.includes(g.sport) || !hasFlag(g, preset.flag))) return false;
     const haystack = [gameLabel(g), g.home?.name, g.away?.name, g.stadium?.name].filter(Boolean).join(" ").toLowerCase().replace(/\s+/g, " ");
     const query = (state.q || "").trim().toLowerCase().replace(/\s+/g, " ");

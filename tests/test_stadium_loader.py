@@ -300,3 +300,14 @@ def test_rows_without_coordinates_are_skipped(tmp_path: Path) -> None:
     assert set(b.stadiums) == {"ok"}
     assert [r["stadium_id"] for r in b.skipped] == ["bad"]
     assert b.team("nfl", "t1") is not None and b.stadium_for_team("nfl", "t1").stadium_id == "ok"
+
+
+def test_duplicate_stadium_id_raises_in_either_file(tmp_path):
+    from pipeline.stadiums.loader import load_stadium_rows
+
+    for dup_in in ("stadiums.csv", "stadiums_enriched.csv"):
+        for name in ("stadiums.csv", "stadiums_enriched.csv", "climatology.csv"):
+            body = "stadium_id,name\na,A\n" + ("a,A2\n" if name == dup_in else "")
+            (tmp_path / name).write_text(body, encoding="utf-8")
+        with pytest.raises(ValueError, match="duplicate stadium_id 'a'"):
+            load_stadium_rows(tmp_path)

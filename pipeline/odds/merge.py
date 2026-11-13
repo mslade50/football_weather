@@ -340,23 +340,6 @@ def _weighted_median(values: list[tuple[float, float]]) -> float | None:
     return values[-1][0]
 
 
-def consensus_lines(lines: Iterable[GameLine], weights: dict[str, float] = BOOK_WEIGHTS) -> dict[tuple[str, str], float]:
-    """``{(game_id, market): weighted-median home/over main line}`` (spread/total only)."""
-    groups: dict[tuple[str, str, str], list[GameLine]] = {}
-    for ln in lines:
-        if ln.market == "ml":
-            continue
-        groups.setdefault((ln.game_id, ln.book, ln.market), []).append(ln)
-    per_game: dict[tuple[str, str], list[tuple[float, float]]] = {}
-    for (gid, book, market), rows in groups.items():
-        sides = select_main(rows)
-        key = next((k for k in map(pair_key, sides.values()) if k is not None), None)
-        if key is None:
-            continue
-        per_game.setdefault((gid, market), []).append((float(key), weights.get(book, DEFAULT_BOOK_WEIGHT)))
-    return {k: v for k, v in ((k, _weighted_median(v)) for k, v in per_game.items()) if v is not None}
-
-
 def _side_cell(ln: GameLine) -> dict[str, Any]:
     return {"line": ln.line, "odds": ln.odds, "prob_raw": ln.prob_raw, "is_main": ln.is_main,
             "scraped_at": ln.scraped_at.isoformat() if ln.scraped_at else None}
@@ -443,19 +426,9 @@ def merge_odds(
     return res
 
 
-def board_summary(res: MergeResult) -> dict[str, Any]:
-    """Compact counts for build output / RunMeta."""
-    n_games = len(res.board)
-    books = sorted({b for g in res.board.values() for b in g})
-    return {
-        "games": n_games, "books": books, "counts": res.counts, "new_openers": res.new_openers,
-        "unmatched": len(res.unmatched), "unresolved": len(res.unresolved),
-    }
-
-
 __all__ = [
     "BOOK_WEIGHTS", "DEFAULT_BOOK_WEIGHT", "WINDOW_H", "RawGame", "Match", "MergeResult", "GameMatcher", "candidate_team_ids",
     "parse_provisional", "parse_stamp", "is_provisional", "raw_games_from_lines",
-    "raw_games_from_scraper", "canonicalize", "select_main", "consensus_lines", "pivot",
-    "update_openers", "opener_for", "merge_odds", "board_summary",
+    "raw_games_from_scraper", "canonicalize", "select_main", "pivot",
+    "update_openers", "opener_for", "merge_odds",
 ]

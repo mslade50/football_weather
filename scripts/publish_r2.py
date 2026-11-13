@@ -37,7 +37,6 @@ from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, reta
 ROOT = Path("data")
 MAX_WORKERS = 8
 ATTEMPTS = 3
-STATE_FILES = r2.STATE_GROUPS["default"]  # compatibility alias; definitions live in r2
 
 _CLIENT_LOCK = threading.Lock()
 _CLIENTS: dict[tuple[r2.R2Config, bool], Any] = {}

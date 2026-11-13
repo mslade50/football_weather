@@ -275,9 +275,10 @@ def _details_link(board_url: str, card: dict[str, Any], label: str = "Details & 
     return f'<a href="{html.escape(href, quote=True)}">{html.escape(label)}</a>'
 
 
-def _alert_heading(kind: str, card: dict[str, Any], emoji: str, *, tier: Optional[str] = None) -> list[str]:
+def _alert_heading(kind: str, card: dict[str, Any], emoji: str, *, tier: Optional[str] = None,
+                   proc: Optional[dict[str, Any]] = None) -> list[str]:
     sport = SPORT_LABEL.get(card.get("sport") or "", str(card.get("sport") or "").upper())
-    tier_s = (tier or signal_slug(_signal_label(card)) or "").replace("_", " ").upper()
+    tier_s = (tier or signal_slug(_signal_label(card, proc)) or "").replace("_", " ").upper()
     bits = [kind]
     if tier_s:
         bits.append(tier_s)
@@ -315,7 +316,7 @@ def _altitude_phrase(card: dict[str, Any], *, warmth: bool = False) -> str:
     return f"Altitude: {climb}"
 
 
-def _driver_phrase(card: dict[str, Any]) -> str:
+def _driver_phrase(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> str:
     wx = card.get("weather") or {}
     drivers = {str(d) for d in ((card.get("signal") or {}).get("drivers") or []) if d}
     if "altitude_warmth" in drivers:
@@ -331,22 +332,23 @@ def _driver_phrase(card: dict[str, Any]) -> str:
         return f"Temperature: {round(t) if t is not None else '?'}°F"
     if top == "alt":
         return _altitude_phrase(card)
-    flags = [str(f) for f in process_screen.decision_for(card)["flags"] if f]
+    flags = [str(f) for f in _decision(card, proc)["flags"] if f]
     return f"Signal: {flags[0]}" if flags else f"Weather: {_wx_numbers(card)}"
 
 
-def _why_lines(card: dict[str, Any]) -> list[str]:
-    return [f"Weather: {html.escape(_driver_phrase(card))}", f"Forecast: {_wx_numbers(card)}"]
+def _why_lines(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> list[str]:
+    return [f"Weather: {html.escape(_driver_phrase(card, proc))}", f"Forecast: {_wx_numbers(card)}"]
 
 
-def _play_summary(card: dict[str, Any], edge: dict[str, Any]) -> str:
-    tier = (signal_slug(_signal_label(card)) or "?").replace("_", " ").upper()
+def _play_summary(card: dict[str, Any], edge: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> str:
+    proc = _decision(card, proc)
+    tier = (signal_slug(_signal_label(card, proc)) or "?").replace("_", " ").upper()
     bet = re.sub(r"</?b>", "", _brief_bet(card, edge))
     size = _quote_liquidity(next((q for q in _total_quotes(card, "under")
                                  if q["book"] == edge.get("book") and q["line"] == edge.get("line")), edge))
-    return (f"{_emoji_for(card)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}"
+    return (f"{_emoji_for(card, proc)} {tier} · {html.escape(_matchup(card))} · {bet}{size} · {_kick_label(card)}"
             f"\n{_price_context(card, edge)[0]}\nForecast: {_wx_numbers(card)}"
-            + "".join(f"\n{line}" for line in _opener_line_note(card))
+            + "".join(f"\n{line}" for line in _opener_line_note(card, proc))
             + "".join(f"\n{line}" for line in _liquidity_context(card)))
 
 
@@ -370,7 +372,7 @@ def _components(card: dict[str, Any]) -> dict[str, float]:
     return {k: v for k, v in comps.items() if _strict_number(v) is not None and v > 0}
 
 
-def _emoji_for(card: dict[str, Any]) -> str:
+def _emoji_for(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> str:
     icons = {"wind": "🌬️", "rain": "🌧️", "cold": "🥶", "cold_away": "🥶", "heat": "🔥", "heat_away": "🔥",
              "temperature": "🌡️", "alt": "⛰️", "altitude_warmth": "⛰️ 🔥"}
     # Use what triggered the signal, not a larger but non-triggering model component.
@@ -378,7 +380,7 @@ def _emoji_for(card: dict[str, Any]) -> str:
     selected = list(dict.fromkeys(icons[d] for d in drivers if d in icons))
     if selected:
         return " ".join(selected)
-    label = (_signal_label(card) or "").lower()
+    label = (_signal_label(card, proc) or "").lower()
     for word, driver in (("rain", "rain"), ("wind", "wind"), ("temp", "temperature")):
         if word in label:
             return icons[driver]
@@ -397,14 +399,23 @@ def _side_label(edge: dict[str, Any], card: dict[str, Any]) -> str:
     return f"{team}"
 
 
-def _signal_label(card: dict[str, Any]) -> Optional[str]:
+def _decision(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """The card's one decision record. Pass ``proc`` to reuse it within a card.
+
+    Stored snapshots without a record fall back through ``decision_for`` at the
+    alert clock stamped on the card, not the wall clock.
+    """
+    return proc if proc is not None else process_screen.decision_for(card, now=_dt(card.get("_alert_at")))
+
+
+def _signal_label(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> Optional[str]:
     """Read the build decision, with the shared fallback for stored snapshots."""
-    return process_screen.decision_for(card)["alert_label"]
+    return _decision(card, proc)["alert_label"]
 
 
-def _in_signal(card: dict[str, Any]) -> bool:
+def _in_signal(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> bool:
     """The legacy bet rule: the map dot is any tier but 'No Impact'."""
-    lbl = _signal_label(card)
+    lbl = _signal_label(card, proc)
     return bool(lbl) and lbl.lower() != SIGNAL_NONE.lower()
 
 
@@ -598,23 +609,24 @@ def _price_context(card: dict[str, Any], edge: dict[str, Any]) -> list[str]:
     return rows
 
 
-def _opener_line_note(card: dict[str, Any]) -> list[str]:
+def _opener_line_note(card: dict[str, Any], proc: Optional[dict[str, Any]] = None) -> list[str]:
     """Surface the opener evidence already evaluated at publication."""
-    proc = process_screen.decision_for(card)
-    if proc.get("line_open_missing"):
+    if _decision(card, proc).get("line_open_missing"):
         return ["Opener line unknown"]
     return []
 
 
-def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL) -> str:
+def format_edge(card: dict[str, Any], edge: dict[str, Any], board_url: str = DEFAULT_BOARD_URL,
+                proc: Optional[dict[str, Any]] = None) -> str:
     """Weather notification with optional price/model context, not an instruction to bet."""
+    proc = _decision(card, proc)
     lines = [
-        *_alert_heading("SIGNAL", card, _emoji_for(card)),
+        *_alert_heading("SIGNAL", card, _emoji_for(card, proc), proc=proc),
         _brief_bet(card, edge),
-        *_why_lines(card),
+        *_why_lines(card, proc),
         *_comparison_context(card, edge),
         *_price_context(card, edge),
-        *_opener_line_note(card),
+        *_opener_line_note(card, proc),
         _details_link(board_url, card),
     ]
     return "\n".join(lines)
@@ -705,7 +717,7 @@ def _tier_at_least(label: Optional[str], minimum: str) -> bool:
     return TIER_RANK.get(signal_slug(label) or "", 0) >= TIER_RANK.get(minimum, TIER_RANK[DEFAULT_MIN_TIER])
 
 
-def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
+def _qualifying_signal(card: dict[str, Any], cfg: Config, proc: Optional[dict[str, Any]] = None) -> bool:
     """Process screen plus the tier floor. v1 impact is not this gate.
 
     Covered roofs, the 12–15 mph wind watch, wind below 12 mph, light rain,
@@ -714,10 +726,10 @@ def _qualifying_signal(card: dict[str, Any], cfg: Config) -> bool:
     unless that league's optional gate is on. ``TELEGRAM_MIN_TIER`` can still
     require a higher published tier.
     """
-    proc = process_screen.decision_for(card)
+    proc = _decision(card, proc)
     if not proc.get("alert"):
         return False
-    return _tier_at_least(_signal_label(card), cfg.min_tier)
+    return _tier_at_least(_signal_label(card, proc), cfg.min_tier)
 
 
 def _within_alert_window(kickoff: Optional[datetime], now: datetime, cfg: Config) -> bool:
@@ -732,13 +744,15 @@ def _card_within_alert_window(card: dict[str, Any], now: datetime, cfg: Config) 
     return _within_alert_window(_dt(card.get("kickoff_utc")), now, cfg)
 
 
-def _alertable_edges(card: dict[str, Any], cfg: Optional[Config] = None) -> list[dict[str, Any]]:
+def _alertable_edges(card: dict[str, Any], cfg: Optional[Config] = None,
+                     proc: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     """At most one weather notification per game, even without a posted total."""
     cfg = cfg or Config()
-    if not _in_signal(card):
+    proc = _decision(card, proc)
+    if not _in_signal(card, proc):
         return []
     play = _play_edge(card)
-    return [play] if _qualifying_signal(card, cfg) else []
+    return [play] if _qualifying_signal(card, cfg, proc) else []
 
 
 def _same_play_key(parsed: dict[str, str], card: dict[str, Any], edge: dict[str, Any]) -> bool:
@@ -760,9 +774,10 @@ def _play_already_alerted(alerts: dict, card: dict[str, Any], edge: dict[str, An
     return False
 
 
-def _edge_record(card: dict[str, Any], e: dict[str, Any], run_id: Optional[str]) -> dict[str, Any]:
+def _edge_record(card: dict[str, Any], e: dict[str, Any], run_id: Optional[str],
+                 proc: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     wx = card.get("weather") or {}
-    label = _signal_label(card)
+    label = _signal_label(card, proc)
     return {
         "family": "edge", "game_id": card.get("game_id"), "sport": card.get("sport"), "season": card.get("season"),
         "week": card.get("week"), "market": e.get("market"), "side": e.get("side"), "book": e.get("book"),
@@ -790,15 +805,16 @@ def edge_candidates(card: dict[str, Any], alerts: dict, cfg: Config, run_id: Opt
         if not _within_alert_window(kickoff, now, cfg):
             return []
     out = []
-    for e in _alertable_edges(card, cfg):
+    proc = _decision(card)
+    for e in _alertable_edges(card, cfg, proc):
         key = edge_key(card.get("season"), card.get("week"), card.get("game_id"), e["market"], e["side"], STABLE_PLAY_BOOK,
                        e.get("model_version") or "v1")
         if pstate.alert_sent(alerts, key) or _play_already_alerted(alerts, card, e):
             continue
-        out.append(Candidate(key, "edge", card.get("sport") or "", format_edge(card, e, cfg.board_url),
-                             game_id=card.get("game_id"), tier=signal_slug(_signal_label(card)),
-                             kickoff_utc=_dt(card.get("kickoff_utc")), record=_edge_record(card, e, run_id),
-                             summary=_play_summary(card, e)))
+        out.append(Candidate(key, "edge", card.get("sport") or "", format_edge(card, e, cfg.board_url, proc),
+                             game_id=card.get("game_id"), tier=signal_slug(_signal_label(card, proc)),
+                             kickoff_utc=_dt(card.get("kickoff_utc")), record=_edge_record(card, e, run_id, proc),
+                             summary=_play_summary(card, e, proc)))
     return out
 
 

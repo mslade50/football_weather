@@ -377,7 +377,7 @@ def test_type_ii_t6_precedence_late_fallback_and_historical_quotes():
         assert_baselines(conn, op, T + HOUR, [key(ln)])
 
 
-def test_odds_stage_opt_in_has_identical_result_and_disabled_has_no_write(tmp_path, monkeypatch):
+def test_odds_stage_opt_in_has_identical_result_and_disabled_has_no_write(tmp_path, monkeypatch, capsys):
     g = game()
     rows = [line(g, side=s) for s in ("under", "over")]
 
@@ -408,7 +408,9 @@ def test_odds_stage_opt_in_has_identical_result_and_disabled_has_no_write(tmp_pa
     # Even failure before entering the helper is warning-only.
     monkeypatch.setattr(shadow, "odds", lambda *a: (_ for _ in ()).throw(RuntimeError("failure")))
     ctx, failed = stage("failed")
-    assert failed == off and any(d.component == "obslog.odds" and d.severity == "warn" for d in ctx.degradations)
+    # A shadow failure is run-log only: nothing reaches published degradations.
+    assert failed == off and not any(d.component.startswith("obslog") for d in ctx.degradations)
+    assert "Observation log shadow: odds unavailable" in capsys.readouterr().out
 
 
 def test_weather_stage_opt_in_preserves_forecasts(request, tmp_path, monkeypatch):
@@ -424,7 +426,7 @@ def test_weather_stage_opt_in_preserves_forecasts(request, tmp_path, monkeypatch
         assert len(q.forecasts(conn, as_of=datetime.now(timezone.utc))) == len(on)
 
 
-def test_shadow_failure_and_success_coverage(tmp_path, monkeypatch):
+def test_shadow_failure_and_success_coverage(tmp_path, monkeypatch, capsys):
     g = game()
     degradations = []
     ctx = SimpleNamespace(run_id="shadow", now_utc=T, degradations=degradations,
@@ -439,7 +441,23 @@ def test_shadow_failure_and_success_coverage(tmp_path, monkeypatch):
     blocked = tmp_path / "blocked"
     blocked.write_text("not a directory")
     shadow.weather(str(blocked / "bad.sqlite"), ctx, [g], {})
-    assert degradations[-1].severity == "warn" and degradations[-1].component == "obslog.weather"
+    out = capsys.readouterr().out
+    assert "Observation log shadow: weather append failed" in out
     monkeypatch.setattr(shadow, "connect", lambda *args: (_ for _ in ()).throw(RuntimeError("failure")))
     shadow.odds(path, ctx, g.sport, [g], [], [], {})
-    assert degradations[-1].component == "obslog.odds"
+    assert "Observation log shadow: odds append failed" in capsys.readouterr().out
+    assert not degradations  # shadow problems never become published degradations
+
+
+def test_withdrawals_only_touch_successful_book_and_sport(tmp_path):
+    nfl, cfb = game("nfl"), game("cfb")
+    a, b, c = line(nfl, "betonline"), line(nfl, "pinnacle"), line(cfb, "betonline")
+    with closing(connect(tmp_path / "w.sqlite")) as conn:
+        append_odds(conn, [a, b, c], games=[nfl, cfb], run_id="r1", observed_at=T,
+                    attempted={("betonline", "nfl"), ("pinnacle", "nfl"), ("betonline", "cfb")},
+                    successful={("betonline", "nfl"), ("pinnacle", "nfl"), ("betonline", "cfb")})
+        # Only betonline/nfl succeeds, and it no longer lists the line.
+        append_odds(conn, [], games=[nfl], run_id="r2", observed_at=T + HOUR,
+                    attempted={("betonline", "nfl")}, successful={("betonline", "nfl")})
+        found = q.latest(conn, as_of=T + 2 * HOUR)
+    assert key(a) not in found and key(b) in found and key(c) in found

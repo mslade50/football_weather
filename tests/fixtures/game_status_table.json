@@ -1,0 +1,24 @@
+{
+  "comment": "Shared by tests/test_game_status.py, site/worker/test/game-status.test.mjs (browser and Worker copies). Policy: a published status_code outside the vocabulary, including an empty string, is not bettable; only a missing code falls back to the raw status text.",
+  "cases": [
+    {"status_code": "scheduled", "status": "final", "kickoff": "future", "bettable": true},
+    {"status_code": "tbd", "status": "", "kickoff": "future", "bettable": true},
+    {"status_code": "unknown", "status": "", "kickoff": "future", "bettable": true},
+    {"status_code": "unspecified", "status": "", "kickoff": "future", "bettable": true},
+    {"status_code": "live", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "final", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "postponed", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "cancelled", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "suspended", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "banana", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": "SCHEDULED", "status": "scheduled", "kickoff": "future", "bettable": false},
+    {"status_code": null, "status": "scheduled", "kickoff": "future", "bettable": true},
+    {"status_code": null, "status": "Final/OT", "kickoff": "future", "bettable": false},
+    {"status_code": null, "status": "in progress", "kickoff": "future", "bettable": false},
+    {"status_code": null, "status": "", "kickoff": "future", "bettable": true},
+    {"status_code": null, "status": "unexpected source text", "kickoff": "future", "bettable": true},
+    {"status_code": "scheduled", "status": "scheduled", "kickoff": "past", "bettable": false},
+    {"status_code": "scheduled", "status": "scheduled", "kickoff": "invalid", "bettable": false}
+  ]
+}

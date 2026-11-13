@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Optional, Union
 from zoneinfo import ZoneInfo
 
@@ -103,17 +103,6 @@ def run_id_for(dt: Optional[datetime] = None) -> str:
     return d.strftime("%Y%m%dT%H%M%SZ")
 
 
-def hours_until(target: datetime, ref: Optional[datetime] = None) -> float:
-    r = ensure_utc(ref) if ref is not None else now_utc()
-    return (ensure_utc(target) - r) / timedelta(hours=1)
-
-
-def et_weekday(dt: Optional[datetime] = None) -> int:
-    """Monday=0 .. Sunday=6 in ET (used by CFB DOW signal thresholds)."""
-    d = to_et(dt) if dt is not None else now_et()
-    return d.weekday()
-
-
 __all__ = [
     "UTC",
     "ET",
@@ -129,6 +118,4 @@ __all__ = [
     "utc_iso",
     "parse_iso",
     "run_id_for",
-    "hours_until",
-    "et_weekday",
 ]

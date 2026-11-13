@@ -300,7 +300,7 @@ def test_cache_cold_corrupt_recovery_and_v1_upgrade(tmp_path):
     assert next(path.parent.glob("*.corrupt-*.sqlite")).read_bytes() == b"not sqlite"
 
 
-def test_prepare_corruption_is_a_build_warning_degradation(tmp_path):
+def test_prepare_corruption_is_run_log_only_never_a_degradation(tmp_path, capsys):
     path = tmp_path / "log.sqlite"
     path.write_bytes(b"corrupt")
     assert maintain.main(["--path", str(path), "--prepare"]) == 0
@@ -308,7 +308,8 @@ def test_prepare_corruption_is_a_build_warning_degradation(tmp_path):
     ctx = SimpleNamespace(run_id="after-recovery", now_utc=T,
                           degrade=lambda *args: events.append(args))
     shadow.weather(path, ctx, [game()], {})
-    assert events == [("obslog.cache", "corrupt cache moved aside; starting an empty log", "warn")]
+    assert events == []
+    assert "Observation log shadow: corrupt or unsupported cache moved aside" in capsys.readouterr().out
     assert not path.with_suffix(".recovered").exists()
 
 
@@ -383,3 +384,15 @@ def test_shadow_partial_mapping_does_not_withdraw_other_keys(tmp_path, monkeypat
                      NullRawStore("nfl", "test"), ["betonline"], tmp_path / "state", 2026)
     assert captured[0]["betonline"].outcome == ScrapeOutcome.OK
     assert not captured[0]["betonline"].coverage_ok
+
+
+def test_unknown_schema_version_is_quarantined_like_corruption(tmp_path):
+    path = tmp_path / "log.sqlite"
+    with closing(sqlite3.connect(path)) as raw:
+        raw.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY)")
+        raw.execute("INSERT INTO schema_version VALUES (99)")
+        raw.commit()
+    assert maintain.main(["--path", str(path), "--prepare"]) == 0
+    assert len(list(path.parent.glob("*.corrupt-*.sqlite"))) == 1
+    with closing(connect(path)) as conn:
+        assert conn.execute("SELECT version FROM schema_version").fetchall()[0][0] == 2

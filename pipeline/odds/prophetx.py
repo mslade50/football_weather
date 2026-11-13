@@ -29,7 +29,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, book_enabled, get_with_retry, request_with_retry
+from pipeline.odds.base import BaseScraper, Capture, FatalScrapeError, book_enabled, get_with_retry, request_with_retry
 from pipeline.odds.base import load_dotenv_once as _load_dotenv
 from pipeline.odds.parsers import prophetx as parser
 
@@ -41,7 +41,7 @@ MARKET_TYPES = "moneyline,spread,total"
 CHUNK = 100
 
 
-class ProphetXConfigError(RuntimeError):
+class ProphetXConfigError(FatalScrapeError):
     """Raised when the supported API has not been configured."""
 
 

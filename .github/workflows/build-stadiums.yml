@@ -2,7 +2,8 @@ name: build-stadiums
 
 # Preseason stadium reference rebuild (PLAN Phase 5): ERA5 climatology +
 # CFBD/ESPN venues + nflverse ids + Wikidata + OSM Overpass orientation +
-# EPQS/Open-Meteo elevation -> data/stadiums.csv + data/climatology.csv.
+# EPQS/Open-Meteo elevation -> data/stadiums_enriched.csv + data/climatology.csv.
+# The human-owned data/stadiums.csv is never written; the loader joins it with both.
 # Manual dispatch only; the result is opened as a PR (never committed to main)
 # so the diff, coverage report and needs_review rows get eyeballed first.
 #
@@ -59,7 +60,8 @@ jobs:
           key: stadium-build-${{ github.run_id }}
           restore-keys: stadium-build-
 
-      # ERA5 first so build_stadiums can fill blank avg_wind_*/avg_temp_f from data/climatology.csv.
+      # ERA5 first: data/climatology.csv is its own output. The builder does not fill climate
+      # summaries; the loader joins them from climatology.csv at read time.
       - name: Climatology (Open-Meteo ERA5 archive)
         run: |
           python -m pipeline.stadiums.climatology --cache-dir .cache/stadium_build \

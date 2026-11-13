@@ -51,16 +51,16 @@ function ensureMap() {
 function markerRadius(g) {
   const be = STATE.minEdge != null || STATE.book ? bestEdge(g, null, STATE.book || null) : null;
   if (be && isNum(be.edge_pts)) return Math.max(6, Math.min(26, 6 + Math.abs(be.edge_pts) * 5));
-  const s = g.signal && isNum(g.signal.size) ? Number(g.signal.size) : null;
+  const s = severitySize(g);
   if (s != null) return Math.max(6, Math.min(26, 5 + s * 0.42));   // 7..50 → ~8..26 px
   const v1 = g.impact && g.impact.v1;
   const pct = v1 && isNum(v1.gs_fg_pct) ? Math.abs(Number(v1.gs_fg_pct)) : 0;
   return Math.max(6, Math.min(26, 6 + pct * 1.6));
 }
 function markerRing(g) {
-  const wx = g.weather || {};
-  const rain = wx.signal_rain_mm ?? wx.rain_fg;
-  if (isNum(rain) && Number(rain) >= 5) return "#d0d7de";
+  // Rain ring from the published rain tier (its own threshold); never from retained or aged weather.
+  const tier = publishedDecision(g)?.rain_tier;
+  if (forecastCurrent(g) && tier && tier !== "ignore") return "#d0d7de";
   const flags = gameFlags(g);
   if (flags.includes("Heat") || flags.includes("Alt+Heat")) return "#e5484d";
   return "rgba(255,255,255,.25)";
@@ -95,7 +95,7 @@ function markerOpacity(g) {
 }
 function windArrowLen(g) {
   const wx = g.weather || {};
-  if (!isNum(wx.wind_fg) || !isNum(wx.wind_dir_deg)) return 0;
+  if (!forecastCurrent(g) || !isNum(wx.wind_fg) || !isNum(wx.wind_dir_deg)) return 0;
   const w = Number(wx.wind_fg);
   if (w < 1) return 0;
   return Math.max(6, Math.min(40, w * ARROW_PX_PER_MPH));
@@ -137,15 +137,15 @@ function markerEl(g) {
   el.innerHTML = `<svg viewBox="${-half} ${-half} ${size} ${size}" width="${size}" height="${size}" style="opacity:${markerOpacity(g).toFixed(2)}">${parts.join("")}</svg>`;
   el.insertAdjacentHTML("beforeend", `<span class="marker-label">${esc(gameLabel(g))} · ${esc(listCaption(g))}</span>`);
   el.title = `${gameLabel(g)} · ${listCaption(g)}`
-    + (isNum(wx.wind_fg) ? ` · ${fmtNum(wx.wind_fg, 0)} mph${wx.wind_dir_fg ? " " + wx.wind_dir_fg : ""}` : "");
+    + (!forecastCurrent(g) ? ` · ${staleForecastText(g)}` : isNum(wx.wind_fg) ? ` · ${fmtNum(wx.wind_fg, 0)} mph${wx.wind_dir_fg ? " " + wx.wind_dir_fg : ""}` : "");
   return el;
 }
 
 function clusterEl(items) {
   const n = items.length;
-  const order = ["No", "Low", "Mid", "High", "Very High"];
   let top = items[0];
-  for (const g of items) if (order.indexOf(signalTier(g.signal)) > order.indexOf(signalTier(top.signal))) top = g;
+  const rank = g => severityRank(g) ?? -1;
+  for (const g of items) if (rank(g) > rank(top)) top = g;
   const el = document.createElement("div");
   const size = Math.max(44, Math.min(54, 40 + n * 2));
   el.className = "marker cluster";
@@ -170,24 +170,28 @@ function popupHtml(g) {
   const pp = isNum(wx.precip_prob) ? ` (${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%)` : "";
   const band = isNum(wx.wind_p10) && isNum(wx.wind_p90) ? ` <span class="sub">${fmtNum(wx.wind_p10, 0)}–${fmtNum(wx.wind_p90, 0)}</span>` : "";
   const proc = g.process || {};
-  const cross = isNum(proc.cross_mph) ? proc.cross_mph : wx.cross_mph;
-  const head = isNum(proc.head_mph) ? proc.head_mph : wx.head_mph;
-  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor : (typeof crosswindFactor === "function" ? crosswindFactor(wx.wind_dir_deg, st.orient_deg) : null);
-  const comp = isNum(cross) || isNum(head) ? row("Cross / Head", `${fmtNum(cross, 0)} / ${fmtNum(head, 0)} mph${isNum(factor) ? ` · |sin| ${fmtNum(factor, 2)}` : ""}`) : "";
+  const cross = isNum(proc.cross_mph) ? proc.cross_mph : null;
+  const head = isNum(proc.head_mph) ? proc.head_mph : null;
+  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor : null;
+  const stale = !forecastCurrent(g);
+  // Retained or aged weather is marked like the table does: muted, with the original forecast time.
+  const wxRow = (t, o) => row(t, stale ? `<span class="pricing-stale muted" title="${esc(staleForecastText(g))}">${o}</span>` : o);
+  const comp = isNum(cross) || isNum(head) ? wxRow("Cross / Head", `${fmtNum(cross, 0)} / ${fmtNum(head, 0)} mph${isNum(factor) ? ` · |sin| ${fmtNum(factor, 2)}` : ""}`) : "";
   const priceMove = isNum(proc.under_prob_move) ? row("Under prob vs opener", `${(Number(proc.under_prob_move) * 100).toFixed(1)} pp · ${esc(proc.under_prob_basis || "unpriced")}`) : "";
   const conf = gameConfidence(g);
-  const src = wx.source || isNum(wx.lead_hours) ? row("Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · ${Math.round(Number(wx.lead_hours))}h out` : ""}`) : "";
+  // lead_hours is the original fetch's; a retained or aged point is not that many hours out now.
+  const src = wx.source || isNum(wx.lead_hours) ? row("Source", `${esc(wx.source || "—")}${stale ? (wx.retained ? " · retained" : " · aged") : isNum(wx.lead_hours) ? ` · ${Math.round(Number(wx.lead_hours))}h out` : ""}`) : "";
   return `<div class="popup">
     <div class="hc-h">${esc(gameLabel(g))} <span class="sub">${esc(kickoffLabel(g))}</span></div>
     ${row("Discovery", discoveryHtml(g))}
     ${weatherCoverageHtml(g) ? row("Coverage", weatherCoverageHtml(g)) : ""}
     ${row("Signal", `${signalPill(g.signal, g)}${flags.length ? " " + esc(flags.join(", ")) : ""}`)}
-    ${row("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
-    ${row("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}
+    ${wxRow("Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${band}`)}
+    ${wxRow("Gust", `${fmtNum(wx.gust_fg, 0)} mph`)}
     ${comp}
     ${priceMove}
-    ${row("Temp", `${fmtNum(wx.temp_fg, 0)} °F`)}
-    ${row("Rain", `${fmtNum(wx.rain_fg, 1)} mm${pp}`)}
+    ${wxRow("Temp", `${fmtNum(wx.temp_fg, 0)} °F`)}
+    ${wxRow("Rain", `${fmtNum(wx.rain_fg, 1)} mm${pp}`)}
     ${row("Impact", isDome(g) ? "dome" : `${fmtNum(v1.gs_fg_pct, 1)}% / away ${fmtNum(v1.away_fg_pct, 1)}%`)}
     ${v2 && !isDome(g) ? row("Impact v2", `${fmtNum(v2.gs_fg_pct, 1)}% / away ${fmtNum(v2.away_fg_pct, 1)}%`) : ""}
     <div ${pricingStatusAttrs(g)}>${row("Total", `${fmtTotal(c.total_open)} → ${fmtTotal(c.total_now)}`)}
@@ -226,7 +230,7 @@ function renderLegend(rows) {
     : tiers.map((t) => `<div class="lg"><span class="dot" style="background:${TIER_COLORS[t]}"></span>${esc(t)}</div>`).join("");
   el.innerHTML = fillRows
     + (rows.some(g => !decisionEligible(g)) ? '<div class="lg"><span class="dot" style="background:#8b949e"></span>Ineligible</div>' : "")
-    + `<div class="lg"><span class="dot" style="background:#ffd79a"></span>Near signal = screening margin; likelihood may be unknown</div>`
+    + `<div class="lg"><span class="dot" style="background:#ffd79a"></span>Near signal = screening margin, not a probability</div>`
     + `<div class="lg sub">size = impact${STATE.minEdge != null || STATE.book ? " (edge mode)" : ""}</div>`
     + (hasVectors ? `<div class="lg sub"><svg width="14" height="14" viewBox="-7 -7 14 14"><line class="axis" x1="0" y1="-6" x2="0" y2="6"/></svg>field axis · <svg width="14" height="14" viewBox="-7 -7 14 14"><g class="arrow"><line x1="0" y1="5" x2="0" y2="-2"/><polygon points="0,-6 -3,-1 3,-1"/></g></svg>wind (to) ∝ mph</div>` : "")
     + `<div class="lg-ctl">

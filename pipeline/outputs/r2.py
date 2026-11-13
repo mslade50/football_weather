@@ -57,27 +57,22 @@ BACKOFF_BASE_S = 0.5
 BACKOFF_CAP_S = 8.0
 _EXPLICIT_CODES = frozenset({"InternalError", "SlowDown", "ServiceUnavailable"})
 
-# Authoritative state names and ordered caller groups. Keep historical defaults:
-# the module API predates nws_points, while the standalone scripts predate the
-# bet-confirmation/book-health additions. Explicit workflow groups avoid drift
-# without expanding any caller's reads or writes. See docs/WORKFLOW_IO.md.
+# Authoritative state names. ``STATE_FILES`` is the single pipeline membership
+# (build publication, module get/put defaults, standalone script defaults);
+# ``backtest`` is a deliberate read-only subset. Workflows select with --group.
+# See docs/WORKFLOW_IO.md.
 _OPENERS = "openers"
 _HISTORY = "history"
 _WX_HISTORY = "wx_history"
 _ALERTS = "alerts"
 _CLOSINGS = "closings"
-_CORE_STATE_FILES = (
+STATE_FILES: tuple[str, ...] = (
     _OPENERS, _HISTORY, _WX_HISTORY, "archive_last", "wx_last", _ALERTS,
     "scrape_baseline", "telegram_state", "cf_heartbeat", _CLOSINGS, "status", "ensemble_cache",
+    "nws_points", "bet_confirmations", "book_health",
 )
-_NWS_STATE_FILES = ("nws_points",)
-_RECEIPT_STATE_FILES = ("bet_confirmations", "book_health")
-# Public module default stays byte-for-byte equivalent, including key ranking.
-STATE_FILES: tuple[str, ...] = _CORE_STATE_FILES + _RECEIPT_STATE_FILES
 STATE_GROUPS: dict[str, tuple[str, ...]] = {
-    "module": STATE_FILES,
-    "default": _CORE_STATE_FILES + _NWS_STATE_FILES,
-    "pipeline": _CORE_STATE_FILES + _NWS_STATE_FILES + _RECEIPT_STATE_FILES,
+    "pipeline": STATE_FILES,
     "backtest": (_ALERTS, _CLOSINGS, _HISTORY, _WX_HISTORY, _OPENERS),
 }
 # Calibration reads products, not mutable state; destinations are relative to data/.
@@ -96,7 +91,7 @@ def state_files(group: Optional[str] = None, env: Optional[dict[str, str]] = Non
     values = os.environ if env is None else env
     if "STATE_FILES" in values:
         return tuple(values["STATE_FILES"].split())
-    return STATE_GROUPS["default"]
+    return STATE_FILES
 
 
 _CONTENT_TYPES = {

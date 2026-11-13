@@ -230,7 +230,8 @@ def test_light_step_order(text: str):
     light = _job(text, "light")
     order = ["Fetch board state from R2", "Build board", "Retain unacknowledged D1 SQL",
              "Archive to D1 (change-only)", "Acknowledge D1 SQL", "Push to R2",
-             "Self-check published board", "Report deferred D1 archive", "Upload build logs"]
+             "Self-check published board", "Mark board published", "Upload build logs",
+             "Report deferred D1 archive"]
     idx = [light.index(f"- name: {n}\n") for n in order]
     assert idx == sorted(idx)
 
@@ -248,7 +249,8 @@ def test_playwright_scrape_runs_parallel_to_light_without_state_or_r2(text: str)
     assert 'python -m pipeline.build --sport "$SPORT" --scrape-only data/pw-lines --books betonline --run-id "$SCRAPE_RUN_ID"' in scrape
     assert "-pwscrape" in scrape   # raw dir distinct from the publish job's -pw run
     upload = _step(job, "Upload BetOnline handoff")
-    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in upload
+    assert "name: pw-lines-${{ github.run_id }}\n" in upload
+    assert "overwrite: true" in upload
     assert "data/pw-lines/" in upload and "data/raw_runs/" in upload   # raw-first: captures travel too
     assert "retention-days: 1" in upload
     # Scrape-only: never touches state, R2, D1 or Telegram, and holds no secrets.
@@ -260,7 +262,10 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     pw = _job(text, "playwright")
     assert "needs: [gate, light, playwright_scrape]" in pw
     assert "needs.gate.outputs.need_playwright == 'true'" in pw
-    assert "needs.light.result == 'success'" in pw
+    # Gate on whether light PUBLISHED, not on light's overall result: a deferred D1
+    # failure turns light red after publication and must not skip BetOnline.
+    assert "needs.light.outputs.published == 'true'" in pw
+    assert "needs.light.result" not in pw
     # A failed scrape still publishes (BetOnline 0 lines + degradation); a skipped/cancelled one does not.
     assert "needs.playwright_scrape.result == 'success' || needs.playwright_scrape.result == 'failure'" in pw
     assert "always()" in pw
@@ -270,7 +275,7 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     assert "ms-playwright" not in pw
     assert "grep -viE '^(playwright|playwright-stealth)\\b' requirements.txt" in pw
     download = _step(pw, "Download BetOnline handoff")
-    assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    assert "name: pw-lines-${{ github.run_id }}\n" in download
     assert "path: data/" in download
     assert "continue-on-error: true" in download
     build = _step(pw, "Build board (BetOnline)")
@@ -309,8 +314,8 @@ def test_state_steps_never_continue_on_error(text: str):
 def test_same_workflow_raw_weather_handoff(text: str):
     upload = _step(text, "Upload same-workflow weather inputs")
     download = _step(text, "Download same-workflow weather inputs")
-    assert "weather-points-${{ github.run_id }}-${{ github.run_attempt }}" in upload
-    assert "weather-points-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    assert "weather-points-${{ github.run_id }}\n" in upload and "overwrite: true" in upload
+    assert "weather-points-${{ github.run_id }}\n" in download
     assert "--weather-handoff-dir data/weather-points" in _step(text, "Build board")
     assert "--reuse-weather-dir data/weather-reuse" in _step(text, "Build board (BetOnline)")
     assert "retention-days: 1" in upload
@@ -397,15 +402,33 @@ def test_observation_log_cache_is_disposable_and_never_uploaded_to_cloud_state(t
     assert "path: data/cache/obslog/observations.sqlite" in restore
     assert "path: data/cache/obslog/observations.sqlite" in save
     if job == "playwright":
-        # First fallback is the exact light key from this run/attempt. It wins
-        # over the broad prefix even if a previous Playwright entry exists.
+        # Light's rows arrive by same-run artifact (no attempt in the name), so a
+        # re-run of only this job still finds them; the cache is the older fallback.
         fallback = restore.split("restore-keys: |\n", 1)[1].splitlines()
-        assert fallback[0].strip() == "obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light"
-        assert fallback[1].strip() == "obslog-v2-${{ runner.os }}-"
+        assert fallback[0].strip() == "obslog-v2-${{ runner.os }}-"
+        handoff = _step(section, "Download observation log handoff (playwright)")
+        assert "name: obslog-handoff-${{ github.run_id }}\n" in handoff
+        assert "actions/download-artifact@v4" in handoff and "continue-on-error: true" in handoff
+        assert section.index("Restore observation log (playwright)") < section.index("Download observation log handoff")
+        assert section.index("Download observation log handoff") < section.index("Prepare observation log (playwright)")
         assert "needs: [gate, light, playwright_scrape]" in section
+    else:
+        # One cache entry per run: light saves only when no playwright job follows,
+        # otherwise it hands the log over as a short-lived artifact.
+        assert "needs.gate.outputs.need_playwright != 'true'" in save
+        handoff = _step(section, "Hand off observation log")
+        assert "needs.gate.outputs.need_playwright == 'true'" in handoff
+        assert "name: obslog-handoff-${{ github.run_id }}\n" in handoff
+        assert "overwrite: true" in handoff and "retention-days: 1" in handoff
     for name in ("Observation log parity", "Compact observation log", "Save observation log"):
         step = _step(section, name + suffix)
-        assert "if: always()" in step and "continue-on-error: true" in step
+        assert "always()" in step and "continue-on-error: true" in step
+    # Every shadow/evidence step has its own short timeout so it cannot burn the job's 30 minutes.
+    for name in ("Restore observation log", "Prepare observation log", "Observation log parity",
+                 "Compact observation log", "Save observation log"):
+        step = _step(section, name + suffix)
+        timeout = int(step.split("timeout-minutes: ", 1)[1].split("\n", 1)[0])
+        assert 1 <= timeout <= 5, name
     assert "--keep-days 2 --max-mib 192" in section
     assert "--prepare" in _step(section, "Prepare observation log" + suffix)
     assert "OBSLOG_SHADOW_PATH: data/cache/obslog/observations.sqlite" in _step(section, build)
@@ -426,12 +449,48 @@ def test_observation_log_cache_is_disposable_and_never_uploaded_to_cloud_state(t
 def test_d1_failure_cannot_advance_marker_without_replay_or_block_publication(text, job, suffix):
     section = _job(text, job)
     prepare = _step(section, "Retain unacknowledged D1 SQL" + suffix)
-    assert "python -m pipeline.obslog.archive prepare" in prepare
+    assert "python -m pipeline.outputs.d1_pending prepare" in prepare
     assert "continue-on-error" not in prepare  # never upload an unprotected marker
     ack = _step(section, "Acknowledge D1 SQL" + suffix)
     assert "if: steps.d1-archive.outcome == 'success'" in ack
-    assert "pipeline.obslog.archive acknowledge" in ack
+    assert "pipeline.outputs.d1_pending acknowledge" in ack
     deferred = _step(section, "Report deferred D1 archive" + suffix)
-    assert "if: steps.d1-archive.outcome == 'failure'" in deferred and "exit 1" in deferred
+    assert "steps.d1-archive.outcome == 'failure'" in deferred and "!cancelled()" in deferred
+    assert "exit 1" in deferred
+    # It is the very last step of the job: nothing after it can be skipped by its failure.
+    names = [line.split("- name: ", 1)[1] for line in section.splitlines() if line.startswith("      - name: ")]
+    assert names[-1] == "Report deferred D1 archive" + suffix
     assert section.index("Push to R2" + suffix) < section.index("Report deferred D1 archive" + suffix)
     assert section.index("Self-check published board" + suffix) < section.index("Report deferred D1 archive" + suffix)
+
+
+def test_d1_outage_cannot_skip_playwright_or_the_failure_page(text):
+    light = _job(text, "light")
+    assert "published: ${{ steps.published.outputs.published }}" in light
+    mark = _step(light, "Mark board published")
+    assert "id: published" in mark and "published=true" in mark
+    # Set only after the board self-check, so it means "the board is live".
+    assert light.index("Self-check published board") < light.index("Mark board published")
+    pw = _job(text, "playwright")
+    assert "needs.light.outputs.published == 'true'" in pw and "needs.light.result" not in pw
+    # The failure notifier still sees light's red result.
+    assert "LIGHT_RESULT: ${{ needs.light.result }}" in _job(text, "notify_failure")
+    # Light steps that follow publication must not sit behind the deferred failure.
+    deferred = light.index("Report deferred D1 archive")
+    for name in ("Notify published board", "Capture paper opportunities (isolated)"):
+        assert light.index(f"- name: {name}") < deferred
+
+
+def test_same_workflow_artifacts_survive_failed_job_reruns(text):
+    # "Re-run failed jobs" keeps passed jobs: a consumer on attempt 2 must find the
+    # attempt-1 artifact, so no artifact name carries the attempt, and every upload
+    # overwrites (a re-run of the producer must not conflict with attempt 1).
+    import re
+    names = re.findall(r"^\s+name: ((?:weather-points|pw-lines|obslog-handoff|raw-runs)[^\n]*)$", text, re.M)
+    assert len(names) == 8
+    for name in names:
+        assert "run_attempt" not in name, name
+    uploads = [step for step in text.split("\n      - name: ")[1:] if "actions/upload-artifact@v4" in step]
+    assert len(uploads) >= 5
+    for step in uploads:
+        assert "overwrite: true" in step.split("\n      - ")[0], step.split("\n")[0]

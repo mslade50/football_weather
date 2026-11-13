@@ -10,16 +10,6 @@ from scripts import fetch_r2, publish_r2
 
 # Literal historical lists: changing group composition must be a visible decision.
 GROUPS = {
-    "module": (
-        "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
-        "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
-        "bet_confirmations", "book_health",
-    ),
-    "default": (
-        "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
-        "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
-        "nws_points",
-    ),
     "pipeline": (
         "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
         "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status", "ensemble_cache",
@@ -35,11 +25,11 @@ def offline(monkeypatch):
     monkeypatch.delenv("STATE_FILES", raising=False)
 
 
-def test_groups_match_all_four_pre_refactor_lists():
+def test_groups_pin_the_single_pipeline_list_and_backtest_subset():
     assert r2.STATE_GROUPS == GROUPS
-    assert r2.STATE_FILES == GROUPS["module"]
-    assert publish_r2.STATE_FILES == GROUPS["default"]
-    assert r2.state_files(env={}) == GROUPS["default"]
+    assert r2.STATE_FILES == GROUPS["pipeline"]
+    assert r2.state_files(env={}) == GROUPS["pipeline"]
+    assert not hasattr(publish_r2, "STATE_FILES")
     assert r2.INPUT_GROUPS == {"calibrate": (
         ("backtest/games.parquet", "backtest/games.parquet"),
         ("board/backtest.json", "board/backtest.json"),

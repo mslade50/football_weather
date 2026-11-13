@@ -43,19 +43,17 @@ _FALLBACK_CHROME_MAJOR = 135
 _DOTENV_LOADED = False
 
 
-def book_enabled(name: str) -> bool:
-    """One switch resolver, retaining each book's historical opt-out values.
+BOOK_OFF_VALUES = frozenset({"0", "false", "no", "off"})
 
-    The workflow defaults to 1 but accepts arbitrary repository variables, so
-    extending false/no to every book could disable a currently enabled book.
+
+def book_enabled(name: str) -> bool:
+    """The one ``BOOK_<NAME>_ENABLED`` resolver, used by build selection and every scraper.
+
+    Unset means on. Surrounding whitespace and case are ignored; 0, false, no and
+    off disable the book for every book alike.
     """
-    book = name.lower()
-    value = os.environ.get(f"BOOK_{book.upper()}_ENABLED", "1")
-    if book in ("betcris", "betonline"):
-        return value.strip() not in ("0", "false", "no")
-    if book in ("pinnacle", "prophetx"):
-        return value.strip() != "0"
-    return value != "0"
+    value = os.environ.get(f"BOOK_{name.upper()}_ENABLED", "1")
+    return value.strip().lower() not in BOOK_OFF_VALUES
 
 
 def load_dotenv_once() -> None:

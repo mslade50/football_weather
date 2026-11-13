@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine
 from pipeline.model.config import PTS_PROB_TOTAL
-from pipeline.model.fair import american_to_prob
+from pipeline.model.fair import american_to_prob, quote_usable_for_pricing
 
 EXECUTION_BOOKS = frozenset({"kalshi", "polymarket_us", "novig"})
 
@@ -75,9 +75,7 @@ def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: dat
         if row.market == "total":
             book, side = row.book, row.side
             if (side not in ("over", "under") or row.line is None or abs(row.odds) < 100
-                    or row.scraped_at is None or row.scraped_at.tzinfo is None
-                    or not timedelta(0) <= now - row.scraped_at <= timedelta(hours=1)
-                    or (row.expires_at is not None and row.expires_at <= now)):
+                    or not quote_usable_for_pricing(row, now)):
                 continue
             key = (book, side, row.line, row.source_id)
             if key in seen:

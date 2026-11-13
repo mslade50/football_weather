@@ -94,12 +94,10 @@ or prospective edge is inferred from these retrospective records.
 ## Local checks
 
 Run `node --test site/worker/test/*.test.mjs`, `python -m pytest tests -q`, and
-`python -m ruff check .`. `python scripts/check_dashboard_ui.py` generates ignored
-desktop/mobile screenshots and a validation receipt under `tmp/ui-evidence/`.
-That fixture disables production boot, blocks all connections, uses synthetic
-upcoming cards and the audited aggregate reference, and sends no depth requests.
-Both NFL and CFB screenshots are produced; mobile uses touch input and suppresses
-hover-only panels while retaining the full evidence in tap-accessible details.
+`python -m ruff check .`. The former screenshot harness
+(`scripts/check_dashboard_ui.py`) was removed; it targeted a retired selector and
+nothing ran it. Mobile suppresses hover-only panels while retaining the full
+evidence in tap-accessible details.
 It checks 390px document overflow, kickoff labels, source-clock details, drawer
 navigation and keyboard focus. Screenshot fixture cards do not represent games or
 available trading prices.

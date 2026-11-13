@@ -42,10 +42,20 @@ def test_probability_rounding_over_requested_range():
         assert prob_to_american(p) == novig.prob_to_american(p) == kalshi.dollar_to_american(p) == expected
 
 
-@pytest.mark.parametrize("value,expected", [("0", False), ("1", True), ("false", True), ("no", True), (" 0 ", True)])
+@pytest.mark.parametrize("value,expected", [("0", False), ("1", True), ("false", False), ("no", False), (" 0 ", False), (" FALSE ", False), ("off", False), ("yes", True)])
 def test_workflow_switches(monkeypatch, value, expected):
     monkeypatch.setenv("BOOK_NOVIG_ENABLED", value)
     assert base.book_enabled("novig") is expected
+
+
+@pytest.mark.parametrize("book", ["betcris", "betonline", "pinnacle", "prophetx", "kalshi", "novig", "polymarket_us", "fanduel"])
+def test_one_rule_for_every_book_and_build_uses_it(monkeypatch, book):
+    from pipeline import build
+    assert build.book_enabled is base.book_enabled
+    monkeypatch.setenv(f"BOOK_{book.upper()}_ENABLED", " false ")
+    assert not base.book_enabled(book)
+    monkeypatch.setenv(f"BOOK_{book.upper()}_ENABLED", " 1 ")
+    assert base.book_enabled(book)
 
 
 def test_historical_opt_outs(monkeypatch):

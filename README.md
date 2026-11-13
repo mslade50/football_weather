@@ -8,8 +8,8 @@ legacy sheet, v2 side by side) → sportsbook lines (Betcris, FanDuel, Kalshi,
 Novig, Pinnacle, ProphetX, BetOnline) → consensus fair lines and edges → JSON
 board on a private Cloudflare Worker (R2 + D1) → Telegram edge / line-move alerts.
 
-Status: **Phase 4** (Worker board live, alerts, Alerts + Status tabs; Streamlit
-retired). Roadmap in `docs/PLAN.md`; design in `docs/ARCHITECTURE.md`; legacy
+Status: Worker board live (Table, maps, Alerts and Status tabs, Telegram alerts,
+backtest and calibration workflows; the Streamlit app is retired). Roadmap in `docs/PLAN.md`; design in `docs/ARCHITECTURE.md`; legacy
 audit in `docs/AUDIT.md`; Cloudflare setup in `site/worker/SETUP.md`.
 
 If forecast sources fail or return a partial point, the board can show the whole
@@ -69,9 +69,9 @@ GitHub Actions pipeline.yml            Cloudflare
 * **Outputs** (`pipeline/outputs/`): `json_out.py` board payloads
   (`meta.json` pushed last, `games_*.json`, `board.json`, `history.json`,
   `wx_history.json`, `alerts_feed.json`, `status.json`), `d1_out.py` change-only
-  SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), `legacy.py`
-  column-exact `nfl_weather.csv` / `cfb_weather.xlsx` (now uploaded to R2
-  `legacy/`, no longer committed), `r2.py` publisher + self-check.
+  SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), `d1_pending.py`
+  retained failed D1 archive SQL, `r2.py` publisher + self-check. The legacy
+  csv/xlsx writer is gone.
 * **Alerts** (`pipeline/alerts.py`, `pipeline/alert_policy.py`): first weather
   notices, scheduled 08:00/17:00 ET reminders and explicit confirmed-bet CLEAR
   notices. Telegram delivery is retired by default behind
@@ -125,8 +125,8 @@ cd site/worker && npx wrangler dev
 | `pipeline/odds/` | per-book scrapers (`BaseScraper`) + pure `parsers/` |
 | `pipeline/state.py` | R2-round-tripped state: openers, history, alerts dedup, baseline (`schema_version` + `migrate()`) |
 | `pipeline/alerts.py` | Notification formatting, receipts, policy orchestration, postmortem |
-| `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
-| `utils/` | `telegram.py`, `state.py`, `timeutil.py`, shared `numbers.py` and `game_status.py` |
+| `pipeline/outputs/` | JSON board, D1 inserts, R2 push + self-check |
+| `utils/` | `telegram.py`, `timeutil.py`, shared `numbers.py` and `game_status.py` |
 | `scripts/` | `recon_book.py`, `_git_history.py` (historical backtest reader) |
 | `site/worker/` | Cloudflare Worker (`index.js`, `wrangler.toml`, `migrations/`, `SETUP.md`) |
 | `site/web/` | static board (`app.js`, `table.js`, `map.js`, `drawer.js`, `alerts.js`, `status.js`, `vendor/`) |
@@ -163,7 +163,7 @@ Local `.env` (python-dotenv, never committed) and GitHub Actions secrets:
 | `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID` | wrangler R2 / D1 / deploy in the workflows |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | optional: `pipeline.outputs.r2 --publish` locally (boto3) |
 | `PROPHETX_API_KEY`, `PROPHETX_ACCESS_KEY`, `PROPHETX_SECRET_KEY` | optional ProphetX book |
-| `BOOK_<X>_ENABLED=0` | repo variable / env to disable a book (e.g. `BOOK_BETONLINE_ENABLED`) |
+| `BOOK_<X>_ENABLED=0` | repo variable / env to disable a book (e.g. `BOOK_BETONLINE_ENABLED`); `0`, `false`, `no`, `off` all disable, one rule for every book |
 
 Worker secrets (`wrangler secret put`): `BOARD_PASSWORD`, `BOARD_ADMIN_USERNAME`,
 `BOARD_ADMIN_PASSWORD`, `GH_DISPATCH_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
@@ -178,4 +178,4 @@ python scripts/recon_book.py --url https://www.betonline.ag/sportsbook/football/
 ```
 
 Logs every API-looking response and saves matching JSON bodies as raw fixtures
-(scrub with `scripts/fixtures_scrub.py` before committing).
+(scrub secrets and trim to a handful of games by hand before committing).

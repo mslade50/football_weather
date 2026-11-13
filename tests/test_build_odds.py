@@ -78,7 +78,8 @@ def _game(game_id: str = KC_BUF, away: str = "buf", home: str = "kc", kick: date
 
 
 def _ln(book: str, market: str, side: str, line: float | None, odds: int = -110, game_id: str = KC_BUF, main: bool = True) -> GameLine:
-    return GameLine(sport="nfl", game_id=game_id, book=book, market=market, side=side, odds=odds, line=line, is_main=main)
+    return GameLine(sport="nfl", game_id=game_id, book=book, market=market, side=side, odds=odds, line=line, is_main=main,
+                    scraped_at=datetime.now(timezone.utc))
 
 
 _OPP = {"home": "away", "away": "home", "over": "under", "under": "over"}
@@ -615,7 +616,8 @@ def test_playwright_style_run_keeps_fanduel_now_via_archive(tmp_path: Path, monk
                 home_id="kansas-state", away_id="iowa-state", stadium_id="x")
 
     def ln(book: str, market: str, side: str, line: float, odds: int = -110) -> GameLine:
-        return GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=odds, line=line)
+        return GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=odds, line=line,
+                        scraped_at=datetime.now(timezone.utc))
 
     runs = iter([
         {"fanduel": [ln("fanduel", "total", "under", 51.5, -112), ln("fanduel", "spread", "home", -3.5)]},

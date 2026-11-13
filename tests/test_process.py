@@ -293,6 +293,8 @@ def test_reference_books_stay_out_of_the_price_gate() -> None:
 def _card(**weather: float) -> dict:
     return {
         "sport": "nfl",
+        # The build always publishes a severity label; an NFL card without one is No Impact.
+        "signal": {"label": "Low Impact"},
         "stadium": {"roof_type": "open", "roof_state": "outdoors", "orient_deg": 0},
         "weather": {"wind_fg": 4.0, "temp_fg": 50.0, "rain_fg": 0.0, "wind_dir_deg": 90.0, **weather},
         "consensus": {},

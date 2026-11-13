@@ -70,10 +70,9 @@ function uncertaintyLabel(wx) {
 
 function crossHeadText(g) {
   const wx = g.weather || {}, st = g.stadium || {}, proc = g.process || {};
-  const cross = isNum(proc.cross_mph) ? proc.cross_mph : wx.cross_mph;
-  const head = isNum(proc.head_mph) ? proc.head_mph : wx.head_mph;
-  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor
-    : (typeof crosswindFactor === "function" ? crosswindFactor(proc.wind_dir_deg ?? wx.wind_dir_deg, st.orient_deg) : null);
+  const cross = isNum(proc.cross_mph) ? proc.cross_mph : null;
+  const head = isNum(proc.head_mph) ? proc.head_mph : null;
+  const factor = isNum(proc.crosswind_factor) ? proc.crosswind_factor : null;
   if (!isNum(cross) && !isNum(head)) return "—";
   return `${fmtNum(cross, 1)} / ${fmtNum(head, 1)} mph${isNum(factor) ? ` · |sin| ${fmtNum(factor, 2)}` : ""}`;
 }
@@ -97,9 +96,11 @@ function ecmwfApartText(wx) {
   return `ECMWF stands apart${fields ? ` (${esc(fields)})` : ""} — shown, not a hard gate`;
 }
 function tempGateText(g) {
-  const proc = g.process || {};
-  const max = isNum(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : 65;
-  if (proc.temp_gate === true) return `Optional gate on: temperature must be under ${max}°F`;
+  const proc = publishedDecision(g);
+  if (!proc) return "—";
+  if (proc.temp_gate === true) {
+    return isNum(proc.temp_gate_max_f) ? `Optional gate on: temperature must be under ${Number(proc.temp_gate_max_f)}°F` : "Optional gate on";
+  }
   return "Shown only. Optional temperature gate is off.";
 }
 function underMoveText(g) {
@@ -137,7 +138,7 @@ function weatherTable(g) {
     ...(v2 ? [["Impact v2", `${pct(v2.gs_fg_pct)} · away ${pct(v2.away_fg_pct)}${isNum(v2.conf) ? ` · conf ${Number(v2.conf).toFixed(2)}` : ""}`]] : []),
     ["Volatility", `${esc(st.wind_vol_static || "—")}${isNum(wx.wind_vol_fc) ? ` · fc ${fmtNum(wx.wind_vol_fc, 1)} (P10 ${fmtNum(wx.wind_p10, 0)} / P90 ${fmtNum(wx.wind_p90, 0)})` : ""}`],
     ["Forecast coverage", `${esc(({nws_first_pass: "NWS first pass", global_first_pass: "Global first pass (wind/temp/rain)", refined_multimodel: "Detailed model refinement", refined_split_fields: "First-pass signals with added detail fields", unavailable: "Point forecast unavailable"})[wx.point_stage] || "-")}${wx.point_aged ? " — aged or unverified point source" : ""}`],
-    ["Missing forecast fields", ["temp_fg", "wind_fg", "rain_fg"].filter(k => !isNum(wx[k])).map(k => ({temp_fg: "temperature", wind_fg: "wind", rain_fg: "rainfall"})[k]).join(", ") || "None"],
+    ["Missing forecast fields", publishedDecision(g) ? missingForecastFields(g).join(", ") || "None" : "—"],
     ["NWS issued", wx.point_source_updated_at?.nws ? esc(fmtShortET(wx.point_source_updated_at.nws)) : "-"],
     ["Forecast uncertainty", uncertaintyLabel(wx)],
     ["Unverified ensemble sources", esc((wx.ensemble_unverified_sources || []).join(", ") || "None supplied")],
@@ -156,7 +157,8 @@ function weatherTable(g) {
     ["Home_t", fmtNum(g.home_temp, 0)],
     ["Away_t", fmtNum(g.away_temp, 0)],
     ["Year", yesno(st.year_built)],
-    ["Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · lead ${Math.round(Number(wx.lead_hours))}h` : ""}${wx.fetched_at ? ` · ${esc(fmtShortET(wx.fetched_at))}` : ""}`],
+    // lead_hours belongs to the original fetch; a retained or aged point is not that many hours out now.
+    ["Source", `${esc(wx.source || "—")}${forecastCurrent(g) && isNum(wx.lead_hours) ? ` · lead ${Math.round(Number(wx.lead_hours))}h` : ""}${wx.retained ? " · retained" : wx.point_aged ? " · aged" : ""}${wx.fetched_at ? ` · ${esc(fmtShortET(wx.fetched_at))}` : ""}`],
     ...backtestRows(g),
   ];
   return wx.retained ? `<div class="pricing-stale muted">${kv(rows)}</div>` : kv(rows);
@@ -540,7 +542,7 @@ function compassSvg(g) {
   if (isNum(st.orient_deg)) {
     parts.push(`<rect class="field" x="-7" y="-34" width="14" height="68" rx="2" transform="rotate(${Number(st.orient_deg).toFixed(1)})"><title>field axis ${Math.round(Number(st.orient_deg))}°</title></rect>`);
   }
-  if (isNum(wx.wind_dir_deg) && isNum(wx.wind_fg) && Number(wx.wind_fg) >= 1) {
+  if (forecastCurrent(g) && isNum(wx.wind_dir_deg) && isNum(wx.wind_fg) && Number(wx.wind_fg) >= 1) {
     const len = Math.max(10, Math.min(38, Number(wx.wind_fg) * 1.2));
     // arrow starts at the rim on the "from" bearing and points across the field
     parts.push(`<g class="wind" transform="rotate(${(Number(wx.wind_dir_deg) + 180).toFixed(1)})">`

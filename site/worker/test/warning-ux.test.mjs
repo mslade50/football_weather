@@ -146,12 +146,19 @@ test('Compact offers retain fees and separate quote/depth ages; drawer retains e
 test('Weather coverage is compact and distinguishes missing, aged, partial and unverified forecasts', () => {
   const f = fixture();
   for(const file of ['discovery.js','table.js']) vm.runInContext(readFileSync(new URL('../../web/game-status.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL(`../../web/${file}`, import.meta.url), 'utf8'), f.ctx);
-  f.ctx.game={weather:{temp_fg:58,wind_fg:18,rain_fg:0,ensemble_status:'ok'}};
+  const process={decision_version:'decision-v1',temp_f:58,wind_mph:18,rain_mm:0};
+  f.ctx.game={process,weather:{temp_fg:58,wind_fg:18,rain_fg:0,ensemble_status:'ok'}};
   assert.equal(f.run('weatherCoverageHtml(game)'), '');
   for (const [patch, label] of [[{point_aged:true},'Point forecast aged'],[{ensemble_status:'partial_members_degraded'},'Partial ensemble'],
     [{ensemble_status:'retained_members_degraded'},'Ensemble unverified'],[{ensemble_status:'unavailable_degraded'},'Ensemble unavailable'],
-    [{temp_fg:null},'Forecast incomplete']]) {
+    ]) {
     f.ctx.game.weather={temp_fg:58,wind_fg:18,rain_fg:0,...patch}; assert.match(f.run('weatherCoverageHtml(game)'),new RegExp(label));
   }
+  // Missing fields come from the decision's own forecast, never from the raw display fields.
+  f.ctx.game.weather={temp_fg:null,wind_fg:null,rain_fg:null}; assert.equal(f.run('weatherCoverageHtml(game)'), '');
+  f.ctx.game.process={...process,temp_f:null}; f.ctx.game.weather={temp_fg:58,wind_fg:18,rain_fg:0};
+  assert.match(f.run('weatherCoverageHtml(game)'),/Forecast incomplete/);
+  delete f.ctx.game.process; f.ctx.game.weather={temp_fg:null};
+  assert.equal(f.run('weatherCoverageHtml(game)'), '');
 });
 

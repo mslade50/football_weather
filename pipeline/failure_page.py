@@ -187,8 +187,18 @@ def read_heartbeat_bytes() -> bytes | None:
 
 
 def with_heartbeat(decision: dict[str, Any], previous: dict[str, Any],
-                   health: dict[str, Any]) -> dict[str, Any]:
-    """Combine independent pipeline/cron incidents in the existing delivery gate."""
+                   health: dict[str, Any], *, unreadable: bool = False) -> dict[str, Any]:
+    """Combine independent pipeline/cron incidents in the existing delivery gate.
+
+    When the marker could not be read, ``previous`` is a made-up closed state.
+    Persisting anything derived from it would overwrite a possibly open incident
+    (losing its recovery page), and paging without a persisted receipt would
+    repeat on every run while reads keep failing. So the heartbeat is NOT paged
+    and nothing is attached while the marker is unreadable; a stale heartbeat is
+    paged on the first run whose marker reads fine.
+    """
+    if unreadable:
+        return decision
     old = previous.get("heartbeat") or {}
     opened = old.get("open") is True
     action = "none"
@@ -271,7 +281,7 @@ def plan_from_env() -> dict[str, Any]:
             write_health(observed)
         except Exception:  # noqa: BLE001 - a first stale page can still be delivered
             print("::warning::heartbeat observation was not saved")
-    decision = with_heartbeat(decision, previous, health)
+    decision = with_heartbeat(decision, previous, health, unreadable=unreadable)
     if decision["action"] != "none" and "Open run:" not in decision["message"]:
         decision["message"] += f"\nOpen run: {os.environ.get('RUN_URL', '')}"
     return decision

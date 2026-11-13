@@ -18,6 +18,10 @@ from pathlib import Path
 from pipeline.contracts import Game, GameLine, WeatherForecast
 
 
+class UnsupportedSchema(ValueError):
+    """The cached log was written by an unknown (e.g. newer) schema version."""
+
+
 @dataclass(frozen=True, order=True)
 class MarketKey:
     game_id: str
@@ -72,7 +76,7 @@ def connect(path: str | Path = ":memory:") -> sqlite3.Connection:
     try:
         existing = conn.execute("SELECT name FROM sqlite_master WHERE name='schema_version'").fetchone()
         if existing and [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([1], [2]):
-            raise ValueError("unsupported observation-log schema version")
+            raise UnsupportedSchema("unsupported observation-log schema version")
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         conn.executescript("BEGIN IMMEDIATE;\n" + schema + "\nDELETE FROM schema_version;\n"
                            "INSERT INTO schema_version VALUES (2);\nCOMMIT;")
@@ -131,14 +135,25 @@ def _quote(conn, line, run_id, now, capture_id):
 
 
 def _withdrawals(conn, lines, successful, run_id, now, capture_id):
-    from .queries import latest
+    """Withdraw main quotes missing from a successful (book, sport) scrape.
 
+    Reads only the newest main row per key for the books/sports that actually
+    succeeded, in SQL, instead of materializing the whole log.
+    """
     seen = {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}
-    for key, previous in latest(conn, as_of=now).items():
-        if (previous.sport and (key.book, previous.sport) in successful and key not in seen):
-            row = dict(conn.execute("SELECT * FROM quote_observations WHERE id=?", (previous.id,)).fetchone())
-            row.pop("id")
-            row.update(capture_id=capture_id, run_id=run_id, observed_at=utc(now), recorded_at=utc(now), kind="withdrawn")
+    stamp = utc(now)
+    for book, sport in sorted(successful):
+        rows = conn.execute(
+            "SELECT * FROM (SELECT *, row_number() OVER (PARTITION BY game_id, book, market, side "
+            "ORDER BY observed_at DESC, recorded_at DESC, id DESC) AS n FROM quote_observations "
+            "WHERE is_main=1 AND book=? AND sport=? AND observed_at<=? AND recorded_at<=?) "
+            "WHERE n=1 AND kind='quote'", (book, sport, stamp, stamp)).fetchall()
+        for previous in rows:
+            if key_of(previous) in seen:
+                continue
+            row = dict(previous)
+            row.pop("id"), row.pop("n")
+            row.update(capture_id=capture_id, run_id=run_id, observed_at=stamp, recorded_at=stamp, kind="withdrawn")
             insert(conn, "quote_observations", row)
 
 
