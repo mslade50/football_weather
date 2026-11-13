@@ -79,7 +79,7 @@ def test_rain_evidence_and_final_pill(models, status):
     ("retractable", None, False, "roof_unconfirmed"), ("retractable", "outdoors", False, "roof_unconfirmed"),
     ("retractable", "indoor", False, "indoor"), ("retractable", "dome", False, "indoor"),
     ("retractable", "closed", False, "closed_roof"), ("retractable", "open", True, None),
-    ("open", "closed", True, None), ("open", "indoor", True, None), (None, "indoor", True, None)])
+    ("open", "closed", True, None), ("open", "indoor", True, None), (None, "indoor", False, "indoor")])
 def test_roof_policy_is_python_construction_policy(roof_type, roof, eligible, reason):
     value = card(wind_fg=15)
     value["stadium"] = {"roof_type": roof_type, "roof_state": roof}
@@ -162,6 +162,7 @@ def test_shared_legacy_fallback_and_deliberate_recheck():
     changed = deepcopy(value)
     changed["weather"]["wind_fg"] = 0
     assert P.decision_for(changed) is changed["process"]
-    assert P.decision_for(changed, recheck=True, now=NOW)["clear_signal_label"] == "No Impact"
+    assert P.decision_for(changed, recheck=True, now=NOW)["alert_label"] == "No Impact"
+    assert P.clear_signal_label(changed, 0, 50, 0) == "No Impact"
     del changed["process"]
     assert P.decision_for(changed)["alert_label"] == "No Impact"

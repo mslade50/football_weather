@@ -4,16 +4,25 @@
 
 const PRESETS = {
   cfb_wind: { id: "cfb_wind", label: "CFB Wind", flag: "CFB Wind", sports: ["cfb"],
-    desc: "Published college wind flag. Screening limits are recorded on each game", sort: (g) => wxNum(g, "wind_fg") },
+    desc: (t) => `CFB wind flag: opening spread within ±${t.cfb_open_spread_max} · sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => wxNum(g, "wind_fg") },
   nfl_wind: { id: "nfl_wind", label: "NFL Wind", flag: "NFL Wind", sports: ["nfl"],
-    desc: "Published NFL wind flag. Screening limits are recorded on each game", sort: (g) => wxNum(g, "wind_fg") },
+    desc: (t) => `Sustained wind ≥ ${t.wind_flag_mph} mph. ${t.wind_watch_mph}–${t.wind_flag_mph} mph is a watch, not a flag. Gusts are not the gate.${t.temp_gate ? ` Temperature gate: under ${t.temp_max_f} °F.` : " Temperature is shown, not gated."}`, sort: (g) => wxNum(g, "wind_fg") },
   heat: { id: "heat", label: "Heat", flag: "Heat", sports: ["nfl", "cfb"],
-    desc: "Published heat flag", sort: (g) => wxNum(g, "temp_fg") },
+    desc: (t) => `Temp > ${t.heat_temp_f} °F · both teams' home avg temp < ${t.home_temp_max_f} °F · CFB spread within ±${t.cfb_open_spread_max}`, sort: (g) => wxNum(g, "temp_fg") },
   alt_heat: { id: "alt_heat", label: "Alt+Heat", flag: "Alt+Heat", sports: ["cfb"],
-    desc: "Published altitude and heat flag", sort: (g) => (isNum(g.travel_alt) ? Number(g.travel_alt) : -Infinity) },
+    desc: (t) => `Travel altitude > ${t.altitude_m} m · spread within ±${t.cfb_open_spread_max} · temp > ${t.alt_temp_f} °F`, sort: (g) => (isNum(g.travel_alt) ? Number(g.travel_alt) : -Infinity) },
 };
 const PRESET_ORDER = ["cfb_wind", "nfl_wind", "heat", "alt_heat"];
 const wxNum = (g, k) => (g.weather && isNum(g.weather[k]) ? Number(g.weather[k]) : -Infinity);
+
+// Rule text is built from the thresholds the pipeline published on the cards.
+function presetDesc(pr) {
+  for (const sport of pr.sports) {
+    const card = (DATA.games[sport] || []).find((g) => publishedDecision(g)?.thresholds);
+    if (card) return pr.desc(card.process.thresholds);
+  }
+  return `${pr.label}: published by the pipeline`;
+}
 
 function activePreset() {
   return (STATE.preset && PRESETS[STATE.preset]) || null;
@@ -49,7 +58,7 @@ function setPreset(id) {
 
 function presetChip(pr, count, active) {
   const color = FLAG_COLORS[pr.flag] || "#8b949e";
-  return `<button type="button" class="preset${active ? " active" : ""}" data-preset="${esc(pr.id)}" title="${esc(pr.desc)}"
+  return `<button type="button" class="preset${active ? " active" : ""}" data-preset="${esc(pr.id)}" title="${esc(presetDesc(pr))}"
     style="--pc:${color}"><span class="dot" style="background:${color}"></span>${esc(pr.label)}<span class="cnt">${count}</span></button>`;
 }
 
@@ -61,7 +70,7 @@ function renderPresetBar(host) {
       <span class="sub" title="Signal severity tiers are additional context">CFB Wind eligibility: published by the pipeline. Open a game for its applied thresholds. Severity tiers are extra.</span>
       ${PRESET_ORDER.map((id) => presetChip(PRESETS[id], counts[id], preset && preset.id === id)).join("")}
       ${preset ? `<button type="button" class="controlbtn" id="preset-clear" title="Clear preset">✕ clear</button>
-        <span class="sub">${esc(preset.desc)} · sorted by ${preset.id === "heat" ? "temp" : preset.id === "alt_heat" ? "travel altitude" : "wind"}</span>
+        <span class="sub">${esc(presetDesc(preset))} · sorted by ${preset.id === "heat" ? "temp" : preset.id === "alt_heat" ? "travel altitude" : "wind"}</span>
         <button type="button" class="controlbtn" id="preset-map" title="Show these games on the ${esc(STATE.sport.toUpperCase())} map">Map →</button>` : ""}
     </div>`;
   host.querySelectorAll(".preset").forEach((b) => b.addEventListener("click", () => setPreset(b.dataset.preset === STATE.preset ? null : b.dataset.preset)));

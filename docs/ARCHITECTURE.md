@@ -282,7 +282,7 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
           decision_version, evaluated_at, eligible, ineligible_reasons,
           discovery_state, discovery_reasons, signal_probability,
           display_label, display_color, display_muted, flags, alert_label,
-          clear_signal_label, clear_inputs_complete, price_gate_passed,
+          price_gate_passed,
           thresholds {temp_max_f, temp_gate, wind_watch_mph, wind_flag_mph, rain_ignore_mm,
                       rain_watch_mm, rain_signal_mm, rain_agree_tol_mm, under_prob_move_max,
                       cfb_open_spread_max, signal_probability_min, heat_temp_f, home_temp_max_f,

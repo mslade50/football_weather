@@ -827,10 +827,6 @@ def _decision_fields(
         reasons.append(Reason.ECMWF_APART)
     if state in (DiscoveryState.SIGNAL, DiscoveryState.NEAR, DiscoveryState.MOVED) and proc["line_open_missing"]:
         reasons.append(Reason.OPENER_UNKNOWN)
-    clear_inputs_complete = not (sport == "cfb" and temp is not None and (
-        (temp > C.SIGNAL_ALT_TEMP_F and _f(card.get("travel_alt")) is None)
-        or (temp > C.SIGNAL_HEAT_TEMP_F and any(_f(card.get(key)) is None for key in ("home_temp", "away_temp")))
-    ))
     return {
         "decision_version": DECISION_VERSION,
         "evaluated_at": now.isoformat(),
@@ -844,8 +840,6 @@ def _decision_fields(
         "display_muted": muted,
         "flags": flags,
         "alert_label": alert_label,
-        "clear_signal_label": sig.label,
-        "clear_inputs_complete": clear_inputs_complete,
         "price_gate_passed": not (proc["under_prob_move"] > proc["price_gate_max"]),
         "thresholds": {
             "temp_max_f": proc["temp_gate_max_f"], "temp_gate": proc["temp_gate"],
@@ -862,6 +856,21 @@ def _decision_fields(
             "severity_temp_max_f": C.PROCESS_TEMP_MAX_F,
         },
     }
+
+
+def clear_signal_label(card: dict[str, Any], wind: float, temp: float, rain: float) -> Optional[str]:
+    """Severity label for a send-time CLEAR recheck, from weather the caller has
+    already evidence-checked. None when a CFB ancillary input that could still
+    fire (altitude, home temperatures) is unknown."""
+    from pipeline.model import signals
+
+    if card.get("sport") != "cfb":
+        return signals.nfl_signal(wind, temp, rain).label
+    if (temp > C.SIGNAL_ALT_TEMP_F and _f(card.get("travel_alt")) is None) or (
+            temp > C.SIGNAL_HEAT_TEMP_F and any(_f(card.get(key)) is None for key in ("home_temp", "away_temp"))):
+        return None
+    return signals.cfb_signal(wind, temp, rain, (card.get("consensus") or {}).get("spread_open"),
+                              card.get("travel_alt"), card.get("home_temp"), card.get("away_temp")).label
 
 
 def decision_for(card: dict[str, Any], *, recheck: bool = False, now: Optional[datetime] = None) -> dict[str, Any]:
@@ -899,6 +908,7 @@ __all__ = [
     "DiscoveryState",
     "Reason",
     "decision_for",
+    "clear_signal_label",
     "BASIS_IMPLIED",
     "BASIS_NOVIG",
     "BASIS_SINGLE",

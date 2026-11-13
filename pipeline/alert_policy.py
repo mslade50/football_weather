@@ -118,12 +118,9 @@ def clear_reason(card, cfg, now):
                     return None
     except (KeyError, TypeError, ValueError, AttributeError):
         return None
-    if not decision['clear_inputs_complete']:
-        return None
     # A configured alert-tier threshold or an old label is not bet invalidation.
     return ('Complete current weather no longer meets the encoded signal rules'
-            if decision['clear_signal_label'] == 'No Impact' else None)
-
+            if process_screen.clear_signal_label(card, wind, temp, rain) == 'No Impact' else None)
 
 
 def late_context(card):

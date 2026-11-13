@@ -18,6 +18,7 @@ def resolve_roof_state(roof_type: str | None, roof_state: str | None) -> str | N
 
 def weather_exposed(roof_type: str | None, roof_state: str | None) -> bool:
     state = resolve_roof_state(roof_type, roof_state)
-    if state in ("dome", "closed"):
+    # "indoor" reaches here only for a venue of unknown construction.
+    if state in ("dome", "closed", "indoor"):
         return False
     return roof_type != "retractable" or state == "open"

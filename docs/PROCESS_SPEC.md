@@ -418,8 +418,8 @@ final pill text, including unconfirmed-rain corrections. v1 impact is unchanged.
 
 New fields: `decision_version`, `evaluated_at`, `eligible`, `ineligible_reasons`,
 `discovery_state`, `discovery_reasons`, `signal_probability`, `display_label`,
-`display_color`, `display_muted`, `flags`, `alert_label`, `clear_signal_label`,
-`clear_inputs_complete`, `price_gate_passed`, and `thresholds`. Existing wind,
+`display_color`, `display_muted`, `flags`, `alert_label`,
+`price_gate_passed`, and `thresholds`. Existing wind,
 rain, forecast, temperature and price evidence fields remain. `eligible` means
 roof exposure plus the opening-spread gate, independent of schedule, weather,
 prices and severity. Missing CFB spread is ineligible with unknown evidence,
