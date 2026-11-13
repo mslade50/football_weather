@@ -65,7 +65,6 @@ import logging
 import os
 import sys
 import threading
-from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -76,7 +75,6 @@ from typing import Any
 from pipeline import alerts as alerts_mod
 from pipeline import state as pstate
 from pipeline.contracts import Game, GameLine, Stadium, Team, WeatherForecast, actionable_lines
-from pipeline.current_quotes import expired
 from pipeline.model import clv as clv_mod
 from pipeline.model import config as model_config
 from pipeline.model import fair as fair_mod
@@ -879,7 +877,8 @@ class ConsensusLine:
     src: str | None = None  # spread: averaged members ("bol+pin" subset) or "fallback"
 
 
-def _build_consensus(sport: str, lines: Sequence[GameLine], ctx: RunContext) -> dict[tuple[str, str], ConsensusLine]:
+def _build_consensus(sport: str, lines: Sequence[GameLine], ctx: RunContext,
+                     *, now: datetime | None = None) -> dict[tuple[str, str], ConsensusLine]:
     """``pipeline.model.fair.consensus(sport, game_lines, market)`` per game/market
     (Pinnacle-weighted median, devigged prob moved to the consensus line). The
     opener/legacy odds for the consensus row are the ref book's price on our side
@@ -894,7 +893,7 @@ def _build_consensus(sport: str, lines: Sequence[GameLine], ctx: RunContext) -> 
         game_consensus: dict[tuple[str, str], ConsensusLine] = {}
         try:
             for market, side in side_for.items():
-                c = fair_mod.consensus(sport, glines, market, now=ctx.now_utc)
+                c = fair_mod.consensus(sport, glines, market, now=now or ctx.now_utc)
                 line = c.line
                 if line is None:
                     continue
@@ -1115,6 +1114,7 @@ class OddsResult:
     pseudo: list[GameLine] = dataclasses.field(default_factory=list)    # consensus spread as book='consensus' rows
     opener_update_keys: list[str] = dataclasses.field(default_factory=list)  # rebased existing rows -> D1 upsert
     last_observed: dict[str, dict] = dataclasses.field(default_factory=dict)  # descriptive only; never current lines
+    priced_at: datetime | None = None
 
 
 def stage_odds(
@@ -1233,8 +1233,9 @@ def stage_odds(
     board_lines = list(lines) + carried
 
     # consensus / fair
+    priced_at = ctx.now_utc
     with ctx.stage(f"{sport}.fair"):
-        consensus = _build_consensus(sport, board_lines, ctx)
+        consensus = _build_consensus(sport, board_lines, ctx, now=priced_at)
 
     # state: first-seen openers except CFB totals, which use the T-6-day snapshot;
     # archive_last remains the most recently seen value per key
@@ -1291,7 +1292,7 @@ def stage_odds(
     return OddsResult(board_lines, consensus, openers, by_game, unresolved, per_book_n,
                       scraped=list(lines), deltas=deltas, new_opener_keys=new_keys, pseudo=pseudo,
                       opener_update_keys=opener_update_keys,
-                      last_observed=last_observed_totals(archive, sport, active_ids, ctx.now_utc))
+                      last_observed=last_observed_totals(archive, sport, active_ids, ctx.now_utc), priced_at=priced_at)
 
 
 def last_observed_totals(archive: dict, sport: str, active_ids: set[str], now: datetime) -> dict[str, dict]:
@@ -1509,53 +1510,10 @@ class SportResult:
         return [*self.games, *(g for g in self.odds_games if g.game_id not in carded and g.game_id in priced)]
 
 
-def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
-    """Recalculate current prices after elapsed weather/build work. History stays intact."""
-    now = ctx.now_utc
-    removed = [line for line in res.odds.lines if expired(line.expires_at, now)]
-    if not removed:
-        return
-    res.odds.lines = select_main_lines([line for line in res.odds.lines if not expired(line.expires_at, now)])
-    res.odds.by_game = {}
-    for line in res.odds.lines:
-        res.odds.by_game.setdefault(line.game_id, []).append(line)
-    res.odds.consensus = _build_consensus(res.sport, res.odds.lines, ctx)
-    for book, count in Counter(line.book for line in removed).items():
-        counts = ctx.counts.get(book, {})
-        if res.sport in counts:
-            counts[res.sport] = max(0, counts[res.sport] - count)
-        for market, n in Counter(line.market for line in removed if line.book == book).items():
-            key = f"{res.sport}.{market}"
-            if key in counts:
-                counts[key] = max(0, counts[key] - n)
-    ctx.degrade("odds.expiry", f"{res.sport}: {len(removed)} quotes expired during build; current prices recalculated, historical openers retained", "warn")
-    cards = {c["game_id"]: c for c in res.cards}
-    for game in res.games:
-        gid = game.game_id
-        lines = res.odds.by_game.get(gid, [])
-        impact, fc, stadium = res.impacts.get(gid), res.forecasts.get(gid), res.stadiums.get(gid)
-        gf = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, impact, fc, stadium)
-        gf2 = _evaluate_fair(fair_mod, ctx, res.sport, game, lines, res.impacts_v2.get(gid), fc, stadium, "v2")
-        selected = gf2 if model_config.alert_model() == "v2" else gf
-        for target, value in ((res.fairs, selected), (res.fairs_v2, gf2)):
-            target.pop(gid, None)
-            if value is not None:
-                target[gid] = value
-        current = card_odds(res.sport, gid, res.odds.by_game, res.odds.consensus)
-        card = cards.get(gid)
-        if card is not None:
-            evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
-            card["odds"] = json_out.odds_block(gid, lines, res.odds.openers, res.odds.last_observed.get(gid))
-            card["consensus"] = json_out.consensus_block(gid, res.odds.consensus, res.odds.openers)
-            card["fair"] = json_out.fair_block(selected, _legacy_derived(fair_mod, res.sport, current, impact), gf2)
-            card["total_prices"] = json_out.compare_totals(res.sport, lines, selected)
-            card["total_prices"]["quote_evidence"] = list({json.dumps(q, sort_keys=True): q for q in
-                evidence + card["total_prices"].get("quote_evidence", [])}.values())
-
 
 def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines: Sequence[GameLine],
                    impact: Any, fc: WeatherForecast | None, stadium: Stadium | None,
-                   model_version: str = "v1") -> Any | None:
+                   model_version: str = "v1", *, now: datetime | None = None) -> Any | None:
     """``impact`` is an ImpactV1 or ImpactV2; edges are stamped with ``model_version``."""
     if not lines or impact is None:
         return None
@@ -1568,7 +1526,7 @@ def _evaluate_fair(fair_mod: Any, ctx: RunContext, sport: str, game: Game, lines
             model_disagreement=fc.model_disagreement if fc else None,
             lead_hours=fc.lead_hours if fc else None,
             model_version=model_version,
-            now=ctx.now_utc,
+            now=now or ctx.now_utc,
         )
     except Exception as exc:  # noqa: BLE001
         ctx.degrade("model.fair", f"{game.game_id}: evaluate_game[{model_version}] failed ({type(exc).__name__}: {exc})", "warn")
@@ -1754,11 +1712,16 @@ def run_sport(
     teams: dict[str, Team] = {}
     home_stadiums: dict[str, Stadium] = {}
     alert_model = model_config.alert_model()
+    # One pricing clock for consensus, both model versions and total comparisons.
+    # Later serialization, upload and reads preserve this snapshot verbatim.
+    priced_at = odds.priced_at or ctx.now_utc
     with ctx.stage(f"{sport}.impact"):
         for g in games:
             rg = resolved[g.game_id]
             fc = forecasts.get(g.game_id)
-            game_odds = card_odds(sport, g.game_id, odds.by_game, odds.consensus) if books else {}
+            game_lines = odds.by_game.get(g.game_id, [])
+            pricing_by_game = {g.game_id: fair_mod._pricing_lines(game_lines, priced_at)}
+            game_odds = card_odds(sport, g.game_id, pricing_by_game, odds.consensus) if books else {}
             signal_open_spread = (
                 json_out.consensus_spread_opener(g.game_id, odds.openers)[0] if sport == "cfb" else None
             )
@@ -1785,12 +1748,11 @@ def run_sport(
                 card_kwargs = {"travel_alt": rg.travel_alt, "home_temp": rg.home_temp, "away_temp": rg.away_temp,
                                "roof_state": rg.roof_state, "avg_wind_month": wind_meta["avg_wind_month"]}
             impacts[g.game_id] = impact
-            game_lines = odds.by_game.get(g.game_id, [])
             impact2 = _compute_v2(ctx, sport, g, rg, fc, impact, wx_extras.get(g.game_id))
             impacts_v2[g.game_id] = impact2
-            gf = _evaluate_fair(fair_mod, ctx, sport, g, game_lines, impact, fc, rg.stadium if rg else None)
+            gf = _evaluate_fair(fair_mod, ctx, sport, g, game_lines, impact, fc, rg.stadium if rg else None, now=priced_at)
             gf2 = _evaluate_fair(fair_mod, ctx, sport, g, game_lines, impact2, fc, rg.stadium if rg else None,
-                                 model_version="v2")
+                                 model_version="v2", now=priced_at)
             if gf2 is not None:
                 fairs_v2[g.game_id] = gf2
             # ALERT_MODEL selects which fair/edges feed histories, D1 odds rows and alerts
@@ -1802,7 +1764,7 @@ def run_sport(
                 fc, impact, sig, flags, lines=game_lines, openers=odds.openers, consensus=odds.consensus, fair=gf_alert,
                 legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=wind_meta["avg_wind"],
                 run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model,
-                last_observed=odds.last_observed.get(g.game_id), **card_kwargs,
+                last_observed=odds.last_observed.get(g.game_id), priced_at=priced_at, **card_kwargs,
             ))
             tz = g.tz or (rg.stadium.timezone if rg and rg.stadium and rg.stadium.timezone else "America/New_York")
             kickoff_local = g.kickoff_local if g.kickoff_local.tzinfo is not None else to_tz(g.kickoff_utc, tz)
@@ -1838,7 +1800,6 @@ def run_sport(
     n_ens = sum(1 for e in wx_extras.values() if e.get("ensemble"))
     if forecasts and n_ens == 0:
         ctx.degrade("weather", f"{sport}: no game has ensemble spread; wind_vol_fc static for all", "info")
-    refresh_expired_quotes(ctx, res)
     update_histories(ctx, sport, res, state_dir, ctx.dry_run)
     return res
 
@@ -1963,8 +1924,6 @@ def write_outputs(
     """Board JSON (meta last), snapshots, D1 SQL and the publish manifest
     ``{r2 key: local path}`` (written to ``board_dir/../publish_manifest.json``)."""
     finished = finished_at or ctx.now_utc
-    for result in results:
-        refresh_expired_quotes(ctx, result)
     prev_meta = _load_prev_meta(state_dir)
     cards_by_sport = {r.sport: r.cards for r in results}
     sport_counts = {r.sport: len(r.cards) for r in results}
@@ -1978,18 +1937,13 @@ def write_outputs(
                                   previous=(prev_meta or {}).get("books"))
     seasons = [r.season_week for r in results if r.season_week[0] is not None]
     season, week = min(seasons) if seasons else (None, None)
-    expiry_groups = Counter((line.book, line.sport, line.market, utc_iso(
-        line.expires_at or line.scraped_at + ODDS_CARRY_MAX_AGE))
-        for result in results for line in result.odds.lines if line.expires_at is not None or line.scraped_at is not None)
     try:
         book_health = pstate.book_health_export(pstate.load_book_health(state_dir))
     except Exception:  # noqa: BLE001
         book_health = {}
     weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     extra = {"book_health": book_health, "weeks": weeks,
-             "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results),
-             "quote_expiries": [{"book": b, "sport": s, "market": m, "expires_at": e, "count": n}
-                                for (b, s, m, e), n in expiry_groups.items()]}
+             "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results)}
     ecmwf_status = ctx.weather_state.get("ecmwf_opendata")
     if ecmwf_status:
         extra["ecmwf_opendata"] = ecmwf_status
@@ -2135,8 +2089,6 @@ def build(
         raw.finalize()
         raw_files.update(raw.r2_files())
 
-    for result in results:
-        refresh_expired_quotes(ctx, result)
     alerts_run = run_alert_stage(ctx, results, state_dir, enabled=alerts, dry_run=dry_run, stdout=alerts_stdout) if book_list else None
     clv_run = run_clv_stage(ctx, results, state_dir, dry_run=dry_run, alerts_run=alerts_run) if book_list else None
 

@@ -296,25 +296,16 @@ jobs:
           if-no-files-found: warn
       - name: Push to R2
         # Bound upload concurrency to eight Wrangler processes. Keep meta.json as
-        # the final commit marker and recheck quote freshness after slow raw uploads.
+        # the final commit marker and validate publication integrity after raw uploads.
         run: |
           python scripts/publish_r2.py raw
           python scripts/publish_r2.py snapshots
-          PUBLISH_GUARD_STARTED="$(date +%s)"
-          # Raw uploads can outlast feed TTLs. Revalidate current board
-          # prices immediately before their put loop; consumers enforce expiry too.
-          python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
           # Reject a bad or empty rebuild before replacing any current board objects.
           # The floor counts only sports this run rebuilt (meta.sport).
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state
-          PUBLISH_GUARD_ELAPSED=$(( $(date +%s) - PUBLISH_GUARD_STARTED ))
-          if [ "$PUBLISH_GUARD_ELAPSED" -gt 80 ]; then
-            echo "::error::Critical board/state publication took ${PUBLISH_GUARD_ELAPSED}s after the freshness guard; refusing to write the commit marker"
-            exit 1
-          fi
           python scripts/publish_r2.py meta
       - name: Archive to D1 (change-only)
         if: hashFiles('data/d1_inserts.sql') != ''
@@ -489,18 +480,11 @@ jobs:
         run: |
           python scripts/publish_r2.py raw
           python scripts/publish_r2.py snapshots
-          PUBLISH_GUARD_STARTED="$(date +%s)"
-          python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
           # Same floor as the light job: only sports this run rebuilt.
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state
-          PUBLISH_GUARD_ELAPSED=$(( $(date +%s) - PUBLISH_GUARD_STARTED ))
-          if [ "$PUBLISH_GUARD_ELAPSED" -gt 80 ]; then
-            echo "::error::Critical board/state publication took ${PUBLISH_GUARD_ELAPSED}s after the freshness guard; refusing to write the commit marker"
-            exit 1
-          fi
           python scripts/publish_r2.py meta
       - name: Archive to D1 (change-only, playwright)
         if: hashFiles('data/d1_inserts.sql') != ''

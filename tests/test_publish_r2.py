@@ -68,7 +68,7 @@ def test_upload_retries_with_same_idempotent_request(tmp_path):
     assert "--remote" in calls[0]
 
 
-def test_meta_commit_marker_uses_short_retry_deadline(tmp_path):
+def test_meta_commit_marker_uses_normal_upload_timeout(tmp_path):
     observed = []
 
     class Result:
@@ -82,7 +82,7 @@ def test_meta_commit_marker_uses_short_retry_deadline(tmp_path):
 
     publish_r2.upload_one("bucket", "board/meta.json", tmp_path / "meta", "application/json",
                           run=run, sleep=lambda _: None)
-    assert observed == [15]
+    assert observed == [90]
 
 
 def test_upload_files_never_exceeds_worker_limit(tmp_path):
@@ -270,17 +270,17 @@ def test_boto3_missing_local_file_is_a_retried_failure(tmp_path):
     assert fake.puts == []
 
 
-def test_boto3_meta_uses_bounded_client_and_two_attempts(tmp_path):
-    normal, bounded = FakeS3(fail_first=99), FakeS3(fail_first=99)
+def test_boto3_meta_uses_normal_retries(tmp_path):
+    normal = FakeS3(fail_first=99)
     src = tmp_path / "meta"
     src.write_bytes(b"{}")
-    with pytest.raises(RuntimeError, match=r"^R2 put board/meta.json failed after 2 attempts$"):
+    with pytest.raises(RuntimeError, match=r"^R2 put board/meta.json failed after 3 attempts$"):
         publish_r2.upload_one("b", "board/meta.json", src, "application/json", client=normal,
-                              bounded_client=bounded, sleep=lambda _: None)
-    assert len(bounded.puts) == 2 and normal.puts == []
+                              sleep=lambda _: None)
+    assert len(normal.puts) == 3
 
 
-def test_boto3_meta_env_path_requests_bounded_client(tmp_path, monkeypatch):
+def test_boto3_meta_env_path_uses_bulk_upload_client(tmp_path, monkeypatch):
     _s3_env(monkeypatch)
     fake = FakeS3()
     made = []
@@ -288,18 +288,8 @@ def test_boto3_meta_env_path_requests_bounded_client(tmp_path, monkeypatch):
     src = tmp_path / "meta"
     src.write_bytes(b"{}")
     publish_r2.upload_one("b", "board/meta.json", src, "application/json", run=_no_wrangler)
-    assert made == [True]
+    assert made == [False]
 
-
-def test_boto3_meta_stops_retrying_after_deadline(tmp_path, monkeypatch):
-    fake = FakeS3(fail_first=99)
-    clock = iter([0.0, 100.0, 200.0])
-    monkeypatch.setattr(publish_r2.time, "monotonic", lambda: next(clock))
-    src = tmp_path / "meta"
-    src.write_bytes(b"{}")
-    with pytest.raises(RuntimeError, match="board/meta.json failed after 2 attempts"):
-        publish_r2.upload_one("b", "board/meta.json", src, "application/json", client=fake, sleep=lambda _: None)
-    assert len(fake.puts) == 1
 
 
 def test_boto3_download_writes_target_and_returns_bytes(tmp_path):

@@ -175,12 +175,10 @@ def test_r2_publisher_is_bounded_and_meta_remains_last(text: str, name: str):
               "python scripts/publish_r2.py state", "python scripts/publish_r2.py meta"]
     assert all(phase in step for phase in phases)
     assert [step.index(phase) for phase in phases] == sorted(step.index(phase) for phase in phases)
-    assert "python -m pipeline.current_quotes" in step
     assert "--meta-file data/board/meta.json --prev-meta data/state/prev_meta.json" in step
-    assert step.index("python -m pipeline.current_quotes") < step.index("python scripts/publish_r2.py board")
     assert step.index("python scripts/publish_r2.py state") < step.index("python scripts/publish_r2.py meta")
-    assert "PUBLISH_GUARD_ELAPSED" in step and "-gt 80" in step
-    assert "refusing to write the commit marker" in step
+    assert "PUBLISH_GUARD" not in step
+    assert "publication-window-seconds" not in step
     assert "continue-on-error" not in step
 
 
@@ -209,6 +207,8 @@ def test_d1_execute_gated_by_hashfiles(text: str, name: str):
     step = _step(text, name)
     assert "if: hashFiles('data/d1_inserts.sql') != ''" in step
     assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql' in step
+    assert "PUBLISH_GUARD" not in step
+    assert "publication-window-seconds" not in step
     assert "continue-on-error" not in step
 
 
@@ -219,6 +219,8 @@ def test_self_check_after_publish(text: str, name: str):
     assert "--warn-message" not in step   # the self-check fetch is strict: any failure fails the step
     assert 'python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID"' in step
     assert "--meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}" in step
+    assert "PUBLISH_GUARD" not in step
+    assert "publication-window-seconds" not in step
     assert "continue-on-error" not in step
 
 
