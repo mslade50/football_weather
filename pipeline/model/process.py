@@ -44,6 +44,8 @@ class Reason(str, Enum):
     NOT_UPCOMING = "not_upcoming"
     SPREAD_UNKNOWN = "spread_unknown"
     FORECAST_INCOMPLETE = "forecast_incomplete"
+    FORECAST_RETAINED = "forecast_retained"
+    FORECAST_AGED = "forecast_aged"
     TEMP_GATE = "temp_gate"
     BELOW_MARGIN = "below_margin"
     LOW_PROBABILITY = "low_probability"
@@ -719,7 +721,18 @@ def evaluate_card(card: dict[str, Any], *, now: Optional[datetime] = None) -> di
         "alert": bool(weather_hit and not price["price_blocked"]),
         "books": price["books"],
     }
+    # Retained points carry the same aged marker CLEAR already checks. Retention
+    # is display-only even inside CLEAR's normal three-hour evidence window;
+    # fail closed as well if a malformed retained card lost its aged marker.
+    unavailable = weather.get("point_aged") is True or bool(weather.get("retained"))
+    if unavailable:
+        result.update(candidate=False, watch=False, alert=False, price_blocked=False)
     result.update(_decision_fields(card, result, exposed, spread_ok, temp_passes, now))
+    if unavailable:
+        reason = Reason.FORECAST_RETAINED if weather.get("retained") else Reason.FORECAST_AGED
+        result.update(discovery_state=DiscoveryState.UNKNOWN, discovery_reasons=[reason],
+                      display_label="Forecast retained" if weather.get("retained") else "Forecast aged",
+                      display_color="#8b949e", display_muted=True, flags=[], alert_label="No Impact")
     return result
 
 
@@ -866,7 +879,8 @@ def clear_signal_label(card: dict[str, Any], wind: float, temp: float, rain: flo
 def decision_for(card: dict[str, Any], *, recheck: bool = False, now: Optional[datetime] = None) -> dict[str, Any]:
     """Trust published decisions; one fallback for historical cards and evidence rechecks."""
     proc = card.get("process")
-    if not recheck and isinstance(proc, dict) and proc.get("decision_version") == DECISION_VERSION:
+    if (not recheck and not (card.get("weather") or {}).get("retained")
+            and isinstance(proc, dict) and proc.get("decision_version") == DECISION_VERSION):
         return proc
     evaluated = evaluate_card(card, now=now)
     # Legacy snapshots can carry this observation without a complete decision.

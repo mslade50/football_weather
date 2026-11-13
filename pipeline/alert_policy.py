@@ -11,6 +11,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from pipeline.model import process as process_screen
+from pipeline.model.config import ALERT_FORECAST_MAX_AGE_H
 from utils.game_status import GameStatus, bettable_before_kickoff, status_code
 
 
@@ -76,6 +77,9 @@ def clear_reason(card, cfg, now):
             or any(not isinstance(card.get(team), dict) or not any(card[team].get(key) for key in ('id', 'short', 'name'))
                    for team in ('home', 'away'))):
         return None
+    wx = card.get('weather') or {}
+    if wx.get('retained') or wx.get('point_aged') is True:
+        return None  # No CLEAR, including roof/spread invalidation, from retained evidence.
     stadium = card.get('stadium') or {}
     roof_type = stadium.get('roof_type')
     roof = resolve_roof_state(roof_type, stadium.get('roof_state') or card.get('roof_state'))
@@ -87,10 +91,9 @@ def clear_reason(card, cfg, now):
         return 'CFB spread exceeds the encoded eligibility limit'
     if roof_type not in ('open', 'dome', 'retractable') or roof not in ('outdoors', 'open') or (sport == 'cfb' and spread is None):
         return None
-    wx = card.get('weather') or {}
     fetched = evidence_time(wx.get('fetched_at'))
     values = [A._strict_number(wx.get(key)) for key in ('wind_fg', 'temp_fg', 'rain_fg')]
-    if (fetched is None or not timedelta(0) <= now - fetched <= timedelta(hours=3)
+    if (fetched is None or not timedelta(0) <= now - fetched <= timedelta(hours=ALERT_FORECAST_MAX_AGE_H)
             or wx.get('point_aged') is not False
             or wx.get('point_stage') not in ('nws_first_pass', 'global_first_pass', 'refined_multimodel', 'refined_split_fields')
             or wx.get('ensemble_status') != 'full_members' or wx.get('ensemble_eligible') is not True
@@ -110,7 +113,7 @@ def clear_reason(card, cfg, now):
     try:
         for source, (_, models) in SOURCES.items():
             clock = evidence_time(clocks[source])
-            if clock is None or not timedelta(0) <= now - clock <= timedelta(hours=3) or set(versions[source]) != set(models):
+            if clock is None or not timedelta(0) <= now - clock <= timedelta(hours=ALERT_FORECAST_MAX_AGE_H) or set(versions[source]) != set(models):
                 return None
             for dataset in versions[source].values():
                 version(dataset, now)  # Recheck future, settling and overdue clocks now.

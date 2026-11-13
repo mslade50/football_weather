@@ -192,6 +192,9 @@ class WeatherForecast(_AsDict):
     point_stage: Optional[str] = None
     point_source_updated_at: dict[str, str] = field(default_factory=dict)
     point_aged: bool = False
+    retained: bool = False
+    retained_from: Optional[str] = None
+    retained_reason: Optional[str] = None
     ensemble_status: Optional[str] = None
     ensemble_eligible: Optional[bool] = None
     ensemble_screen_reasons: list[str] = field(default_factory=list)

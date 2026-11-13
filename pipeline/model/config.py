@@ -10,6 +10,10 @@ import os
 
 # Ops threshold: Worker ticks every 30 minutes; retain the legacy 20-hour page.
 HEARTBEAT_STALE_HOURS = 20
+# Display-only outage bridge: two six-hour cycles, not a new forecast vintage.
+WEATHER_RETENTION_MAX_AGE_H = 12
+# Existing CLEAR evidence limit for point and ensemble receipts.
+ALERT_FORECAST_MAX_AGE_H = 3
 
 MODEL_VERSION_V1 = "v1"
 MODEL_VERSION_V2 = "v2"

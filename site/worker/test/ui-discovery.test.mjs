@@ -25,6 +25,42 @@ function ui() {
 }
 const run = (ctx, expression) => vm.runInContext(expression, ctx);
 
+test('Retained weather keeps its numbers with original time, visible age and stale styling', () => {
+  const ctx = ui();
+  const head = {querySelectorAll: () => []}, body = {querySelectorAll: () => []};
+  ctx.document.querySelector = selector => selector === '#table thead' ? head : body;
+  ctx.document.getElementById = () => null;
+  run(ctx, "STATE.book = 'pinnacle'; STATE.sort = null;");
+  ctx.game.weather = {temp_fg: 58, wind_fg: 18, gust_fg: 25, rain_fg: 2, point_aged: true, retained: true,
+    fetched_at: '2026-10-09T14:05:00Z', retained_from: '2026-10-09T14:05:00Z', retained_reason: 'source_unavailable'};
+  Object.assign(ctx.game.process, {discovery_state: 'unknown', discovery_reasons: ['forecast_retained'],
+    display_label: 'Forecast retained', display_muted: true, display_color: '#8b949e', flags: []});
+  run(ctx, 'renderTable([game])');
+  assert.match(body.innerHTML, /Forecast from .*10\/9.*10:05.*235 min ago.*source unavailable/);
+  assert.match(body.innerHTML, /class="pricing-stale muted"[^>]*>58<\/td>/);
+  assert.match(body.innerHTML, /class="pricing-stale muted"[^>]*>18\.0/);
+  assert.match(body.innerHTML, /class="pricing-stale muted"[^>]*>2\.0/);
+  assert.doesNotMatch(body.innerHTML, /Forecast incomplete/);
+  assert.match(body.innerHTML, /Forecast retained; fresh evidence unavailable/);
+  assert.match(run(ctx, 'weatherTable(game)'), /Retained forecast.*235 min ago.*source unavailable/);
+  ctx.game.weather.retained_reason = 'incomplete_point';
+  assert.match(run(ctx, 'weatherCoverageHtml(game)'), /incomplete point/);
+  // JavaScript never expires retention: only the published marker controls it.
+  assert.match(run(ctx, 'retainedForecastText(game.weather, Date.now() + 86400000)'), /1675 min ago/);
+});
+
+test('Old cards without retained fields preserve ordinary weather rendering', () => {
+  const ctx = ui();
+  assert.equal(run(ctx, 'weatherCoverageHtml(game)'), '');
+  assert.equal(run(ctx, 'retainedWeatherAttrs(game.weather)'), '');
+  assert.equal(run(ctx, 'retainedForecastText(game.weather)'), '');
+  const html = run(ctx, 'weatherTable(game)');
+  assert.match(html, /18\.0 mph/);
+  assert.doesNotMatch(html, /Retained forecast|pricing-stale/);
+  ctx.game.weather.wind_fg = null;
+  assert.match(run(ctx, 'weatherCoverageHtml(game)'), /Forecast incomplete/);
+});
+
 test('Discovery renders every published state and ordered reason without reading raw weather', () => {
   const ctx = ui();
   for (const [kind, reasons, label] of [

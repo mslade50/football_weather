@@ -95,6 +95,12 @@ threshold in `pipeline/model/config.py`; pick-alert retirement does not gate it.
 
 ## Pricing snapshots
 
+Weather source failures retain a complete prior point from existing `wx_last.json`
+state for at most 12 hours (`WEATHER_RETENTION_MAX_AGE_H`). Retained cards keep
+original clocks, show their age, and are display-only: aged/unknown decisions,
+no alerts or CLEAR, and no new weather-history/obslog observation. Old v1 state
+cannot retain a point until a complete v2 snapshot has been saved.
+
 Python selects usable quotes once at pricing. Published cards preserve original quote clocks
 and `fair.priced_at`; serialization, upload, Worker reads and browser rendering do not
 expire or reprice them. Browser ages and the 150-minute stale style are presentational.

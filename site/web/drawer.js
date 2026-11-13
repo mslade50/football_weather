@@ -128,6 +128,7 @@ function weatherTable(g) {
   const wx = g.weather || {}, st = g.stadium || {}, v1 = (g.impact && g.impact.v1) || {};
   const v2 = g.impact && g.impact.v2;
   const rows = [
+    ...(wx.retained ? [["Retained forecast", `<span class="pricing-stale muted">${esc(retainedForecastText(wx))}</span>`]] : []),
     ["Wind", `${fmtNum(wx.wind_fg, 1)} mph ${esc(wx.wind_dir_fg || "")}${isNum(wx.gust_fg) ? ` · gust ${fmtNum(wx.gust_fg, 0)}` : ""}`],
     ["Temp", `${fmtNum(wx.temp_fg, 0)} °F`],
     ["Temperature gate", tempGateText(g)],
@@ -158,7 +159,7 @@ function weatherTable(g) {
     ["Source", `${esc(wx.source || "—")}${isNum(wx.lead_hours) ? ` · lead ${Math.round(Number(wx.lead_hours))}h` : ""}${wx.fetched_at ? ` · ${esc(fmtShortET(wx.fetched_at))}` : ""}`],
     ...backtestRows(g),
   ];
-  return kv(rows);
+  return wx.retained ? `<div class="pricing-stale muted">${kv(rows)}</div>` : kv(rows);
 }
 // Record / ROI of the first-match backtest bucket (backtest.js) + the stadium's under record
 function backtestRows(g) {

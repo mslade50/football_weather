@@ -178,6 +178,8 @@ def append_forecasts(conn: sqlite3.Connection, forecasts: list[WeatherForecast],
         _run(conn, run_id, "weather", fetched_at, started_at, set(), set(), {g.sport for g in games})
         _games(conn, games, run_id, fetched_at)
         for fc in forecasts:
+            if fc.retained:
+                continue  # An old observation must not acquire a new receipt/run.
             hours = [p.t for p in fc.hourly]
             insert(conn, "forecast_observations", dict(
                 game_id=fc.game_id, source=fc.source, model="merged", run_id=run_id,

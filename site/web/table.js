@@ -107,8 +107,19 @@ function signalPill(sig, game) {
   return `<span class="sig" style="background:${color}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
 
+function retainedForecastText(wx, now = Date.now()) {
+  if (!wx.retained) return "";
+  const stamp = wx.retained_from || wx.fetched_at;
+  const minutes = Math.floor((now - Date.parse(stamp)) / 60000);
+  const age = Number.isFinite(minutes) ? ` · ${minutes} min ago` : "";
+  return `Forecast from ${fmtShortET(stamp)}${age} (${reasonText(wx.retained_reason)})`;
+}
+function retainedWeatherAttrs(wx) {
+  return wx.retained ? ` class="pricing-stale muted" title="${esc(retainedForecastText(wx))}"` : "";
+}
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];
+  if (wx.retained) return `<span class="coverage-note pricing-stale muted">${esc(retainedForecastText(wx))}</span>`;
   const missing = ["temp_fg", "wind_fg", "rain_fg"].filter(key => !finiteValue(wx[key]));
   if (missing.length) issues.push("Forecast incomplete");
   if (wx.point_aged) issues.push("Point forecast aged");
@@ -400,10 +411,10 @@ function renderTable(rows, opts = {}) {
       `<td class="game" data-game="${esc(g.game_id)}"><button type="button" class="game-detail" data-game="${esc(g.game_id)}">${esc(gameLabel(g))}</button>${g.neutral ? ' <span class="sub">(N)</span>' : ""}${gameStateBadge(g)}${tableKickoffHtml(g)}</td>`,
       `<td class="left">${discoveryHtml(g)}${signalPill(g.signal, g)}${weatherCoverageHtml(g)}</td>`,
       tableStadiumHtml(g),
-      `<td>${fmtNum(wx.temp_fg, 0)}</td>`,
-      `<td>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
-      `<td>${fmtNum(wx.gust_fg, 0)}</td>`,
-      `<td>${fmtNum(wx.rain_fg, 1)}${isNum(wx.precip_prob) ? ` <span class="wx">${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%</span>` : ""}</td>`,
+      `<td${retainedWeatherAttrs(wx)}>${fmtNum(wx.temp_fg, 0)}</td>`,
+      `<td${retainedWeatherAttrs(wx)}>${fmtNum(wx.wind_fg, 1)}${wx.wind_dir_fg ? ` <span class="wx">${esc(wx.wind_dir_fg)}</span>` : ""}</td>`,
+      `<td${retainedWeatherAttrs(wx)}>${fmtNum(wx.gust_fg, 0)}</td>`,
+      `<td${retainedWeatherAttrs(wx)}>${fmtNum(wx.rain_fg, 1)}${isNum(wx.precip_prob) ? ` <span class="wx">${Math.round(Number(wx.precip_prob) * (wx.precip_prob <= 1 ? 100 : 1))}%</span>` : ""}</td>`,
       `<td>${dome ? '<span class="muted">dome</span>' : fmtNum(v1.gs_fg_pct, 1)}</td>`,
       `<td>${dome ? '<span class="muted">—</span>' : fmtNum(v1.away_fg_pct, 1)}</td>`,
       `<td>${signalPill(g.signal, g)}</td>`,

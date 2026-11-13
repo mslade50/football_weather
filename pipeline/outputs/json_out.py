@@ -258,6 +258,9 @@ def _weather_block(fc: Optional[WeatherForecast], avg_wind: Optional[float]) -> 
         "point_stage": fc.point_stage,
         "point_source_updated_at": fc.point_source_updated_at,
         "point_aged": fc.point_aged,
+        "retained": fc.retained,
+        "retained_from": fc.retained_from,
+        "retained_reason": fc.retained_reason,
         "ensemble_status": fc.ensemble_status,
         "ensemble_eligible": fc.ensemble_eligible,
         "ensemble_screen_reasons": fc.ensemble_screen_reasons,
@@ -949,7 +952,7 @@ def load_wx_history(state_dir: PathLike) -> dict:
 
 
 def wx_point(fc: Optional[WeatherForecast], impact: Any) -> Optional[list[Any]]:
-    if fc is None:
+    if fc is None or fc.retained:
         return None
     gs = getattr(impact, "gs_fg_pct", None)
     return [fc.lead_hours, fc.wind_fg, fc.gust_fg, fc.temp_fg, fc.rain_fg_mm, fc.precip_prob, gs]

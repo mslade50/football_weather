@@ -27,7 +27,7 @@ from utils.timeutil import parse_iso_utc as parse_utc
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
-KIND_VERSIONS = {'openers': 2, 'alerts': 2, 'book_health': 2}
+KIND_VERSIONS = {'openers': 2, 'alerts': 2, 'book_health': 2, 'wx_last': 2}
 
 OPENERS_FILE = "openers.json"
 ARCHIVE_LAST_FILE = "archive_last.json"
@@ -49,6 +49,8 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
     "openers": {"openers": {}, "true_openers": {}, "references": {}, "true_opener_conflicts": {},
                 "consensus_spread_open": {}},
     "archive_last": {"last": {}},
+    # v1's change-detection arrays cannot reconstruct a forecast. Never invent one.
+    "wx_last": {"last": {}, "forecasts": {}},
     "baseline": {"scope": None, "peaks": {}, "alerted": [], "seen_books": {}, "scopes": {}},
     "alerts": {"sent": {}},   # + "records" / "feed" added lazily by the alert helpers below
     "telegram_state": {"queue": []},
