@@ -1,10 +1,10 @@
 # Discovery UI integration contract
 
-UI branch: `codex/football-ui-audit`, base main `2e69a97`. Integration and deployment belong to the backend task. This branch modifies frontend files and UI tests only; `current-quotes.mjs` and Worker implementation are unchanged.
+Historical UI work began on `codex/football-ui-audit`, base main `2e69a97`. The current signal contract is the Python-published decision described below; `current-quotes.mjs` and the Worker implementation are unchanged by this decision-record change.
 
 ## Discovery
 
-Table, map and Signals presets share `filterDiscovery`. Closed roofs, CFB opening spreads beyond ±10, started/cancelled/postponed games never appear. Missing CFB opener or incomplete wind/temperature is an unknown case exposed by **Inspect low likelihood / unknown**. Clear signal and near-screening-margin cases are shown by default. Prices, edge filters and liquidity never gate discovery. Near margins are engineering screens, not calibrated probabilities. An optional `GameCard.discovery.signal_probability` in [0,1] supplies actual signal likelihood; below 5% is hidden by default. Confidence/impact/precipitation probability are never substituted.
+Table, map and Signals presets share `filterDiscovery`, rendering the published decision. Signal and near cases appear by default; Inspect shows quiet/unknown cases and Show all games also exposes roof/spread exclusions. Started, cancelled and postponed games remain excluded. Missing CFB opener or wind is unknown; temperature is informational unless its optional gate is on. Prices can mark a candidate moved; edge filters and liquidity never establish a weather signal. Near margins are engineering screens, not calibrated probabilities. An optional `GameCard.discovery.signal_probability` in [0,1] supplies actual signal likelihood; below 5% is quiet. Confidence/impact/precipitation probability are never substituted.
 
 The UI uses the published stadium coordinates at their original numeric precision; it does not substitute home-team coordinates. `venue_provenance.resolution`, `weather.ensemble_unverified_sources` and `weather.ensemble_verification_errors` are optional backend evidence shown in the drawer. All source clocks remain intact.
 
