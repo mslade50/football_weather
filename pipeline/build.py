@@ -91,11 +91,15 @@ from pipeline.outputs import d1_out, json_out
 from pipeline.outputs import r2 as r2_out
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
-from pipeline.schedule import cfb as cfb_schedule, nfl as nfl_schedule
+from pipeline.schedule import cfb as cfb_schedule
+from pipeline.schedule import nfl as nfl_schedule
 from pipeline.stadiums import loader as stadium_loader
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
+from pipeline.weather import ecmwf_fallback as fallback_mod
 from pipeline.weather import first_pass, point_handoff, screening, selective
-from pipeline.weather import ecmwf_fallback as fallback_mod, merge as merge_mod, nws as nws_mod, openmeteo as om_mod
+from pipeline.weather import merge as merge_mod
+from pipeline.weather import nws as nws_mod
+from pipeline.weather import openmeteo as om_mod
 from utils.env import load_repo_dotenv
 from utils.timeutil import et_weekday, now_et, to_tz, utc_iso
 

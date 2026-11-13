@@ -315,7 +315,7 @@ class BaseScraper(ABC):
         self.timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
         self._initialize()
 
-    def _initialize(self) -> None:
+    def _initialize(self) -> None:  # noqa: B027 - optional hook, default is a no-op
         """Initialize book-specific state after the shared constructor options."""
 
     @property

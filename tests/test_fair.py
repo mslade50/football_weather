@@ -267,7 +267,7 @@ def test_published_projection_values(total, spread, current, gs, away, expected)
     from pipeline.outputs.json_out import fair_block
     derived = F.legacy_derived(total, spread, current, gs, away)
     block = fair_block(None, derived)
-    for key, value in zip(("my_total", "edge_legacy", "my_spread", "edge_s_legacy"), expected):
+    for key, value in zip(("my_total", "edge_legacy", "my_spread", "edge_s_legacy"), expected, strict=True):
         assert key in block
         assert block[key] == (pytest.approx(value) if value is not None else None)
 

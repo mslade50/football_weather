@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from pipeline.model import config
 
+
 def routine_slot(now):
     local = now.astimezone(ZoneInfo("America/New_York"))
     # Scheduler targets the exact minute; bounded recovery tolerates a late
