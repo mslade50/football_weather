@@ -86,6 +86,13 @@ delivery receipts/feed, book-health paging and the postmortem CLI/email fallback
 Telegram delivery defaults off behind `FOOTBALL_TELEGRAM_ENABLED`. Legacy stored
 queue keys remain loadable but are never replayed. See `docs/ARCHITECTURE.md` §10.
 
+`pipeline/failure_page.py` also checks the Worker heartbeat on every workflow
+outcome (including skipped builds and GitHub backstop runs). Its independent
+incident uses the existing `pipeline_health.json`; `FOOTBALL_FAILURE_ALERTS=0`,
+safe refresh, cancellation and `TELEGRAM_DISABLED=1` silence ops pages.
+`meta.heartbeat_health` is the Python verdict used by Status, with a 20-hour
+threshold in `pipeline/model/config.py`; pick-alert retirement does not gate it.
+
 ## Pricing snapshots
 
 Python selects usable quotes once at pricing. Published cards preserve original quote clocks

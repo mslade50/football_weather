@@ -228,6 +228,7 @@ async function loadStatus(force = false) {
         data = { ...(data || {}), run_id: m.run_id, last_updated: m.last_updated, git_sha: m.git_sha, next_run_eta: m.next_run_eta,
           degradations: m.degradations || [], books: m.books || {}, runs: j.runs || [], heartbeat: j.heartbeat || null,
           dispatch: j.dispatch || null, refresh: j.refresh || null, source: "api" };
+        data.heartbeat_health = j.heartbeat_health || data.heartbeat_health || null;
       }
     } catch (_) { /* neither */ }
   }
@@ -375,8 +376,8 @@ async function renderStatus() {
   const lastUpdated = sd.last_updated || meta.last_updated || latest.finished_at || null;
   const hb = sd.heartbeat || null;
   const hbTs = heartbeatTs(hb);
-  const hbAge = ageHours(hbTs);
-  const hbClass = hbAge == null || hbAge > 20 ? "warn" : "ok";
+  const hbHealth = sd.heartbeat_health || sd.meta?.heartbeat_health || meta.heartbeat_health || null;
+  const hbClass = hbHealth?.status === "stale" ? "warn" : hbHealth?.status === "fresh" ? "ok" : "muted";
   const dataAge = ageHours(lastUpdated);
   const refresh = sd.refresh || meta.refresh || (QUOTES?.refreshStatus ? QUOTES.refreshStatus(meta, Date.now(), sd.dispatch) : null);
   const refreshLateNow = (refresh && (refresh.overdue || refresh.missed)) || QUOTES?.refreshOverdue(meta);
@@ -422,11 +423,12 @@ async function renderStatus() {
       <div class="card">
         <h3>Scheduler heartbeat</h3>
         ${kv([
-          ["CF Worker tick", hbTs ? `${esc(fmtET(hbTs))} <span class="pill ${hbClass}">${esc(ageLabel(hbTs))}</span>` : `<span class="pill warn">no heartbeat (cf_heartbeat.json missing)</span>`],
+          ["CF Worker tick", hbTs ? `${esc(fmtET(hbTs))} <span class="pill ${hbClass}">${esc(ageLabel(hbTs))}</span>` : `<span class="pill ${hbClass}">no usable heartbeat</span>`],
+          ["Heartbeat health", `<span class="pill ${hbClass}">${esc(hbHealth?.status || "unknown")}</span> <span class="sub">${esc(hbHealth?.reason || "No published heartbeat verdict")}${hbHealth?.evaluated_at ? ` · checked ${esc(fmtET(hbHealth.evaluated_at))}` : ""}</span>`],
           ["Last cron", esc((hb && (hb.cron || hb.last_cron)) || "—")],
           ["Last dispatch", sd.dispatch ? `${esc(fmtET(sd.dispatch.ts))} · ${esc(sd.dispatch.reason || "unknown")}` : "Unknown (no receipt)"],
           ["Worker plan", esc((sd.dispatch?.plan && `${sd.dispatch.plan.sport || ""}/${sd.dispatch.plan.scope || ""}`) || "—")],
-          ["Stale rule", `<span class="sub">refresh overdue after expected run + 90 min; heartbeat stale after 20 h</span>`],
+          ["Stale rule", `<span class="sub">refresh overdue after expected run + 90 min; heartbeat verdict evaluated by pipeline${hbHealth?.threshold_hours != null ? ` after ${esc(hbHealth.threshold_hours)} h` : ""}</span>`],
         ])}
         <h3>Stage timings</h3>
         ${stageTimingsHtml(timings)}

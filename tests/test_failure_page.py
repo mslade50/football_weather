@@ -24,6 +24,13 @@ OCT17_JOBS = {
 }
 
 
+@pytest.fixture(autouse=True)
+def isolate_heartbeat_transport(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_DISABLED", "0")
+    monkeypatch.setattr("pipeline.failure_page.read_heartbeat_bytes", lambda: None)
+    monkeypatch.setattr("pipeline.failure_page.write_health", lambda state: None)
+
+
 def _page(state, outcome, jobs, **kwargs):
     return decide(
         state, outcome, jobs=jobs,
@@ -142,7 +149,7 @@ def test_invalid_marker_is_closed_rather_than_unreadable():
     assert foreign == closed_state()
 
 
-def test_plan_cli_records_nothing_until_commit(monkeypatch, tmp_path, capsys):
+def test_plan_cli_records_no_delivery_receipt_until_commit(monkeypatch, tmp_path, capsys):
     stored = {}
 
     def reader():
@@ -169,7 +176,8 @@ def test_plan_cli_records_nothing_until_commit(monkeypatch, tmp_path, capsys):
     assert main(["plan", "--action-out", str(action), "--message-out", str(message), "--state-out", str(state)]) == 0
     assert action.read_text(encoding="utf-8") == "failure\n"
     assert "39043184946" in message.read_text(encoding="utf-8")
-    assert stored == {}
+    assert stored["open"] is False  # observation is not a delivered incident receipt
+    assert stored["heartbeat"]["open"] is False
     assert "bot" not in capsys.readouterr().out
     assert main(["commit", "--state-file", str(state)]) == 0
     assert stored["open"] is True

@@ -11,6 +11,11 @@ accepts the page. A repeat failure while the marker is open does not page.
 A later run whose main build succeeded pages once and clears the marker.
 Cancelled runs and safe refreshes leave the marker alone.
 
+The same object holds an independent ``heartbeat`` incident and its last
+observation. Unknown-window observations can be saved without sending; the
+incident's ``open`` receipt changes only after a successful send. This entry
+point runs even when the build gate skips, including GitHub schedule backstops.
+
 A gate skip (light did not run) is not a recovery: the board was not rebuilt.
 A BetOnline scrape or publish failure pages only when ``TELEGRAM_SYSTEM_ALERTS``
 is exactly ``1``, matching the previous step condition.
@@ -26,7 +31,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from pipeline import heartbeat
 from pipeline.outputs import r2
+from utils.timeutil import now_utc
 
 HEALTH_KEY = "board/pipeline_health.json"
 SCHEMA_VERSION = 1
@@ -49,6 +56,8 @@ def normalize_state(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict) or raw.get("schema_version") != SCHEMA_VERSION:
         return closed_state()
     state: dict[str, Any] = {"schema_version": SCHEMA_VERSION, "open": raw.get("open") is True}
+    if isinstance(raw.get("heartbeat"), dict):
+        state["heartbeat"] = dict(raw["heartbeat"])
     if not state["open"]:
         return state
     jobs = raw.get("jobs") if isinstance(raw.get("jobs"), dict) else {}
@@ -170,6 +179,38 @@ def read_health_bytes() -> bytes | None:
     return r2.get_object(r2.make_client(cfg, bounded=True), cfg.bucket, HEALTH_KEY)
 
 
+def read_heartbeat_bytes() -> bytes | None:
+    cfg = r2.config_from_env()
+    if cfg is None:
+        raise RuntimeError("R2 is not configured")
+    return r2.get_object(r2.make_client(cfg, bounded=True), cfg.bucket, "board/cf_heartbeat.json")
+
+
+def with_heartbeat(decision: dict[str, Any], previous: dict[str, Any],
+                   health: dict[str, Any]) -> dict[str, Any]:
+    """Combine independent pipeline/cron incidents in the existing delivery gate."""
+    old = previous.get("heartbeat") or {}
+    opened = old.get("open") is True
+    action = "none"
+    if health["status"] == "stale" and not opened:
+        action = "failure"
+        text = ("SYSTEM · Refresh stale · CF cron heartbeat\n"
+                f"{health['reason']} (> {health['threshold_hours']} h)\n"
+                "This incident will not page again until the Worker heartbeat recovers.")
+    elif health["status"] == "fresh" and opened:
+        action = "recovery"
+        text = f"SYSTEM · CF cron heartbeat recovered\n{health['reason']}"
+    observation = {**health, "open": opened}
+    decision["state"]["heartbeat"] = observation
+    if action != "none":
+        decision["message"] = "\n\n".join(filter(None, (decision["message"], text)))
+        if decision["action"] == "none":
+            decision["action"] = action
+        decision["persist"] = True
+        decision["state"]["heartbeat"]["open"] = action == "failure"
+    return decision
+
+
 def write_health(state: Mapping[str, Any]) -> None:
     cfg = r2.config_from_env()
     if cfg is None:
@@ -190,7 +231,8 @@ def plan_from_env() -> dict[str, Any]:
         safe_refresh=_env_flag("SAFE_REFRESH"),
         system_alerts=os.environ.get("TELEGRAM_SYSTEM_ALERTS", "").strip() == "1",
     )
-    if not failure_alerts_enabled(os.environ.get("FOOTBALL_FAILURE_ALERTS")):
+    if (not failure_alerts_enabled(os.environ.get("FOOTBALL_FAILURE_ALERTS"))
+            or _env_flag("TELEGRAM_DISABLED") or _env_flag("SAFE_REFRESH") or _env_flag("PIPELINE_CANCELLED")):
         return {"action": "none", "state": closed_state(), "message": "", "persist": False}
     try:
         raw = read_health_bytes()
@@ -199,7 +241,7 @@ def plan_from_env() -> dict[str, Any]:
         previous, unreadable = closed_state(), True
     else:
         previous, unreadable = interpret_health(raw)
-    return decide(
+    decision = decide(
         previous, outcome, unreadable=unreadable,
         run_id=os.environ.get("GITHUB_RUN_ID", ""),
         run_url=os.environ.get("RUN_URL", ""),
@@ -207,6 +249,30 @@ def plan_from_env() -> dict[str, Any]:
         trigger=os.environ.get("GITHUB_EVENT_NAME", ""),
         jobs=jobs,
     )
+    try:
+        raw_tick = read_heartbeat_bytes()
+    except Exception:  # noqa: BLE001 - storage errors are unknown, never a missing tick
+        tick, readable = None, False
+    else:
+        readable = True
+        try:
+            tick = json.loads(raw_tick) if raw_tick is not None else None
+        except (ValueError, UnicodeDecodeError):
+            tick = None
+    old_heartbeat = previous.get("heartbeat") or {}
+    health = heartbeat.assess(tick, now_utc(), old_heartbeat, readable=readable)
+    # Save observations separately from receipts. Never acknowledge a proposed
+    # page here, or overwrite an unreadable marker with observational state.
+    observed = {**previous, "heartbeat": {**health, "open": old_heartbeat.get("open") is True}}
+    if not unreadable and observed != previous:
+        try:
+            write_health(observed)
+        except Exception:  # noqa: BLE001 - a first stale page can still be delivered
+            print("::warning::heartbeat observation was not saved")
+    decision = with_heartbeat(decision, previous, health)
+    if decision["action"] != "none" and "Open run:" not in decision["message"]:
+        decision["message"] += f"\nOpen run: {os.environ.get('RUN_URL', '')}"
+    return decision
 
 
 def _write_text(path: Path, text: str) -> None:

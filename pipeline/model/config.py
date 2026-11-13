@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import os
 
+# Ops threshold: Worker ticks every 30 minutes; retain the legacy 20-hour page.
+HEARTBEAT_STALE_HOURS = 20
+
 MODEL_VERSION_V1 = "v1"
 MODEL_VERSION_V2 = "v2"
 MODEL_VERSIONS = (MODEL_VERSION_V1, MODEL_VERSION_V2)

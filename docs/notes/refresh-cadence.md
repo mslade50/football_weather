@@ -30,6 +30,12 @@ Design (no new cron; free plan still has the same two triggers):
   unchanged. The GitHub backstop gate skips when a `workflow_dispatch` whose
   title is `sport=all`, or whose title does not name a sport, started within
   100 minutes. `sport=nfl` and `sport=cfb` do not skip the all-sport backstop.
+  These are deliberately different gates: 90 minutes spaces accepted Worker
+  dispatch receipts for slots/catch-up; 100 minutes suppresses a redundant
+  GitHub backstop using workflow run creation time. The latter allows startup
+  slack. There is no current 50-minute rule. Python's `json_out.py` mirrors
+  scheduling slots for ETA only, not either dedupe gate. Keep these numbers
+  separate from refresh-overdue grace and heartbeat staleness.
 - `next_run_eta` advertises the sooner of the next game-day hour and the next
   ET slot. It does not advertise the GitHub backstop during the season.
 - `/api/status` `refresh` and `meta.refresh` are `ok`, `overdue` (ETA + 90
