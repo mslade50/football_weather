@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, get_with_retry, in_season
+from pipeline.odds.base import BaseScraper, Capture, get_with_retry, in_season
 from pipeline.odds.parsers import pinnacle as parser
 
 logger = logging.getLogger(__name__)
@@ -70,17 +70,13 @@ async def fetch_feed(client: httpx.AsyncClient | None = None) -> dict[str, list[
 class PinnacleScraper(BaseScraper):
     BOOK_NAME = "pinnacle"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None):
-        # No browser needed - pure API calls. ``headless`` accepted for main.py parity.
-        self.raw_store = raw_store
-        self.run_id = run_id
+    def _initialize(self) -> None:
         self.fetch_errors: dict[str, str] = {}
 
     async def scrape(
-        self,
-        sport: str,
-        market: str | None = None,
-        include_alternates: bool = True,
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
         **kwargs: Any,
     ) -> list[GameLine]:
         if sport not in parser.LEAGUES:

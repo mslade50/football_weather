@@ -15,14 +15,13 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, get_with_retry
+from pipeline.odds.base import BaseScraper, Capture, get_with_retry
 from pipeline.odds.parsers import kalshi as kalshi_parser
 
 logger = logging.getLogger(__name__)
@@ -41,15 +40,11 @@ HEADERS = {
 PAGE_LIMIT = 200
 MAX_PAGES = 50
 
-Capture = Callable[[str, Any, str | None], Any]
-
 
 class KalshiScraper(BaseScraper):
     BOOK_NAME = "kalshi"
 
-    def __init__(self, headless: bool = True, timeout: float = 15.0) -> None:
-        # No browser needed.
-        self.timeout = timeout
+    DEFAULT_TIMEOUT = 15.0
 
     async def _fetch_all_events(self, client: httpx.AsyncClient, series_ticker: str) -> list[dict]:
         """Fetch all open events (with nested markets) for a series, handling pagination."""
@@ -96,13 +91,13 @@ class KalshiScraper(BaseScraper):
         return payload
 
     async def scrape(
-        self,
-        sport: str,
-        market: str | None = None,
-        capture: Capture | None = None,
-        run_id: str | None = None,
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
         **kwargs: Any,
     ) -> list[GameLine]:
+        capture = self.capture if capture is None else capture
+        run_id = self.run_id if run_id is None else run_id
         if os.environ.get("BOOK_KALSHI_ENABLED", "1") == "0":
             logger.info("[kalshi] disabled via BOOK_KALSHI_ENABLED=0")
             return []

@@ -22,6 +22,7 @@ from pipeline.build import (
 )
 from pipeline.contracts import Game, GameLine, WeatherForecast
 from pipeline.model import signals
+from pipeline.odds.base import BaseScraper
 from pipeline.run_context import RunContext
 from pipeline.stadiums.loader import load_stadium_book
 
@@ -129,21 +130,18 @@ def test_exchange_scope_scrapes_only_enabled_exchanges(monkeypatch):
 
 # ---- gather with return_exceptions -----------------------------------------------
 
-class _Ok:
+class _Ok(BaseScraper):
     BOOK_NAME = "ok"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None) -> None:
-        self.raw_store = raw_store
+    async def scrape(self, sport, market=None, **kwargs):
+        return [_ln("ok", "total", "over", 47.5)]
 
     async def scrape_with_retry(self, sport: str, market: str | None = None, **kw: Any) -> list[GameLine]:
         return [_ln("ok", "total", "over", 47.5)]
 
 
-class _Boom:
+class _Boom(_Ok):
     BOOK_NAME = "boom"
-
-    def __init__(self) -> None:  # no ctor kwargs at all
-        pass
 
     async def scrape_with_retry(self, sport: str, market: str | None = None, **kw: Any) -> list[GameLine]:
         raise RuntimeError("site changed")

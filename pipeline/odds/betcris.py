@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, backoff_delay, retryable_status
+from pipeline.odds.base import BaseScraper, Capture, backoff_delay, retryable_status
 from pipeline.odds.parsers import betcris as parser
 from pipeline.odds.parsers.betcris import PAGES, BetcrisGame
 
@@ -48,12 +48,7 @@ def enabled() -> bool:
 class BetcrisScraper(BaseScraper):
     BOOK_NAME = "betcris"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None,
-                 season: int | None = None) -> None:
-        # No browser needed — `headless` accepted for interface parity.
-        self.raw_store = raw_store
-        self.run_id = run_id
-        self.season = season
+    def _initialize(self) -> None:
         self.last_games: list[BetcrisGame] = []
         self.fetch_errors: dict[str, str] = {}
 
@@ -140,7 +135,12 @@ class BetcrisScraper(BaseScraper):
             return f"upstream stale: {exc}"
         return f"upstream stale, age {info[1]:.0f}s: {exc}"
 
-    async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
+    async def scrape(
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
+        **kwargs: Any,
+    ) -> list[GameLine]:
         if sport not in PAGES:
             raise ValueError(f"unknown sport {sport!r}")
         if not enabled():

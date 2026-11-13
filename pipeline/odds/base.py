@@ -10,6 +10,7 @@ import os
 import random
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -21,6 +22,7 @@ from pipeline.contracts import GameLine
 
 logger = logging.getLogger(__name__)
 _MODULE_LOGGER = logger  # ``fetch_json_with_fallback`` takes a ``logger`` kwarg that shadows the name
+Capture = Callable[[str, Any, str | None], Any]
 
 # --- transport fallback (httpx -> curl_cffi Chrome impersonation) ---------------------
 #
@@ -299,9 +301,35 @@ class BaseScraper(ABC):
     BOOK_NAME: str = ""
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 5.0  # seconds
+    DEFAULT_TIMEOUT: float = 30.0
+
+    def __init__(
+        self, *, headless: bool = True, raw_store: Any = None,
+        run_id: str | None = None, season: int | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        self.headless = headless
+        self.raw_store = raw_store
+        self.run_id = run_id
+        self.season = season
+        self.timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
+        self._initialize()
+
+    def _initialize(self) -> None:
+        """Initialize book-specific state after the shared constructor options."""
+
+    @property
+    def capture(self) -> Capture | None:
+        """Callback for API books, using the same raw store as page-based books."""
+        return self.raw_store.put if self.raw_store is not None else None
 
     @abstractmethod
-    async def scrape(self, sport: str, market: Optional[str] = None, **kwargs: Any) -> list[GameLine]:
+    async def scrape(
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
+        **kwargs: Any,
+    ) -> list[GameLine]:
         """Scrape game lines for ``sport`` (``nfl`` | ``cfb``).
 
         Args:

@@ -25,7 +25,7 @@ from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, in_season
+from pipeline.odds.base import BaseScraper, Capture, in_season
 from pipeline.odds.parsers import betonline as parser
 from pipeline.odds.parsers.betonline import LEAGUES, BetOnlineGame
 
@@ -91,10 +91,7 @@ async def _launch(pw: Any, headless: bool) -> Any:
 class BetOnlineScraper(BaseScraper):
     BOOK_NAME = "betonline"
 
-    def __init__(self, headless: bool = True, raw_store: Any = None, run_id: str | None = None) -> None:
-        self.headless = headless
-        self.raw_store = raw_store
-        self.run_id = run_id
+    def _initialize(self) -> None:
         self.last_games: list[BetOnlineGame] = []
         self.fetch_errors: dict[str, str] = {}
 
@@ -142,7 +139,12 @@ class BetOnlineScraper(BaseScraper):
             raise RuntimeError(f"[{self.BOOK_NAME}] {sport}: all {failed} league fetches failed from the page")
         return out
 
-    async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
+    async def scrape(
+        self, sport: str, market: str | None = None, *,
+        capture: Capture | None = None, run_id: str | None = None,
+        include_alternates: bool = True, include_live: bool = False,
+        **kwargs: Any,
+    ) -> list[GameLine]:
         if sport not in LEAGUES:
             raise ValueError(f"unknown sport {sport!r}")
         if not enabled():

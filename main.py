@@ -63,10 +63,7 @@ def load_scraper(name: str) -> Optional[type]:
 
 async def run_scraper(name: str, scraper_cls: type, sport: str, market: Optional[str], headless: bool) -> list[GameLine]:
     """Run a single scraper with retry logic."""
-    try:
-        scraper: BaseScraper = scraper_cls(headless=headless)
-    except TypeError:
-        scraper = scraper_cls()
+    scraper: BaseScraper = scraper_cls(headless=headless)
     return await scraper.scrape_with_retry(sport, market=market)
 
 

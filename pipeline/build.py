@@ -568,30 +568,11 @@ def load_scraper_class(name: str) -> type | None:
 
 
 def make_scraper(cls: type, raw: RawStore | None, run_id: str | None) -> Any:
-    """Books differ in ctor kwargs (Kalshi/Novig take no raw_store): degrade gracefully."""
-    try:
-        return cls(headless=True, raw_store=raw, run_id=run_id)
-    except TypeError:
-        try:
-            return cls(headless=True)
-        except TypeError:
-            return cls()
+    return cls(headless=True, raw_store=raw, run_id=run_id)
 
 
-async def _run_book(name: str, scraper: Any, sport: str, raw: RawStore | None, run_id: str | None) -> list[GameLine]:
-    kwargs: dict[str, Any] = {}
-    if raw is not None and getattr(scraper, "raw_store", "missing") == "missing":
-        # scrapers without a raw_store attribute take a capture callback instead
-        def capture(source: str, payload: Any, url: str | None = None) -> None:
-            raw.put(source, payload, url)
-
-        kwargs["capture"] = capture
-        kwargs["run_id"] = run_id
-    try:
-        return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None, **kwargs), SCRAPE_TIMEOUT_S)
-    except TypeError:
-        # scrape() rejected the extra kwargs (BaseScraper forwards **kwargs verbatim)
-        return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None), SCRAPE_TIMEOUT_S)
+async def _run_book(scraper: Any, sport: str) -> list[GameLine]:
+    return await asyncio.wait_for(scraper.scrape_with_retry(sport, market=None), SCRAPE_TIMEOUT_S)
 
 
 async def scrape_books(
@@ -614,7 +595,7 @@ async def scrape_books(
             continue
         names.append(name)
         scrapers[name] = scraper
-        tasks.append(_run_book(name, scraper, sport, raw, run_id))
+        tasks.append(_run_book(scraper, sport))
     if not tasks:
         return {}, {}
     results = await asyncio.gather(*tasks, return_exceptions=True)
