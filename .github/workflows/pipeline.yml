@@ -4,7 +4,7 @@ name: pipeline
 run-name: pipeline sport=${{ inputs.sport || 'all' }} scope=${{ inputs.scope || 'full' }}
 
 # Phase 3: schedule -> stadiums -> weather -> impact v1 -> odds (httpx books in the
-# light job, BetOnline in the Playwright jobs) -> board JSON + D1 SQL + legacy files.
+# light job, BetOnline in the Playwright jobs) -> board JSON + D1 SQL.
 #
 #   * BetOnline (Chromium) is scraped by `playwright_scrape` IN PARALLEL with
 #     `light` (needs: gate only, no state, no R2 writes); it hands parsed lines
@@ -27,9 +27,7 @@ run-name: pipeline sport=${{ inputs.sport || 'all' }} scope=${{ inputs.scope || 
 #     floor for each sport this run rebuilt (bypassed by the `force` input).
 #     A CFB-only hour does not fail because NFL was not rebuilt. An empty
 #     rebuild of a sport that was rebuilt is still rejected.
-#   * Nothing is committed back to git (Phase 4): the legacy nfl_weather.csv /
-#     cfb_weather.xlsx are written to data/ and uploaded to R2 legacy/ in the put
-#     loop; data/state/ rides R2 board/.
+#   * Generated board data is published to R2; nothing is committed back to git.
 #
 # Primary scheduler: Cloudflare Worker crons (site/worker/wrangler.toml) dispatch
 # this workflow; the schedule below is the off-the-minute UTC backstop.
@@ -240,10 +238,10 @@ jobs:
       - name: Warm Wrangler CLI cache (cache miss only)
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npx --yes wrangler@4 --version
-      - name: Install deps (no Playwright / Streamlit in the light job)
+      - name: Install deps (no Playwright in the light job)
         run: |
           python -m pip install --upgrade pip
-          grep -viE '^(playwright|playwright-stealth|streamlit|streamlit-plotly-events|plotly|fsspec|pytz)\b' requirements.txt > requirements-light.txt
+          grep -viE '^(playwright|playwright-stealth)\b' requirements.txt > requirements-light.txt
           pip install -r requirements-light.txt
       - name: Run id
         run: echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
@@ -303,16 +301,13 @@ jobs:
           python scripts/publish_r2.py raw
           python scripts/publish_r2.py snapshots
           PUBLISH_GUARD_STARTED="$(date +%s)"
-          # Raw uploads can outlast feed TTLs. Revalidate current board/legacy
+          # Raw uploads can outlast feed TTLs. Revalidate current board
           # prices immediately before their put loop; consumers enforce expiry too.
           python -m pipeline.current_quotes --board-dir data/board --publication-window-seconds 120
           # Reject a bad or empty rebuild before replacing any current board objects.
           # The floor counts only sports this run rebuilt (meta.sport).
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
-          # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
-          # -> R2 legacy/ (ARCH §5); nothing is committed to git.
-          python scripts/publish_r2.py legacy
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state
           PUBLISH_GUARD_ELAPSED=$(( $(date +%s) - PUBLISH_GUARD_STARTED ))
@@ -410,8 +405,7 @@ jobs:
     # Publish job. Runs AFTER light: ingests the playwright_scrape handoff
     # (--ingest-lines; scraped_at preserved, stale lines rejected) instead of
     # launching Chromium, re-scrapes BetCRIS (short TTL), merges onto the state
-    # light just pushed to R2 (--merge-into-r2), re-writes the legacy files (NFL
-    # Spread_now/Total_now) to R2 legacy/ and republishes with meta.json last.
+    # light just pushed to R2 (--merge-into-r2) and republishes with meta.json last.
     # A failed scrape job still publishes (BetOnline reads as 0 lines + a
     # degradation, exactly like an in-build scrape failure).
     needs: [gate, light, playwright_scrape]
@@ -443,7 +437,7 @@ jobs:
       - name: Install deps (no Playwright in the publish job)
         run: |
           python -m pip install --upgrade pip
-          grep -viE '^(playwright|playwright-stealth|streamlit|streamlit-plotly-events|plotly|fsspec|pytz)\b' requirements.txt > requirements-light.txt
+          grep -viE '^(playwright|playwright-stealth)\b' requirements.txt > requirements-light.txt
           pip install -r requirements-light.txt
       - name: Download BetOnline handoff
         # Missing handoff (scrape job failed) -> BetOnline 0 lines + degradation.
@@ -500,9 +494,6 @@ jobs:
           # Same floor as the light job: only sports this run rebuilt.
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/board/meta.json --prev-meta data/state/prev_meta.json ${FORCE:+--force}
-          # legacy csv/xlsx (pipeline/outputs/legacy.py, data/ = build --out-dir default)
-          # -> R2 legacy/ (ARCH §5); nothing is committed to git.
-          python scripts/publish_r2.py legacy
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state
           PUBLISH_GUARD_ELAPSED=$(( $(date +%s) - PUBLISH_GUARD_STARTED ))

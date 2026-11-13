@@ -12,10 +12,10 @@ Winner design ("reuse-first, lift golf_scraping, ship in phases") merged with ju
 4. **Degradation records, not silent fallbacks.** Every fallback emits `Degradation{component, reason, severity in info|warn|error, run_id}` into `meta.json.degradations[]`; the site renders banners. In-run SYSTEM texts stay off unless `TELEGRAM_SYSTEM_ALERTS=1`. A rejected publish, or a failed gate or main (light) build, pages without that switch. A Playwright/BetOnline failure pages only when the switch is on.
 5. **Idempotent, identity-stamped.** `run_id = f"{sport}-{utc_ts:%Y%m%dT%H%M%SZ}-{sha7}"` threaded through every row and state file. D1 writes are `INSERT OR IGNORE` on natural keys. Every R2 state JSON carries `schema_version` and passes through `migrate()` on load.
 6. **Two-phase publish + self-check.** Data payloads → state files → `meta.json` last; then re-fetch `meta.json`, assert `run_id`, assert each sport this run rebuilt still has games and is ≥ 50% of its previous count unless `--force`. A single-sport hour keeps the other sport's last board and records `retained_sports` (`{sport: {from_run_id, games, refreshed_at}}`). The site says that sport was carried forward and shows when its weather and prices were last refreshed. Carried cards keep their prices; only `run_id` is restamped. The plain `board/games_<sport>.json` and `board/board.json` keys carry the same bytes as the sealed generation.
-7. **No generated data in git** after Phase 2. Legacy csv/xlsx commit loop exists only in Phases 1–2 (Streamlit compatibility); afterwards legacy files go to R2 `legacy/`.
+7. **No generated data in git** after Phase 2. Retired Streamlit file exports are no longer generated or published; board JSON is the serving contract.
 8. **v1 model is the alert model** until backtest/CLV over ≥4 weeks shows v2 ≥ v1. v2 is computed and shown side by side from Phase 5.
 9. **Private site.** Basic Auth from day one; Cloudflare Access upgrade path. Never republish raw Kalshi/FanDuel prices publicly.
-10. **Tooling weight for a solo repo:** pydantic frozen contracts + parser fixture tests + ruff + pytest + workflow-contract tests = yes. mypy --strict, pandera, structlog, hypothesis = optional, never gating Phases 2–3.
+10. **Tooling weight for a solo repo:** frozen dataclass contracts + parser fixture tests + ruff + pytest + workflow-contract tests = yes. mypy --strict, pandera, structlog, hypothesis = optional, never gating Phases 2–3.
 
 ## 2. Tiers
 
@@ -29,7 +29,7 @@ Two jobs: **A `light`** (httpx books + weather + model + edges + alerts + publis
 `run_worker_first=["/*"]`, `html_handling="none"`, Basic Auth copied from golf `index.js`. Routes in §12. Frontend vanilla JS + vendored MapLibre GL + uPlot (§11).
 
 ### 2.4 Data stores
-- **R2 bucket `football-board`**: `board/` served JSON + state; `raw/` captures; `snapshots/{sport}/{season}/{week}/{run_id}.json`; `legacy/` csv/xlsx (Phase 3+).
+- **R2 bucket `football-board`**: `board/` served JSON + state; `raw/` captures; `snapshots/{sport}/{season}/{week}/{run_id}.json`.
 - **D1 `football-odds`**: dimensions + change-only history + alerts + runs (§4).
 - **Git**: code, `data/stadiums.csv`, `data/stadiums_overrides.csv`, `data/teams.csv`, `data/aliases/*.json`, `data/calibration.json`, `data/raw/` cached API JSON per season, `tests/fixtures/`.
 
@@ -81,7 +81,6 @@ football_weather/
       __init__.py
       json_out.py            # site/web/data/*.json + snapshots (allow_nan=False)
       d1_out.py              # data/d1_inserts.sql (INSERT OR IGNORE, chunked 100 rows)
-      legacy.py              # nfl_weather.csv / cfb_weather.xlsx column-exact
       raw_out.py             # raw/{sport}/{run_id}/... + manifest.json
       r2.py                  # boto3 push (alternative to wrangler in CI); self-check
     backtest.py              # weekly: closings + HRRR actuals + previous-runs -> data/backtest/*.parquet + board/backtest.json
@@ -99,7 +98,6 @@ football_weather/
     raw/nfl_stadium_curated.csv           # recovered from csv history
     raw/cfb_stadium_curated.csv           # recovered from xlsx history
     backtest/                             # parquet (gitignored after Phase 6 -> R2)
-    nfl_weather.csv  cfb_weather.xlsx     # committed only Phases 1-2
   site/
     worker/
       wrangler.toml  index.js  package.json
@@ -111,8 +109,6 @@ football_weather/
       data/                                # gitignored build output
   scripts/
     recon_book.py            # generic Playwright response logger (copied recon_betcris.py)
-    recover_static.py        # git history -> data/raw/*_curated.csv
-    extract_golden.py        # git history -> tests/fixtures/golden_v1.parquet (~3000 rows)
     fixtures_scrub.py        # raw capture -> scrubbed test fixture
   tests/
     fixtures/raw/{betonline,betcris,fanduel,kalshi,novig,prophetx,pinnacle,openmeteo,nws,nflverse,cfbd}/
@@ -121,7 +117,7 @@ football_weather/
     test_betonline_parse.py  test_betcris_parse.py  test_fanduel_parse.py  test_kalshi_ladder.py
     test_novig_parse.py  test_prophetx_parse.py  test_pinnacle_parse.py
     test_merge_aliases.py  test_teams.py  test_weather_merge.py  test_stadium_loader.py
-    test_alerts_rules.py  test_state_migrate.py  test_legacy_columns.py  test_json_out.py  test_d1_out.py
+    test_alerts_rules.py  test_state_migrate.py  test_json_out.py  test_d1_out.py
     test_pipeline_workflow.py  test_deploy_workflow.py  test_gate_check.py
   .github/workflows/
     pipeline.yml  deploy.yml  ci.yml  build-stadiums.yml  backtest.yml  calibrate.yml
@@ -256,7 +252,6 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
 | state: `board/openers.json`, `board/history.json`, `board/wx_history.json`, `board/archive_last.json`, `board/wx_last.json`, `board/alerts.json`, `board/scrape_baseline.json`, `board/telegram_state.json`, `board/cf_heartbeat.json`, `board/closings.json` | every state file: `{"schema_version": N, "run_id": ..., ...}` |
 | `raw/{sport}/{run_id}/{source}.json` + `raw/{sport}/{run_id}/manifest.json` | verbatim captures; manifest `{source: {sha256, bytes, fetched_at, url}}` |
 | `snapshots/{sport}/{season}/{week}/{run_id}.json` | full GameCard list per run (backtest input) |
-| `legacy/nfl_weather.csv`, `legacy/cfb_weather.xlsx` | Phase 3+ |
 
 **GameCard**:
 ```
@@ -325,7 +320,7 @@ Clients in `pipeline/weather/openmeteo.py` and `nws.py`; all raw responses captu
   - NWS replaces any null field ≤7 d (`+nws` suffix when it supplied wind); if Open-Meteo fails entirely → NWS-only + Degradation(warn).
   - `model_disagreement = max−min` of deterministic model wind means (AIFS is a member).
 - **Climatology shrinkage** (`weather/climatology_blend.py`, applied in `merge.build_forecast` after the window means): `blend(forecast, climo, lead_hours, kind) = w(lead)·forecast + (1−w)·climo`, curves per kind (`wind` — gusts share it — / `temp` / `rain_prob`) from `data/calibration.json` `forecast_blend.weights`: w = 1 for lead ≤ `full_h` (48), linear to `floor` at `floor_h` (168) — or piecewise-linear through fitted `points [[lead_h, w], …]` — held beyond. Defaults until fitted: floors wind 0.45 / temp 0.7 / rain_prob 0.5; `scripts/fit_forecast_blend.py` fits them (previous-runs day-1..7 forecasts vs ERA5 actuals, MAE-optimal shrinkage, pooled over ~40 stadiums, Sep–Dec 2024+2025) and writes `weights` + `fit` stats. Blended: `wind_fg`, `gust_fg`, `temp_fg`, `precip_prob` and the ensemble `wind_p10/p50/p90` (→ `wind_vol_fc`); rain AMOUNT is never blended. `wind_fg`/`temp_fg`/`rain_fg` stay the values impact/signals consume; `wind_fg_raw`, `temp_fg_raw`, `blend_w` (wind weight), `climo_wind`, `climo_temp` are emitted beside them. Base rate = `data/climatology.csv` cell for stadium × ISO week × 6-h solar-time bin (`round(lon/15)` h offset; bins 00-06/06-12/12-18/18-24) of kickoff+1h: mean/P10/P50/P90 wind and temp, gust mean/P90, hourly ≥1 mm rain frequency; built by `stadiums/climatology.py` from ONE hourly ERA5 request per stadium (2015-01-01..2024-12-31, Aug–Jan cells only, 1.5 s throttle, raw cached under `--cache-dir`). The same csv keeps the legacy per-stadium summary row (`avg_wind_sep..jan`, `avg_temp_f`; written last per stadium so last-row-wins readers keep working). The cell is found by `stadium_id` or the nearest stadium (≤0.3°) to the Open-Meteo coordinates; no cell → `blend_w=1` + Degradation(info).
-- **Aggregation window**: v1 legacy fields = mean of the 3 hourly samples at kickoff hour, +1h, +2h (matches old wind_fg arithmetic); `wind_dir_1h/2h` = 16-pt compass of hour 1/2; `wind_dir_fg` = compass of vector-mean direction; `rain_fg` = sum of mm over the same 3 hours. Legacy NFL writer keeps unrounded floats; CFB writer rounds wind 1dp, temp 2dp.
+- **Aggregation window**: v1 legacy fields = mean of the 3 hourly samples at kickoff hour, +1h, +2h (matches old wind_fg arithmetic); `wind_dir_1h/2h` = 16-pt compass of hour 1/2; `wind_dir_fg` = compass of vector-mean direction; `rain_fg` = sum of mm over the same 3 hours.
 - **Roof**: `pipeline/stadiums/roofs.py` is shared by stadium resolution, weather merge, both impact models, board cards and alert eligibility. Fixed construction wins over conflicting schedule metadata (`dome` or `outdoors`). Retractable roofs require an explicit per-game `open` state for weather eligibility; missing state or generic `outdoors` remains unknown, never inferred from the forecast. Domes, closed roofs and unknown retractable roofs suppress all weather signals/flags and game-site/away-temperature impact components. Outside forecasts remain available for display; altitude effects remain independent. Unknown roof state remains null (not falsely reported as closed). The Telegram gate independently rejects covered venues, including stale cards. This policy applies equally to NFL, college and neutral venues. SoFi retains its existing covered-field classification despite its open sides.
 - **Components**: `cross_mph = |wind_fg · sin(wind_dir_deg − orientation_deg)|`, `head_mph = |wind_fg · cos(...)|`.
 
@@ -356,15 +351,15 @@ away_fg_pct = -max(heat_away + cold_away, alt_c)   # NFL;  CFB sums: -(alt_c + h
 Era switches (2024-09-27 CFB heat_away, 2026-01 NFL cold_away floor) live only in the
 golden replay via ``compute_impact_v1(..., era_date=...)``; live code always runs the
 current-era rules.
-Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden test: `tests/fixtures/golden_v1.parquet` (~43.7k rows from git history via `scripts/extract_golden.py`, carrying `run_month`/`commit_date`/`home_elev` for the era-aware replay) — mismatches logged with row + component diff; test asserts ≥99.5% exact match (within each file's storage rounding: NFL 5-dp fractions, CFB 2-dp) and prints boundary mismatches (rain ≈6.0, heat-away delta 8.31–11.37, alt intervals, CFB 1-dp wind/rain tier edges) rather than failing on them. The expected residue (~150 rows) is CFB `wind_fg` stored at 1 dp exactly on a tier threshold — irreducible from the stored files.
+Historical NFL fixtures store fractions (`gs_fg=-0.035`); CFB fixtures store percent. Golden test: `tests/fixtures/golden_v1.parquet` (~43.7k rows from git history via the retired extraction script, carrying `run_month`/`commit_date`/`home_elev` for the era-aware replay) — mismatches logged with row + component diff; test asserts ≥99.5% exact match (within each file's storage rounding: NFL 5-dp fractions, CFB 2-dp) and prints boundary mismatches (rain ≈6.0, heat-away delta 8.31–11.37, alt intervals, CFB 1-dp wind/rain tier edges) rather than failing on them. The expected residue (~150 rows) is CFB `wind_fg` stored at 1 dp exactly on a tier threshold — irreducible from the stored files.
 
 ### 7.2 Legacy derived columns (CFB) — `model/fair.py`
-`ref_total`, `ref_spread` (home-relative) from consensus (§7.3). `My_total = ref_total*(1+gs_fg/100)`; `Edge = (FD_now−My_total)/My_total`; `My_spread = ref_spread*(1+away_fg/100)`; `Edge_s = ref_spread−My_spread`; `Spread`/`Total_proj` columns = ref values with `ref_book` stamped in meta. `Move_t=(FD_now−Fd_open)/Fd_open`; `Move_s=Open−Current`; `wind_diff=wind_fg−wind_avg`. Consensus "now" for legacy: CFB = FanDuel (as before), NFL = BetOnline; fallback = devigged median.
+`fair.my_total = ref_total*(1+gs_fg_pct/100)`; `fair.edge_legacy = (current_total−my_total)/my_total`; `fair.my_spread = ref_spread*(1+away_fg_pct/100)`; `fair.edge_s_legacy = ref_spread−my_spread`. These published values remain computed by `pipeline.model.fair.legacy_derived` and serialized by `json_out.fair_block`. Reference total for the comparison is FanDuel for CFB and BetOnline for NFL, with per-market consensus fallback. `build_record` supplies `stadium.avg_wind`, `stadium.avg_wind_month` and the baseline for `weather.wind_diff`; published date/time labels still use `utils.timeutil`. The `counts.legacy` key is retained for JSON compatibility and counts cards. No file export is involved.
 
 ### 7.3 Consensus / fair / edges (improvement)
 - Devig per book per market via multiplicative normalization of the two sides (`american_to_prob`, copied from golf). Exchanges (Kalshi/Novig/ProphetX) use `prob_raw` directly.
 - **Consensus TOTAL** = weighted median of main lines with `BOOK_WEIGHTS = {pinnacle:3, betonline:2, fanduel:1, draftkings:1, kalshi:1, novig:1, prophetx:0.75}` (polymarket_us uses the 0.5 default). BetCris is not in the median. `n_books<2 ⇒ thin=True` (no edges, no alerts), and BetCris does not count toward that two. Consensus prob at that line = weighted mean of devigged probs after moving each pricing book to the consensus line via pts→prob. For CFB only, the displayed per-book and consensus total "open" baseline is the line in force at kickoff−6 days (normally the prior Sunday for a Saturday game): last change-point at or before T−6, falling back to the earliest later observation when collection started late. It is recomputed from `history.json` and upserted to D1; spread openers and all NFL openers remain first-seen.
-- **Consensus SPREAD** = simple average of the BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the two are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"bol+pin"`, `"pin"`, …). When neither has a spread the weighted-median rule above applies and `spread_src="fallback"`. BetCris is not a member. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). An opener already frozen with BetCris in its members stays set-once; live `spread_now` does not include BetCris, so `move_s` can change once against that frozen baseline. This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, the legacy CFB `Spread` column, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are computed over every pricing book posting a spread. BetCris is excluded from all three.
+- **Consensus SPREAD** = simple average of the BetOnline and Pinnacle home main lines (`SPREAD_CONSENSUS_BOOKS`), using whichever of the two are posted, rounded to 2 dp; `consensus.spread_src` lists the members used in canonical order (`"bol+pin"`, `"pin"`, …). When neither has a spread the weighted-median rule above applies and `spread_src="fallback"`. BetCris is not a member. The consensus spread OPENER is the same average over those books' recorded openers (fallback: the stored `book='consensus'` opener). An opener already frozen with BetCris in its members stays set-once; live `spread_now` does not include BetCris, so `move_s` can change once against that frozen baseline. This is THE spread everywhere: `consensus.spread_now/spread_open`, the Table SPREAD column, map popup / drawer header, alert context lines, and a change-only `book='consensus'|market='spread'|side='home'` series in `history.json` / D1 `odds_history` (so the drawer chart and CLV closings track it). `n_books`/`thin`/consensus prob are computed over every pricing book posting a spread. BetCris is excluded from all three.
 - **pts→prob**: totals `PTS_PROB_TOTAL = {"nfl": 0.026, "cfb": 0.020}` per point; spreads key-number-aware table `SPREAD_KEY_PROB["nfl"] = {0.5:.02,1:.015,1.5:.02,2:.02,2.5:.03,3:.095,3.5:.03,4:.02,...,6:.04,7:.075,...,10:.045,14:.04}` (cumulative half-point values from `data/calibration.json`, defaults shipped); CFB flatter table.
 - **Fair line** v1: `fair_total = consensus_total * (1 + gs_fg/100)`; `fair_spread = consensus_spread * (1 + away_fg/100)` (sign: home-relative). v2 uses v2 components (§7.5).
 - **Per (game, book, market, side)**: `edge_pts = signed(fair_line − book_line)` (positive means the side is favorable: under when book total > fair, over when book total < fair, home when book gives home more points than fair, etc.); `edge_prob = fair_prob(side at book line) − vigfree_prob(side)`; `best_book` per market/side.
@@ -434,7 +429,7 @@ jobs:
          recover recent sent-alert receipts from failed main-branch Actions artifacts before build;
          python -m pipeline.build --sport $sport --scope light --run-id $RUN_ID --no-alerts;
          bounded R2 uploads (8 workers): raw/, snapshots/, freshness guard and content-floor preflight,
-           legacy/, board payloads, state files, meta.json LAST (bounded retries, --remote);
+           board payloads, state files, meta.json LAST (bounded retries, --remote);
          d1 execute --remote --yes --file=data/d1_inserts.sql if hashFiles;
          python -m pipeline.outputs.r2 --self-check (re-fetch meta, assert run_id, content floor);
          verify published run and notify through pipeline.published_alerts, checkpointing receipts after sends;
@@ -621,7 +616,7 @@ Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cut
 Current prices retain upstream `source_updated_at` and `expires_at`. Expired
 quotes are excluded and current consensus/fair comparisons recalculated before
 alerts and board output; historical openers and captured line history are kept.
-After raw uploads, a publication guard rechecks board and legacy current fields.
+After raw uploads, a publication guard rechecks board current fields.
 BetCRIS CFB may revalidate the same public league URL once with `Cache-Control:
 no-cache` when a valid observation is stale. Both responses are captured separately.
 Recovery requires a genuinely fresh league observation. CFB is shown for 30

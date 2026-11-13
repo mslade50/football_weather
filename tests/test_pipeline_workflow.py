@@ -4,7 +4,7 @@ Pins (ARCH §9.2 / §13): R2 state get loop fails on anything but NoSuchKey, put
 pushes meta.json LAST, d1 execute gated by hashFiles, self-check after publish,
 playwright_scrape runs parallel to light and hands lines to the playwright publish
 job (--ingest-lines --merge-into-r2), NO git commit/push step remains (Phase 4:
-legacy csv/xlsx go to R2 legacy/), no continue-on-error on state steps."""
+board JSON goes to R2 board/), no continue-on-error on state steps."""
 
 from __future__ import annotations
 
@@ -138,10 +138,9 @@ def test_light_job_gated_on_scrape_and_has_no_playwright(text: str):
     assert "path: ~/.npm" in light and "npm-wrangler-4" in light
     assert "actions/setup-node@v4" in light and "node-version: '20'" in light
     assert "playwright install" not in light
-    assert "grep -viE '^(playwright|playwright-stealth" in light
+    assert "grep -viE '^(playwright|playwright-stealth)\\b' requirements.txt" in light
     build = _step(light, "Build board")
     assert 'python -m pipeline.build --sport "$SPORT" --scope "$LIGHT_SCOPE" --print --no-alerts --run-id "$RUN_ID"' in build
-    assert "--legacy-dir" not in build   # legacy files stay in data/ and go to R2, never the repo root
     assert '[ "$LIGHT_SCOPE" = "full" ] && LIGHT_SCOPE=light' in build
     assert "${FORCE:+--force}" in build
     assert 'echo "RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)-gh${{ github.run_id }}' in _step(light, "Run id")
@@ -172,7 +171,7 @@ def test_alert_history_is_read_only_optional_context(text: str, name: str):
 def test_r2_publisher_is_bounded_and_meta_remains_last(text: str, name: str):
     step = _step(text, name)
     phases = ["python scripts/publish_r2.py raw", "python scripts/publish_r2.py snapshots",
-              "python scripts/publish_r2.py legacy", "python scripts/publish_r2.py board",
+              "python scripts/publish_r2.py board",
               "python scripts/publish_r2.py state", "python scripts/publish_r2.py meta"]
     assert all(phase in step for phase in phases)
     assert [step.index(phase) for phase in phases] == sorted(step.index(phase) for phase in phases)
@@ -264,7 +263,7 @@ def test_playwright_publish_job_ingests_handoff_after_light(text: str):
     # No Chromium in the publish job any more.
     assert "playwright install" not in pw
     assert "ms-playwright" not in pw
-    assert "grep -viE '^(playwright|playwright-stealth" in pw
+    assert "grep -viE '^(playwright|playwright-stealth)\\b' requirements.txt" in pw
     download = _step(pw, "Download BetOnline handoff")
     assert "name: pw-lines-${{ github.run_id }}-${{ github.run_attempt }}" in download
     assert "path: data/" in download
@@ -290,19 +289,10 @@ def test_publish_job_pushes_handoff_raw_captures_before_meta(text: str):
 
 
 def test_no_git_commit_step_remains(text: str):
-    # Phase 4: nothing is committed back to the repo. Legacy csv/xlsx ride R2 legacy/.
-    for token in ("git commit", "git push", "git pull", "git add", "git config", "git rebase", "Commit legacy files"):
+    # Nothing is committed back to the repo; board JSON is published to R2.
+    for token in ("git commit", "git push", "git pull", "git add", "git config", "git rebase"):
         assert token not in text, token
-    assert "--legacy-dir ." not in text
     assert "contents: write" not in text
-
-
-def test_legacy_files_uploaded_to_r2_legacy_prefix(text: str):
-    for name in ("Push to R2", "Push to R2 (playwright)"):
-        step = _step(text, name)
-        assert "python scripts/publish_r2.py legacy" in step, name
-        # legacy/ lands before board payloads so a mid-loop failure never leaves new meta over old legacy
-        assert step.index("python scripts/publish_r2.py legacy") < step.index("python scripts/publish_r2.py board"), name
 
 
 def test_state_steps_never_continue_on_error(text: str):

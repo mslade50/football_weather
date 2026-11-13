@@ -1,6 +1,6 @@
 """Golden reproduction of legacy gs_fg / away_fg (v1).
 
-Requires tests/fixtures/golden_v1.parquet (built by scripts/extract_golden.py;
+Requires tests/fixtures/golden_v1.parquet (built by the retired golden extraction script;
 carries run_month / commit_date / home_elev for the era-aware replay).
 Skips when absent. Asserts >=99.5% exact match (within each file's storage
 rounding) and prints mismatch buckets grouped by documented ambiguity bands —

@@ -618,7 +618,7 @@ def consensus_block(game_id: str, consensus: dict, openers: dict) -> dict[str, A
 
 
 def fair_block(fair: Any, legacy: Optional[dict[str, Any]] = None, fair_v2: Any = None) -> dict[str, Any]:
-    """From ``pipeline.model.fair.GameFair`` (may be None) + legacy derived cols.
+    """From ``pipeline.model.fair.GameFair`` (may be None) + board projection values.
     ``fair_v2`` (GameFair or FairV2) fills ``fair_total_v2``/``fair_spread_v2``/``confidence_v2``."""
     legacy = legacy or {}
     edges = []

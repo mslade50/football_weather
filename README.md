@@ -103,10 +103,10 @@ cd site/worker && npx wrangler dev
 | `pipeline/alerts.py` | Notification formatting, receipts, policy orchestration, postmortem |
 | `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
 | `utils/` | `telegram.py`, `state.py`, `timeutil.py` |
-| `scripts/` | `recon_book.py`, `recover_static.py`, `extract_golden.py` |
+| `scripts/` | `recon_book.py`, `_git_history.py` (historical backtest reader) |
 | `site/worker/` | Cloudflare Worker (`index.js`, `wrangler.toml`, `migrations/`, `SETUP.md`) |
 | `site/web/` | static board (`app.js`, `table.js`, `map.js`, `drawer.js`, `alerts.js`, `status.js`, `vendor/`) |
-| `tests/fixtures/legacy/` | frozen copies of the old `nfl_weather.csv` / `cfb_weather*.xlsx` (column contract fixtures only) |
+| `tests/fixtures/legacy/` | backtest grid workbook used by `pipeline/backtest.py` |
 | `.github/workflows/` | `pipeline.yml` (build + publish), `deploy.yml` (Worker), `backtest.yml` |
 
 ## Execution preview and liquidity

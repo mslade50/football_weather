@@ -1,6 +1,6 @@
-"""Pipeline orchestrator (Phase 2): schedule -> stadiums -> weather -> impact v1 -> signals -> odds -> legacy files.
+"""Pipeline orchestrator (Phase 2): schedule -> stadiums -> weather -> impact v1 -> signals -> odds -> board JSON + D1 SQL.
 
-    python -m pipeline.build --sport all --scope full --print [--dry-run] [--legacy-dir .]
+    python -m pipeline.build --sport all --scope full --print [--dry-run]
     python -m pipeline.build --sport nfl --scope odds --books betonline
 
 Scopes:
@@ -9,7 +9,7 @@ Scopes:
     exchanges weather + enabled exchange books only
     full     light + Playwright books (BetOnline)
     odds     weather + only the books given by ``--books`` (default: all books);
-             used by the Playwright CI job to re-write the legacy files with BetOnline lines
+             used by the Playwright CI job to refresh the board with BetOnline lines
 
 Odds stage: scrapers run concurrently with ``asyncio.gather(return_exceptions=True)``
 (one failing/hanging book never blocks the others), per-book/market counts are
@@ -19,13 +19,10 @@ book goes dark or a (book|market) count collapses; the unified alert stage decid
 whether and how to notify. Provisional book game ids are mapped
 onto schedule ``game_id``s (``pipeline.odds.merge``), a consensus is computed
 (``pipeline.model.fair``) and openers/archive_last/scrape_baseline are persisted under
-``data/state/``. Legacy odds columns are filled from the sport's reference book
-(NFL: BetOnline, CFB: FanDuel) with consensus fallback; openers come from
-``openers.json`` so ``*_open`` stays fixed while ``*_now`` moves. CFB total
-"open" values use the line in force at kickoff minus six days; other opener
-fields remain first-seen.
+``data/state/``. CFB total openers use the line in force at kickoff minus six days;
+other opener fields remain first-seen.
 
-Two horizons (decoupled): weather / impact / cards / legacy files / alerts cover
+Two horizons (decoupled): weather / impact / cards / alerts cover
 games kicking off within [now-6h, now+10d] (``WINDOW_AFTER_D``); the odds stage
 matches scraped lines against every schedule game within [now-6h, now+45d]
 (``ODDS_WINDOW_AFTER_D``, same number as ``gate_check.HORIZON_DAYS``) so openers,
@@ -66,7 +63,6 @@ import importlib
 import json
 import logging
 import os
-import shutil
 import sys
 import threading
 from collections import Counter
@@ -93,7 +89,6 @@ from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.weekly_openers import record_weekly_totals
 from pipeline.outputs import d1_out, json_out
 from pipeline.outputs import r2 as r2_out
-from pipeline.outputs.legacy import CFB_FILENAME, NFL_FILENAME, LegacyRecord, write_legacy
 from pipeline.outputs.raw_out import DEFAULT_BASE, NullRawStore, RawStore
 from pipeline.run_context import REPO_ROOT, RunContext
 from pipeline.schedule import cfb as cfb_schedule, nfl as nfl_schedule
@@ -102,13 +97,12 @@ from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import first_pass, point_handoff, screening, selective
 from pipeline.weather import ecmwf_fallback as fallback_mod, merge as merge_mod, nws as nws_mod, openmeteo as om_mod
 from utils.env import load_repo_dotenv
-from utils.timeutil import et_weekday, naive_et_iso, now_et, to_tz, utc_iso
+from utils.timeutil import et_weekday, now_et, to_tz, utc_iso
 
 logger = logging.getLogger(__name__)
 
 SPORTS_ALL = ("nfl", "cfb")
 SCOPES = ("weather", "light", "full", "odds", "exchanges")
-DEFAULT_OUT_DIR = REPO_ROOT / "data"
 DEFAULT_STATE_DIR = REPO_ROOT / "data" / "state"
 DEFAULT_BOARD_DIR = REPO_ROOT / "data" / "board"
 DEFAULT_SNAPSHOT_DIR = REPO_ROOT / "data" / "snapshots"
@@ -116,7 +110,7 @@ DEFAULT_D1_SQL = REPO_ROOT / "data" / d1_out.D1_SQL_FILENAME
 PUBLISH_MANIFEST = "publish_manifest.json"
 PREV_META_FILE = "prev_meta.json"
 
-# Weather window: games outside it get no forecast / impact / card / legacy row / alert.
+# Weather window: games outside it get no forecast / impact / card / alert.
 WINDOW_BEFORE_H = 6.0
 WINDOW_AFTER_D = 10.0
 # Odds horizon: books post NFL week 1+ and CFB weeks ahead long before the weather
@@ -148,8 +142,6 @@ BOOK_ORDER = HTTPX_BOOKS + PLAYWRIGHT_BOOKS
 CRITICAL_BOOKS = frozenset({"pinnacle", "betonline", "betcris", "fanduel"})
 # ARCH §7.3 consensus weights.
 CONSENSUS_BOOK = "consensus"
-# Legacy "now" columns: CFB = FanDuel (as before), NFL = BetOnline; fallback = consensus.
-LEGACY_NOW_BOOK = {"nfl": "betonline", "cfb": "fanduel"}
 
 SCRAPE_TIMEOUT_S = 300.0     # per book incl. retries (BetOnline: Chromium + CF pass)
 VOLUME_DROP_FRAC = 0.5       # alert when current < 50% of the peak
@@ -1035,80 +1027,40 @@ def consensus_spread_lines(consensus: dict[tuple[str, str], ConsensusLine], spor
     return out
 
 
-# ---- odds: legacy columns ------------------------------------------------------------
+# ---- odds: board fair inputs ---------------------------------------------------------
 
-def _pick(lines_by_game: dict[str, list[GameLine]], game_id: str, book: str, market: str, side: str) -> GameLine | None:
-    for ln in lines_by_game.get(game_id, []):
-        if ln.book == book and ln.market == market and ln.side == side and ln.is_main:
-            return ln
-    return None
-
-
-def _opener(openers: dict, game_id: str, market: str, side: str, book: str) -> dict | None:
-    return pstate.get_baseline(openers, pstate.odds_key(game_id, market, side, book))
-
-
-def legacy_odds(
+def card_odds(
     sport: str,
     game_id: str,
     lines_by_game: dict[str, list[GameLine]],
     consensus: dict[tuple[str, str], ConsensusLine],
-    openers: dict,
 ) -> dict[str, Any]:
-    """Legacy odds dict for ``LegacyRecord.odds`` (keys read by ``outputs.legacy``).
+    """Reference prices needed by published fair values and the console summary.
 
-    NFL: ``spread_now/odds_now`` = BetOnline home spread, ``total_now/under_now`` =
-    BetOnline total + under price; ``*_open`` from the openers store for the same
-    book. CFB: ``fd_now/odds_n`` = FanDuel total + under, ``current`` = FanDuel home
-    spread, ``fd_open/odds_o/open`` from openers; ``spread``/``total_proj`` =
-    consensus. When the reference book has no line the consensus (book
-    ``'consensus'``) stands in and ``ref_book`` records which was used.
+    Preserve the designated book (NFL BetOnline, CFB FanDuel) with a
+    per-market consensus fallback. Openers and book prices live in JSON's
+    odds/consensus blocks and do not need a second export representation.
     """
-    ref = LEGACY_NOW_BOOK[sport]
-    out: dict[str, Any] = {}
+    ref = "betonline" if sport == "nfl" else "fanduel"
 
-    def now_and_open(market: str, side: str) -> tuple[GameLine | None, ConsensusLine | None, dict | None, str | None]:
-        ln = _pick(lines_by_game, game_id, ref, market, side)
-        if ln is not None:
-            return ln, None, _opener(openers, game_id, market, side, ref), ref
-        c = consensus.get((game_id, market))
-        if c is not None:
-            return None, c, _opener(openers, game_id, market, side, CONSENSUS_BOOK), CONSENSUS_BOOK
-        return None, None, None, None
+    def current(market: str, side: str) -> tuple[float | None, str | None]:
+        for line in lines_by_game.get(game_id, []):
+            if line.book == ref and line.market == market and line.side == side and line.is_main:
+                return line.line, ref
+        value = consensus.get((game_id, market))
+        return (value.line, CONSENSUS_BOOK) if value is not None else (None, None)
 
-    sp_ln, sp_c, sp_open, sp_book = now_and_open("spread", "home")
-    to_ln, to_c, to_open, to_book = now_and_open("total", "under")
-    sp_line = sp_ln.line if sp_ln else (sp_c.line if sp_c else None)
-    sp_odds = sp_ln.odds if sp_ln else (sp_c.odds if sp_c else None)
-    to_line = to_ln.line if to_ln else (to_c.line if to_c else None)
-    to_odds = to_ln.odds if to_ln else (to_c.odds if to_c else None)
+    spread, spread_book = current("spread", "home")
+    total, total_book = current("total", "under")
     cons_sp = consensus.get((game_id, "spread"))
     cons_to = consensus.get((game_id, "total"))
-
-    if sport == "nfl":
-        out.update({
-            "spread_now": sp_line, "odds_now": sp_odds, "total_now": to_line, "under_now": to_odds,
-            "spread_open": sp_open.get("line") if sp_open else None,
-            "odds_open": sp_open.get("odds") if sp_open else None,
-            "total_open": to_open.get("line") if to_open else None,
-            "under_open": to_open.get("odds") if to_open else None,
-        })
-    else:
-        out.update({
-            "fd_now": to_line, "odds_n": to_odds,
-            "fd_open": to_open.get("line") if to_open else None,
-            "odds_o": to_open.get("odds") if to_open else None,
-            "current": sp_line,
-            "open": sp_open.get("line") if sp_open else None,
-        })
-    out["spread"] = cons_sp.line if cons_sp else sp_line
-    out["total_proj"] = cons_to.line if cons_to else to_line
-    out["ref_book"] = sp_book or to_book
-    out["spread_ref_book"] = cons_sp.ref_book if cons_sp else None
-    out["spread_src"] = cons_sp.src if cons_sp else None
-    out["total_ref_book"] = cons_to.ref_book if cons_to else None
-    out["n_books"] = max(cons_sp.n_books if cons_sp else 0, cons_to.n_books if cons_to else 0)
-    return out
+    return {
+        "current_total": total,
+        "spread": cons_sp.line if cons_sp else spread,
+        "total_proj": cons_to.line if cons_to else total,
+        "spread_src": cons_sp.src if cons_sp else None,
+        "ref_book": spread_book or total_book,
+    }
 
 
 def note_empty_book(
@@ -1454,11 +1406,9 @@ def build_record(
     away_temp: float | None = None,
     roof_state: str | None = None,
     wind_avg: float | None = None,
-    is_fbs: bool = True,
-    odds: dict[str, Any] | None = None,
     signal_open_spread: float | None = None,
-) -> tuple[LegacyRecord, ImpactV1, signals.Signal, list[str]]:
-    """Pure assembly of one legacy row + impact + signal from resolved inputs."""
+) -> tuple[dict[str, Any], ImpactV1, signals.Signal, list[str]]:
+    """Assemble board wind metadata, impact and signal from resolved inputs."""
     tz = game.tz or (stadium.timezone if stadium and stadium.timezone else "America/New_York")
     kickoff_local = game.kickoff_local if game.kickoff_local.tzinfo is not None else to_tz(game.kickoff_utc, tz)
 
@@ -1503,7 +1453,6 @@ def build_record(
     if avg_wind_month is None and stadium is not None and stadium.avg_wind_by_month:
         avg_wind_month = stadium.avg_wind_by_month.get(_month_key(kickoff_local.month))
 
-    odds = dict(odds or {})
     if sport == "nfl":
         sig = signals.nfl_signal(drive_wind, drive_temp, drive_rain)
     else:
@@ -1514,57 +1463,14 @@ def build_record(
         sport, drive_wind, drive_temp, signal_open_spread, travel_alt, home_temp, away_temp
     )
 
-    rec = LegacyRecord(
-        sport=sport,
-        away_name=_name_for(away_team, game.away_id),
-        home_name=_name_for(home_team, game.home_id),
-        kickoff_local=kickoff_local,
-        stadium_name=stadium.name if stadium else None,
-        lat=stadium.lat if stadium else None,
-        lon=stadium.lon if stadium else None,
-        avg_wind=avg_wind,
-        avg_wind_month=avg_wind_month,
-        wind_vol=stadium.wind_vol_static if stadium else None,
-        orient=stadium.orientation_bucket if stadium else None,
-        wind_impact=stadium.wind_impact_static if stadium else None,
-        weakest_wind_effect=stadium.weakest_wind_effect if stadium else None,
-        travel_alt=travel_alt,
-        home_temp=home_temp,
-        away_temp=away_temp,
-        year_built=stadium.year_built if stadium else None,
-        wind_dir_1h=fc.wind_dir_1h if fc else None,
-        wind_dir_2h=fc.wind_dir_2h if fc else None,
-        temp_fg=temp_fg,
-        wind_fg=wind_fg,
-        wind_dir_fg=fc.wind_dir_fg if fc else None,
-        rain_fg=rain_fg,
-        gs_fg_pct=impact.gs_fg_pct,
-        away_fg_pct=impact.away_fg_pct,
-        odds=odds,
-        is_fbs=is_fbs,
-        game_id=game.game_id,
-    )
-    return rec, impact, sig, flags
-
-
-def _is_fbs(book: Any, sport: str, home_id: str, away_id: str) -> bool:
-    """CFB ``Other`` sheet = any side outside FBS (unknown classification counts as FBS)."""
-    if sport != "cfb" or book is None:
-        return True
-    cls = getattr(book, "classification", {})
-    for tid in (home_id, away_id):
-        c = (cls.get((sport, tid)) or "").strip().lower()
-        if c and c != "fbs":
-            return False
-    return True
+    return {"avg_wind": avg_wind, "avg_wind_month": avg_wind_month}, impact, sig, flags
 
 
 @dataclass
 class SportResult:
-    """Everything one sport's run produced, for the legacy / JSON / D1 writers."""
+    """Everything one sport's run produced, for the JSON / D1 writers."""
 
     sport: str
-    records: list[LegacyRecord]
     rows: list[dict[str, Any]]                       # slim print rows
     cards: list[dict[str, Any]]                      # GameCards (json_out.build_card)
     games: list[Game]
@@ -1620,7 +1526,6 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
                 counts[key] = max(0, counts[key] - n)
     ctx.degrade("odds.expiry", f"{res.sport}: {len(removed)} quotes expired during build; current prices recalculated, historical openers retained", "warn")
     cards = {c["game_id"]: c for c in res.cards}
-    records = {record.game_id: record for record in res.records}
     for game in res.games:
         gid = game.game_id
         lines = res.odds.by_game.get(gid, [])
@@ -1632,12 +1537,7 @@ def refresh_expired_quotes(ctx: RunContext, res: SportResult) -> None:
             target.pop(gid, None)
             if value is not None:
                 target[gid] = value
-        current = legacy_odds(res.sport, gid, res.odds.by_game, res.odds.consensus, res.odds.openers)
-        if gid in records:
-            for key in ("spread_open", "odds_open", "total_open", "under_open", "fd_open", "odds_o", "open"):
-                if current.get(key) is None and key in records[gid].odds:
-                    current[key] = records[gid].odds[key]
-            records[gid].odds = current
+        current = card_odds(res.sport, gid, res.odds.by_game, res.odds.consensus)
         card = cards.get(gid)
         if card is not None:
             evidence = (card.get("total_prices") or {}).get("quote_evidence", [])
@@ -1714,7 +1614,7 @@ def _legacy_derived(fair_mod: Any, sport: str, game_odds: dict[str, Any], impact
     fn = getattr(fair_mod, "legacy_derived", None) if fair_mod is not None else None
     if not callable(fn) or not game_odds:
         return None
-    now_total = game_odds.get("fd_now") if sport == "cfb" else game_odds.get("total_now")
+    now_total = game_odds.get("current_total")
     try:
         return fn(game_odds.get("total_proj"), game_odds.get("spread"), now_total, impact.gs_fg_pct, impact.away_fg_pct)
     except Exception:  # noqa: BLE001
@@ -1841,7 +1741,6 @@ def run_sport(
         print(f"  odds games {sport}: {n_priced} with lines within {ODDS_WINDOW_AFTER_D:.0f} d "
               f"({len(odds_games)} scheduled), {n_carded} of them on the {WINDOW_AFTER_D:.0f}-day board")
 
-    records: list[LegacyRecord] = []
     rows: list[dict[str, Any]] = []
     cards: list[dict[str, Any]] = []
     impacts: dict[str, ImpactV1] = {}
@@ -1855,21 +1754,20 @@ def run_sport(
         for g in games:
             rg = resolved[g.game_id]
             fc = forecasts.get(g.game_id)
-            game_odds = legacy_odds(sport, g.game_id, odds.by_game, odds.consensus, odds.openers) if books else {}
+            game_odds = card_odds(sport, g.game_id, odds.by_game, odds.consensus) if books else {}
             signal_open_spread = (
                 json_out.consensus_spread_opener(g.game_id, odds.openers)[0] if sport == "cfb" else None
             )
             if rg is None:
-                rec, impact, sig, flags = build_record(
-                    sport, g, None, None, None, fc, odds=game_odds, signal_open_spread=signal_open_spread
+                wind_meta, impact, sig, flags = build_record(
+                    sport, g, None, None, None, fc, signal_open_spread=signal_open_spread
                 )
                 card_kwargs: dict[str, Any] = {}
             else:
-                rec, impact, sig, flags = build_record(
+                wind_meta, impact, sig, flags = build_record(
                     sport, g, rg.stadium, rg.home_team, rg.away_team, fc,
                     travel_alt=rg.travel_alt, home_temp=rg.home_temp, away_temp=rg.away_temp,
                     roof_state=rg.roof_state, wind_avg=rg.wind_avg,
-                    is_fbs=_is_fbs(book, sport, g.home_id, g.away_id), odds=game_odds,
                     signal_open_spread=signal_open_spread,
                 )
                 for t in (rg.home_team, rg.away_team):
@@ -1881,8 +1779,7 @@ def run_sport(
                         if hs is not None:
                             home_stadiums[hs.stadium_id] = hs
                 card_kwargs = {"travel_alt": rg.travel_alt, "home_temp": rg.home_temp, "away_temp": rg.away_temp,
-                               "roof_state": rg.roof_state, "avg_wind_month": rec.avg_wind_month}
-            records.append(rec)
+                               "roof_state": rg.roof_state, "avg_wind_month": wind_meta["avg_wind_month"]}
             impacts[g.game_id] = impact
             game_lines = odds.by_game.get(g.game_id, [])
             impact2 = _compute_v2(ctx, sport, g, rg, fc, impact, wx_extras.get(g.game_id))
@@ -1899,17 +1796,19 @@ def run_sport(
             cards.append(json_out.build_card(
                 sport, g, rg.stadium if rg else None, rg.home_team if rg else None, rg.away_team if rg else None,
                 fc, impact, sig, flags, lines=game_lines, openers=odds.openers, consensus=odds.consensus, fair=gf_alert,
-                legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=rec.avg_wind,
+                legacy_derived=_legacy_derived(fair_mod, sport, game_odds, impact), avg_wind=wind_meta["avg_wind"],
                 run_id=ctx.run_id, impact_v2=impact2, fair_v2=gf2, model_version=alert_model,
                 last_observed=odds.last_observed.get(g.game_id), **card_kwargs,
             ))
+            tz = g.tz or (rg.stadium.timezone if rg and rg.stadium and rg.stadium.timezone else "America/New_York")
+            kickoff_local = g.kickoff_local if g.kickoff_local.tzinfo is not None else to_tz(g.kickoff_utc, tz)
             rows.append({
                 "game_id": g.game_id,
-                "game": f"{rec.away_name} @ {rec.home_name}",
-                "kickoff": rec.kickoff_local.isoformat(),
-                "temp_fg": rec.temp_fg,
-                "wind_fg": rec.wind_fg,
-                "rain_fg": rec.rain_fg,
+                "game": f"{_name_for(rg.away_team if rg else None, g.away_id)} @ {_name_for(rg.home_team if rg else None, g.home_id)}",
+                "kickoff": kickoff_local.isoformat(),
+                "temp_fg": fc.temp_fg if fc else None,
+                "wind_fg": fc.wind_fg if fc else None,
+                "rain_fg": fc.rain_fg_mm if fc else None,
                 "gs_fg_pct": impact.gs_fg_pct,
                 "away_fg_pct": impact.away_fg_pct,
                 "gs_fg_v2": impact2.gs_fg_pct if impact2 else None,
@@ -1922,12 +1821,13 @@ def run_sport(
                 "ref_book": game_odds.get("ref_book"),
             })
     if books:
-        priced = sum(1 for r in records if r.odds.get("total_proj") is not None)
+        priced = sum(1 for row in rows if row["total"] is not None)
         ctx.count("priced", sport, priced)
-        if records and priced == 0:
+        if rows and priced == 0:
             ctx.degrade("odds", f"{sport}: no game received a consensus total", "warn")
-    ctx.count("legacy", sport, len(records))
-    res = SportResult(sport, records, rows, cards, games, stadiums, teams, forecasts, impacts, odds, fairs,
+    # Retain the published count key for existing board/status consumers.
+    ctx.count("legacy", sport, len(cards))
+    res = SportResult(sport, rows, cards, games, stadiums, teams, forecasts, impacts, odds, fairs,
                       impacts_v2={k: v for k, v in impacts_v2.items() if v is not None}, fairs_v2=fairs_v2,
                       wx_extras=wx_extras, home_stadiums=home_stadiums, odds_games=odds_games)
     ctx.count("impact_v2", sport, len(res.impacts_v2))
@@ -2170,8 +2070,6 @@ def fetch_state_from_r2(ctx: RunContext, state_dir: Path) -> bool:
 def build(
     sports: Sequence[str],
     scope: str = "weather",
-    out_dir: Path = DEFAULT_OUT_DIR,
-    legacy_dir: Path | None = None,
     raw_dir: Path = DEFAULT_BASE,
     dry_run: bool = False,
     print_rows: bool = False,
@@ -2216,7 +2114,6 @@ def build(
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("r2.raw", f"raw mirror unavailable: {exc}", "warn")
 
-    timestamp = naive_et_iso(ctx.started_at)
     written: list[Path] = []
     results: list[SportResult] = []
     raw_files: dict[str, Path] = {}
@@ -2227,21 +2124,12 @@ def build(
                         **({"ingest_dir": ingest_dir} if ingest_dir is not None else {}))
         results.append(res)
         if print_rows:
-            print(f"== {sport} ({len(res.records)} games)")
+            print(f"== {sport} ({len(res.cards)} games)")
             _print_cards(res.rows)
         if dry_run:
             continue
-        with ctx.stage(f"{sport}.legacy"):
-            path = write_legacy(sport, res.records, out_dir, timestamp)
-            written.append(path)
-            if legacy_dir is not None:
-                dest = Path(legacy_dir) / (NFL_FILENAME if sport == "nfl" else CFB_FILENAME)
-                if dest.resolve() != path.resolve():
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(path, dest)
-                    written.append(dest)
-            raw.finalize()
-            raw_files.update(raw.r2_files())
+        raw.finalize()
+        raw_files.update(raw.r2_files())
 
     for result in results:
         refresh_expired_quotes(ctx, result)
@@ -2254,12 +2142,6 @@ def build(
                                      state_dir=state_dir, d1_sql=d1_sql, raw_files=raw_files, alerts_run=alerts_run,
                                      clv_run=clv_run)
             written.extend(p for k, p in manifest.items() if k.startswith(r2_out.BOARD_PREFIX))
-        # write_outputs rechecks expiry after alerts/CLV; exports use that same
-        # final calculation rather than the earlier per-sport snapshot.
-        for result in results:
-            write_legacy(result.sport, result.records, out_dir, timestamp)
-            if legacy_dir is not None and legacy_dir.resolve() != out_dir.resolve():
-                write_legacy(result.sport, result.records, legacy_dir, timestamp)
         if publish or merge_into_r2:
             with ctx.stage("publish"):
                 publish_outputs(ctx, manifest, state_dir, force=force)
@@ -2287,8 +2169,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--no-alerts", dest="alerts", action="store_false", help="never send Telegram; alert candidates are printed with their keys")
     p.add_argument("--alerts-stdout", action="store_true",
                    help="run the alert stage for real (dedup / alerts.json marked) but print messages instead of sending to Telegram")
-    p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="where legacy files are written (default data/)")
-    p.add_argument("--legacy-dir", type=Path, default=None, help="also copy legacy files here (e.g. repo root for Streamlit)")
     p.add_argument("--raw-dir", type=Path, default=DEFAULT_BASE)
     p.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR, help="openers/archive_last/scrape_baseline (default data/state/)")
     p.add_argument("--run-id", default=None)
@@ -2325,8 +2205,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     return build(
         sports,
         scope=args.scope,
-        out_dir=args.out_dir,
-        legacy_dir=args.legacy_dir,
         raw_dir=args.raw_dir,
         dry_run=args.dry_run,
         print_rows=args.print_rows,

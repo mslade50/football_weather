@@ -1,5 +1,10 @@
 # football_weather — PLAN (ordered implementation phases)
 
+Historical build plan: the Streamlit file exports and their column-contract tests
+were retired on 2026-11-13. Builds now produce board JSON and D1 SQL. The original
+recovery/extraction scripts were removed after producing the retained golden
+fixtures and curated data; the backtest git-history reader and grid remain.
+
 Each phase lists: goal/ship, deliverables, files to create, golf_scraping files to copy/adapt (absolute source paths), acceptance checks. Phases are sequential; within a phase, tasks marked [P] can run in parallel. Constraints from `C:/Users/McKinley Slade/.claude/CLAUDE.md`: Windows/Git Bash, `python` not `python3`, Write/Edit tools for files (no heredocs), no `pip install` without asking, type hints + pathlib + f-strings. Reference docs: `docs/AUDIT.md`, `docs/ARCHITECTURE.md` (section numbers cited as ARCH §n).
 
 Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/McKinley Slade/dev/football_weather`.
@@ -14,8 +19,8 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 3. Copied-verbatim utilities, contracts, CLI skeleton, requirements, CLAUDE.md, ci.yml.
 
 ### Files to create
-- `scripts/recover_static.py`: iterates `git log --format=%H -- nfl_weather.csv` / `cfb_weather.xlsx`, `git show <sha>:<file>` into scratchpad, concatenates, takes first-seen static columns per stadium (NFL: stadium, avg_wind, wind_vol, orient, wind_impact, weakest_wind_effect, game_loc, year_built; per team: home_temp) and per CFB home team (orient, wind_impact, weakest_wind_effect, game_loc, year_built, home_temp) → `data/raw/nfl_stadium_curated.csv`, `data/raw/cfb_stadium_curated.csv`. Also `git show 3aa1fa2:cfb_locations_updated.csv > data/raw/cfb_locations_updated.csv`, `git show 25250b0:bol_ncaaf.db`, `fd_cfb.db` → `tests/fixtures/raw/legacy_db/`.
-- `scripts/extract_golden.py`: same iteration → rows with inputs (sport, month, temp_fg, wind_fg, rain_fg, travel_alt, home_temp, away_temp) and outputs (gs_fg, away_fg) deduped → `tests/fixtures/golden_v1.parquet`; plus projection rows from commits `d6f4fe6 047f4be fac1c2e 2726b5b 2af9168` → `tests/fixtures/golden_fair_2024.parquet`.
+- Historical static recovery extracted curated stadium/team data from git; the resulting data remains tracked, and the script has been retired.
+- Historical extraction produced `tests/fixtures/golden_v1.parquet` and `tests/fixtures/golden_fair_2024.parquet`; both fixtures remain tracked and tested.
 - `pipeline/__init__.py`, `pipeline/contracts.py` (ARCH §4.2), `pipeline/run_context.py`, `pipeline/model/config.py`, `pipeline/model/impact.py` (v1 only), `pipeline/model/signals.py`, `utils/timeutil.py`.
 - `utils/telegram.py` ← copy `golf_scraping/utils/telegram.py` verbatim (keep `send_message`; delete golf `format_alert`).
 - `utils/state.py` ← copy `golf_scraping/utils/state.py`; key fn `game_key(game_id, market, book)`.
@@ -29,13 +34,13 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - Tests: `tests/test_impact_v1.py` (golden; log mismatches by boundary bucket; assert ≥0.97 exact within 1e-6 on percent scale), `tests/test_signals.py` (NFL order incl. purple-first, canonical CFB Wind boundaries, combined flags — hand fixtures), `tests/test_state_migrate.py`, `tests/test_contracts.py`.
 
 ### Acceptance
-- `python scripts/recover_static.py` produces 32+ NFL stadium rows (2024+2025 names) and ≥120 CFB home-team rows; `data/raw/cfb_locations_updated.csv` has 658 rows.
+- Historical recovery produced 32+ NFL stadium rows and at least 120 CFB home-team rows; `data/raw/cfb_locations_updated.csv` has 658 rows.
 - `pytest` green; `test_impact_v1` reports match rate and lists ≤3% mismatches all in documented ambiguous bands.
 - `python main.py --help` runs. No pip installs performed without user approval (flag list in PR/summary).
 
 ---
 
-## Phase 1 — Schedule + stadiums + weather + legacy outputs (ship: `nfl_weather.csv` / `cfb_weather.xlsx` regenerated 3×/day by GitHub Actions; existing Streamlit pages work unchanged, odds columns NaN)
+## Phase 1 — Historical schedule, stadium, weather and Streamlit compatibility work
 
 ### Files to create
 - `data/stadiums.csv`, `data/stadiums_overrides.csv`, `data/teams.csv`: seeded by `scripts/seed_stadiums_phase1.py` from `data/raw/nfl_stadium_curated.csv` + `data/raw/cfb_locations_updated.csv` + `data/raw/cfb_stadium_curated.csv` + nflverse `games.csv` distinct `stadium_id` (season ≥2025, incl. international) with columns per ARCH §4.2 Stadium; `orientation_deg` from curated bucket midpoints (N-S→0, NE-SW→45, E-W→90, NW-SE→135), `orientation_src='curated'`; `roof_type` manual list (ARCH audit); `needs_review=1` where lat/lon missing.
@@ -43,18 +48,18 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - `pipeline/schedule/nfl.py` (nflverse games.csv: season, week, gameday, gametime ET, away/home abbr, stadium_id, roof, surface, location=Neutral → `Game`), `pipeline/schedule/cfb.py` (CFBD `/games?year&week&division=fbs` Bearer; venueId, neutralSite, startDate; `/calendar` for week; ESPN fallback in `schedule/espn.py`), raw capture of both.
 - `pipeline/stadiums/loader.py`: load csv + overrides; `resolve(game) -> Stadium`; neutral: compute `travel_alt`/`away_temp` vs both teams, apply larger penalty side (ARCH §7 judge note), legacy columns use schedule home/away.
 - `pipeline/weather/openmeteo.py`, `weather/parsers/openmeteo.py`, `weather/nws.py`, `weather/parsers/nws.py`, `weather/merge.py` (ARCH §6; forecast + NWS only in this phase; ensemble fields None).
-- `pipeline/outputs/legacy.py`: column-exact writers (AUDIT §4.1/4.2 order, formats: Date 'SUN 11/09', Time '01:00 PM', game_loc 'lat, lon', NFL Game lowercase city 'away vs home', CFB 'Away @ Home', NFL gs_fg fraction, CFB percent, CFB rounding wind 1dp/temp 2dp, Timestamp naive ET ISO, `Other` sheet for FCS/non-FBS).
+- The original column-exact Streamlit file writers were retired after the board migrated to JSON.
 - `pipeline/outputs/raw_out.py` (local `data/raw_runs/` in this phase; R2 in Phase 3).
 - `pipeline/build.py` v0: `--sport --scope weather --print --dry-run`; stages schedule→stadiums→weather→impact v1→signals→legacy; stage timings; Degradation list printed.
 - `pipeline/gate_check.py`: httpx-only kickoff horizon check (nflverse/CFBD), prints `run=skip|scrape`, `need_playwright=false`; fail-open.
 - `.github/workflows/pipeline.yml` v1: `schedule '17 9,14,20 * * *'` + workflow_dispatch {sport}; gate job; light job (no R2 yet): checkout, setup-python 3.11 pip cache, `pip install -r requirements.txt`, `python -m pipeline.build --sport all --scope weather`, git commit loop (copy from `golf_scraping/.github/workflows/board.yml` commit step: `git pull --rebase --autostash -X theirs origin main` 3 attempts), Telegram `if: failure()` (copy curl step).
-- Tests: `tests/test_legacy_columns.py` (exact column lists + dtype/format regexes against `nfl_weather.csv`/`cfb_weather.xlsx` in repo), `tests/test_weather_merge.py` (fixture `tests/fixtures/raw/openmeteo/forecast_multi.json`, `nws/gridpoints.json`; 3-hour mean arithmetic reproduces 0.0207-multiple style), `tests/test_stadium_loader.py` (neutral game, dome, missing stadium → Degradation), `tests/test_schedule_nfl.py`, `tests/test_schedule_cfb.py` (fixtures), `tests/test_pipeline_workflow.py` (contract strings: 'for attempt in 1 2 3', 'if: failure()', '17 9,14,20', no 'continue-on-error' on state steps), `tests/test_gate_check.py`.
+- Tests: `tests/test_weather_merge.py` (fixture `tests/fixtures/raw/openmeteo/forecast_multi.json`, `nws/gridpoints.json`; 3-hour mean arithmetic reproduces 0.0207-multiple style), `tests/test_stadium_loader.py` (neutral game, dome, missing stadium → Degradation), `tests/test_schedule_nfl.py`, `tests/test_schedule_cfb.py` (fixtures), `tests/test_pipeline_workflow.py` (contract strings: 'for attempt in 1 2 3', 'if: failure()', '17 9,14,20', no 'continue-on-error' on state steps), `tests/test_gate_check.py`. The former file-column contract tests were retired with the writers.
 
 ### golf files to copy/adapt
 `golf_scraping/.github/workflows/board.yml` (job skeleton, commit loop, Telegram step), `golf_scraping/board/gate_check.py` (shape), `golf_scraping/board/build.py` L911 `_retry`, L3196-3204 write loop.
 
 ### Acceptance
-- Local: `python -m pipeline.build --sport all --scope weather --print` writes `data/nfl_weather.csv` and `data/cfb_weather.xlsx`; `streamlit run app.py` (user-run) renders both maps from the new files with no code change (copy files to repo root paths for the check).
+- Local: `python -m pipeline.build --sport all --scope weather --print` now writes board JSON and D1 SQL; the historical Streamlit smoke check no longer applies.
 - Every current-season home team resolves to a stadium; unresolved list empty or flagged `needs_review`.
 - pipeline.yml runs green on dispatch; three scheduled runs/day commit files with message `Update <file> with Timestamp <iso>`.
 - User must supply `CFBD_API_KEY` and Telegram secrets before this phase's CI run.

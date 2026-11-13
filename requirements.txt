@@ -3,13 +3,11 @@ playwright
 playwright-stealth
 httpx
 pandas
-numpy
 openpyxl
 pyarrow
 python-dotenv
 curl_cffi
 boto3
-pydantic>=2
 rapidfuzz
 timezonefinder
 # ECMWF Open Data fallback (CC BY 4.0). ecmwf-opendata subsets GRIB2; eccodes decodes it.

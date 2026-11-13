@@ -176,7 +176,7 @@ def test_d1_statements_include_rebased_existing_opener():
         {},
         opener_update_keys=[key],
     )
-    result = build.SportResult("cfb", [], [], [], [game], {}, {}, {}, {}, odds)
+    result = build.SportResult("cfb", [], [], [game], {}, {}, {}, {}, odds)
     ctx = RunContext(sport="cfb", scope="light", run_id="r-t6", started_at=KICK)
 
     sql = "\n".join(build.d1_statements(ctx, [result], KICK + timedelta(minutes=1)))
@@ -244,7 +244,7 @@ def test_run_row_and_statement_order_and_write_sql(tmp_path: Path):
 def _fake_run_sport(ctx: RunContext, sport: str, raw: Any, season: Any, books: Any = (), state_dir: Path = Path("."),
                     alerts: bool = True) -> build.SportResult:
     if sport != "nfl":
-        return build.SportResult(sport, [], [], [], [], {}, {}, {}, {}, build.OddsResult([], {}, pstate.load_openers(state_dir), {}, [], {}))
+        return build.SportResult(sport, [], [], [], {}, {}, {}, {}, build.OddsResult([], {}, pstate.load_openers(state_dir), {}, [], {}))
     lines = [_ln("betonline", "total", "under", 38.0), _ln("betonline", "total", "over", 38.0)]
     openers = pstate.load_openers(state_dir)
     keys_before = set(openers.get("openers") or {})
@@ -265,7 +265,7 @@ def _fake_run_sport(ctx: RunContext, sport: str, raw: Any, season: Any, books: A
             "signal": {"label": "High", "flags": []}, "consensus": {}, "fair": {}, "stadium": {"name": "Gillette"}}
     fc = WeatherForecast(game_id=GID, source="hrrr", lead_hours=30.0, temp_fg=41.0, wind_fg=18.0)
     ctx.count("betonline", "nfl", 2)
-    res = build.SportResult(sport, [], [{"game": "SEA @ NE", "kickoff": "k", "temp_fg": 41.0, "wind_fg": 18.0, "rain_fg": 0.8,
+    res = build.SportResult(sport, [{"game": "SEA @ NE", "kickoff": "k", "temp_fg": 41.0, "wind_fg": 18.0, "rain_fg": 0.8,
                                          "gs_fg_pct": -6.0, "away_fg_pct": 0.0, "signal": "High", "flags": []}],
                             [card], [_game()], {GID: _stadium()}, {"ne": Team("ne", "nfl", "NE")}, {GID: fc}, {GID: imp}, odds)
     wx_last = d1_out.load_wx_last(state_dir)
@@ -276,14 +276,16 @@ def _fake_run_sport(ctx: RunContext, sport: str, raw: Any, season: Any, books: A
 
 def test_build_writes_board_d1_sql_and_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(build, "run_sport", _fake_run_sport)
-    monkeypatch.setattr(build, "write_legacy", lambda sport, records, out_dir, ts: Path(out_dir) / f"{sport}.csv")
     state = tmp_path / "state"
     board = tmp_path / "board"
     snaps = tmp_path / "snapshots"
     sql = tmp_path / "d1_inserts.sql"
-    rc = build.build(["nfl", "cfb"], scope="odds", out_dir=tmp_path, raw_dir=tmp_path / "raw", state_dir=state,
+    rc = build.build(["nfl", "cfb"], scope="odds", raw_dir=tmp_path / "raw", state_dir=state,
                      run_id="r1", board_dir=board, snapshot_dir=snaps, d1_sql=sql, books=["betonline"])
     assert rc == 0
+    assert {p.name for p in tmp_path.iterdir() if p.is_file()} == {
+        "d1_inserts.sql", "alert_inputs.json", build.PUBLISH_MANIFEST,
+    }
     meta = json.loads((board / "meta.json").read_text(encoding="utf-8"))
     assert meta["run_id"] == "r1" and meta["sport_counts"] == {"nfl": 1, "cfb": 0}
     assert meta["books"]["betonline"]["status"] == "green" and meta["books_requested"] == ["betonline"]
@@ -300,7 +302,7 @@ def test_build_writes_board_d1_sql_and_manifest(tmp_path: Path, monkeypatch: pyt
         assert "NaN" not in p.read_text(encoding="utf-8")
 
     # second identical run: odds/weather unchanged -> no history inserts, openers untouched
-    rc = build.build(["nfl", "cfb"], scope="odds", out_dir=tmp_path, raw_dir=tmp_path / "raw", state_dir=state,
+    rc = build.build(["nfl", "cfb"], scope="odds", raw_dir=tmp_path / "raw", state_dir=state,
                      run_id="r2", board_dir=board, snapshot_dir=snaps, d1_sql=sql, books=["betonline"])
     assert rc == 0
     text2 = sql.read_text(encoding="utf-8")
@@ -313,10 +315,9 @@ def test_build_writes_board_d1_sql_and_manifest(tmp_path: Path, monkeypatch: pyt
 
 def test_build_publish_without_r2_env_is_noop_and_merge_fetches_when_configured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(build, "run_sport", _fake_run_sport)
-    monkeypatch.setattr(build, "write_legacy", lambda sport, records, out_dir, ts: Path(out_dir) / f"{sport}.csv")
     for var in ("CF_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
         monkeypatch.delenv(var, raising=False)
-    rc = build.build(["nfl"], scope="odds", out_dir=tmp_path, raw_dir=tmp_path / "raw", state_dir=tmp_path / "state",
+    rc = build.build(["nfl"], scope="odds", raw_dir=tmp_path / "raw", state_dir=tmp_path / "state",
                      run_id="r1", board_dir=tmp_path / "board", snapshot_dir=tmp_path / "snaps", d1_sql=tmp_path / "d1.sql",
                      books=["betonline"], publish=True)
     assert rc == 0
@@ -344,7 +345,7 @@ def test_build_publish_without_r2_env_is_noop_and_merge_fetches_when_configured(
     monkeypatch.setenv("R2_ACCESS_KEY_ID", "k")
     monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "s")
     monkeypatch.setattr(r2_out, "make_client", lambda cfg: fake)
-    rc = build.build(["nfl"], scope="odds", out_dir=tmp_path, raw_dir=tmp_path / "raw", state_dir=tmp_path / "state2",
+    rc = build.build(["nfl"], scope="odds", raw_dir=tmp_path / "raw", state_dir=tmp_path / "state2",
                      run_id="r9", board_dir=tmp_path / "board2", snapshot_dir=tmp_path / "snaps2", d1_sql=tmp_path / "d1b.sql",
                      books=["betonline"], merge_into_r2=True)
     assert rc == 0

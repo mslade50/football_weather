@@ -14,10 +14,9 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 - Contracts use stdlib dataclasses; fuzzy matching uses `difflib` behind a
   try-import of `rapidfuzz`.
 - Never commit generated data. Only `data/stadiums*.csv`, `data/teams.csv`,
-  `data/aliases/`, `data/raw/` and `tests/fixtures/` are tracked. The legacy
-  `nfl_weather.csv` / `cfb_weather.xlsx` are written to `data/` and uploaded to
-  R2 `legacy/`; the frozen copies under `tests/fixtures/legacy/` are column
-  fixtures only. `pipeline.yml` has no `git commit` step (pinned by test).
+  `data/aliases/`, `data/raw/` and `tests/fixtures/` are tracked. Board JSON,
+  raw captures and snapshots are published to R2; SQL is archived to D1.
+  `pipeline.yml` has no `git commit` step (pinned by test).
 - Secrets only via env / `.env` (python-dotenv) / GitHub + Worker secrets.
 
 ## Rules
@@ -32,10 +31,9 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 - v1 impact model (`pipeline/model/impact.py`) is frozen: reproduces the legacy
   numbers exactly and is pinned by `tests/test_impact_v1.py`. Improvements go
   in v2 side by side; alerts stay on v1 until the Phase 6 promotion gate.
-- Legacy outputs (`nfl_weather.csv`, `cfb_weather.xlsx`) stay column-exact
-  (AUDIT §4, pinned by `tests/test_legacy_columns.py` against
-  `tests/fixtures/legacy/`); Streamlit (`app.py`, `pages/`) is gone — the board
-  is `site/web/` (Table, NFL/CFB maps, Alerts, Status tabs) served by the Worker.
+- The board is `site/web/` (Table, NFL/CFB maps, Alerts, Status tabs) served
+  by the Worker. Preserve published JSON keys, including `fair.my_total`,
+  `fair.my_spread`, `fair.edge_legacy` and `fair.edge_s_legacy`.
 - State files (`pipeline/state.py`) carry `schema_version`; load through
   `migrate()`; openers are never overwritten; alert markers are recorded only
   after a successful send.
@@ -61,7 +59,7 @@ Checks are `python -m pytest tests -q` and `node --test site/worker/test/*.test.
 pipeline/   build.py contracts.py state.py gate_check.py run_context.py alerts.py
             schedule/ stadiums/ weather/ model/ odds/ outputs/
 utils/      telegram.py state.py timeutil.py
-scripts/    recon_book.py recover_static.py extract_golden.py fixtures_scrub.py
+scripts/    recon_book.py _git_history.py fixtures_scrub.py
 site/       worker/ (wrangler.toml index.js migrations/ SETUP.md test/)
             web/ (index.html app.js table.js map.js drawer.js alerts.js status.js vendor/)
 tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test/*.test.mjs` for the Worker)

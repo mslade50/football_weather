@@ -1,5 +1,5 @@
 """Odds orchestration in pipeline/build.py: scope->books, gather with
-return_exceptions, provisional-id matching, consensus, legacy odds columns, openers."""
+return_exceptions, provisional-id matching, consensus, board fair inputs, openers."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pipeline.build import (
     BOOK_ORDER,
     HTTPX_BOOKS,
     books_for_scope,
-    legacy_odds,
+    card_odds,
     scrape_books,
 )
 from pipeline.contracts import Game, GameLine, WeatherForecast
@@ -53,10 +53,11 @@ def test_covered_venues_never_generate_outdoor_weather_signals(sport, venue, roo
     )
     assert sig.level == signals.NO and not sig.drivers and not flags
     assert impact.gs_fg_pct == 0 and impact.heat_away == 0
-    assert rec.wind_fg == wind and rec.temp_fg == temp and rec.rain_fg == rain
+    assert set(rec) == {"avg_wind", "avg_wind_month"}
     v2 = build._compute_v2(build.RunContext(sport=sport), sport, game, rg, fc, impact, {})
     assert v2 is not None and v2.gs_fg_pct == 0 and v2.heat_away == 0
     card = build.json_out.build_card(sport, game, rg.stadium, None, None, fc, impact, sig, flags)
+    assert (card["weather"]["wind_fg"], card["weather"]["temp_fg"], card["weather"]["rain_fg"]) == (wind, temp, rain)
     assert card["signal"]["level"] == signals.NO and card["signal"]["flags"] == []
     expected_roof = "dome" if rg.stadium.roof_type == "dome" else roof
     assert card["stadium"]["roof_state"] == expected_roof
@@ -255,7 +256,7 @@ def test_cfb_total_baseline_uses_t_minus_six_and_rebuilds_consensus():
     assert op["openers"][spread]["line"] == -4.0
 
 
-# ---- legacy odds columns ------------------------------------------------------------------
+# ---- board fair inputs ------------------------------------------------------------------
 
 def _by_game(lines: list[GameLine]) -> dict[str, list[GameLine]]:
     out: dict[str, list[GameLine]] = {}
@@ -264,53 +265,30 @@ def _by_game(lines: list[GameLine]) -> dict[str, list[GameLine]]:
     return out
 
 
-def test_nfl_legacy_odds_from_betonline_with_openers():
-    lines = [
-        _ln("betonline", "spread", "home", -2.5, -115), _ln("betonline", "total", "under", 47.0, -108),
-        _ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
-    ]
-    cons = _consensus("nfl", lines)
-    openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, _both(_ln("betonline", "spread", "home", -1.5, -110), _ln("betonline", "total", "under", 48.5, -110)), "t0")
-    o = legacy_odds("nfl", KC_BUF, _by_game(lines), cons, openers)
-    assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-2.5, -115, 47.0, -108)
-    assert (o["spread_open"], o["odds_open"], o["total_open"], o["under_open"]) == (-1.5, -110, 48.5, -110)
-    assert o["ref_book"] == "betonline"
-    # Spread column = consensus spread = avg of pinnacle -3.0 and betonline -2.5; total = weighted median
-    assert o["spread"] == -2.75 and o["spread_src"] == "bol+pin" and o["total_proj"] == 47.5
-    assert o["n_books"] == 2
+@pytest.mark.parametrize("sport,reference", [("nfl", "betonline"), ("cfb", "fanduel")])
+def test_card_odds_preserves_reference_total_and_consensus(sport, reference):
+    lines = [_ln(reference, "spread", "home", -2.5, -115), _ln(reference, "total", "under", 47, -108),
+             _ln("pinnacle", "spread", "home", -3, -108), _ln("pinnacle", "total", "under", 47.5, -105)]
+    lines = [replace(line, sport=sport) for line in lines]
+    cons = _consensus(sport, lines)
+    out = card_odds(sport, KC_BUF, _by_game(lines), cons)
+    assert out["current_total"] == 47 and out["total_proj"] == 47.5
+    assert out["ref_book"] == reference
+    assert out["spread"] == (-2.75 if sport == "nfl" else -3)
+    impact = SimpleNamespace(gs_fg_pct=-4, away_fg_pct=-2)
+    block = build.json_out.fair_block(None, build._legacy_derived(build.fair_mod, sport, out, impact))
+    assert block["my_total"] == pytest.approx(47.5 * 0.96)
+    assert block["edge_legacy"] == pytest.approx((47 - 47.5 * 0.96) / (47.5 * 0.96))
+    assert block["my_spread"] == pytest.approx(out["spread"] * 0.98)
+    assert block["edge_s_legacy"] == pytest.approx(out["spread"] - out["spread"] * 0.98)
 
 
-def test_nfl_legacy_odds_fall_back_to_consensus_when_betonline_missing():
-    lines = [_ln("pinnacle", "spread", "home", -3.0, -108), _ln("pinnacle", "total", "under", 47.5, -105),
-             _ln("betcris", "total", "under", 60.0, -110)]
-    cons = _consensus("nfl", lines)
-    openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, build.consensus_pseudo_lines(cons, "nfl"), "t0")
-    o = legacy_odds("nfl", KC_BUF, _by_game(lines), cons, openers)
-    assert o["ref_book"] == "consensus"
-    assert (o["spread_now"], o["odds_now"], o["total_now"], o["under_now"]) == (-3.0, -108, 47.5, -105)
-    assert (o["spread_open"], o["total_open"]) == (-3.0, 47.5)
-    assert o["spread_ref_book"] == "pinnacle" and o["total_ref_book"] == "pinnacle"
-    assert o["total_proj"] == 47.5
-
-
-def test_cfb_legacy_odds_from_fanduel():
-    gid = "cfb:2026:1:iowa-state@kansas-state"
-
-    def ln(book: str, market: str, side: str, line: float, odds: int = -110) -> GameLine:
-        return GameLine(sport="cfb", game_id=gid, book=book, market=market, side=side, odds=odds, line=line)
-
-    lines = [ln("fanduel", "total", "under", 51.5, -112), ln("fanduel", "spread", "home", -3.5, -108),
-             ln("pinnacle", "total", "under", 52.0), ln("pinnacle", "spread", "home", -3.0)]
-    cons = _consensus("cfb", lines)
-    openers = pstate.migrate(None, "openers")
-    pstate.record_openers(openers, _both(ln("fanduel", "total", "under", 50.5, -110), ln("fanduel", "spread", "home", -2.5, -110)), "t0")
-    o = legacy_odds("cfb", gid, _by_game(lines), cons, openers)
-    assert (o["fd_now"], o["odds_n"], o["fd_open"], o["odds_o"]) == (51.5, -112, 50.5, -110)
-    assert (o["current"], o["open"]) == (-3.5, -2.5)
-    assert (o["spread"], o["total_proj"]) == (-3.0, 52.0)  # pinnacle weight 3 beats fanduel 1
-    assert "spread_now" not in o
+def test_card_odds_falls_back_to_consensus_per_market():
+    lines = [_ln("pinnacle", "spread", "home", -3), _ln("pinnacle", "total", "under", 47.5),
+             _ln("betcris", "total", "under", 60)]
+    out = card_odds("nfl", KC_BUF, _by_game(lines), _consensus("nfl", lines))
+    assert out["ref_book"] == "consensus"
+    assert out["current_total"] == 47.5 and out["spread"] == -3
 
 
 def test_cfb_signal_gate_uses_the_consensus_opener_argument():
@@ -346,7 +324,6 @@ def test_cfb_signal_gate_uses_the_consensus_opener_argument():
         travel_alt=955.4,
         home_temp=52.4,
         away_temp=47.2,
-        odds={"open": -9.5},
         signal_open_spread=-10.01,
     )
     assert disqualified.level == signals.NO and flags == []
@@ -362,7 +339,6 @@ def test_cfb_signal_gate_uses_the_consensus_opener_argument():
         travel_alt=955.4,
         home_temp=52.4,
         away_temp=47.2,
-        odds={"open": -18.5},
         signal_open_spread=-10.0,
     )
     assert eligible.level == signals.MID
@@ -440,9 +416,9 @@ def test_stale_betcris_warns_and_stays_off_the_dark_and_down_paths(tmp_path: Pat
     assert build.upstream_stale_detail(mixed) is None
 
 
-def test_legacy_odds_empty_when_no_lines():
-    o = legacy_odds("nfl", KC_BUF, {}, {}, pstate.migrate(None, "openers"))
-    assert o["spread_now"] is None and o["total_proj"] is None and o["ref_book"] is None
+def test_card_odds_empty_when_no_lines():
+    o = card_odds("nfl", KC_BUF, {}, {})
+    assert o["current_total"] is None and o["total_proj"] is None and o["ref_book"] is None
 
 
 # ---- stage_odds end-to-end (scrapers monkeypatched) -----------------------------------------
@@ -468,14 +444,14 @@ def test_stage_odds_persists_openers_and_baseline(tmp_path: Path, monkeypatch: p
     assert {ln.game_id for ln in res.lines} == {KC_BUF}
     assert res.per_book == {"betonline": 4, "pinnacle": 2}
     assert (tmp_path / "openers.json").exists() and (tmp_path / "scrape_baseline.json").exists() and (tmp_path / "archive_last.json").exists()
-    o1 = legacy_odds("nfl", KC_BUF, res.by_game, res.consensus, res.openers)
-    assert (o1["spread_now"], o1["spread_open"]) == (-2.5, -2.5)
+    o1 = build.json_out.odds_block(KC_BUF, res.lines, res.openers)["betonline"]["spread"]
+    assert (o1["home_line"], o1["open_line"]) == (-2.5, -2.5)
 
     # second run: line moved, opener stays
     ctx2 = RunContext(sport="nfl", scope="full", git_sha="t")
     res2 = build.stage_odds(ctx2, "nfl", games, _Book(), NullRawStore("nfl", "r"), ["betonline", "pinnacle"], tmp_path, 2026)
-    o2 = legacy_odds("nfl", KC_BUF, res2.by_game, res2.consensus, res2.openers)
-    assert (o2["spread_now"], o2["spread_open"]) == (-3.5, -2.5)
+    o2 = build.json_out.odds_block(KC_BUF, res2.lines, res2.openers)["betonline"]["spread"]
+    assert (o2["home_line"], o2["open_line"]) == (-3.5, -2.5)
     assert ctx2.counts["betonline"]["nfl"] == 4
     # baseline scope keys on the weather-window games ('nfl:2026:1' once the game is
     # inside 10 days, 'nfl:2026:?' while it is only on the odds horizon)
@@ -653,12 +629,12 @@ def test_playwright_style_run_keeps_fanduel_now_via_archive(tmp_path: Path, monk
     from pipeline.run_context import RunContext
 
     r1 = build.stage_odds(RunContext(sport="cfb", git_sha="t"), "cfb", [game], _Book(), NullRawStore("cfb", "r"), ["fanduel"], tmp_path, 2026)
-    o1 = legacy_odds("cfb", gid, r1.by_game, r1.consensus, r1.openers)
-    assert (o1["fd_now"], o1["fd_open"], o1["ref_book"]) == (51.5, 51.5, "fanduel")
+    o1 = build.json_out.odds_block(gid, r1.lines, r1.openers)["fanduel"]["total"]
+    assert (o1["line"], o1["open_line"]) == (51.5, 51.5)
 
     r2 = build.stage_odds(RunContext(sport="cfb", git_sha="t"), "cfb", [game], _Book(), NullRawStore("cfb", "r"), ["betonline"], tmp_path, 2026)
-    o2 = legacy_odds("cfb", gid, r2.by_game, r2.consensus, r2.openers)
-    assert (o2["fd_now"], o2["odds_n"], o2["fd_open"], o2["ref_book"]) == (51.5, -112, 51.5, "fanduel")
+    o2 = build.json_out.odds_block(gid, r2.lines, r2.openers)["fanduel"]["total"]
+    assert (o2["line"], o2["under"], o2["open_line"]) == (51.5, -112, 51.5)
     assert r2.consensus[(gid, "total")].n_books == 2
     assert {ln.book for ln in r2.lines} == {"betonline", "fanduel"}
 
@@ -694,7 +670,7 @@ def test_entered_window_ids_and_board_new_opener_keys():
                                     *_both(_ln("betonline", "total", "under", 44.0, game_id=settled.game_id)),
                                     _ln("consensus", "total", "under", 47.0, game_id=entering.game_id)], "t0")
     odds = build.OddsResult([], {}, openers, {}, [], {}, new_opener_keys=[f"{settled.game_id}|spread|home|pinnacle"])
-    res = build.SportResult("nfl", [], [], [], [entering, settled], {}, {}, {}, {}, odds)
+    res = build.SportResult("nfl", [], [], [entering, settled], {}, {}, {}, {}, odds)
     keys = build.board_new_opener_keys(res, prev, now)
     # this run's genuinely-new key + every opener of the game that just entered the window
     assert keys == sorted([f"{settled.game_id}|spread|home|pinnacle", f"{entering.game_id}|total|under|betonline",
@@ -751,7 +727,7 @@ def test_run_sport_records_openers_and_history_for_horizon_game_without_card(tmp
     assert [g.game_id for g in res.games] == [near.game_id]
     assert {g.game_id for g in res.odds_games} == {near.game_id, far.game_id}
     assert [c["game_id"] for c in res.cards] == [near.game_id]          # no card for the horizon game
-    assert len(res.records) == 1 and res.records[0].game_id == near.game_id
+    assert ctx.counts["legacy"]["nfl"] == len(res.cards)
     assert {ln.game_id for ln in res.odds.lines} == {near.game_id, far.game_id}
     store = res.odds.openers["openers"]
     assert store[f"{far.game_id}|total|under|betonline"]["line"] == 41.5

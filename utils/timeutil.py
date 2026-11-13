@@ -1,8 +1,4 @@
-"""ET/UTC helpers and legacy label formats.
-
-Legacy formats (AUDIT §4): Date 'SUN 11/09', Time '01:00 PM', Timestamp
-'2026-04-15T10:00:55' (naive ET ISO, seconds precision).
-"""
+"""ET/UTC helpers and board date/time labels."""
 
 from __future__ import annotations
 
@@ -54,12 +50,6 @@ def time_label(dt: datetime) -> str:
     return f"{hour12:02d}:{dt.minute:02d} {ampm}"
 
 
-def naive_et_iso(dt: Optional[datetime] = None) -> str:
-    """Legacy Timestamp: ISO seconds, ET wall clock, no offset."""
-    d = to_et(dt) if dt is not None else now_et()
-    return d.replace(tzinfo=None, microsecond=0).isoformat()
-
-
 def utc_iso(dt: Optional[datetime] = None) -> str:
     d = ensure_utc(dt) if dt is not None else now_utc()
     return d.replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -105,7 +95,6 @@ __all__ = [
     "to_tz",
     "date_label",
     "time_label",
-    "naive_et_iso",
     "utc_iso",
     "parse_iso",
     "run_id_for",

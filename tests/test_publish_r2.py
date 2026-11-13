@@ -39,6 +39,13 @@ def test_phase_uploads_keep_meta_out_of_board_batch_and_require_meta(tmp_path, m
         publish_r2.publish_phase("meta", "bucket", upload_fn=lambda *args: None)
 
 
+def test_publisher_cli_lists_only_supported_phases(capsys):
+    with pytest.raises(SystemExit) as caught:
+        publish_r2.main(["--help"])
+    assert caught.value.code == 0
+    assert "{raw,snapshots,board,state,meta}" in capsys.readouterr().out
+
+
 def test_upload_retries_with_same_idempotent_request(tmp_path):
     calls = []
 
