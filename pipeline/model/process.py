@@ -666,7 +666,7 @@ def evaluate_card(card: dict[str, Any]) -> dict[str, Any]:
         "temp_ok": bool(temp_passes and exposed),
         "wind_band": band if exposed and spread_ok else "none",
         "rain_tier": tier if exposed and spread_ok else "ignore",
-        "rain_agreement": agreement["status"] if rain_signal or tier in ("unverified", "disagree") else agreement["status"],
+        "rain_agreement": agreement["status"],
         "rain_partner": agreement.get("partner"),
         "rain_partner_mm": agreement.get("partner_mm"),
         "ecmwf_mm": agreement.get("ecmwf_mm"),

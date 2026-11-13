@@ -130,7 +130,7 @@ Double-run avoidance
 1. GitHub `schedule:` thinned to a backstop (~every 3-4h on game days, ~45
    ticks/week vs ~100). It is no longer a competing hourly source.
 2. New gate step: on `schedule` events only, if a `workflow_dispatch` run
-   (Worker or manual) was created in the last 50 min and did not fail/cancel,
+   (Worker or manual) was created in the last 100 min and did not fail/cancel,
    the gate is skipped (`run` empty -> light/playwright skip). Fail-open on any
    API error.
 3. `concurrency: football-refresh` (queue, no cancel) still serializes writers.
