@@ -11,6 +11,7 @@ import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from pipeline.model import config
 
 def routine_slot(now):
     local = now.astimezone(ZoneInfo("America/New_York"))
@@ -61,7 +62,7 @@ def evidence_time(value):
 
 def clear_reason(card, cfg, now):
     from pipeline import alerts as A
-    from pipeline.model import config, signals
+    from pipeline.model import signals
     from pipeline.stadiums.roofs import resolve_roof_state
     from pipeline.weather.first_pass import aged
     from pipeline.weather.member_cache import SOURCES, version
@@ -197,7 +198,7 @@ def collect(ctx, cards_by_sport, alerts, cfg, now, confirmations):
                         )
                 continue  # Explicit bet confirmation permits CLEAR only.
             spread = A._num((card.get("consensus") or {}).get("spread_open"))
-            if card.get("sport") == "cfb" and spread is not None and abs(spread) > 10:
+            if card.get("sport") == "cfb" and spread is not None and abs(spread) > config.CFB_OPEN_SPREAD_MAX:
                 continue
             if not A._qualifying_signal(card, cfg):
                 continue
