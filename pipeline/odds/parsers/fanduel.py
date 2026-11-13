@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +64,8 @@ class FanDuelEvent:
 
 
 def raw_game_id(away: str, home: str, kickoff_utc: datetime, sport: str) -> str:
-    day = kickoff_utc.astimezone(timezone.utc).strftime("%Y-%m-%d")
-    return f"{sport}:raw:{day}:{away}@{home}"
+    return build_game_id(sport, away, home, kickoff_utc.astimezone(timezone.utc),
+                         precision="day", sanitize_pipes=False)
 
 
 def parse_open_date(value: str) -> datetime:

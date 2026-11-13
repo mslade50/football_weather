@@ -2,9 +2,9 @@
 
 ARCH §8 (last paragraph) / PLAN Phase 2. Every parser stamps a *provisional*
 ``game_id`` of the shape ``{sport}:raw:{stamp}:{away}@{home}`` where ``stamp`` is
-``YYYYMMDD`` (betcris/betonline), ``YYYY-MM-DD`` (fanduel/kalshi) or
-``YYYY-MM-DDTHH:MM`` UTC (novig/pinnacle/prophetx) and ``away``/``home`` are the
-book's own team strings (slugged by some books). This module:
+``YYYYMMDD``, ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM`` UTC and ``away``/``home``
+are the book's own team strings (slugged by some books). The shared codec in
+``odds.ids`` owns these encodings. This module:
 
 1. ``canonicalize`` — resolves both team strings via ``odds.teams.normalize_team``,
    matches ``(away_id, home_id)`` to a schedule ``Game`` with kickoff within
@@ -26,7 +26,6 @@ book's own team strings (slugged by some books). This module:
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -37,16 +36,12 @@ from pipeline import state as state_mod
 from pipeline.contracts import Game, GameLine
 from pipeline.model.config import BOOK_WEIGHTS, DEFAULT_BOOK_WEIGHT
 from pipeline.odds import teams as teams_mod
+from pipeline.odds.ids import is_provisional, parse_provisional_id, parse_stamp
 from pipeline.odds.main_select import pair_key, select_main_lines
 
 logger = logging.getLogger(__name__)
 
 WINDOW_H = 36.0
-_PROV_RE = re.compile(
-    r"^(?P<sport>nfl|cfb):raw:(?P<stamp>\d{8}|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?|unknown):(?P<away>[^@]*)@(?P<home>.*)$"
-)
-_STAMP_DAY = re.compile(r"^(\d{4})-?(\d{2})-?(\d{2})$")
-_STAMP_DT = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})")
 _FLIP = {"home": "away", "away": "home"}
 
 
@@ -79,32 +74,15 @@ class MergeResult:
 
 # ---- provisional ids ------------------------------------------------------------
 
-def parse_stamp(stamp: str) -> tuple[datetime | None, bool]:
-    """``(kickoff_utc, date_only)`` for a provisional-id stamp; ``(None, False)`` if unknown."""
-    m = _STAMP_DT.match(stamp or "")
-    if m:
-        y, mo, d, hh, mm = (int(x) for x in m.groups())
-        return datetime(y, mo, d, hh, mm, tzinfo=timezone.utc), False
-    m = _STAMP_DAY.match(stamp or "")
-    if m:
-        y, mo, d = (int(x) for x in m.groups())
-        return datetime(y, mo, d, 12, 0, tzinfo=timezone.utc), True
-    return None, False
-
-
 def parse_provisional(game_id: str, book: str = "") -> RawGame | None:
-    m = _PROV_RE.match(game_id or "")
-    if not m:
+    parsed = parse_provisional_id(game_id)
+    if parsed is None:
         return None
-    kick, date_only = parse_stamp(m.group("stamp"))
+    kick, date_only = parse_stamp(parsed.stamp)
     return RawGame(
-        book=book, game_id=game_id, sport=m.group("sport"), away=m.group("away").strip(),
-        home=m.group("home").strip(), kickoff_utc=kick, date_only=date_only,
+        book=book, game_id=game_id, sport=parsed.sport, away=parsed.away.strip(),
+        home=parsed.home.strip(), kickoff_utc=kick, date_only=date_only,
     )
-
-
-def is_provisional(game_id: str) -> bool:
-    return bool(_PROV_RE.match(game_id or ""))
 
 
 def raw_games_from_lines(lines: Iterable[GameLine]) -> dict[str, RawGame]:

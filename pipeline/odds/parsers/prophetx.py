@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 
 BOOK = "prophetx"
 
@@ -97,9 +98,7 @@ def parse_start(value: Any) -> datetime | None:
 
 
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
-    """Provisional id, same shape as the other parsers: ``{sport}:raw:{kickoff}:{away}@{home}``."""
-    stamp = start_utc.strftime("%Y-%m-%dT%H:%M") if start_utc else "unknown"
-    return f"{sport}:raw:{stamp}:{away}@{home}".replace("|", " ")
+    return build_game_id(sport, away, home, start_utc)
 
 
 def tournament_sport(tournament: dict) -> str | None:

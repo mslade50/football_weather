@@ -7,11 +7,11 @@ Provisional game ids are resolved against the schedule by odds/merge.py.
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 
 BOOK = "betcris"
 # How long a public print stays on the board, measured from feed_fetched_at.
@@ -55,13 +55,9 @@ class BetcrisGame:
         return f"{self.page}:{self.number}"
 
 
-def _slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-
 
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
-    day = start_utc.strftime("%Y%m%d") if start_utc else "unknown"
-    return f"{sport}:raw:{day}:{_slug(away)}@{_slug(home)}"
+    return build_game_id(sport, away, home, start_utc, precision="compact", slug="hyphen")
 
 
 def dedupe_games(games: list[BetcrisGame]) -> list[BetcrisGame]:
@@ -154,7 +150,7 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
         home, away = game.get("home"), game.get("visitor")
         if not isinstance(home, str) or not home.strip() or not isinstance(away, str) or not away.strip():
             continue
-        gid = f"{sport}:raw:{kickoff:%Y-%m-%dT%H:%M}:{_slug(away)}@{_slug(home)}"
+        gid = build_game_id(sport, away, home, kickoff, slug="hyphen")
         markets = game.get("markets")
         if not isinstance(markets, dict):
             continue

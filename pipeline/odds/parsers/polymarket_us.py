@@ -6,13 +6,13 @@ marketSides.price are not executable prices. Fees follow docs.polymarket.us/fees
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.model.fair import prob_to_american
+from pipeline.odds.ids import provisional_game_id as build_game_id
 
 BOOK = "polymarket_us"
 TYPES = {"football_team_full_game_total": "total", "football_team_full_game_spread": "spread",
@@ -26,9 +26,6 @@ def number(value: Any) -> float | None:
     except (ValueError, TypeError):
         return None
 
-
-def _slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", name.lower().replace("&", "and")).strip("-")
 
 
 def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None = None) -> list[GameLine]:
@@ -57,8 +54,7 @@ def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None
                         teams[team["ordering"]] = team["name"]
         if len(teams) != 2:
             continue
-        stamp = kickoff.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M")
-        gid = f"{sport}:raw:{stamp}:{_slug(teams['away'])}@{_slug(teams['home'])}"
+        gid = build_game_id(sport, teams["away"], teams["home"], kickoff.astimezone(timezone.utc), slug="and")
         rows = []
         for market in event.get("markets", []):
             kind = TYPES.get(market.get("sportsMarketType"))

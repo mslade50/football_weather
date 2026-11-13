@@ -32,12 +32,12 @@ parser); ``odds/merge.py`` resolves it against the schedule ``Game``.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 
 BOOK = "betonline"
 
@@ -80,13 +80,9 @@ class BetOnlineGame:
         return f"{self.league}:{self.game_id_src}"
 
 
-def _slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-
 
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
-    day = start_utc.strftime("%Y%m%d") if start_utc else "unknown"
-    return f"{sport}:raw:{day}:{_slug(away)}@{_slug(home)}"
+    return build_game_id(sport, away, home, start_utc, precision="compact", slug="hyphen")
 
 
 def parse_cutoff(value: str | None, offset_minutes: int = UTC_OFFSET_MINUTES) -> datetime | None:

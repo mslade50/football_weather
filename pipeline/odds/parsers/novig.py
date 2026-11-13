@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.main_select import select_main_lines
 
 BOOK = "novig"
@@ -75,8 +76,7 @@ def parse_kickoff(value: str | None) -> datetime | None:
 
 
 def provisional_game_id(sport: str, kickoff: datetime | None, away: str, home: str) -> str:
-    stamp = kickoff.strftime("%Y-%m-%dT%H:%M") if kickoff else "unknown"
-    return f"{sport}:raw:{stamp}:{away}@{home}".replace("|", " ")
+    return build_game_id(sport, away, home, kickoff)
 
 
 def _side_line(market: str, side: str, strike: float | None) -> float | None:

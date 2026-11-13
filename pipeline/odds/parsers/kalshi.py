@@ -57,6 +57,7 @@ from datetime import date, datetime
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.kalshi_fees import effective_price as rounded_effective_price
 
 BOOK = "kalshi"
@@ -163,7 +164,7 @@ def split_names(title: str) -> tuple[str, str]:
 
 
 def provisional_game_id(sport: str, day: date, away: str, home: str) -> str:
-    return f"{sport}:raw:{day.isoformat()}:{away}@{home}".replace("|", " ")
+    return build_game_id(sport, away, home, day, precision="day")
 
 
 def event_identity(event: dict[str, Any], sport: str) -> dict[str, Any] | None:
