@@ -43,7 +43,7 @@ function harness() {
     gameInfoTable = () => ''; compassCard = () => ''; hourlyStrip = () => '';
     renderHourlyChart = () => {}; renderDriftChart = () => {}; loadHistory = () => {}; renderDrawerAlerts = () => {};`, ctx);
   vm.runInContext("RAW_META = {run_id: 'fixture', publication_status: 'manifest_verified', publication: {generation: 'fixture-generation'}}", ctx);
-  const game = id => ({game_id: id, run_id: 'fixture', sport: 'cfb', kickoff_utc: '2026-10-11T18:00:00Z',
+  const game = id => ({process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},game_id: id, run_id: 'fixture', sport: 'cfb', kickoff_utc: '2026-10-11T18:00:00Z',
     consensus: {total_now: 46.5, spread_open: -3}, stadium: {roof_state: 'open'}, total_prices: {quotes: []}});
   ctx.games = [game('a'), game('b')];
   vm.runInContext('DATA.games.cfb = games; openDrawer("a")', ctx);

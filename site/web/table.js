@@ -95,22 +95,18 @@ function tierChip(e, game = null) {
   return `<span class="tierchip ${esc(tier)}${age ? " pricing-stale" : ""}" title="${esc(tip + (age ? ' · ' + age : ''))}">${txt}</span>`;
 }
 function signalPill(sig, game) {
-  if (game && !hardEligible(game)) return '<span class="muted">Ineligible</span>';
-  let label = signalLabel(sig);
-  const proc = (game && game.process) || {};
-  const drivers = (sig && sig.drivers) || [];
-  const rainDriven = drivers.includes("rain") || /\(Rain\)/i.test((sig && sig.label) || "");
-  const disagreed = proc.rain_agreement && proc.rain_agreement !== "agree";
-  if (rainDriven && disagreed) {
-    if (proc.wind_band === "flag") label = "Low (Wind)";
-    else label = proc.rain_agreement === "disagree" ? "Rain models disagree" : "Rain not confirmed";
+  const record = game && publishedDecision(game);
+  if (!record) {
+    const label = (sig && sig.label) || "No Impact";
+    return `<span class="sig pending" style="background:#8b949e" title="Refresh pending">${esc(label)}</span><span class="sub muted">Refresh pending</span>`;
   }
-  const matched = game && game.sport === "cfb" && typeof gameFlags === "function"
-    ? gameFlags(game) : ((sig && sig.flags) || []);
-  const flags = matched.length ? ` · ${matched.join(", ")}` : "";
-  const muted = rainDriven && disagreed && proc.wind_band !== "flag";
-  return `<span class="sig" style="background:${muted ? "#8b949e" : signalColor(sig)}" title="${esc(label + flags)}">${esc(label)}</span>`;
+  if (record.display_label === "Ineligible") return '<span class="muted">Ineligible</span>';
+  const label = record.display_label;
+  const flags = record.flags.length ? ` · ${record.flags.join(", ")}` : "";
+  const color = signalColor({color: record.display_color});
+  return `<span class="sig" style="background:${color}" title="${esc(label + flags)}">${esc(label)}</span>`;
 }
+
 function weatherCoverageHtml(g) {
   const wx = g.weather || {}, issues = [];
   const missing = ["temp_fg", "wind_fg", "rain_fg"].filter(key => !finiteValue(wx[key]));
@@ -383,7 +379,7 @@ function renderTable(rows, opts = {}) {
   thead.querySelectorAll("th.sortable").forEach(th => th.addEventListener("keydown", e => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
   }));
-  rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || hardEligible(g)));
+  rows = rows.filter(g => upcomingGame(g) && (showAllBoardGames(STATE) || publishedDecision(g)?.discovery_state !== "ineligible"));
   const sortCol = STATE.sort != null ? sortColumnId(cols, STATE.sort) : null;
   if (sortCol) {
     sortGames(rows, sortCol[2], STATE.dir);

@@ -277,7 +277,7 @@ def replay(snaps: pd.DataFrame, home_elev: Mapping[str, float] | None = None) ->
             sig = nfl_signal(_f(r["wind_fg"]), _f(r["temp_fg"]), _f(r["rain_fg"]))
         else:  # archive opener is FanDuel-only: a labelled proxy for the consensus opener
             sig = cfb_signal(_f(r["wind_fg"]), _f(r["temp_fg"]), _f(r["rain_fg"]), _f(r["open_spread_abs"]),
-                             _f(r["travel_alt"]), _f(r["home_temp"]), _f(r["away_temp"]), run_et.weekday())
+                             _f(r["travel_alt"]), _f(r["home_temp"]), _f(r["away_temp"]))
         tiers.append(sig.level)
     s["gs_fg"] = gs
     s["away_fg"] = aw

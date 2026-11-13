@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from pipeline.contracts import GameLine, WeatherForecast
+from pipeline.model.process import evaluate_card
 from pipeline.model.total_prices import compare_totals
 from pipeline.outputs import json_out
 from pipeline.schedule.cfb import parse_cfbd_games
@@ -54,6 +55,7 @@ def test_schedule_publication_snapshot_and_ui(tmp_path, monkeypatch):
         card = json_out.build_card(game.sport, game, rg.stadium, rg.home_team, rg.away_team,
                                    fc, None, None, [], lines=lines, run_id="publication-regression")
         card["consensus"].update(total_now=46.5, spread_open=3)
+        card["process"] = evaluate_card(card, now=NOW)
         # Evaluate posted references using the comparator with a deterministic fair.
         card["total_prices"] = compare_totals(game.sport, lines, fair, now=NOW)
         cards[game.sport].append(card)

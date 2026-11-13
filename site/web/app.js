@@ -26,6 +26,8 @@
  *              lead_hours, fetched_at, hourly [{t, temp, wind, gust, dir, precip, pop, p10, p90}]},
  *     impact {v1 {gs_fg_pct, away_fg_pct, components {...}}, v2 {...}, model_version},
  *     signal {label, level, color, size, flags [..], dow_base},
+ *     process {decision_version, discovery_state, discovery_reasons, eligible, ineligible_reasons,
+ *              display_label, display_color, flags, thresholds, ...}, // published Python decision
  *     odds { <book>: { spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
  *                      total  {line, over, under, open_line, open_under, updated_at},
  *                      ml     {home, away, open_home, open_away} } },

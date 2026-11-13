@@ -177,7 +177,7 @@ test('Principal stake targets $500 cash separately from fees and qualifies in th
   assert.ok(result.depth_fetched_at);
   assert.ok(result.allocations.every(a => a.line === 57.5 && a.side === 'under' && a.rules_key === result.rules_key));
   assert.ok(calls.every(c => c.options.method === 'GET' && !c.options.headers.Authorization));
-  const ctx = vm.createContext({ Date, g: { ...game, consensus: {total_now: 57.5}, execution_preview: result }, LOAD_ERRORS: {} });
+  const ctx = vm.createContext({ Date, g: { process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'}, ...game, consensus: {total_now: 57.5}, execution_preview: result }, LOAD_ERRORS: {} });
   vm.runInContext(readFileSync(new URL('../../web/discovery.js', import.meta.url), 'utf8'), ctx);
   assert.equal(vm.runInContext('verifiedOffer(g)?.principal', ctx), 500);
 });

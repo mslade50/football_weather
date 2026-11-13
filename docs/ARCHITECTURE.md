@@ -278,7 +278,17 @@ Prefix `board/` (served via Worker `/data/<name>.json`, `cache-control: no-store
           rain_agreement, cross_mph, head_mph, crosswind_factor, ecmwf_apart, ecmwf_apart_fields,
           under_prob_open, under_prob_now, under_prob_price_move, line_open, line_now, line_prob_move,
           line_open_missing, under_prob_move, book_adverse_max, under_prob_basis, price_gate_max, price_blocked,
-          candidate, watch, alert},   (docs/PROCESS_SPEC.md; v1 impact inputs are unchanged)
+          candidate, watch, alert, ecmwf_missing, rain_partner, rain_partner_mm, ecmwf_mm, books,
+          decision_version, evaluated_at, eligible, ineligible_reasons,
+          discovery_state, discovery_reasons, signal_probability,
+          display_label, display_color, display_muted, flags, alert_label,
+          clear_signal_label, clear_inputs_complete, price_gate_passed,
+          thresholds {temp_max_f, temp_gate, wind_watch_mph, wind_flag_mph, rain_ignore_mm,
+                      rain_watch_mm, rain_signal_mm, rain_agree_tol_mm, under_prob_move_max,
+                      cfb_open_spread_max, signal_probability_min, heat_temp_f, home_temp_max_f,
+                      altitude_m, alt_temp_f, ecmwf_lead_h, cfb_high_wind_mph,
+                      nfl_high_temp_min_f, nfl_high_temp_max_f, cfb_very_high_temp_max_f,
+                      severity_temp_max_f}},   (docs/PROCESS_SPEC.md; v1 impact inputs are unchanged)
  odds {<book>: {spread {home_line, home_odds, away_odds, open_line, open_odds, updated_at},
                   total  {line, over, under, open_line, open_under, updated_at, expires_at?, source_updated_at?,
                           open_ts?, open_target_ts?, open_basis?,

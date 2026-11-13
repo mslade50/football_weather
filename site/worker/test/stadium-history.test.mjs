@@ -43,7 +43,7 @@ function ui() {
     vm.runInContext(readFileSync(new URL(`../../web/${name}`,import.meta.url),'utf8').replace(/\nboot\(\);\s*$/,''),ctx);
   ctx.data=stadiumHistoryPayload();
   vm.runInContext('STADIUM_HISTORY.data=data',ctx);
-  ctx.game={sport:'nfl',season:2026,stadium:{stadium_id:'metlife-stadium',roof_state:'open'},
+  ctx.game={process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},sport:'nfl',season:2026,stadium:{stadium_id:'metlife-stadium',roof_state:'open'},
     venue_provenance:{source:'nflverse:fixture',source_id:'NYC01',resolved_id:'metlife-stadium'},weather:{wind_fg:18,temp_fg:55}};
   return {ctx,run:code=>vm.runInContext(code,ctx)};
 }
@@ -80,7 +80,7 @@ test('CFB frozen bytes and full/recent WLP reconcile without altering the geogra
 });
 
 test('CFB exact venue records show synthetic paired threshold basis independently of current opener',()=>{
-  const f=ui(); f.ctx.game={sport:'cfb',season:2026,stadium:{stadium_id:'camp-randall-stadium',roof_state:'open'},
+  const f=ui(); f.ctx.game={process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'},sport:'cfb',season:2026,stadium:{stadium_id:'camp-randall-stadium',roof_state:'open'},
     venue_provenance:{source:'cfbd:fixture',source_id:'347',resolved_id:'camp-randall-stadium'},weather:{wind_fg:18,temp_fg:55},consensus:{spread_open:3}};
   const result=f.run('stadiumSignalHistory(game)'); assert.equal(result.available,true); assert.equal(result.periods[0].n,2);
   assert.match(f.run('stadiumSignalCompact(game)'),/synthetic totals/);

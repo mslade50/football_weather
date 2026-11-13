@@ -9,8 +9,6 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from pipeline.model import config as model_config
-
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "site" / "web"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
@@ -135,12 +133,9 @@ def test_signals_view_wiring() -> None:
         assert f'"{preset}"' in sig, f"signals.js must define the {preset} preset"
     for fn in ("function activePreset", "function gameFlags", "function hasFlag", "function renderSignals", "function setPreset"):
         assert fn in sig
-    assert "const CFB_OPEN_SPREAD_MAX = 10;" in sig
-    assert "Math.abs(open) > CFB_OPEN_SPREAD_MAX" in sig
-    assert "const WIND_FLAG_MPH = 15;" in sig
-    assert "wind >= WIND_FLAG_MPH && tempAllows(g, temp)" in sig
-    assert (model_config.CFB_OPEN_SPREAD_MAX, model_config.CFB_WIND_MAX_TEMP_F,
-            model_config.CFB_WIND_MIN_MPH) == (10, 65, 15)
+    assert 'publishedDecision(g)' in sig
+    assert 'record.flags' in sig
+    assert 'computeFlags' not in sig
     assert "CFB Wind eligibility:" in sig and "Severity tiers are extra." in sig
     assert "title=\"Weather signal severity filter" in html and ">No signal</option>" in html
     app = (WEB / "app.js").read_text(encoding="utf-8")

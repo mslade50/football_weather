@@ -274,7 +274,7 @@ def test_first_signal_quote_survives_waiting_for_routine_delivery():
 
 
 def test_cfb_wide_opener_never_becomes_a_telegram_play():
-    sig = signals.cfb_signal(6.7, 78.3, 0.0, -18.5, 955.4, 52.4, 47.2, weekday=1)
+    sig = signals.cfb_signal(6.7, 78.3, 0.0, -18.5, 955.4, 52.4, 47.2)
     assert sig.level == signals.NO
 
     alerts, _ = _fresh()

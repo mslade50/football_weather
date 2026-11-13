@@ -1,174 +1,58 @@
 "use strict";
-// UI discovery is independent of prices and liquidity. Unknown is never zero.
-// Process screen (docs/PROCESS_SPEC.md). Keep in lockstep with pipeline/model/config.py.
-const PROCESS_TEMP_MAX_F = 65;
-const PROCESS_TEMP_GATE = false;
-const PROCESS_WIND_WATCH_MPH = 12;
-const PROCESS_WIND_FLAG_MPH = 15;
-const PROCESS_RAIN_IGNORE_MM = 5;
-const PROCESS_RAIN_WATCH_MM = 15;
-const PROCESS_RAIN_SIGNAL_MM = 23;
-const PROCESS_RAIN_AGREE_TOL_MM = 10;
-const PROCESS_UNDER_PROB_MOVE_MAX = 0.04;
-const ECMWF_MODELS = new Set(["ecmwf_ifs025", "ecmwf_aifs025_single"]);
+// Signal decisions are published by Python. Older cards wait for a refresh.
 const EXCHANGE_BOOKS = new Set(["kalshi", "novig", "prophetx", "polymarket_us", "4cx"]);
 const VERIFIED_OFFERS = new Map();
 const finiteValue = v => typeof v === "number" && Number.isFinite(v);
-function roofExposed(g) {
-  // Same rule as pipeline/stadiums/roofs.py weather_exposed: a retractable roof
-  // counts only when the game says it is open. Dome, closed, and indoor do not.
-  const st = g.stadium || {};
-  const type = String(st.roof_type || "").toLowerCase();
-  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
-  if (type === "dome" || roof === "dome" || roof === "closed" || roof === "indoor") return false;
-  if (type === "retractable") return roof === "open";
-  return true;
+function publishedDecision(g) {
+  return g?.process?.decision_version === "decision-v1" ? g.process : null;
 }
-function hardEligible(g) {
-  return roofExposed(g)
-    && !(g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10);
-}
+function decisionEligible(g) { return publishedDecision(g)?.eligible === true; }
 function upcomingGame(g) {
   return Date.parse(g.kickoff_utc) > Date.now() && !/final|cancel|postpon|suspend|live|progress/i.test(g.status || "");
 }
 function showAllBoardGames(state) {
   return !!state.showAllGames && (state.view === "map" || (state.view === "table" && state.tableMode !== "history"));
 }
+function reasonText(code, thresholds = {}) {
+  const texts = {
+    indoor: "Indoor / dome", closed_roof: "Closed roof", roof_unconfirmed: "Retractable roof not confirmed open",
+    spread_outside: `Opening spread outside ±${thresholds.cfb_open_spread_max}`,
+    not_upcoming: "Not an upcoming scheduled game", spread_unknown: "Opening spread unknown",
+    forecast_incomplete: "Forecast incomplete", temp_gate: "Below screening margin", below_margin: "Below screening margin",
+    low_probability: "Very low signal likelihood", price_moved: "Under moved vs opener",
+    wind_signal: `wind ≥${thresholds.wind_flag_mph} mph`, rain_signal: "heavy rain",
+    wind_watch: `Watch · ${thresholds.wind_watch_mph}–${thresholds.wind_flag_mph} mph wind · not a flag`,
+    rain_watch: `Watch · rain ${thresholds.rain_ignore_mm}–${thresholds.rain_watch_mm} mm`,
+    rain_elevated: `Watch · rain ${thresholds.rain_watch_mm}–${thresholds.rain_signal_mm} mm`,
+    rain_unconfirmed: "Heavy rain, model agreement unverified", ecmwf_apart: "ECMWF stands apart",
+    opener_unknown: "opener line unknown",
+  };
+  return texts[code] || "Refresh pending";
+}
 function ineligibleReason(g) {
-  const st = g.stadium || {};
-  const type = String(st.roof_type || "").toLowerCase();
-  const roof = String(st.roof_state || g.roof_state || "").toLowerCase();
-  const reasons = [];
-  if (type === "dome" || roof === "dome" || roof === "indoor") reasons.push("Indoor / dome");
-  else if (roof === "closed") reasons.push("Closed roof");
-  else if (type === "retractable" && roof !== "open") reasons.push("Retractable roof not confirmed open");
-  if (g.sport === "cfb" && finiteValue(g.consensus?.spread_open) && Math.abs(g.consensus.spread_open) > 10)
-    reasons.push("Opening spread outside ±10");
-  return reasons.join(" · ");
+  const record = publishedDecision(g);
+  return record ? record.ineligible_reasons.map(code => reasonText(code, record.thresholds)).join(" · ") : "Refresh pending";
 }
 function crosswindFactor(dir, orient) {
   if (!finiteValue(dir) || !finiteValue(orient)) return null;
   return Math.abs(Math.sin((Number(dir) - Number(orient)) * Math.PI / 180));
 }
-function drivingForecast(g) {
-  const w = g.weather || {};
-  const source = String(w.signal_source || "");
-  if (source.startsWith("ecmwf")) {
-    return {temp: w.signal_temp_f, wind: w.signal_wind_mph, rain: w.signal_rain_mm, dir: w.signal_wind_dir_deg, source};
-  }
-  return {temp: w.temp_fg, wind: w.wind_fg, rain: w.rain_fg, dir: w.wind_dir_deg, source: source || "stitched"};
-}
-function modelRain(row) {
-  const rain = row && (row.rain_mm ?? row.rain_fg);
-  return finiteValue(rain) ? Number(rain) : null;
-}
-function ecmwfRainMm(models) {
-  // IFS rain when that model has one; AIFS only when IFS has none. Not the stitch.
-  if (!Array.isArray(models)) return null;
-  let ifs = null, aifs = null, sawIfs = false;
-  for (const row of models) {
-    if (!row) continue;
-    if (row.id === "ecmwf_ifs025") { sawIfs = true; ifs = modelRain(row); }
-    else if (row.id === "ecmwf_aifs025_single") aifs = modelRain(row);
-  }
-  if (sawIfs && ifs != null) return ifs;
-  return aifs;
-}
-function rainAgreement(models) {
-  // Same partner rule as pipeline/model/process.py rain_agreement. The comparison
-  // total is ECMWF's own window, not the short-range stitch.
-  const ecmwfMm = ecmwfRainMm(models);
-  if (!Array.isArray(models) || !models.length) return ecmwfMm == null ? "missing_ecmwf" : "unverified";
-  if (ecmwfMm == null) return "missing_ecmwf";
-  let best = null;
-  let sawOther = false;
-  for (const row of models) {
-    if (!row || ECMWF_MODELS.has(row.id)) continue;
-    const rain = modelRain(row);
-    if (rain == null) continue;
-    sawOther = true;
-    if (rain < PROCESS_RAIN_SIGNAL_MM) continue;
-    const gap = Math.abs(rain - Number(ecmwfMm));
-    if (!best || gap < best.gap) best = {gap, rain};
-  }
-  if (!sawOther) return "unverified";
-  if (!best) return "disagree";
-  return Number(ecmwfMm) >= PROCESS_RAIN_SIGNAL_MM && best.gap <= PROCESS_RAIN_AGREE_TOL_MM ? "agree" : "disagree";
-}
-function activeTempGate(g) {
-  const proc = g.process || {};
-  if (proc.temp_gate === true) {
-    const max = finiteValue(proc.temp_gate_max_f) ? Number(proc.temp_gate_max_f) : PROCESS_TEMP_MAX_F;
-    return {on: true, max};
-  }
-  return {on: PROCESS_TEMP_GATE, max: PROCESS_TEMP_MAX_F};
-}
 function discoveryState(g) {
-  if (!hardEligible(g)) return {kind: "ineligible", label: ineligibleReason(g)};
-  if (!upcomingGame(g))
-    return {kind: "ineligible", label: "Not an upcoming scheduled game"};
-  const w = g.weather || {}, cfb = g.sport === "cfb";
-  if (cfb && !finiteValue(g.consensus?.spread_open)) return {kind: "unknown", label: "Opening spread unknown"};
-  const drive = drivingForecast(g);
-  const wind = drive.wind, temp = drive.temp, rain = drive.rain;
-  if (!finiteValue(wind)) return {kind: "unknown", label: "Forecast incomplete"};
-  const proc = g.process || {};
-  const gate = activeTempGate(g);
-  const tempKnown = finiteValue(temp);
-  const tempPasses = !gate.on || (tempKnown && Number(temp) < gate.max);
-  let windBand = "none";
-  if (tempPasses && finiteValue(wind)) {
-    const mph = Number(wind);
-    windBand = mph >= PROCESS_WIND_FLAG_MPH ? "flag" : mph >= PROCESS_WIND_WATCH_MPH ? "watch" : "none";
-  }
-  let rainTier = "ignore";
-  if (tempPasses && finiteValue(rain)) {
-    const mm = Number(rain);
-    rainTier = mm < PROCESS_RAIN_IGNORE_MM ? "ignore" : mm < PROCESS_RAIN_WATCH_MM ? "watch"
-      : mm < PROCESS_RAIN_SIGNAL_MM ? "elevated" : "signal_amount";
-  }
-  const storedAgree = proc.rain_agreement;
-  const agree = ["agree", "disagree", "unverified", "missing_ecmwf"].includes(storedAgree)
-    ? storedAgree : rainAgreement(w.models);
-  const rainSignal = rainTier === "signal_amount" && agree === "agree";
-  if (rainTier === "signal_amount" && !rainSignal) rainTier = agree === "disagree" ? "disagree" : "unverified";
-  const weatherHit = tempPasses && (windBand === "flag" || rainSignal);
-  const rainNear = ["watch", "elevated", "unverified", "disagree"].includes(rainTier);
-  const watch = tempPasses && !weatherHit && (windBand === "watch" || rainNear);
-  // under_prob_move is the adverse sum (dropped total and shorter juice, neither cancelling).
-  const move = finiteValue(proc.under_prob_move) ? Math.max(Number(proc.under_prob_move), 0) : null;
-  const lineAdverse = finiteValue(proc.line_prob_move) ? Math.max(Number(proc.line_prob_move), 0) : 0;
-  const bookAdverse = finiteValue(proc.book_adverse_max) ? Math.max(Number(proc.book_adverse_max), 0) : 0;
-  const moveMax = finiteValue(proc.price_gate_max) ? Number(proc.price_gate_max) : PROCESS_UNDER_PROB_MOVE_MAX;
-  const juiceConsensus = ["novig_consensus", "under_only_implied"].includes(proc.under_prob_basis);
-  // One book's own adverse move blocks even when the cross-book average does not.
-  const priceBlocked = proc.price_blocked === true || (weatherHit && (
-    (juiceConsensus && move != null && move > moveMax) || lineAdverse > moveMax || bookAdverse > moveMax));
-  // Probability is optional explicit backend evidence, never inferred from impact/confidence/PoP.
-  const probability = finiteValue(g.discovery?.signal_probability) && g.discovery.signal_probability >= 0
-    && g.discovery.signal_probability <= 1 ? g.discovery.signal_probability : null;
-  let kind = "quiet", label = "Below screening margin";
-  if (probability !== null && probability < .05) {
-    kind = "quiet"; label = "Very low signal likelihood";
-  } else if (priceBlocked && weatherHit) {
-    kind = "moved"; label = "Under moved vs opener";
-  } else if (weatherHit) {
-    kind = "signal";
-    label = rainSignal && windBand === "flag" ? "Signal · wind ≥15 mph · heavy rain"
-      : rainSignal ? "Signal · heavy rain" : "Signal · wind ≥15 mph";
-  } else if (watch) {
-    kind = "near";
-    const windNote = windBand === "watch" ? "Watch · 12–15 mph wind · not a flag" : "";
-    const rainNote = rainTier === "watch" ? "Watch · rain 5–15 mm" : rainTier === "elevated" ? "Watch · rain 15–23 mm"
-      : rainNear ? "Heavy rain, model agreement unverified" : "";
-    label = windNote && rainNote ? `${windNote} · ${rainNote.replace(/^Watch · /, "")}` : (windNote || rainNote);
-  }
-  if (w.ecmwf_apart && (kind === "signal" || kind === "near")) label += " · ECMWF stands apart";
-  if (proc.line_open_missing === true && (kind === "signal" || kind === "near" || kind === "moved"))
-    label += " · opener line unknown";
+  const record = publishedDecision(g);
+  if (!record) return {kind: "pending", label: "Refresh pending", probability: null, note: ""};
+  const reasons = record.discovery_reasons || [];
+  let label = reasons.map((code, index) => {
+    let text = reasonText(code, record.thresholds);
+    if (record.discovery_state === "near" && index > 0) text = text.replace(/^Watch · /, "");
+    return text;
+  }).join(" · ");
+  if (record.discovery_state === "signal") label = "Signal · " + label;
+  const probability = record.signal_probability ?? null;
   const note = probability === null ? "Signal likelihood unknown; screening margins are not probabilities"
     : `Signal likelihood ${(probability * 100).toFixed(1)}%`;
-  return {kind, label, probability, note, windBand, rainTier};
+  const early = ["ineligible", "unknown"].includes(record.discovery_state);
+  return early ? {kind: record.discovery_state, label}
+    : {kind: record.discovery_state, label, probability, note, windBand: record.wind_band, rainTier: record.rain_tier};
 }
 function discoveryHtml(g) {
   const s = discoveryState(g);
@@ -180,7 +64,7 @@ function filterDiscovery(rows, state, preset = null) {
     if (!upcomingGame(g)) return false;
     const expanded = showAllBoardGames(state);
     if (!expanded && d.kind === "ineligible") return false;
-    if (!expanded && state.focus !== "all" && !["signal", "near"].includes(d.kind)) return false;
+    if (!expanded && state.focus !== "all" && !["signal", "near", "pending"].includes(d.kind)) return false;
     if (state.week != null && String(g.week) !== String(state.week)) return false;
     if (state.signal && signalTier(g.signal) !== state.signal) return false;
     if (preset && (!preset.sports.includes(g.sport) || !hasFlag(g, preset.flag))) return false;
@@ -216,7 +100,7 @@ function verifiedOffer(g) {
   if ((typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
     || (typeof RAW_META !== 'undefined' && (RAW_META.publication_status !== 'manifest_verified'
       || r?.board_run_id !== g.run_id || r?.publication_generation !== RAW_META.publication?.generation))
-    || !hardEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id
+    || !decisionEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id
     || r.stake_mode !== "principal" || r.settlement_verified !== true || r.side !== "under"
     || !finiteValue(r.line) || r.line % 1 !== .5 || r.line !== (g.fresh_odds?.selected_line ?? g.consensus?.total_now)
     || !finiteValue(r.principal) || r.principal < 500
@@ -237,7 +121,8 @@ function clockAge(stamp) {
 function exchangeOfferHtml(g, detailed = false) {
   const r = verifiedOffer(g);
   if (!r) {
-    if (!hardEligible(g)) return '<span class="offer-unusable">Not eligible</span>';
+    if (!publishedDecision(g)) return '<span class="offer-unusable">Refresh pending</span>';
+    if (!decisionEligible(g)) return '<span class="offer-unusable">Not eligible</span>';
     const shortfall = verifiedPrincipalShortfall(g);
     if (!shortfall) {
       const state = exchangeUnavailableState(g);
@@ -303,7 +188,7 @@ function verifiedPrincipalShortfall(g) {
   if ((typeof LOAD_ERRORS !== "undefined" && (LOAD_ERRORS.meta || LOAD_ERRORS[g.sport]))
     || (typeof RAW_META !== "undefined" && (RAW_META.publication_status !== "manifest_verified"
       || r?.board_run_id !== g.run_id || r?.publication_generation !== RAW_META.publication?.generation))
-    || !hardEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id || r.side !== "under"
+    || !decisionEligible(g) || !upcomingGame(g) || !r?.ok || r.game_id !== g.game_id || r.side !== "under"
     || r.stake_mode !== "principal" || r.cash_liquidity_verified !== false || r.settlement_verified !== true
     || !finiteValue(r.line) || r.line !== (g.fresh_odds?.selected_line ?? g.consensus?.total_now)
     || !finiteValue(r.principal) || r.principal <= 0 || r.principal >= 500

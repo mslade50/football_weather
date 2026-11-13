@@ -734,7 +734,7 @@ def build_card(
         "alerts": list(alerts),
         "run_id": run_id,
     }
-    card["process"] = evaluate_card(card)
+    card["process"] = evaluate_card(card, now=priced_at)
     return sanitize(card)
 
 

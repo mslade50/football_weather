@@ -64,3 +64,8 @@ Stake-check requests and completed/error states are retained by game/request ide
 Run `node --test "test/*.test.mjs"` in `site/worker`, plus `python -m pytest tests/test_site_contract.py -q`. UI fixtures cover hard eligibility, liquidity-independent discovery, quiet/unknown inspection, preset consistency, exact copy and copy failure, exchange stake/fee/clock/rules rejection, mixed generations and unrelated refresh rejection/timeout. `stake-check-race.test.mjs` deterministically exercises delayed responses across a 15-second replacement, navigation, cancellation/restart, close/reopen, changed line and timeout. `search-input.test.mjs` exercises incremental multi-word typing, caret/selection preservation across renders, normalized comparison and unfocused hash-state synchronization.
 
 Safe browser checks use synthetic cards and a blank local MapLibre style under `connect-src 'none'`, with production boot disabled. Live-board browser access was explicitly denied; no alternate access route, production refresh, bets, communications or deployment was attempted. Browser clipboard API returned an empty value even after the UI's successful native clipboard promise; exact copy is verified in the unit fixture, and real system clipboard contents remain unverified.
+
+Signal classification is now published as `process.decision_version = "decision-v1"`.
+Discovery, flags and the pill use the record exclusively (PROCESS_SPEC.md). Cards
+without it retain their original published label and show neutral Refresh pending;
+no client-side threshold fallback is permitted. Execution requires a current record.

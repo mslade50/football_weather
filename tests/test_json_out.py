@@ -139,6 +139,21 @@ def _card(**kw: Any) -> dict[str, Any]:
                                Team("sea", "nfl", "Seattle Seahawks", "SEA"), _fc(), impact, sig, flags, **base)
 
 
+def test_decision_is_evaluated_once_at_card_assembly(monkeypatch):
+    original = json_out.evaluate_card
+    calls = []
+
+    def evaluate(card, **kwargs):
+        calls.append(card["game_id"])
+        return original(card, **kwargs)
+
+    monkeypatch.setattr(json_out, "evaluate_card", evaluate)
+    card = _card(priced_at=KICK)
+    assert calls == [card["game_id"]]
+    assert card["process"]["decision_version"] == "decision-v1"
+    assert card["process"]["evaluated_at"] == KICK.isoformat()
+
+
 # ---- sanitize / dump ------------------------------------------------------------------
 
 def test_sanitize_nan_inf_datetime_dataclass():

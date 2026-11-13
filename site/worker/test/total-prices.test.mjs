@@ -17,7 +17,7 @@ function preview() {
     book, side, ev_roi, line: 46.5, odds: 108, cost_prob: .48, fair_cost: .50,
     win_prob: .50, push_prob: 0, updated_at: new Date(Date.now() - minutes * 60000).toISOString(),
   });
-  ctx.game = { kickoff_utc: new Date(Date.now() + 3600000).toISOString(), total_prices: { quotes: [
+  ctx.game = {process:{decision_version:'decision-v1',eligible:true,discovery_state:'signal',discovery_reasons:['wind_signal'],ineligible_reasons:[],flags:[],thresholds:{wind_flag_mph:15},display_label:'Low',display_color:'blue'}, kickoff_utc: new Date(Date.now() + 3600000).toISOString(), total_prices: { quotes: [
     quote('kalshi', 'under', .04), quote('novig', 'under', .01),
     quote('prophetx', 'over', .10), quote('draftkings', 'under', .50, 61),
   ] } };
