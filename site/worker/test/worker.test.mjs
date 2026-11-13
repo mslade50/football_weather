@@ -10,7 +10,6 @@ import worker, {
   etParts,
   resolveCron,
   CRON_PLAN,
-  PAID_CRONS,
   HEARTBEAT_CRON,
   MIDDAY_CRON,
   shouldDispatch,
@@ -340,8 +339,7 @@ test("every wrangler.toml cron has a CRON_PLAN entry", async () => {
   const crons = [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   assert.equal(crons.length, 2, "free plan: exactly 2 cron triggers");
   for (const c of crons) assert.ok(c in CRON_PLAN, `missing CRON_PLAN entry for ${c}`);
-  assert.ok(PAID_CRONS.includes(MIDDAY_CRON));
-  assert.ok(!PAID_CRONS.includes(HEARTBEAT_CRON));
+  assert.deepEqual(Object.keys(CRON_PLAN).sort(), crons.sort());
 });
 
 test("Quartz DOW: cron strings use 1=Sun..7=Sat and never 0", () => {
@@ -352,35 +350,20 @@ test("Quartz DOW: cron strings use 1=Sun..7=Sat and never 0", () => {
       assert.match(d, /^[1-7]$/, `${cron}: DOW field must be Quartz 1-7 (got ${d})`);
     }
   }
-  // Saturday CFB cron lists Quartz 7 (Sat) and 1 (Sun UTC spillover), not 6/0.
-  const sat = Object.keys(CRON_PLAN).find((c) => c.endsWith("* * 7,1"));
-  assert.ok(sat);
-  assert.deepEqual(resolveCron(sat, new Date("2026-10-03T14:00:00Z")), { sport: "cfb", scope: "full" }); // Sat 10:00 EDT
-  assert.deepEqual(resolveCron(sat, new Date("2026-10-04T01:00:00Z")), { sport: "cfb", scope: "light" }); // Sat 21:00 EDT (Sun UTC)
-  assert.equal(resolveCron(sat, new Date("2026-10-04T02:00:00Z")), null); // Sat 22:00 EDT -> trimmed
-  assert.equal(resolveCron(sat, new Date("2026-10-04T14:00:00Z")), null); // Sunday ET -> trimmed
-  assert.equal(resolveCron(sat, new Date("2027-02-06T14:00:00Z")), null); // Feb: no CFB
 });
 
-test("paid-plan trimming: Tue/Wed openers, Thu/Fri cadence, Sunday NFL", () => {
-  const tueWed = "0 14,20 * * 3,4";
-  assert.deepEqual(resolveCron(tueWed, new Date("2026-09-15T14:00:00Z")), { sport: "all", scope: "light" }); // Tue 10 EDT
-  assert.equal(resolveCron(tueWed, new Date("2026-09-14T14:00:00Z")), null); // Mon (should never fire, trimmed anyway)
-  const thuFri = "0 0,2,12,14,16,18,20,22 * * 5,6,7";
-  assert.deepEqual(resolveCron(thuFri, new Date("2026-09-17T16:00:00Z")), { sport: "all", scope: "full" }); // Thu 12 EDT
-  assert.deepEqual(resolveCron(thuFri, new Date("2026-09-17T14:00:00Z")), { sport: "all", scope: "light" }); // Thu 10 EDT
-  assert.deepEqual(resolveCron(thuFri, new Date("2026-09-19T02:00:00Z")), { sport: "all", scope: "light" }); // Fri 22 EDT (Sat UTC)
-  assert.equal(resolveCron(thuFri, new Date("2026-09-17T10:00:00Z")), null); // Thu 06 EDT -> trimmed
-  assert.deepEqual(resolveCron(thuFri, new Date("2026-09-19T00:00:00Z")), { sport: "all", scope: "light" }); // Fri 20 EDT
-  const sunHourly = "0 10,11,12,13,14,15,16,17,18,19,20,21 * * 1";
-  assert.deepEqual(resolveCron(sunHourly, new Date("2026-09-20T10:00:00Z")), { sport: "nfl", scope: "light" }); // Sun 06 EDT
-  assert.equal(resolveCron(sunHourly, new Date("2026-12-06T10:00:00Z")), null); // Sun 05 EST -> trimmed
-  const sunPre = "30 16,19,23 * * 1";
-  assert.deepEqual(resolveCron(sunPre, new Date("2026-09-20T16:30:00Z")), { sport: "nfl", scope: "full" }); // 12:30 EDT
-  assert.equal(resolveCron(sunPre, new Date("2026-12-06T16:30:00Z")), null); // 11:30 EST -> trimmed
-  const nights = "0 22,23 * * 2,5";
-  assert.deepEqual(resolveCron(nights, new Date("2026-09-14T22:00:00Z")), { sport: "all", scope: "light" }); // Mon 18 EDT
-  assert.equal(resolveCron(nights, new Date("2026-09-15T22:00:00Z")), null); // Tue -> trimmed
+test("unscheduled paid-plan expressions cannot dispatch", () => {
+  for (const cron of [
+    "0 14,20 * * 3,4",
+    "0 0,2,12,14,16,18,20,22 * * 5,6,7",
+    "0 0,1,2,10,11,12,13,14,15,16,17,18,19,20,21,22,23 * * 7,1",
+    "0 10,11,12,13,14,15,16,17,18,19,20,21 * * 1",
+    "30 16,19,23 * * 1",
+    "0 22,23 * * 2,5",
+  ]) {
+    assert.ok(!(cron in CRON_PLAN));
+    assert.equal(resolveCron(cron, new Date("2026-10-03T14:00:00Z")), null);
+  }
 });
 
 // ── scheduled() ──────────────────────────────────────────────────────────────

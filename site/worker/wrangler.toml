@@ -61,10 +61,8 @@ TELEGRAM_SYSTEM_ALERTS = "0"
 # DAY-OF-WEEK IS QUARTZ-STYLE: 1=Sun, 2=Mon ... 7=Sat (NOT 0=Sun / ISO). Verified
 # empirically on the golf board 2026-07-19 — see golf_scraping wrangler.toml.
 #
-# WORKERS PAID ($5/mo) EXPANSION: replace the two entries below with the
-# PAID_CRONS list in index.js (also documented in SETUP.md). Every expression in
-# that list is already handled by CRON_PLAN, so expanding is a wrangler.toml-only
-# change plus `npx wrangler deploy`.
+# Additional dedicated hourly triggers require Workers Paid AND new CRON_PLAN
+# handlers plus matching entries here; see SETUP.md. Only these two are handled.
 [triggers]
 crons = [
   # Heartbeat every 30 min; pipeline.build alerts when board/cf_heartbeat.json

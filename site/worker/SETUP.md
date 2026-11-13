@@ -163,27 +163,12 @@ golf board 2026-07-19 — `0` is rejected and `4,5,6,7` fired Wed–Sat, never S
 GitHub Actions cron is standard `0=Sun`. The unit test
 `Quartz DOW` pins every CRON_PLAN key to `1-7`.
 
-### Expanding on Workers Paid ($5/mo)
+### Expanding on Workers Paid
 
-1. Upgrade the account plan (Workers & Pages → Plans).
-2. Replace `crons` in `wrangler.toml` with the `PAID_CRONS` keys from
-   `index.js` (`CRON_PLAN` already implements their ET trimming):
-   ```toml
-   crons = [
-     "*/30 * * * *",                                  # heartbeat (optional on paid; keep for liveness)
-     "15 17 * * *",                                   # mid-day full
-     "0 14,20 * * 3,4",                               # Tue/Wed openers, light
-     "0 0,2,12,14,16,18,20,22 * * 5,6,7",             # Thu/Fri every 2h 08-22 ET, full at 12/18 ET
-     "0 0,1,2,10,11,12,13,14,15,16,17,18,19,20,21,22,23 * * 7,1",  # Sat hourly 06-21 ET (CFB), full at 10/14 ET
-     "0 10,11,12,13,14,15,16,17,18,19,20,21 * * 1",   # Sun hourly 06-17 ET (NFL)
-     "30 16,19,23 * * 1",                             # Sun 12:30/15:30/19:30 ET full
-     "0 22,23 * * 2,5",                               # Mon/Thu night 18/19 ET
-   ]
-   ```
-3. `npx wrangler deploy`, then thin `pipeline.yml` `schedule:` down to a sparse
-   backstop (e.g. `'17 9,14,20 * * *'`) so CF is primary and GitHub is fallback.
-4. Update the `every wrangler.toml cron has a CRON_PLAN entry` test's
-   `crons.length` assertion (it pins 2 on the free plan).
+Additional dedicated hourly cron triggers would need the Workers Paid plan,
+new `CRON_PLAN` handlers with ET trimming, matching `wrangler.toml` entries,
+and updated tests. Only the two free-plan triggers above are implemented.
+The heartbeat already handles the current game-day and two-hour refresh cadence.
 
 ## 8. Routes (`index.js`)
 

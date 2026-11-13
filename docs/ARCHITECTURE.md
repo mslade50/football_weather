@@ -408,18 +408,15 @@ All: `class XScraper(BaseScraper)`, `BOOK_NAME`, `async scrape(sport) -> list[Ga
 ## 9. Scheduling and GitHub Actions
 
 ### 9.1 Cloudflare crons (`site/worker/wrangler.toml`)
-Assume **Workers Paid** ($5/mo). If free (2 crons left on account): `"*/30 * * * *"` + `"15 9,14,20 * * *"` with in-handler trimming. Paid explicit set (UTC, Quartz DOW 1=Sun; scheduled() re-checks ET so DST is handled):
-```
-crons = [
-  "0 14,20 * * 3,4",        # Tue/Wed 10:00,16:00 ET-ish (openers) scope=light
-  "0 12-2/2 * * 5,6",       # Thu/Fri every 2h 08:00-22:00 ET scope=light (full at 12,18 ET)
-  "0 10-1 * * 7",           # Sat hourly 06:00-21:00 ET (CFB) scope=full at :00 of 10,14 ET
-  "0 10-21 * * 1",          # Sun hourly 06:00-17:00 ET (NFL)
-  "30 16,19,23 * * 1",      # Sun pre-kickoff 12:30/15:30/19:30 ET scope=full
-  "0 22,23 * * 2,5",        # Mon/Thu night 18:00,19:00 ET
-]
-```
-`scheduled()` computes ET hour/DOW via `Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',...})`, maps `event.cron` → `{sport, scope}` and trims (e.g. no CFB fires Jan–Aug). Every fire writes heartbeat first.
+The current free-plan schedule has exactly two triggers: `"*/30 * * * *"`
+(heartbeat and game-day/two-hour refresh dispatch) and `"15 17 * * *"`
+(midday full dispatch in season). Only these expressions have `CRON_PLAN`
+handlers. Every fire writes the heartbeat first; scheduling uses
+`Intl.DateTimeFormat` in `America/New_York` for seasonal and ET trimming.
+See `site/worker/SETUP.md` and `docs/notes/refresh-cadence.md` for dispatch details.
+
+Additional dedicated hourly triggers would require Workers Paid, new handlers,
+matching `wrangler.toml` entries, and updated tests.
 
 ### 9.2 `pipeline.yml`
 ```

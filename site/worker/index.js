@@ -149,8 +149,7 @@ export function shouldDispatch(date) {
   return null;
 }
 
-// Paid-plan expressions (ARCH §9.1) with in-handler ET trimming. Free-plan
-// entries first; expand wrangler.toml with PAID_CRONS on Workers Paid.
+// Only the two expressions scheduled in wrangler.toml, with ET trimming.
 export const CRON_PLAN = {
   // resolveCron still reports the game-day window. handleScheduled uses
   // chooseHeartbeat for this cron so odd ET hours dispatch both leagues.
@@ -164,45 +163,7 @@ export const CRON_PLAN = {
     if (shouldDispatch(top)) return null;
     return { sport, scope: "full" };
   },
-  // Tue/Wed 10:00 + 16:00 ET-ish (openers) -> light
-  "0 14,20 * * 3,4": (p) => {
-    if (!["Tue", "Wed"].includes(p.weekday)) return null;
-    const sport = sportForMonth(p.month);
-    return sport ? { sport, scope: "light" } : null;
-  },
-  // Thu/Fri every 2h 08:00-22:00 ET -> light, full at 12 and 18 ET
-  "0 0,2,12,14,16,18,20,22 * * 5,6,7": (p) => {
-    if (!["Thu", "Fri"].includes(p.weekday)) return null;
-    if (p.hour < 8 || p.hour > 22 || p.hour % 2 !== 0) return null;
-    const sport = sportForMonth(p.month);
-    if (!sport) return null;
-    return { sport, scope: p.hour === 12 || p.hour === 18 ? "full" : "light" };
-  },
-  // Sat hourly 06:00-21:00 ET (CFB) -> light, full at 10 and 14 ET
-  "0 0,1,2,10,11,12,13,14,15,16,17,18,19,20,21,22,23 * * 7,1": (p) => {
-    if (p.weekday !== "Sat" || p.hour < 6 || p.hour > 21) return null;
-    const sport = sportForMonth(p.month);
-    if (!sport || sport === "nfl") return null;
-    return { sport: "cfb", scope: p.hour === 10 || p.hour === 14 ? "full" : "light" };
-  },
-  // Sun hourly 06:00-17:00 ET (NFL) -> light
-  "0 10,11,12,13,14,15,16,17,18,19,20,21 * * 1": (p) => {
-    if (p.weekday !== "Sun" || p.hour < 6 || p.hour > 17) return null;
-    return sportForMonth(p.month) ? { sport: "nfl", scope: "light" } : null;
-  },
-  // Sun pre-kickoff 12:30 / 15:30 / 19:30 ET -> full
-  "30 16,19,23 * * 1": (p) => {
-    if (p.weekday !== "Sun" || ![12, 15, 19].includes(p.hour) || p.minute !== 30) return null;
-    return sportForMonth(p.month) ? { sport: "nfl", scope: "full" } : null;
-  },
-  // Mon/Thu night 18:00 + 19:00 ET -> light
-  "0 22,23 * * 2,5": (p) => {
-    if (!["Mon", "Thu"].includes(p.weekday) || ![18, 19].includes(p.hour)) return null;
-    const sport = sportForMonth(p.month);
-    return sport ? { sport, scope: "light" } : null;
-  },
 };
-export const PAID_CRONS = Object.keys(CRON_PLAN).filter((c) => c !== HEARTBEAT_CRON);
 
 // ET calendar parts of a Date: {weekday:'Sun'.., month:1-12, day, hour:0-23, minute}.
 export function etParts(date) {
