@@ -22,6 +22,13 @@ import yaml
 WF_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 BACKTEST = WF_DIR / "backtest.yml"
 CALIBRATE = WF_DIR / "calibrate.yml"
+
+
+def test_backtest_dependency_filter_only_excludes_browser_packages():
+    text = BACKTEST.read_text(encoding="utf-8")
+    assert "grep -viE '^(playwright|playwright-stealth)\\b' requirements.txt" in text
+
+
 ALERTS_PY = WF_DIR.parents[1] / "pipeline" / "alerts.py"
 
 
