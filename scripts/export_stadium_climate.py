@@ -388,9 +388,10 @@ def _cached_bytes(cache_dir: Optional[Path], name: str, client: Any, url: str, p
 
 
 def outdoor_candidates(data_dir: Path) -> dict[str, dict[str, Any]]:
+    from pipeline.stadiums.loader import load_stadium_rows
+
     book = load_stadium_book(data_dir)
-    with (data_dir / "stadiums.csv").open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
+    rows = load_stadium_rows(data_dir)
     ids, _wanted = scope_ids(rows, book)
     out: dict[str, dict[str, Any]] = {}
     for stadium_id in sorted(ids):

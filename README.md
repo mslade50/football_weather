@@ -22,6 +22,11 @@ unusable quotes cannot enter pricing. Published prices remain unchanged as they 
 quote hovers show observation age and derived values are marked stale after 150 minutes.
 Execution and alert freshness checks remain independent.
 
+Stadium facts live in human-owned `data/stadiums.csv` and builder-owned
+`data/stadiums_enriched.csv`; nonblank curated values win when the loader joins them.
+Climatology summaries and forecast-blend cells come from `data/climatology.csv`.
+See [stadium data ownership](docs/STADIUM_DATA_OWNERSHIP.md) for the column inventory.
+
 For data validation without messages, dispatch `pipeline.yml` with
 `safe_refresh=true` and `force=false`. This suppresses Telegram, including
 failure notifications, while keeping normal publication integrity and action-time freshness gates.

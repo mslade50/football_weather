@@ -1,4 +1,4 @@
-"""Stadium / team reference data (data/stadiums.csv, data/teams.csv, overrides, aliases)."""
+"""Stadium / team reference data (curated + enriched stadiums, climatology, teams, aliases)."""
 
 from pipeline.stadiums.loader import (
     ResolvedGame,

@@ -11,6 +11,14 @@ ruff passed. The 413-card parity harness preserved all 325 previously agreeing
 cards exactly and resolved the 88 prior disagreements. Offline screenshot QA
 could not launch because this machine lacks Playwright's Chromium executable.
 
+2026-11-13 stadium ownership: `stadiums.csv` is curated and read-only to the
+builder; `stadiums_enriched.csv` holds machine candidates. Curated nonblank
+values win in the loader. Climatology summaries are read directly, with legacy
+exceptions preserved. Exact parity: 697 stadiums, 20,213 fields, zero differences.
+Local verification: 1,633 passed, the two known Windows mirror-test failures,
+ruff clean. No network refresh, push or deployment. Full column inventory and
+exception lists: `docs/STADIUM_DATA_OWNERSHIP.md`.
+
 2026-11-13 implementation: retired Streamlit file generation and publication removed.
 Board fair JSON values, date/time labels, golden parquet fixtures and the separate
 backtest grid workbook remain. The unused recovery/extraction scripts were removed;
@@ -94,7 +102,7 @@ provider outage into a failed run.
 
 ### Phase 1 — Schedule + stadiums + weather + legacy outputs: DONE
 - `pipeline/schedule/*` (nflverse `games.csv`; CFBD `/games` with ESPN scoreboard fallback when `CFBD_API_KEY` is missing).
-- `pipeline/stadiums/{loader,climatology,build_stadiums}.py`, `data/stadiums.csv` + `stadiums_overrides.csv`, `data/climatology.csv`, `data/teams.csv`, `data/aliases`; `build-stadiums.yml` (Wikidata / OSM Overpass / EPQS enrichment, dispatch only).
+- `pipeline/stadiums/{loader,climatology,build_stadiums}.py`, `data/stadiums.csv` (curated) + `stadiums_enriched.csv` (builder-owned; curated values win), `data/climatology.csv`, `data/teams.csv`, `data/aliases`; `build-stadiums.yml` (Wikidata / OSM Overpass / EPQS enrichment, dispatch only).
 - `pipeline/weather/{openmeteo,nws,merge}.py` + parsers remain; the former Streamlit file writers and their column-contract tests have since been removed.
 - `pipeline.yml` schedule (UTC): `17 9,14,20 * * *` baseline plus Tue/Wed openers, Thu/Fri 2-hourly, Sat/Sun hourly, Sun pre-kickoff `47 16,19,23`, Mon/Thu night; `pipeline/gate_check.py` off-season gate (`PIPELINE_FORCE=1` / `--force` bypass).
 

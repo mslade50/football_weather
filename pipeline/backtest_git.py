@@ -498,7 +498,11 @@ def run(sport: str, seasons: list[int], cache_dir: Path, *, refresh_git: bool = 
     sched, venues = load_schedule(sport, seasons, cache_dir, network)
     matched, unresolved = attach_schedule(snaps, sched)
     matched = matched[matched.season.isin(seasons)]
-    stad = pd.read_csv(REPO / "data" / "stadiums.csv")
+    from pipeline.stadiums.loader import load_stadium_rows
+
+    stad = pd.DataFrame(load_stadium_rows(REPO / "data")).replace("", float("nan"))
+    for column in ("lat", "lon", "elevation_m", "cfbd_venue_id"):
+        stad[column] = pd.to_numeric(stad[column], errors="coerce")
     teams = pd.read_csv(REPO / "data" / "teams.csv")
     elev_by_stadium = dict(zip(stad.stadium_id, stad.elevation_m, strict=True))
     home_elev = {t: elev_by_stadium.get(s) for t, s in zip(teams.team_id, teams.home_stadium_id, strict=True)}

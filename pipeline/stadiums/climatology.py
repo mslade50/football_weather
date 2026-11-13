@@ -4,8 +4,8 @@ Two layers live in one csv (ARCH §6):
 
 * **summary row** (one per stadium, ``iso_week`` blank): the legacy
   ``avg_wind_sep..avg_wind_jan`` (mean wind by calendar month) and ``avg_temp_f``
-  (mean over the whole window). ``build_stadiums.py`` fills blank stadium columns
-  from these, so ``wind_avg`` keeps working unchanged.
+  (mean over the whole window). The stadium loader reads these directly,
+  with explicit curated exceptions taking precedence.
 * **cell rows** (stadium × ISO week × 4 local-time-of-day bins, Aug–Jan only):
   mean / P10 / P50 / P90 of wind and temperature, gust mean / P90 and the
   frequency of ≥1 mm/h rain. ``weather/climatology_blend.py`` reads them as the
@@ -15,12 +15,11 @@ Two layers live in one csv (ARCH §6):
 Both come from ONE hourly ERA5 request per stadium for the whole window
 (``wind_speed_10m,wind_gusts_10m,temperature_2m,precipitation``), throttled and
 cached verbatim under ``--cache-dir`` so a re-run is offline / resume-safe. The
-older daily path (``fetch_archive`` / ``monthly_means``) is kept for callers that
-only want the legacy columns.
+hourly reduction is the only archive reduction path.
 
 Per stadium the summary row is written LAST (after its cells): readers that key
-rows by stadium_id and let the last row win (``build_stadiums.load_climatology``)
-therefore see the legacy columns.
+rows by stadium_id still see the summary columns. The loader explicitly
+selects summary rows, independent of ordering.
 
 CLI: python -m pipeline.stadiums.climatology [--ids a,b] [--refresh] [--start 2015-01-01]
        [--end 2024-12-31] [--cache-dir DIR] [--offline]
@@ -36,50 +35,20 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any, Optional
 
-from pipeline.stadiums.loader import DATA_DIR
+from pipeline.stadiums.loader import DATA_DIR, load_stadium_rows, read_climatology_summary
 from pipeline.weather.climatology_blend import CELL_FIELDS, RAIN_MM, in_season, local_key
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-DAILY_VARS = ("wind_speed_10m_mean", "temperature_2m_mean")
 HOURLY_VARS = ("wind_speed_10m", "wind_gusts_10m", "temperature_2m", "precipitation")
 MONTHS = {"sep": 9, "oct": 10, "nov": 11, "dec": 12, "jan": 1}
 DEFAULT_START = "2015-01-01"
 DEFAULT_END = "2024-12-31"
-BATCH = 5
-THROTTLE_S = 6.0
 HOURLY_THROTTLE_S = 1.5
 MIN_CELL_HOURS = 24
 SUMMARY_COLUMNS = ["stadium_id", "lat", "lon", "start_date", "end_date", "avg_wind_sep", "avg_wind_oct", "avg_wind_nov", "avg_wind_dec", "avg_wind_jan",
                    "avg_temp_f", "n_days", "fetched_at"]
 CELL_COLUMNS = ["iso_week", "tod_bin", "n_hours", *CELL_FIELDS]
 COLUMNS = SUMMARY_COLUMNS + CELL_COLUMNS
-
-
-def monthly_means(daily: dict[str, Any]) -> dict[str, Optional[float]]:
-    """Reduce one location's `daily` block to the legacy columns (None when no data)."""
-    times = daily.get("time") or []
-    winds = daily.get("wind_speed_10m_mean") or []
-    temps = daily.get("temperature_2m_mean") or []
-    by_month: dict[int, list[float]] = {m: [] for m in MONTHS.values()}
-    all_temps: list[float] = []
-    for i, t in enumerate(times):
-        try:
-            month = int(str(t)[5:7])
-        except ValueError:
-            continue
-        w = winds[i] if i < len(winds) else None
-        tf = temps[i] if i < len(temps) else None
-        if w is not None and month in by_month:
-            by_month[month].append(float(w))
-        if tf is not None:
-            all_temps.append(float(tf))
-    out: dict[str, Optional[float]] = {}
-    for key, month in MONTHS.items():
-        vals = by_month[month]
-        out[f"avg_wind_{key}"] = round(sum(vals) / len(vals), 2) if vals else None
-    out["avg_temp_f"] = round(sum(all_temps) / len(all_temps), 2) if all_temps else None
-    out["n_days"] = float(len(all_temps))
-    return out
 
 
 def _percentile(xs: list[float], q: float) -> Optional[float]:
@@ -175,67 +144,6 @@ def reduce_hourly(hourly: dict[str, Any], lon: float) -> tuple[dict[str, Optiona
     return summary, rows
 
 
-def parse_archive(payload: Any, ids: Sequence[str]) -> dict[str, dict[str, Optional[float]]]:
-    """Map a (single- or multi-location) archive payload onto stadium ids in request order."""
-    items = payload if isinstance(payload, list) else [payload]
-    out: dict[str, dict[str, Optional[float]]] = {}
-    for sid, item in zip(ids, items, strict=False):
-        if not isinstance(item, dict) or "daily" not in item:
-            continue
-        out[sid] = monthly_means(item["daily"])
-    return out
-
-
-def fetch_archive(
-    points: dict[str, tuple[float, float]],
-    start: str,
-    end: str,
-    fetcher: Any = None,
-    batch: int = BATCH,
-    throttle_s: float = THROTTLE_S,
-    log: Callable[[str], None] = print,
-) -> dict[str, dict[str, Optional[float]]]:
-    """Fetch daily ERA5 for every point (batched) and reduce. `fetcher` is a build_stadiums.Fetcher."""
-    from pipeline.stadiums.build_stadiums import Fetcher, _digest
-
-    f = fetcher or Fetcher(None)
-    out: dict[str, dict[str, Optional[float]]] = {}
-    # per-stadium cache: a location fetched in an earlier (differently batched) run is never re-fetched
-    ids = []
-    for sid in sorted(points):
-        hit = f.cached(f"era5_{start}_{end}_{sid}") if hasattr(f, "cached") else None
-        if isinstance(hit, dict) and "daily" in hit:
-            out[sid] = monthly_means(hit["daily"])
-        else:
-            ids.append(sid)
-    nb = (len(ids) + batch - 1) // batch
-    for i in range(0, len(ids), batch):
-        chunk = ids[i:i + batch]
-        params = {
-            "latitude": ",".join(f"{points[s][0]:.5f}" for s in chunk),
-            "longitude": ",".join(f"{points[s][1]:.5f}" for s in chunk),
-            "start_date": start,
-            "end_date": end,
-            "daily": ",".join(DAILY_VARS),
-            "wind_speed_unit": "mph",
-            "temperature_unit": "fahrenheit",
-            "timezone": "UTC",
-        }
-        log(f"era5 batch {i // batch + 1}/{nb} ({len(chunk)} stadiums)")
-        try:
-            payload = f.json(f"era5_{start}_{end}_{_digest(chunk)}", "GET", ARCHIVE_URL, params=params, throttle=throttle_s, retries=6)
-        except RuntimeError as exc:  # rate limit exhausted etc.: keep what we have, the next run resumes
-            log(f"  era5 batch failed, skipping: {exc}")
-            continue
-        items = payload if isinstance(payload, list) else [payload]
-        if hasattr(f, "store"):
-            for sid, item in zip(chunk, items, strict=False):
-                if isinstance(item, dict) and "daily" in item:
-                    f.store(f"era5_{start}_{end}_{sid}", item)
-        out.update(parse_archive(payload, chunk))
-    return out
-
-
 def hourly_params(lat: float, lon: float, start: str, end: str) -> dict[str, str]:
     return {
         "latitude": f"{lat:.5f}",
@@ -294,7 +202,7 @@ def read_all_rows(path: Path) -> list[dict[str, str]]:
 
 def read_climatology(path: Path) -> dict[str, dict[str, str]]:
     """Summary rows (one per stadium); cell rows are skipped."""
-    return {r["stadium_id"]: r for r in read_all_rows(path) if not _is_cell(r)}
+    return read_climatology_summary(path)
 
 
 def read_cells(path: Path) -> dict[str, list[dict[str, str]]]:
@@ -321,10 +229,10 @@ def write_climatology(path: Path, rows: Iterable[dict[str, Any]]) -> None:
 
 
 def _stadium_points(data_dir: Path, ids: Optional[set[str]], scope_all: bool) -> dict[str, tuple[float, float]]:
-    from pipeline.stadiums.build_stadiums import _f, _read_rows, scope_ids
+    from pipeline.stadiums.build_stadiums import _f, scope_ids
     from pipeline.stadiums.loader import load_stadium_book
 
-    rows, _ = _read_rows(data_dir / "stadiums.csv")
+    rows = load_stadium_rows(data_dir)
     in_scope, _ = scope_ids(rows, load_stadium_book(data_dir), all_rows=scope_all)
     if ids:
         in_scope = ids
@@ -407,7 +315,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "ARCHIVE_URL", "COLUMNS", "SUMMARY_COLUMNS", "CELL_COLUMNS", "HOURLY_VARS", "build_climatology", "fetch_archive",
-    "fetch_archive_hourly", "hourly_params", "monthly_means", "parse_archive", "reduce_hourly", "read_climatology",
+    "ARCHIVE_URL", "COLUMNS", "SUMMARY_COLUMNS", "CELL_COLUMNS", "HOURLY_VARS", "build_climatology",
+    "fetch_archive_hourly", "hourly_params", "reduce_hourly", "read_climatology",
     "read_cells", "read_all_rows", "write_climatology",
 ]
