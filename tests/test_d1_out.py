@@ -284,7 +284,7 @@ def test_build_writes_board_d1_sql_and_manifest(tmp_path: Path, monkeypatch: pyt
                      run_id="r1", board_dir=board, snapshot_dir=snaps, d1_sql=sql, books=["betonline"])
     assert rc == 0
     assert {p.name for p in tmp_path.iterdir() if p.is_file()} == {
-        "d1_inserts.sql", "alert_inputs.json", build.PUBLISH_MANIFEST,
+        "d1_inserts.sql", build.PUBLISH_MANIFEST,
     }
     meta = json.loads((board / "meta.json").read_text(encoding="utf-8"))
     assert meta["run_id"] == "r1" and meta["sport_counts"] == {"nfl": 1, "cfb": 0}
