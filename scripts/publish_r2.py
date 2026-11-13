@@ -8,6 +8,8 @@ Run one phase at a time so board/meta.json remains the final commit marker.
 Each object is idempotently overwritten on retry; a phase fails only after all
 attempts for an object fail. Concurrency is bounded to avoid overwhelming R2 or
 the GitHub runner while removing per-process latency from the serial upload loop.
+``state --group pipeline`` uses the central state membership. ``backtest`` keeps
+the historical serial parquet-then-report order without publishing meta or state.
 """
 
 from __future__ import annotations
@@ -35,11 +37,7 @@ from pipeline.publication import BUILD_PROTECTED_NAMES, prepare_generation, reta
 ROOT = Path("data")
 MAX_WORKERS = 8
 ATTEMPTS = 3
-STATE_FILES = (
-    "openers", "history", "wx_history", "archive_last", "wx_last", "alerts",
-    "scrape_baseline", "telegram_state", "cf_heartbeat", "closings", "status",
-    "ensemble_cache", "nws_points",
-)
+STATE_FILES = r2.STATE_GROUPS["default"]  # compatibility alias; definitions live in r2
 
 _CLIENT_LOCK = threading.Lock()
 _CLIENTS: dict[tuple[r2.R2Config, bool], Any] = {}
@@ -112,7 +110,7 @@ def _upload_boto3(client: Any, bucket: str, key: str, path: Path, content_type: 
 
 def upload_one(bucket: str, key: str, path: Path, content_type: str, *, run=subprocess.run,
                sleep=time.sleep, attempts: int = ATTEMPTS, timeout_seconds: int = 90,
-               client: Any = None) -> None:
+               client: Any = None, retry_delay_seconds: float | None = None) -> None:
     """Upload a single R2 object, retrying transient CLI/API failures.
 
     ``client`` forces the boto3 transport with an injected client;
@@ -140,14 +138,16 @@ def upload_one(bucket: str, key: str, path: Path, content_type: str, *, run=subp
                 return
             detail = (result.stderr or result.stdout or "no CLI output").strip()
         print(f"::warning::R2 put {key} failed (attempt {attempt}/{attempts}): {detail}", file=sys.stderr)
-        if attempt < attempts:
-            delay = r2.backoff_delay(attempt)
+        if attempt < attempts or retry_delay_seconds is not None:
+            # Backtest's former shell loop slept five seconds after every failure,
+            # including the final one. Other callers retain exponential backoff.
+            delay = r2.backoff_delay(attempt) if retry_delay_seconds is None else retry_delay_seconds
             print(f"::warning::R2 put {key} retrying in {delay:.2f}s after {detail}", file=sys.stderr)
             sleep(delay)
     raise RuntimeError(f"R2 put {key} failed after {attempts} attempts")
 
 
-def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
+def files_for_phase(phase: str, *, group: str | None = None) -> list[tuple[str, Path, str]]:
     """Return (key, local path, content type) tuples in a deterministic order."""
     if phase == "raw":
         base = ROOT / "raw_runs"
@@ -163,12 +163,19 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
                 for p in sorted(base.glob("*.json")) if p.is_file() and p.name != "meta.json"
                 and p.stem not in BUILD_PROTECTED_NAMES] if base.is_dir() else []
     if phase == "state":
-        names = os.environ.get("STATE_FILES", " ".join(STATE_FILES)).split()
+        names = r2.state_files(group)
         return [(f"board/{name}.json", ROOT / "state" / f"{name}.json", "application/json")
                 for name in names if name not in BUILD_PROTECTED_NAMES and (ROOT / "state" / f"{name}.json").is_file()]
     if phase == "meta":
         path = ROOT / "board" / "meta.json"
         return [("board/meta.json", path, "application/json")] if path.is_file() else []
+    if phase == "backtest":
+        # Original shell glob order, then the required report. Never publish meta
+        # or state, and do not silently skip a missing report.
+        return [(f"backtest/{p.name}", p, "application/octet-stream")
+                for p in sorted((ROOT / "backtest").glob("*.parquet")) if p.is_file()] + [
+                    ("board/backtest.json", ROOT / "board" / "backtest.json", "application/json"),
+                ]
     raise ValueError(f"unknown publishing phase: {phase}")
 
 
@@ -202,10 +209,20 @@ def _live_reader(bucket: str):
 
 
 def publish_phase(phase: str, bucket: str, *, workers: int = MAX_WORKERS,
-                  upload_fn=upload_one, read_fn=None, retain_reader=None) -> list[str]:
+                  upload_fn=upload_one, read_fn=None, retain_reader=None, group: str | None = None) -> list[str]:
     """Upload one phase with bounded concurrency; preserve errors and report keys."""
-    items = files_for_phase(phase)
+    items = files_for_phase(phase, group=group)
     print(f"R2 transport: {transport_name()} (phase {phase})")
+    if phase == "backtest":
+        # Fail immediately on the first exhausted upload, before touching later
+        # parquet files or the report; a pool would change the former shell loop.
+        for key, path, content_type in items:
+            if upload_fn is upload_one:
+                upload_fn(bucket, key, path, content_type, retry_delay_seconds=5)
+            else:
+                upload_fn(bucket, key, path, content_type)
+            print(f"Uploaded {key}")
+        return [key for key, _, _ in items]
     if phase == "meta" and len(items) != 1:
         raise RuntimeError("board/meta.json is missing; refusing to report a completed publish")
     if phase in ('board', 'meta'):
@@ -314,14 +331,17 @@ def _content_type(path: Path) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("raw", "snapshots", "board", "state", "meta"))
+    parser.add_argument("phase", choices=("raw", "snapshots", "board", "state", "meta", "backtest"))
     parser.add_argument("--bucket", default=os.environ.get("R2_BUCKET", "football-board"))
     parser.add_argument("--workers", type=int, default=MAX_WORKERS)
+    parser.add_argument("--group", choices=tuple(r2.STATE_GROUPS))
     args = parser.parse_args(argv)
     if not 1 <= args.workers <= 32:
         parser.error("workers must be between 1 and 32")
+    if args.group is not None and args.phase != "state":
+        parser.error("--group is only valid for the state phase")
     try:
-        keys = publish_phase(args.phase, args.bucket, workers=args.workers)
+        keys = publish_phase(args.phase, args.bucket, workers=args.workers, group=args.group)
     except Exception as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1

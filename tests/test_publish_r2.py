@@ -43,7 +43,7 @@ def test_publisher_cli_lists_only_supported_phases(capsys):
     with pytest.raises(SystemExit) as caught:
         publish_r2.main(["--help"])
     assert caught.value.code == 0
-    assert "{raw,snapshots,board,state,meta}" in capsys.readouterr().out
+    assert "{raw,snapshots,board,state,meta,backtest}" in capsys.readouterr().out
 
 
 def test_upload_retries_with_same_idempotent_request(tmp_path):

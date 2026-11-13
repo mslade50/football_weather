@@ -3,15 +3,17 @@
 Transport selection and the shared client come from ``scripts.publish_r2``; the Wrangler
 fallback is the exact ``npx --yes wrangler@4 r2 object get`` the workflow used before.
 
-    python scripts/fetch_r2.py state [--dest data/state]
+    python scripts/fetch_r2.py state [--group pipeline|backtest] [--dest data/state]
     python scripts/fetch_r2.py object KEY DEST [--warn-message TEXT]
+    python scripts/fetch_r2.py inputs --group calibrate [--dest data]
 
-``state``  fetches ``board/<name>.json`` for every name in $STATE_FILES plus ``meta`` (saved as
+``state``  fetches ``board/<name>.json`` for the named state group plus ``meta`` (saved as
            ``prev_meta.json``). A missing object removes the destination (first run: state
            starts empty); ANY other failure exits 1 and writes nothing, so a run can never
            proceed on blank state.
 ``object`` fetches one key. Without ``--warn-message`` any failure (missing included) exits 1;
            with it, any failure only prints ``::warning::<text>`` and exits 0.
+``inputs`` fetches a named product group serially; only missing keys are tolerated.
 """
 
 from __future__ import annotations
@@ -121,20 +123,20 @@ def _write_atomic(dest: Path, data: bytes) -> None:
     os.replace(tmp, dest)
 
 
-def _state_targets(dest: Path) -> list[tuple[str, str, Path]]:
-    names = os.environ.get("STATE_FILES", " ".join(publish_r2.STATE_FILES)).split()
+def _state_targets(dest: Path, group: str | None = None) -> list[tuple[str, str, Path]]:
+    names = r2.state_files(group)
     targets = [(f, f"board/{f}.json", dest / f"{f}.json") for f in names]
     targets.append(("meta", "board/meta.json", dest / f"{META_PREV_NAME}.json"))
     return targets
 
 
 def fetch_state(bucket: str, dest: Path, *, workers: int = STATE_MAX_WORKERS, run=None,
-                client: Any = None) -> int:
+                client: Any = None, group: str | None = None) -> int:
     """Fail-closed state fetch; returns the process exit code."""
     cfg = None if client is not None else publish_r2.s3_config()
     use_boto3 = client is not None or cfg is not None
     print(f"R2 transport: {'boto3' if use_boto3 else 'wrangler'} (fetch state)")
-    targets = _state_targets(dest)
+    targets = _state_targets(dest, group)
     dest.mkdir(parents=True, exist_ok=True)
     results: dict[str, bytes | None] = {}
     errors: dict[str, str] = {}
@@ -176,7 +178,7 @@ def fetch_state(bucket: str, dest: Path, *, workers: int = STATE_MAX_WORKERS, ru
 
 
 def fetch_object(bucket: str, key: str, dest: Path, *, warn_message: str | None = None, run=None,
-                 client: Any = None) -> int:
+                 client: Any = None, allow_missing: bool = False) -> int:
     cfg = None if client is not None else publish_r2.s3_config()
     use_boto3 = client is not None or cfg is not None
     print(f"R2 transport: {'boto3' if use_boto3 else 'wrangler'} (fetch {key})")
@@ -186,6 +188,10 @@ def fetch_object(bucket: str, key: str, dest: Path, *, warn_message: str | None 
         else:
             data = fetch_bytes_wrangler(bucket, key, run=run)
         if data is None:
+            if allow_missing:
+                print(f"::notice::{key} absent")
+                dest.unlink(missing_ok=True)
+                return 0
             raise FetchError(f"{key} does not exist")
     except FetchError as exc:
         if warn_message is None:
@@ -199,6 +205,17 @@ def fetch_object(bucket: str, key: str, dest: Path, *, warn_message: str | None 
     return 0
 
 
+def fetch_inputs(bucket: str, group: str, dest: Path, *, run=None, client: Any = None) -> int:
+    """Read calibration products in their original order; never tolerate auth/5xx."""
+    for _, relative in r2.INPUT_GROUPS[group]:
+        (dest / relative).parent.mkdir(parents=True, exist_ok=True)
+    for key, relative in r2.INPUT_GROUPS[group]:
+        result = fetch_object(bucket, key, dest / relative, allow_missing=True, run=run, client=client)
+        if result:
+            return result
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bucket", default=os.environ.get("R2_BUCKET", "football-board"))
@@ -206,6 +223,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     st = sub.add_parser("state")
     st.add_argument("--dest", type=Path, default=Path("data/state"))
     st.add_argument("--workers", type=int, default=STATE_MAX_WORKERS)
+    st.add_argument("--group", choices=tuple(r2.STATE_GROUPS))
+    inputs = sub.add_parser("inputs")
+    inputs.add_argument("--group", required=True, choices=tuple(r2.INPUT_GROUPS))
+    inputs.add_argument("--dest", type=Path, default=Path("data"))
     ob = sub.add_parser("object")
     ob.add_argument("key")
     ob.add_argument("dest", type=Path)
@@ -214,7 +235,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cmd == "state":
         if not 1 <= args.workers <= 32:
             parser.error("workers must be between 1 and 32")
-        return fetch_state(args.bucket, args.dest, workers=args.workers)
+        return fetch_state(args.bucket, args.dest, workers=args.workers, group=args.group)
+    if args.cmd == "inputs":
+        return fetch_inputs(args.bucket, args.group, args.dest)
     return fetch_object(args.bucket, args.key, args.dest, warn_message=args.warn_message)
 
 
