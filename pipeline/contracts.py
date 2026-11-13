@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Optional
 
+from pipeline.scrape_outcomes import ScrapeOutcome
+
 SPORTS = ("nfl", "cfb")
 CONSENSUS_BOOK = "consensus"
 MARKETS = ("ml", "spread", "total")
@@ -347,6 +349,8 @@ class Degradation(_AsDict):
     severity: str = "warn"
     run_id: Optional[str] = None
     ts: Optional[datetime] = None
+    outcome_code: Optional[ScrapeOutcome] = None
+    empty_book: bool = False
 
     def __post_init__(self) -> None:
         _check_in(self.severity, SEVERITIES, "severity")

@@ -317,8 +317,11 @@ def run_status(ctx: Any) -> str:
 def _warning_status(item: Any) -> bool:
     if getattr(item, "severity", "") != "warn":
         return False
-    reason = (getattr(item, "reason", "") or "").lower()
-    return "returned 0 lines" in reason or "upstream stale" in reason
+    from pipeline.scrape_outcomes import ScrapeOutcome
+
+    return bool(getattr(item, "empty_book", False) and getattr(item, "outcome_code", None) in (
+        ScrapeOutcome.EMPTY, ScrapeOutcome.UPSTREAM_STALE, ScrapeOutcome.FETCH_ERROR,
+        ScrapeOutcome.TIMEOUT, ScrapeOutcome.SKIPPED))
 
 
 def run_row(
@@ -340,7 +343,8 @@ def run_row(
         "duration_s": round((finished_at - ctx.started_at).total_seconds(), 3), "status": status,
         "stage_timings_json": json.dumps(ctx.stage_timings, allow_nan=False),
         "counts_json": json.dumps(ctx.counts, allow_nan=False),
-        "degradations_json": json.dumps([{"component": d.component, "reason": d.reason, "severity": d.severity}
+        "degradations_json": json.dumps([{"component": d.component, "reason": d.reason, "severity": d.severity,
+                                          "outcome_code": d.outcome_code, "empty_book": d.empty_book}
                                          for d in ctx.degradations], allow_nan=False),
         "unresolved_json": json.dumps(list(ctx.unresolved_names), allow_nan=False),
         "n_games": n_games, "n_lines": n_lines, "n_alerts": n_alerts,

@@ -21,10 +21,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult
+
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
-KIND_VERSIONS = {'openers': 2, 'alerts': 2}
+KIND_VERSIONS = {'openers': 2, 'alerts': 2, 'book_health': 2}
 
 OPENERS_FILE = "openers.json"
 ARCHIVE_LAST_FILE = "archive_last.json"
@@ -172,6 +174,16 @@ def _migrate_0_to_1(d: dict, kind: str) -> dict:
 
 
 def _migrate_1_to_2(d: dict, kind: str) -> dict:
+    if kind == 'book_health':
+        for sports in (d.get('books') or {}).values():
+            for entry in (sports or {}).values():
+                text = str(entry.get('last_error') or '').lower()
+                code = (ScrapeOutcome.OK if int(entry.get('rows') or 0) > 0 else
+                        ScrapeOutcome.UPSTREAM_STALE if 'upstream stale' in text else
+                        ScrapeOutcome.EMPTY if not text or 'returned 0 lines' in text else
+                        ScrapeOutcome.TIMEOUT if 'timeout' in text or 'timed out' in text else
+                        ScrapeOutcome.FETCH_ERROR)
+                entry['outcome_code'] = code.value
     if kind == 'openers':
         original = dict(d.get('openers') or {})
         references = dict(d.get('references') or {})
@@ -767,7 +779,7 @@ def _utc_text(value: datetime) -> str:
 
 # ── per-book health across runs (rows / last_ok_utc / consecutive_empty / last_error) ──
 
-BOOK_HEALTH_FIELDS = ("rows", "last_ok_utc", "consecutive_empty", "last_error")
+BOOK_HEALTH_FIELDS = ("rows", "last_ok_utc", "consecutive_empty", "last_error", "outcome_code")
 BOOK_HEALTH_ERROR_MAX = 200
 
 
@@ -776,7 +788,7 @@ def load_book_health(data_dir: PathLike) -> dict:
 
 
 def save_book_health(data_dir: PathLike, health: dict) -> None:
-    _save(Path(data_dir) / BOOK_HEALTH_FILE, health)
+    _save(Path(data_dir) / BOOK_HEALTH_FILE, health, version=KIND_VERSIONS['book_health'])
 
 
 def update_book_health(
@@ -787,6 +799,7 @@ def update_book_health(
     *,
     now: str,
     horizon_games: Optional[int] = None,
+    results: Optional[Mapping[str, ScrapeResult]] = None,
 ) -> dict:
     """Fold one run's scrape results into ``health`` (in place). Only books in
     ``rows_by_book`` (actually scraped this run) are touched; carried-forward
@@ -794,7 +807,13 @@ def update_book_health(
     horizon for ``sport`` (None leaves the previous value)."""
     books = health.setdefault("books", {})
     for book, rows in rows_by_book.items():
+        result = (results or {}).get(book)
+        code = result.outcome if result is not None else (ScrapeOutcome.OK if rows else
+                ScrapeOutcome.FETCH_ERROR if (errors or {}).get(book) else ScrapeOutcome.EMPTY)
+        if code in (ScrapeOutcome.SKIPPED, ScrapeOutcome.NOT_REQUESTED):
+            continue
         entry = books.setdefault(book, {}).setdefault(sport, {})
+        entry['outcome_code'] = code.value
         n = int(rows or 0)
         entry["rows"] = n
         if n > 0:
@@ -803,10 +822,11 @@ def update_book_health(
             entry["last_error"] = None
         else:
             entry.setdefault("last_ok_utc", None)
-            err = str((errors or {}).get(book) or "returned 0 lines")
+            detail = (result.health_detail if result.health_detail is not None else result.detail) if result is not None else (errors or {}).get(book)
+            err = str(detail or "returned 0 lines")
             # Betcris stamps this when the public file is old. Reject the lines,
             # but do not walk the book toward the 3-empty down alert.
-            if "upstream stale" in err.lower():
+            if code == ScrapeOutcome.UPSTREAM_STALE:
                 entry["consecutive_empty"] = 0
                 entry["last_error"] = "upstream stale"
             else:

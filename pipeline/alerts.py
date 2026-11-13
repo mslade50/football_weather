@@ -834,7 +834,10 @@ def book_health_messages(health: dict, alerts: dict) -> list[tuple[str, str, str
         for sport, e in sorted((sports or {}).items()):
             mk = f"{sport}|{book}"
             empty = int(e.get("consecutive_empty") or 0)
-            if empty >= BOOK_HEALTH_MIN_EMPTY and int((health.get("horizon") or {}).get(sport) or 0) > 0 and mk not in markers:
+            from pipeline.scrape_outcomes import ScrapeOutcome
+            code = e.get('outcome_code')
+            if (code not in (ScrapeOutcome.UPSTREAM_STALE, ScrapeOutcome.SKIPPED, ScrapeOutcome.NOT_REQUESTED)
+                    and empty >= BOOK_HEALTH_MIN_EMPTY and int((health.get("horizon") or {}).get(sport) or 0) > 0 and mk not in markers):
                 last_ok = e.get("last_ok_utc") or "never"
                 err = e.get("last_error") or "returned 0 lines"
                 out.append(("down", sport, book, format_ops(

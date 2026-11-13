@@ -7,6 +7,7 @@ import httpx
 from pipeline import alerts as A
 from pipeline import state as pstate
 from pipeline.odds.base import BaseScraper
+from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult
 
 NOW = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
 
@@ -44,15 +45,15 @@ def test_health_counters_and_untouched_books(tmp_path):
     pstate.update_book_health(h, "nfl", {"a": 5, "b": 0}, {"b": "boom"}, now="t1", horizon_games=3)
     pstate.update_book_health(h, "nfl", {"b": 0}, None, now="t2")   # 'a' not scraped this run
     a, b = h["books"]["a"]["nfl"], h["books"]["b"]["nfl"]
-    assert a == {"rows": 5, "last_ok_utc": "t1", "consecutive_empty": 0, "last_error": None}
+    assert a == {"rows": 5, "last_ok_utc": "t1", "consecutive_empty": 0, "last_error": None, "outcome_code": "ok"}
     assert b["consecutive_empty"] == 2 and b["last_ok_utc"] is None and b["rows"] == 0
     pstate.update_book_health(h, "nfl", {"b": 4}, None, now="t3")
     assert h["books"]["b"]["nfl"]["consecutive_empty"] == 0 and h["books"]["b"]["nfl"]["last_ok_utc"] == "t3"
     pstate.save_book_health(tmp_path, h)
     again = pstate.load_book_health(tmp_path)
-    assert again["schema_version"] == 1
+    assert again["schema_version"] == 2
     exp = pstate.book_health_export(again)
-    assert set(exp["a"]["nfl"]) == {"rows", "last_ok_utc", "consecutive_empty", "last_error"}
+    assert set(exp["a"]["nfl"]) == {"rows", "last_ok_utc", "consecutive_empty", "last_error", "outcome_code"}
 
 
 def test_upstream_stale_resets_the_empty_streak():
@@ -60,13 +61,15 @@ def test_upstream_stale_resets_the_empty_streak():
         "rows": 0, "last_ok_utc": "earlier", "consecutive_empty": 2, "last_error": "boom",
     }}}, "horizon": {"nfl": 4}}
     stale = "upstream stale, age 90000s: Betcris public feed has a stale observation"
-    pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": stale}, now="t1", horizon_games=4)
-    pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": stale}, now="t2")
+    result = ScrapeResult('betcris', 'nfl', ScrapeOutcome.UPSTREAM_STALE, 0, stale)
+    pstate.update_book_health(h, "nfl", {"betcris": 0}, now="t1", horizon_games=4, results={'betcris': result})
+    pstate.update_book_health(h, "nfl", {"betcris": 0}, now="t2", results={'betcris': result})
     entry = h["books"]["betcris"]["nfl"]
     assert entry["rows"] == 0 and entry["consecutive_empty"] == 0
     assert entry["last_error"] == "upstream stale" and entry["last_ok_utc"] == "earlier"
     prefixed = "college-football: upstream stale, age 3774s: still old"
-    pstate.update_book_health(h, "cfb", {"betcris": 0}, {"betcris": prefixed}, now="t3", horizon_games=2)
+    result = ScrapeResult('betcris', 'cfb', ScrapeOutcome.UPSTREAM_STALE, 0, prefixed)
+    pstate.update_book_health(h, "cfb", {"betcris": 0}, now="t3", horizon_games=2, results={'betcris': result})
     cfb = h["books"]["betcris"]["cfb"]
     assert cfb["consecutive_empty"] == 0 and cfb["last_error"] == "upstream stale"
     pstate.update_book_health(h, "nfl", {"betcris": 0}, {"betcris": "boom"}, now="t4")

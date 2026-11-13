@@ -151,7 +151,7 @@ class _Boom(_Ok):
 def test_scrape_books_isolates_failures(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(build, "load_scraper_class", lambda name: {"ok": _Ok, "boom": _Boom, "missing": None}.get(name))
     degs: list[tuple[str, str, str]] = []
-    res, scrapers = build._run_async(scrape_books("nfl", ["ok", "boom", "missing"], None, "r1", lambda c, r, s: degs.append((c, r, s))))
+    res, scrapers = build._run_async(scrape_books("nfl", ["ok", "boom", "missing"], None, "r1", lambda c, r, s, **kw: degs.append((c, r, s))))
     assert [ln.book for ln in res["ok"]] == ["ok"]
     assert set(scrapers) == {"ok", "boom"}
     assert res["boom"] == []
@@ -385,6 +385,7 @@ def test_stale_betcris_warns_and_stays_off_the_dark_and_down_paths(tmp_path: Pat
 
     class Stale:
         BOOK_NAME = "betcris"
+        upstream_stale = True
         fetch_errors = {"nfl": "upstream stale, age 3774s: Betcris public feed has a stale observation"}
 
     async def fake_scrape(sport, books, raw, run_id, degrade):
