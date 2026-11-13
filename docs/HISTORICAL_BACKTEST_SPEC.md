@@ -21,7 +21,7 @@ Between 2024-09 and 2026-04 the old generator committed `nfl_weather.csv` and
 Each commit is a **snapshot of every upcoming game at that moment**: the forecast as it
 stood, the impact numbers, and the lines.
 
-Columns (exact, from `tests/fixtures/legacy/`):
+Historical columns (the output-contract fixtures have since been removed):
 
 NFL csv: `Game,Date,Time,stadium,avg_wind,wind_vol,orient,wind_impact,weakest_wind_effect,
 game_loc,travel_alt,home_temp,away_temp,year_built,wind_dir_1h,wind_dir_2h,temp_fg,wind_fg,
@@ -39,9 +39,9 @@ My_spread,Edge_s,Timestamp`
   FanDuel total open/now with `Odds_o/Odds_n` the under price; `Open/Current` = FanDuel spread
   open/now; `Spread` / `Total_proj` = the generator's consensus reference.
 
-Already-built reader: `scripts/_git_history.py` + `scripts/extract_golden.py` iterate
+Already-built reader: `scripts/_git_history.py` (used by `pipeline/backtest_git.py`) iterates
 `git log --format=%H -- <file>` / `git show <sha>:<file>`, dedupe identical blobs by hash, and
-emit per-row `commit_date`, `run_month`, `timestamp`, `sha`, `game`, `date`. **Reuse these**;
+emits per-row `commit_date`, `run_month`, `timestamp`, `sha`, `game`, `date`. **Reuse this reader**;
 do not re-implement the git walk. Cache parsed snapshots as parquet under `data/backtest/git/`
 (gitignored) so re-runs are instant.
 
@@ -191,7 +191,7 @@ historical groups by **merging** the previous `backtest.json` (`by_season`, `tie
 - `Timestamp` in the archive is **naive ET**; `Date` has no year — take the year from the commit
   date, rolling back for Jan/Feb NFL games.
 - Blob dedupe: many commits are identical (`Update … Timestamp` with no line change) — hash the
-  blob before parsing (extract_golden already does).
+  blob before parsing (as the retired golden extractor did).
 - CFB `Other` sheet rows (FBS-vs-FCS) are gradeable and belong to CFB; keep them.
 - The 2024 CFB weeks before the archive starts have no snapshots — report as "not covered".
 - Lines are one book per sport (BetOnline NFL, FanDuel CFB), not the 3-book consensus the live

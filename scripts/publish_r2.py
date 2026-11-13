@@ -174,13 +174,6 @@ def files_for_phase(phase: str) -> list[tuple[str, Path, str]]:
         base = ROOT / "snapshots"
         return [(f"snapshots/{p.relative_to(base).as_posix()}", p, "application/json")
                 for p in sorted(base.rglob("*.json")) if p.is_file()] if base.is_dir() else []
-    if phase == "legacy":
-        entries = (
-            ("legacy/nfl_weather.csv", ROOT / "nfl_weather.csv", "text/csv"),
-            ("legacy/cfb_weather.xlsx", ROOT / "cfb_weather.xlsx",
-             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-        )
-        return [(key, path, content_type) for key, path, content_type in entries if path.is_file()]
     if phase == "board":
         base = ROOT / "board"
         return [(f"board/{p.name}", p, "application/json")
@@ -332,14 +325,13 @@ def upload_files(bucket: str, files: dict[str, Path], *, workers: int = MAX_WORK
 
 def _content_type(path: Path) -> str:
     return {
-        ".json": "application/json", ".csv": "text/csv",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".json": "application/json",
     }.get(path.suffix.lower(), "application/octet-stream")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("raw", "snapshots", "legacy", "board", "state", "meta"))
+    parser.add_argument("phase", choices=("raw", "snapshots", "board", "state", "meta"))
     parser.add_argument("--bucket", default=os.environ.get("R2_BUCKET", "football-board"))
     parser.add_argument("--workers", type=int, default=MAX_WORKERS)
     args = parser.parse_args(argv)

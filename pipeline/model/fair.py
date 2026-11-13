@@ -14,7 +14,7 @@ Odds math helpers are copied verbatim from ``golf_scraping/board/build.py``
 * pts->prob shift tables (totals linear per point; spreads key-number aware)
 * fair lines from the v1 impact percentages, per-(book, market, side) edges,
   confidence and tiers
-* the legacy CFB derived columns (``My_total``/``Edge``/``My_spread``/``Edge_s``)
+* the board projection values inherited from CFB (``My_total``/``Edge``/``My_spread``/``Edge_s``)
 
 Sign conventions: spread lines are HOME-relative (negative = home favoured);
 ``line`` on an ``away`` spread row is the away number as the book prints it
@@ -36,7 +36,6 @@ from pipeline.model import config as C
 
 EXCHANGE_BOOKS = {"kalshi", "novig", "prophetx", "polymarket_us"}
 DEFAULT_BOOK_WEIGHT = C.DEFAULT_BOOK_WEIGHT
-LEGACY_NOW_BOOK: dict[str, str] = {"nfl": "betonline", "cfb": "fanduel"}
 CALIBRATION_PATH = Path(__file__).resolve().parents[2] / "data" / "calibration.json"
 
 # Cumulative half-point shift tables (§7.3). Key ``k`` = probability gained by
@@ -571,7 +570,7 @@ def evaluate_game_v2(
     )
 
 
-# ---- legacy columns (§7.2) ---------------------------------------------------
+# ---- board projection values (§7.2) ---------------------------------------------------
 def _num(x: float | None) -> float | None:
     if x is None:
         return None
@@ -588,10 +587,10 @@ def legacy_derived(
     gs_fg_pct: float | None,
     away_fg_pct: float | None,
 ) -> dict[str, float | None]:
-    """My_total / Edge / My_spread / Edge_s exactly as the 2024 CFB file.
+    """Projection values for the board's my_total/my_spread and edge keys.
 
-    Inputs are PERCENT impact values (CFB legacy scale). ``spread`` is the
-    ``Spread`` column (reference spread, same sign convention as the file)."""
+    Preserve the 2024 CFB arithmetic, including missing impacts as zero.
+    Inputs are PERCENT impact values; ``spread`` is home-relative."""
     tp, sp, fd = _num(total_proj), _num(spread), _num(fd_now)
     gs = _num(gs_fg_pct) or 0.0
     aw = _num(away_fg_pct) or 0.0
@@ -600,63 +599,6 @@ def legacy_derived(
     my_spread = sp * (1.0 + aw / 100.0) if sp is not None else None
     edge_s = sp - my_spread if (sp is not None and my_spread is not None) else None
     return {"My_total": my_total, "Edge": edge, "My_spread": my_spread, "Edge_s": edge_s}
-
-
-@dataclass(frozen=True)
-class LegacyNow:
-    """'Now' numbers for the legacy files: the sport's designated book, else consensus."""
-
-    total: float | None
-    total_odds: int | None  # under price (Under_now / Odds_n)
-    spread: float | None  # home-relative
-    spread_odds: int | None  # home price (Odds_now)
-    book: str | None
-
-
-def legacy_now(sport: str, lines: Sequence[GameLine], cons_total: Consensus, cons_spread: Consensus) -> LegacyNow:
-    pref = LEGACY_NOW_BOOK.get(sport)
-    tot = main_lines(lines, "total").get(pref or "", {})
-    spr = main_lines(lines, "spread").get(pref or "", {})
-    if tot or spr:
-        t = next(iter(tot.values()), None)
-        h = spr.get("home") or spr.get("away")
-        return LegacyNow(
-            total=float(t.line) if t is not None else cons_total.line,
-            total_odds=tot["under"].odds if "under" in tot else None,
-            spread=_home_line(h) if h is not None else cons_spread.line,
-            spread_odds=spr["home"].odds if "home" in spr else None,
-            book=pref,
-        )
-    return LegacyNow(cons_total.line, None, cons_spread.line, None, cons_total.ref_book or cons_spread.ref_book)
-
-
-def legacy_columns(
-    sport: str,
-    lines: Sequence[GameLine],
-    gs_fg_pct: float | None,
-    away_fg_pct: float | None,
-) -> dict[str, Any]:
-    """Odds-side legacy columns for one game: Spread/Total_proj (consensus ref),
-    FD_now/Odds_n/Current/Odds_now equivalents, My_total/Edge/My_spread/Edge_s,
-    plus ``ref_book`` for meta. Openers/moves come from ``pipeline.state``."""
-    ct = consensus(sport, lines, "total")
-    cs = consensus(sport, lines, "spread")
-    now = legacy_now(sport, lines, ct, cs)
-    derived = legacy_derived(ct.line, cs.line, now.total, gs_fg_pct, away_fg_pct)
-    return {
-        "Spread": cs.line,
-        "spread_src": cs.src,
-        "Total_proj": ct.line,
-        "ref_book": ct.ref_book or cs.ref_book,
-        "n_books": max(ct.n_books, cs.n_books),
-        "thin": ct.thin and cs.thin,
-        "Total_now": now.total,
-        "Under_now": now.total_odds,
-        "Spread_now": now.spread,
-        "Odds_now": now.spread_odds,
-        "now_book": now.book,
-        **derived,
-    }
 
 
 __all__ = [
@@ -690,7 +632,4 @@ __all__ = [
     "fair_v2",
     "evaluate_game_v2",
     "legacy_derived",
-    "LegacyNow",
-    "legacy_now",
-    "legacy_columns",
 ]

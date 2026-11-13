@@ -168,7 +168,7 @@ def test_consensus_spread_fallback_when_no_member_posts():
     assert tot.line == 44.5 and tot.src is None and "betcris" not in tot.books  # pinnacle's weight 3 crosses half of 5
 
 
-def test_fair_spread_and_legacy_spread_use_betonline_pinnacle_average():
+def test_fair_and_published_spread_use_betonline_pinnacle_average():
     lines = (
         _pair("pinnacle", "spread", -3.0) + _pair("betonline", "spread", -2.5) + _pair("betcris", "spread", -2.0)
         + _pair("fanduel", "spread", -7.0)
@@ -180,9 +180,11 @@ def test_fair_spread_and_legacy_spread_use_betonline_pinnacle_average():
     assert all(e.book != "betcris" for e in gf.edges)
     fd = next(e for e in gf.edges if e.book == "fanduel" and e.market == "spread" and e.side == "home")
     assert math.isclose(fd.edge_pts, F.edge_pts("spread", "home", gf.fair_spread, -7.0))
-    cols = F.legacy_columns("cfb", lines, gs_fg_pct=-8.16, away_fg_pct=-4.0)
-    assert cols["Spread"] == -2.75 and cols["spread_src"] == "bol+pin"
-    assert math.isclose(cols["My_spread"], -2.75 * 0.96) and math.isclose(cols["Edge_s"], -2.75 - (-2.75 * 0.96))
+    derived = F.legacy_derived(gf.total.line, gf.spread.line, 56.5, -8.16, -4.0)
+    from pipeline.outputs.json_out import fair_block
+    block = fair_block(gf, derived)
+    assert math.isclose(block["my_spread"], -2.75 * 0.96)
+    assert math.isclose(block["edge_s_legacy"], -2.75 - (-2.75 * 0.96))
 
 
 def test_main_lines_prefers_is_main():
@@ -253,24 +255,21 @@ def test_tier_thresholds():
     assert F.tier("nfl", "ml", 5.0, 0.2, 1.0, 1.0) == "none"
 
 
-# ---- legacy now / columns ------------------------------------------------------
-def test_legacy_columns_use_sport_book_then_fallback():
-    lines = (
-        _pair("pinnacle", "total", 55.0)
-        + _pair("fanduel", "total", 56.5, -105, -115)
-        + _pair("pinnacle", "spread", -8.0)
-        + _pair("fanduel", "spread", -7.0, -108, -112)
-    )
-    cols = F.legacy_columns("cfb", lines, gs_fg_pct=-8.16, away_fg_pct=0.0)
-    assert cols["Total_proj"] == 55.0 and cols["Spread"] == -8.0 and cols["ref_book"] == "pinnacle"
-    assert cols["Total_now"] == 56.5 and cols["Under_now"] == -115 and cols["now_book"] == "fanduel"
-    assert cols["Spread_now"] == -7.0 and cols["Odds_now"] == -108
-    assert math.isclose(cols["My_total"], 50.512)
-    assert math.isclose(cols["Edge"], (56.5 - 50.512) / 50.512)
-    # NFL prefers betonline; absent -> consensus fallback
-    nfl = _pair("pinnacle", "total", 45.0, sport="nfl") + _pair("betcris", "total", 46.0, sport="nfl")
-    cols = F.legacy_columns("nfl", nfl, -3.5, 0.0)
-    assert cols["Total_now"] == 45.0 and cols["now_book"] == "pinnacle" and cols["Under_now"] is None
+# ---- published projection values -------------------------------------------------
+@pytest.mark.parametrize("total,spread,current,gs,away,expected", [
+    (50, -10, 50, -4, -2, (48, (50 - 48) / 48, -9.8, -10 - (-9.8))),
+    (55, -8, 56.5, -8.16, 0, (50.512, (56.5 - 50.512) / 50.512, -8, 0)),
+    (None, None, None, None, None, (None, None, None, None)),
+    (50, -10, 51, None, None, (50, 0.02, -10, 0)),
+    (0, 0, 50, -4, -2, (0, None, 0, 0)),
+])
+def test_published_projection_values(total, spread, current, gs, away, expected):
+    from pipeline.outputs.json_out import fair_block
+    derived = F.legacy_derived(total, spread, current, gs, away)
+    block = fair_block(None, derived)
+    for key, value in zip(("my_total", "edge_legacy", "my_spread", "edge_s_legacy"), expected):
+        assert key in block
+        assert block[key] == (pytest.approx(value) if value is not None else None)
 
 
 def test_apply_calibration_overrides(tmp_path):

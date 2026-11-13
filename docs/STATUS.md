@@ -1,5 +1,15 @@
 # STATUS — football_weather rebuild
 
+2026-11-13 implementation: retired Streamlit file generation and publication removed.
+Board fair JSON values, date/time labels, golden parquet fixtures and the separate
+backtest grid workbook remain. The unused recovery/extraction scripts were removed;
+`pipeline/backtest_git.py` still uses `scripts/_git_history.py`. No cloud objects
+were modified by this removal.
+Local verification: 1690 Python tests passed with the three known environment
+failures (missing eccodes and two Windows snapshot-mirror checks); Worker tests
+passed 197/197. Eighty complete GameCards matched the starting implementation;
+production imports and compileall passed. No deployment was performed.
+
 2026-10-08 repair: CFB Wind now uses the shared opening-spread ±10 / wind >14 mph / temperature <70°F gate. Telegram has a separate seven-day kickoff horizon and runs only after verified publication, with durable delivery checkpoints and recovery of recent failed-run receipts. R2 uploads use bounded concurrency rather than serial CLI calls. NoVig's anonymous bulk query is currently rejected by its server; this is surfaced explicitly, and no replacement prices or main-market identities are fabricated. Deployment verification for this repair is pending.
 
 The integration snapshot below is historical.
@@ -56,13 +66,13 @@ Telegram weather policy (2026-09-27): SIGNAL alerts default to Low+ (including C
 ## 2. What is implemented, per phase
 
 ### Phase 0 — Recover + scaffold: DONE
-- `scripts/recover_static.py`, `scripts/extract_golden.py`, `scripts/_git_history.py`; golden fixtures `tests/fixtures/golden_v1.parquet`, `golden_fair_2024.parquet`; legacy fixtures `tests/fixtures/legacy/{nfl_weather.csv, cfb_weather.xlsx, cfb_weather_backtest.xlsx}`.
+- Historical recovery produced the retained golden parquet fixtures and curated data; the recovery/extraction scripts and output-contract fixtures have since been removed. `scripts/_git_history.py` and the backtest grid workbook remain in use.
 - `pipeline/contracts.py` (pydantic GameCard etc.), `pipeline/run_context.py` (stages, degradations, `GITHUB_SHA`), `pipeline/state.py` (schema_version, migrate, caps), `pipeline/model/{config,impact,signals}.py` (v1 model, golden test `test_impact_v1` untouched), `utils/{telegram,state,timeutil}.py`, `pipeline/odds/base.py`, `main.py`, `scripts/recon_book.py`, `ci.yml`.
 
 ### Phase 1 — Schedule + stadiums + weather + legacy outputs: DONE
 - `pipeline/schedule/*` (nflverse `games.csv`; CFBD `/games` with ESPN scoreboard fallback when `CFBD_API_KEY` is missing).
 - `pipeline/stadiums/{loader,climatology,build_stadiums}.py`, `data/stadiums.csv` + `stadiums_overrides.csv`, `data/climatology.csv`, `data/teams.csv`, `data/aliases`; `build-stadiums.yml` (Wikidata / OSM Overpass / EPQS enrichment, dispatch only).
-- `pipeline/weather/{openmeteo,nws,merge}.py` + parsers; `pipeline/outputs/legacy.py` writes `nfl_weather.csv` / `cfb_weather.xlsx` with the legacy column contract (`test_legacy_columns`).
+- `pipeline/weather/{openmeteo,nws,merge}.py` + parsers remain; the former Streamlit file writers and their column-contract tests have since been removed.
 - `pipeline.yml` schedule (UTC): `17 9,14,20 * * *` baseline plus Tue/Wed openers, Thu/Fri 2-hourly, Sat/Sun hourly, Sun pre-kickoff `47 16,19,23`, Mon/Thu night; `pipeline/gate_check.py` off-season gate (`PIPELINE_FORCE=1` / `--force` bypass).
 
 ### Phase 2 — Odds scrapers: DONE
@@ -99,7 +109,7 @@ Live-verified during the rebuild (real network calls succeeded from this machine
 - nflverse `games.csv`; ESPN CFB scoreboard (CFBD path only exercised without a key → fallback).
 - Wikidata / OSM Overpass / EPQS stadium enrichment (`build_stadiums.py`).
 - Odds: pinnacle, betcris, fanduel, kalshi, novig return lines in today's build (counts in §1). prophetx returns 0 without `PROPHETX_*` keys. betonline Playwright scrape not run in this pass (Chromium job; fixture-tested parsers).
-- `python -m pipeline.build` end-to-end (weather + light scopes), alerts stage in stdout mode, clv stage, board/legacy/D1-SQL outputs.
+- `python -m pipeline.build` end-to-end (weather + light scopes), alerts stage in stdout mode, clv stage, board/D1-SQL outputs (the historical check also covered the now-removed file exports).
 
 Fixture / unit-test only (never exercised against the real service):
 - Telegram sends (`utils/telegram.py`, `pipeline/alerts.py` real sender), Worker Telegram pings.

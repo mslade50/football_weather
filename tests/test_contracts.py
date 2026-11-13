@@ -19,7 +19,7 @@ from pipeline.contracts import (
     odds_key,
 )
 from pipeline.run_context import RunContext
-from utils.timeutil import ET, date_label, naive_et_iso, parse_iso, run_id_for, time_label, to_et, utc_iso
+from utils.timeutil import ET, date_label, parse_iso, run_id_for, time_label, to_et, utc_iso
 
 
 def _game(**kw) -> Game:
@@ -133,7 +133,6 @@ def test_timeutil_labels() -> None:
     assert time_label(dt) == "01:00 PM"
     assert time_label(datetime(2025, 11, 9, 0, 5)) == "12:05 AM"
     assert time_label(datetime(2025, 11, 9, 12, 30)) == "12:30 PM"
-    assert naive_et_iso(datetime(2026, 4, 15, 14, 0, 55, 123, tzinfo=timezone.utc)) == "2026-04-15T10:00:55"
     assert utc_iso(datetime(2026, 4, 15, 14, 0, 55, tzinfo=timezone.utc)) == "2026-04-15T14:00:55Z"
     assert run_id_for(datetime(2026, 4, 15, 14, 0, 55, tzinfo=timezone.utc)) == "20260415T140055Z"
     parsed = parse_iso("2026-04-15T14:00:55Z")

@@ -66,8 +66,6 @@ STATE_FILES: tuple[str, ...] = (
 
 _CONTENT_TYPES = {
     ".json": "application/json",
-    ".csv": "text/csv",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".txt": "text/plain",
     ".sql": "text/plain",
     ".parquet": "application/octet-stream",

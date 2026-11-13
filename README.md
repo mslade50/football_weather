@@ -45,9 +45,8 @@ GitHub Actions pipeline.yml            Cloudflare
 * **Outputs** (`pipeline/outputs/`): `json_out.py` board payloads
   (`meta.json` pushed last, `games_*.json`, `board.json`, `history.json`,
   `wx_history.json`, `alerts_feed.json`, `status.json`), `d1_out.py` change-only
-  SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), `legacy.py`
-  column-exact `nfl_weather.csv` / `cfb_weather.xlsx` (now uploaded to R2
-  `legacy/`, no longer committed), `r2.py` publisher + self-check.
+  SQL for D1 (`odds_history`, `weather_history`, `alerts`, `runs`), and `r2.py`
+  publisher + self-check.
 * **Alerts** (`pipeline/alerts.py`): concise SIGNAL / UPDATE / CLOSED messages;
   operational SYSTEM paging is disabled by default
   messages. Telegram defaults to Low-or-higher weather signals, including CFB Low Wind,
@@ -102,12 +101,12 @@ cd site/worker && npx wrangler dev
 | `pipeline/odds/` | per-book scrapers (`BaseScraper`) + pure `parsers/` |
 | `pipeline/state.py` | R2-round-tripped state: openers, history, alerts dedup, baseline (`schema_version` + `migrate()`) |
 | `pipeline/alerts.py` | Telegram alert families, keys, quiet hours, digest |
-| `pipeline/outputs/` | legacy csv/xlsx, JSON board, D1 inserts, R2 push + self-check |
+| `pipeline/outputs/` | JSON board, D1 inserts, R2 push + self-check |
 | `utils/` | `telegram.py`, `state.py`, `timeutil.py` |
-| `scripts/` | `recon_book.py`, `recover_static.py`, `extract_golden.py` |
+| `scripts/` | `recon_book.py`, `_git_history.py` (historical backtest reader) |
 | `site/worker/` | Cloudflare Worker (`index.js`, `wrangler.toml`, `migrations/`, `SETUP.md`) |
 | `site/web/` | static board (`app.js`, `table.js`, `map.js`, `drawer.js`, `alerts.js`, `status.js`, `vendor/`) |
-| `tests/fixtures/legacy/` | frozen copies of the old `nfl_weather.csv` / `cfb_weather*.xlsx` (column contract fixtures only) |
+| `tests/fixtures/legacy/` | backtest grid workbook used by `pipeline/backtest.py` |
 | `.github/workflows/` | `pipeline.yml` (build + publish), `deploy.yml` (Worker), `backtest.yml` |
 
 ## Execution preview and liquidity

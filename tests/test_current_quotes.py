@@ -1,5 +1,4 @@
 """Elapsed build/upload time must not turn expired quotes into current prices."""
-import csv
 import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -14,13 +13,10 @@ from pipeline.current_quotes import (
     expire_card,
     expire_meta,
     expired,
-    guard_legacy,
     publication_guard,
 )
 from pipeline.outputs import json_out
-from pipeline.outputs.legacy import LegacyRecord, cfb_game_label, nfl_game_label
 from pipeline.run_context import RunContext
-from utils.timeutil import date_label
 
 NOW = datetime(2026, 10, 5, 2, 39, tzinfo=timezone.utc)
 GID = "nfl:2026:4:a@h"
@@ -160,8 +156,7 @@ def test_calculation_recomputes_consensus_fair_and_counts(monkeypatch):
     before = deepcopy(openers)
     odds = build.OddsResult(lines, {}, openers, {GID: lines}, [], {"betcris": 2, "pinnacle": 2}, scraped=list(lines))
     impact = SimpleNamespace(gs_fg_pct=-5, away_fg_pct=0, rain_c=0)
-    record = LegacyRecord("nfl", "a", "h", game.kickoff_local, game_id=GID)
-    res = build.SportResult("nfl", [record], [], [card()], [game], {}, {}, {}, {GID: impact}, odds)
+    res = build.SportResult("nfl", [], [card()], [game], {}, {}, {}, {GID: impact}, odds)
     ctx = RunContext("nfl", git_sha="test")
     ctx.counts["betcris"] = {"nfl": 2, "nfl.total": 2}
     build.refresh_expired_quotes(ctx, res)
@@ -169,7 +164,8 @@ def test_calculation_recomputes_consensus_fair_and_counts(monkeypatch):
     assert res.cards[0]["odds"]["betcris"]["total"]["line"] is None
     assert res.cards[0]["odds"]["betcris"]["total"]["open_line"] == 47
     assert all(e["book"] != "betcris" for e in res.cards[0]["fair"]["edges"])
-    assert record.odds["total_proj"] == 49 and ctx.counts["betcris"]["nfl"] == 0
+    assert res.cards[0]["fair"]["my_total"] == pytest.approx(49 * 0.95)
+    assert ctx.counts["betcris"]["nfl"] == 0
     assert openers == before and len(res.odds.scraped) == 4
     build.refresh_expired_quotes(ctx, res)
     assert len(ctx.degradations) == 1
@@ -181,12 +177,8 @@ def test_calculation_with_no_live_books_keeps_displayed_historical_opener(monkey
     line = GameLine("nfl", GID, "betcris", "total", "under", -110, line=48,
                     scraped_at=NOW - timedelta(minutes=10), expires_at=NOW - timedelta(minutes=1))
     odds = build.OddsResult([line], {}, {"openers": {}}, {GID: [line]}, [], {"betcris": 1}, scraped=[line])
-    record = LegacyRecord("nfl", "a", "h", game.kickoff_local, game_id=GID)
-    record.odds = {"total_now": 48, "total_open": 47, "under_open": -110}
-    res = build.SportResult("nfl", [record], [], [card()], [game], {}, {}, {}, {}, odds)
+    res = build.SportResult("nfl", [], [card()], [game], {}, {}, {}, {}, odds)
     build.refresh_expired_quotes(RunContext("nfl", git_sha="test"), res)
-    assert record.odds["total_now"] is None
-    assert record.odds["total_open"] == 47 and record.odds["under_open"] == -110
     assert res.cards[0]["consensus"]["total_now"] is None and not res.cards[0]["fair"]["edges"]
     assert odds.scraped == [line]
 
@@ -205,40 +197,11 @@ def test_publication_after_slow_upload_removes_current_prices_and_keeps_history(
     json_out.dump_json(directory / "games_nfl.json", {"meta": {}, "games": [original]})
     history = {"series": {"opener": [47]}}
     json_out.dump_json(directory / "history.json", history)
-    path = tmp_path / "nfl_weather.csv"
-    with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, ["Game", "Date", "Total_now", "Total_open"])
-        w.writeheader()
-        w.writerow({"Game": nfl_game_label(original["away"]["name"], original["home"]["name"]), "Date": date_label(NOW),
-                    "Total_now": 48, "Total_open": 47})
     publication_guard(directory, NOW)
     assert json.loads((directory / "meta.json").read_text())["books"]["betcris"]["status"] == "red"
     assert json.loads((tmp_path / "state/status.json").read_text())["books"]["betcris"]["status"] == "red"
     assert json.loads((directory / "history.json").read_text()) == history
-    with path.open(encoding="utf-8") as f:
-        row = next(csv.DictReader(f))
-    assert row["Total_now"] == "" and row["Total_open"] == "47"
     assert expire_meta(expire_meta(meta, NOW), NOW) == expire_meta(meta, NOW)
-
-
-def test_excel_expiry_preserves_opener_weather_and_other_games(tmp_path):
-    from openpyxl import Workbook, load_workbook
-    original = card()
-    original["sport"] = "cfb"
-    label = cfb_game_label(original["away"]["name"], original["home"]["name"])
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.append(["Game", "Date", "Total_now", "Total_open", "Temp_fg"])
-    sheet.append([label, date_label(NOW), 48, 47, 75])
-    sheet.append(["another game", date_label(NOW), 51, 50, 76])
-    path = tmp_path / "cfb_weather.xlsx"
-    workbook.save(path)
-    workbook.close()
-    guard_legacy(tmp_path, [expire_card(original, NOW)])
-    workbook = load_workbook(path)
-    assert list(workbook.active.values)[1:] == [(label, date_label(NOW), None, 47, 75),
-                                              ("another game", date_label(NOW), 51, 50, 76)]
-    workbook.close()
 
 
 @pytest.mark.parametrize("remaining,withheld", [(30, True), (-1, True), (120, False), (121, False)])

@@ -347,7 +347,6 @@ def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0
         cards.extend(payload["games"])
         path.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
     from pipeline.outputs.json_out import table_row
-    guard_legacy(directory.parent, cards)
     board = directory / "board.json"
     if board.exists():
         payload = json.loads(board.read_text(encoding="utf-8"))
@@ -366,45 +365,6 @@ def publication_guard(directory: Path, now: datetime, *, window_seconds: int = 0
         if state_status.exists():
             state_status.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
     (directory / "meta.json").write_text(json.dumps(meta, allow_nan=False), encoding="utf-8")
-
-
-def guard_legacy(directory: Path, cards: list[dict]) -> None:
-    """Clear current comparisons in legacy snapshots; opening/history fields stay."""
-    import csv
-
-    from pipeline.outputs.legacy import cfb_game_label, nfl_game_label
-    from utils.timeutil import date_label
-    labels = {(c["sport"], (nfl_game_label if c["sport"] == "nfl" else cfb_game_label)(c["away"]["name"], c["home"]["name"]),
-               date_label(datetime.fromisoformat(c["kickoff_local"]))) for c in cards if c.get("expired_markets")}
-    fields = {"Spread_now", "Odds_now", "Total_now", "Under_now", "FD_now", "Odds_n", "Current", "Spread",
-              "Total_proj", "Move_t", "Move_s", "My_total", "Edge", "My_spread", "Edge_s"}
-    path = directory / "nfl_weather.csv"
-    if path.exists() and any(s == "nfl" for s, _, _ in labels):
-        with path.open(encoding="utf-8", newline="") as source:
-            reader = csv.DictReader(source)
-            headers, rows = reader.fieldnames, list(reader)
-        for row in rows:
-            if ("nfl", row.get("Game"), row.get("Date")) in labels:
-                for key in fields & row.keys():
-                    row[key] = ""
-        with path.open("w", encoding="utf-8", newline="") as output:
-            writer = csv.DictWriter(output, headers)
-            writer.writeheader()
-            writer.writerows(rows)
-    path = directory / "cfb_weather.xlsx"
-    if path.exists() and any(s == "cfb" for s, _, _ in labels):
-        from openpyxl import load_workbook
-        workbook = load_workbook(path)
-        for sheet in workbook:
-            headers = {cell.value: cell.column for cell in sheet[1]}
-            if "Game" not in headers or "Date" not in headers:
-                continue
-            for row in sheet.iter_rows(min_row=2):
-                if ("cfb", row[headers["Game"] - 1].value, row[headers["Date"] - 1].value) in labels:
-                    for key in fields & headers.keys():
-                        row[headers[key] - 1].value = None
-        workbook.save(path)
-        workbook.close()
 
 
 if __name__ == "__main__":

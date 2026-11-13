@@ -1109,7 +1109,7 @@ def test_alerts_feed_and_status_payloads(tmp_path: Path):
 def _sport_result(cards: list[dict[str, Any]], new_keys: list[str]) -> Any:
     from pipeline import build
     odds = build.OddsResult([], {}, pstate.migrate(None, "openers"), {}, [], {}, new_opener_keys=new_keys)
-    return build.SportResult("nfl", [], [], cards, [], {}, {}, {}, {}, odds)
+    return build.SportResult("nfl", [], cards, [], {}, {}, {}, {}, odds)
 
 
 def test_build_alert_stage_stamps_cards_and_feeds_outputs(tmp_path: Path, monkeypatch, capsys):
