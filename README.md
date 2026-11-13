@@ -12,6 +12,12 @@ Status: **Phase 4** (Worker board live, alerts, Alerts + Status tabs; Streamlit
 retired). Roadmap in `docs/PLAN.md`; design in `docs/ARCHITECTURE.md`; legacy
 audit in `docs/AUDIT.md`; Cloudflare setup in `site/worker/SETUP.md`.
 
+If forecast sources fail or return a partial point, the board can show the whole
+last usable forecast for up to 12 hours from its original fetch. Retained weather
+is labeled with its real age, cannot qualify for signals, alerts or CLEAR, and
+does not create a new weather-history observation. It uses the existing
+`wx_last.json` state; legacy state needs one successful refresh first.
+
 BetCRIS catalog generation is global activity, not a documented confirmation
 of each unchanged league revision. The official widget uses that global clock,
 but the scraper keeps the league's own observation time and rejects stale

@@ -95,7 +95,7 @@ from pipeline.scrape_outcomes import ScrapeOutcome, ScrapeResult, scraper_result
 from pipeline.stadiums import loader as stadium_loader
 from pipeline.stadiums.roofs import resolve_roof_state, weather_exposed
 from pipeline.weather import ecmwf_fallback as fallback_mod
-from pipeline.weather import first_pass, point_handoff, screening, selective
+from pipeline.weather import first_pass, point_handoff, retention, screening, selective
 from pipeline.weather import merge as merge_mod
 from pipeline.weather import nws as nws_mod
 from pipeline.weather import openmeteo as om_mod
@@ -397,11 +397,13 @@ def stage_weather(
     # ensemble-dependent confidence. Existing open signals remain eligible.
     active = set()
     previous = {}
+    weather_last = {}
     if state_dir is not None:
         for record in pstate.load_alerts(state_dir).get("records", {}).values():
             if record.get("family") == "edge" and record.get("notification_active"):
                 active.add(record.get("game_id"))
-        previous = d1_out.load_wx_last(state_dir).get("last", {})
+        weather_last = d1_out.load_wx_last(state_dir)
+        previous = weather_last.get("last", {})
     signal_openers = openers if openers is not None else pstate.load_openers(state_dir) if state_dir is not None else {}
     opening_spreads = {g.game_id: json_out.consensus_spread_opener(g.game_id, signal_openers)[0] for g in games} if sport == "cfb" else {}
     decisions = {}
@@ -469,6 +471,7 @@ def stage_weather(
     )
     ctx.degrade("weather", f"{sport}: full-member screen selected {sum(d.eligible for d in decisions.values())}/{len(games)} games at {len(selected_points)} locations", "info")
     fc: dict[str, WeatherForecast] = {}
+    point_degradations = {}
     clock = ctx.now_utc  # recompute lead/climatology weights after source retrieval
     for point, point_games in by_point.items():
         for game in point_games:
@@ -508,17 +511,35 @@ def stage_weather(
             except Exception as exc:  # noqa: BLE001
                 ctx.degrade("weather", f"{game.game_id}: merge failed: {exc}", "warn")
                 continue
-            ctx.degradations.extend(result.degradations)
-            missing = [name for name, value in (("temperature", fc[game.game_id].temp_fg),
-                       ("wind", fc[game.game_id].wind_fg), ("rainfall", fc[game.game_id].rain_fg_mm))
-                       if not first_pass.finite(value)]
-            if missing:
-                ctx.degrade("weather", f"{game.game_id}: final point forecast incomplete; missing {', '.join(missing)}", "warn")
+            point_degradations[game.game_id] = result.degradations
             if decision.eligible and status not in ("full_members", "aged_members"):
                 ctx.degrade("weather", f"{game.game_id}: selected ensemble {status}; source/member coverage remains explicit", "warn")
             if extras is not None:
                 extras[game.game_id] = {"precip_prob_ens": result.precip_prob_ens, "roof_heuristic": result.roof_heuristic,
                     "ensemble": stats is not None, "ensemble_source": stats.method if stats else None}
+    retained = 0
+    for game in games:
+        current = fc.get(game.game_id)
+        if not retention.usable(current):
+            reason = ("incomplete_point" if current and any(first_pass.finite(value) for value in
+                      (current.temp_fg, current.wind_fg, current.rain_fg_mm)) else "source_unavailable")
+            old = retention.restore(weather_last, game, stadiums[game.game_id],
+                                    resolve_roof_state(stadiums[game.game_id].roof_type, roof_states.get(game.game_id)), clock, reason)
+            if old is not None:
+                fc[game.game_id] = old
+                retained += 1
+                if extras is not None:
+                    extras[game.game_id] = {"precip_prob_ens": old.precip_prob_ens, "roof_heuristic": False,
+                                           "ensemble": bool(old.ensemble_members), "ensemble_source": None}
+                continue
+        ctx.degradations.extend(point_degradations.get(game.game_id, []))
+        if current is not None:
+            missing = [name for name, value in (("temperature", current.temp_fg), ("wind", current.wind_fg),
+                       ("rainfall", current.rain_fg_mm)) if not first_pass.finite(value)]
+            if missing:
+                ctx.degrade("weather", f"{game.game_id}: final point forecast incomplete; missing {', '.join(missing)}", "warn")
+    if retained:
+        ctx.degrade("weather", f"{sport}: retained {retained} previous forecasts; original clocks, display only (source unavailable or incomplete)", "warn")
     ctx.count("weather", sport, len(fc))
     nws_only = [
         forecast
@@ -1675,8 +1696,15 @@ def update_histories(ctx: RunContext, sport: str, res: SportResult, state_dir: P
         changed = json_out.update_wx_history(wx_hist, points, now)
         json_out.prune_wx_history(wx_hist, _active_for(wx_hist.get("series") or {}, sport, active))
         rows = [d1_out.weather_row(fc, res.impacts.get(gid), now, ctx.run_id, impact_v2=res.impacts_v2.get(gid))
-                for gid, fc in res.forecasts.items()]
+                for gid, fc in res.forecasts.items() if not fc.retained]
         res.wx_changed = d1_out.weather_deltas(rows, wx_last)
+        for game in res.games:
+            fc = res.forecasts.get(game.game_id)
+            stadium = res.stadiums.get(game.game_id)
+            if fc is not None and stadium is not None:
+                retention.remember(wx_last, game, stadium, fc, json_out.sanitize(fc))
+        wx_last["forecasts"] = {gid: value for gid, value in wx_last.get("forecasts", {}).items()
+                                if not gid.startswith(f"{sport}:") or gid in active}
         if not dry_run:
             pstate.save_history(state_dir, hist)
             json_out.save_wx_history(state_dir, wx_hist)

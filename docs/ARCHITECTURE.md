@@ -313,7 +313,7 @@ See `docs/BOUNDARY_TYPES.md` for the status-filter audit and drift fixes.
  travel_alt, home_temp, away_temp,
  weather {temp_fg, wind_fg, gust_fg, wind_dir_1h, wind_dir_2h, wind_dir_fg, wind_dir_deg, rain_fg, precip_prob,
           precip_prob_ens, wind_vol_fc, wind_p10, wind_p90, wind_diff, cross_mph, head_mph, source, lead_hours, fetched_at,
-          point_stage, point_source_updated_at {nws}, point_aged,
+          point_stage, point_source_updated_at {nws}, point_aged, retained, retained_from, retained_reason,
            ensemble_status, ensemble_eligible, ensemble_screen_reasons[], ensemble_models[], ensemble_members,
           ensemble_fetched_at {ifs, gefs}, ensemble_source_versions {ifs, gefs}, ensemble_cached_sources[], ensemble_aged_sources[],
           wind_fg_raw, temp_fg_raw, blend_w, climo_wind, climo_temp,   (climatology shrinkage, §6: *_fg are BLENDED)
@@ -360,6 +360,30 @@ See `docs/BOUNDARY_TYPES.md` for the status-filter audit and drift fixes.
 ## 6. Weather stack
 
 Clients in `pipeline/weather/openmeteo.py` and `nws.py`; all raw responses captured (§1.3).
+
+When the final point lacks temperature, wind or rainfall, `weather/retention.py`
+can restore the whole last usable forecast from `wx_last.json` v2's
+`forecasts[game_id] = {identity, forecast}`. The identity pins kickoff, stadium,
+coordinates, orientation and roof type; roof state must still match. The full
+WeatherForecast payload preserves hourly/model/ensemble fields and original
+fetch/source clocks, without reblending or mixing new partial fields. v1
+change-detection arrays remain in `last`; `state.migrate(..., "wx_last")` adds
+an empty `forecasts` map, so legacy points cannot be retained until a complete
+new observation is saved. Failed/retained/aged points never replace that snapshot.
+`WEATHER_RETENTION_MAX_AGE_H = 12` bounds display retention from the original
+fetch, bridging roughly two six-hour model cycles while limiting drift in a
+7–10 day forecast. Missing history, changed identity or an expired snapshot
+keeps the existing incomplete-forecast behavior. Each sport reports one retained
+count instead of per-game final incomplete warnings. The card adds `retained`,
+`retained_from` and `retained_reason` (`source_unavailable` / `incomplete_point`),
+and forces `point_aged = true`. The shared process decision makes retained or
+aged points unknown, clears candidate/watch/alert and flags, and uses
+`forecast_retained` / `forecast_aged`; retained points are display-only even
+inside the existing three-hour CLEAR evidence limit (`ALERT_FORECAST_MAX_AGE_H`).
+CLEAR refuses retained evidence before roof/spread invalidation. Retention never
+appends weather history, D1 weather deltas or obslog forecast observations, and
+never refreshes its saved clock. Table and drawer show the original time/age and
+reason using the existing muted/stale presentation; older cards render unchanged.
 
 - **Forecast** `https://api.open-meteo.com/v1/forecast` — `models=ncep_nbm_conus,ncep_hrrr_conus,ncep_gfs_seamless,ecmwf_ifs025,ecmwf_aifs025_single`, `hourly=temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,wind_direction_10m`, `wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=mm`, `timezone=UTC`, `start_hour/end_hour` = kickoff−1h .. kickoff+4h UTC, batched `latitude=a,b,..&longitude=..` ≤50 points/call. International venues: `best_match,ecmwf_ifs025,ecmwf_aifs025_single` since CONUS models return null. ECMWF **AIFS** (data-driven, 0.25°, 15 d) is the `ecmwf_aifs025_single` id (the bare `ecmwf_aifs025` id answers with nulls); it is 6-hourly and Open-Meteo interpolates it to hourly; it has temp / wind / dir / precip but **no gusts and no PoP**.
 - **ECMWF Open Data fallback** (`weather/ecmwf_opendata.py`, `weather/ecmwf_fallback.py`) runs when that call errors, returns HTTP 429, or the ECMWF window is empty or older than 18 h / one published cycle. `ECMWF_OPENDATA_FALLBACK=force` (build `--ecmwf-opendata force`, workflow input `ecmwf_opendata`) skips the Open-Meteo ECMWF fields; `off` disables the mirrors. IFS (`ecmwf_ifs025`: 2t, 10u/10v, tp, gust as `10fg` or `10fg3` for steps 93–144 h) and AIFS (`ecmwf_aifs025_single`: 2t, 10u/10v, tp; no gust in the open catalogue) are sampled at the stadiums and interpolated to the same hourly F / mph / mm rows. IFS 06/18 UTC open-data runs stop at 144 h; hours past that are taken from the previous 00/12 UTC run (to 360 h) and cached separately. IFS ensemble members (`ecmwf_ifs025_ensemble`, control + member01–50) use the same path when the member pull fails. Since IFS cycle 50r1 (2026-05-12) the control is `oper`/`fc` (`enfo`/`cf` index entries are gone) and perturbed members are `enfo`/`pf` inside `enfo-ef` files; a missing step uses the nearest published step within 6 h, and if neither product exists the fallback logs and leaves the Open-Meteo ensemble. One GRIB subset per model run, steps limited to kickoff windows inside 168 h (`ECMWF_OD_MAX_LEAD_H`), decoded one message at a time and removed from disk. Sampled fields are cached under `data/cache/ecmwf/samples/` (not committed) and reused for every game in the process. The BetOnline publish job sets `ECMWF_OD_CACHE_ONLY=1` and does not download GRIB. The session time budget counts active fetch time, so odds scraping between NFL and CFB does not starve the second sport. `meta.ecmwf_opendata` and `weather.ecmwf_source` record `ecmwf-opendata` plus the CC BY 4.0 attribution. Mirrors are AWS, then Azure, then data.ecmwf.int.

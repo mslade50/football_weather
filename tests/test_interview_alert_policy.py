@@ -130,6 +130,34 @@ def test_degraded_missing_or_stale_weather_cannot_clear_confirmed_bet():
     assert "roof" in P.clear_reason({**card(), "stadium": {"roof_type": "dome"}}, CFG, NOW)
 
 
+@pytest.mark.parametrize("age", [timedelta(minutes=10), timedelta(hours=4), timedelta(hours=12)])
+def test_retained_point_cannot_signal_alert_remind_or_clear_even_cached_signal(age):
+    from pipeline.model import process
+    data = card("High Impact")
+    data["process"] = process.evaluate_card(data, now=NOW)
+    assert data["process"]["alert"]
+    data["weather"].update(retained=True, point_aged=True, fetched_at=(NOW - age).isoformat(),
+                           retained_from=(NOW - age).isoformat(), retained_reason="source_unavailable")
+    decision = process.decision_for(data, now=NOW)
+    assert decision["discovery_state"] == "unknown"
+    assert decision["discovery_reasons"] == [process.Reason.FORECAST_RETAINED]
+    assert not any(decision[key] for key in ("candidate", "watch", "alert", "flags"))
+    assert decision["display_muted"] and decision["alert_label"] == A.SIGNAL_NONE
+    assert not A._qualifying_signal(data, CFG)
+    active = {"records": {"old": {"family": "edge", "game_id": GID, "notification_active": True}}}
+    assert not P.collect(CTX, {"nfl": [data]}, active, CFG, NOW, {})
+    data["weather"].update(wind_fg=3, temp_fg=65)
+    assert P.clear_reason(data, CFG, NOW) is None
+    data["stadium"]["roof_type"] = "dome"
+    assert P.clear_reason(data, CFG, NOW) is None
+    data.update(sport="cfb", stadium={"roof_type": "open"})
+    data["consensus"]["spread_open"] = -14
+    assert P.clear_reason(data, CFG, NOW) is None
+    # Missing aged marker must not resurrect a stale pre-retention decision.
+    data["weather"]["point_aged"] = False
+    assert not process.decision_for(data, now=NOW)["alert"]
+
+
 def test_fake_first_seen_is_never_labeled_true_original_or_late_and_liquidity_does_not_gate():
     data = card()
     data["consensus"].pop("true_total_open_status")

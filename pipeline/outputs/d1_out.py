@@ -265,14 +265,11 @@ def weather_deltas(rows: Iterable[dict[str, Any]], wx_last: dict) -> list[dict[s
 
 
 def load_wx_last(state_dir: PathLike) -> dict:
-    d = pstate._load(Path(state_dir) / "wx_last.json")
-    if not isinstance(d.get("last"), dict):
-        d["last"] = {}
-    return d
+    return pstate.migrate(pstate._load(Path(state_dir) / "wx_last.json"), "wx_last")
 
 
 def save_wx_last(state_dir: PathLike, d: dict) -> None:
-    pstate._save(Path(state_dir) / "wx_last.json", d)
+    pstate._save(Path(state_dir) / "wx_last.json", d, version=pstate.KIND_VERSIONS["wx_last"])
 
 
 def alert_rows(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
