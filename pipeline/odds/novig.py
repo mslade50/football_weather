@@ -26,13 +26,13 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, get_with_retry, request_with_retry
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, get_with_retry, request_with_retry
+from pipeline.odds.base import load_dotenv_once as _load_dotenv
 from pipeline.odds.parsers import novig as novig_parser
 
 logger = logging.getLogger(__name__)
@@ -61,22 +61,9 @@ MAX_LADDER_PROBES = 9
 BALANCED_BOOK = 0.12
 MARKET_TYPES = ("MONEY", "SPREAD", "TOTAL")
 
-_ROOT = Path(__file__).resolve().parents[2]
-_DOTENV_LOADED = False
-
 
 class NovigCatalogRejected(RuntimeError):
     """The official catalog refused the request and no NBX credentials could take over."""
-
-
-def _load_dotenv() -> None:
-    global _DOTENV_LOADED
-    if _DOTENV_LOADED:
-        return
-    _DOTENV_LOADED = True
-    from utils.env import load_repo_dotenv
-
-    load_repo_dotenv(_ROOT / ".env")
 
 
 def nbx_credentials() -> tuple[str, str] | None:
@@ -459,7 +446,7 @@ class NovigScraper(BaseScraper):
         capture = self.capture if capture is None else capture
         run_id = self.run_id if run_id is None else run_id
         del kwargs
-        if os.environ.get("BOOK_NOVIG_ENABLED", "1") == "0":
+        if not book_enabled("novig"):
             logger.info("[novig] disabled via BOOK_NOVIG_ENABLED=0")
             return []
         data = await self.fetch_raw(sport)

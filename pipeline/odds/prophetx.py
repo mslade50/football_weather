@@ -24,13 +24,13 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, get_with_retry, request_with_retry
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, get_with_retry, request_with_retry
+from pipeline.odds.base import load_dotenv_once as _load_dotenv
 from pipeline.odds.parsers import prophetx as parser
 
 logger = logging.getLogger(__name__)
@@ -40,26 +40,13 @@ API_VERSION = "v3"
 MARKET_TYPES = "moneyline,spread,total"
 CHUNK = 100
 
-_ROOT = Path(__file__).resolve().parents[2]
-_DOTENV_LOADED = False
-
-
-def _load_dotenv() -> None:
-    global _DOTENV_LOADED
-    if _DOTENV_LOADED:
-        return
-    _DOTENV_LOADED = True
-    from utils.env import load_repo_dotenv
-
-    load_repo_dotenv(_ROOT / ".env")
-
 
 class ProphetXConfigError(RuntimeError):
     """Raised when the supported API has not been configured."""
 
 
 def enabled() -> bool:
-    return os.environ.get("BOOK_PROPHETX_ENABLED", "1").strip() != "0"
+    return book_enabled("prophetx")
 
 
 def _text(value: Any) -> str:

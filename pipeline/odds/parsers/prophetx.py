@@ -34,11 +34,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import parse_utc, positive_zero, valid_lines
 
 BOOK = "prophetx"
 
@@ -85,16 +86,8 @@ def american_to_prob(odds: int) -> float:
     return 100.0 / (odds + 100.0)
 
 
-def parse_start(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+def parse_start(value: object) -> datetime | None:
+    return parse_utc(value)
 
 
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
@@ -244,8 +237,7 @@ def _make(ev: RawEvent, mkt: str, side: str, odds: int, line: float | None, is_m
           sel: dict, scraped_at: datetime | None) -> GameLine | None:
     if not isinstance(odds, (int, float)) or abs(odds) < 100:
         return None
-    if line == 0:
-        line = 0.0
+    line = positive_zero(line)
     return game_line(
         sport=ev.sport,
         game_id=ev.game_id,
@@ -305,7 +297,7 @@ def parse_event_markets(
                 if line is None:
                     continue
                 out.append(_make(ev, mkt, side, best[0], line, is_main, sel, scraped_at))
-    out = [x for x in out if x is not None]
+    out = valid_lines(out)
     return out
 
 

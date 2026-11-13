@@ -40,8 +40,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.model.fair import prob_to_american as prob_to_american
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.main_select import select_main_lines
+from pipeline.odds.parsers.common import parse_utc, positive_zero, valid_lines
 
 BOOK = "novig"
 
@@ -54,25 +56,8 @@ _SPREAD_OUTCOME = re.compile(r"^(?P<team>.+?)\s+(?P<signed>[+-]\d+(?:\.\d+)?)$")
 _TOTAL_OUTCOME = re.compile(r"^(Over|Under)\b", re.IGNORECASE)
 
 
-def prob_to_american(price: float) -> int:
-    """Decimal probability (0-1) -> American odds; 0 when out of range."""
-    if price <= 0 or price >= 1:
-        return 0
-    if price >= 0.5:
-        return int(round(-100 * price / (1 - price)))
-    return int(round(100 * (1 - price) / price))
-
-
-def parse_kickoff(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+def parse_kickoff(value: object) -> datetime | None:
+    return parse_utc(value)
 
 
 def provisional_game_id(sport: str, kickoff: datetime | None, away: str, home: str) -> str:
@@ -139,8 +124,7 @@ def parse_event(
             if market != "ml" and line is None:
                 continue
             # -0.0 is ugly in outputs and breaks equality with 0.0 in some sinks.
-            if line == 0:
-                line = 0.0
+            line = positive_zero(line)
             out.append(
                 game_line(
                     sport=sport,
@@ -160,7 +144,7 @@ def parse_event(
                     run_id=run_id,
                 )
             )
-    out = [x for x in out if x is not None]
+    out = valid_lines(out)
     return out
 
 

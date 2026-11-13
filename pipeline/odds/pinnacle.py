@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, get_with_retry, in_season
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, browser_headers, get_with_retry, in_season
 from pipeline.odds.parsers import pinnacle as parser
 
 logger = logging.getLogger(__name__)
@@ -32,16 +31,12 @@ HEADERS = {
     "Accept": "application/json",
     "Origin": "https://www.pinnacle.com",
     "Referer": "https://www.pinnacle.com/",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/135.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": browser_headers()["User-Agent"],
 }
 
 
 def enabled() -> bool:
-    return os.environ.get("BOOK_PINNACLE_ENABLED", "1").strip() != "0"
+    return book_enabled("pinnacle")
 
 
 async def fetch_feed(client: httpx.AsyncClient | None = None) -> dict[str, list[dict]]:

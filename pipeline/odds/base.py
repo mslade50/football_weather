@@ -40,6 +40,31 @@ TRANSPORTS = (TRANSPORT_AUTO, TRANSPORT_HTTPX, TRANSPORT_CURL)
 CURL_IMPERSONATE = "chrome"  # curl_cffi alias -> newest Chrome build the installed version ships
 BLOCKED_STATUSES = frozenset({401, 403, 405, 406, 409, 418, 429})  # bot-block signatures
 _FALLBACK_CHROME_MAJOR = 135
+_DOTENV_LOADED = False
+
+
+def book_enabled(name: str) -> bool:
+    """One switch resolver, retaining each book's historical opt-out values.
+
+    The workflow defaults to 1 but accepts arbitrary repository variables, so
+    extending false/no to every book could disable a currently enabled book.
+    """
+    book = name.lower()
+    value = os.environ.get(f"BOOK_{book.upper()}_ENABLED", "1")
+    if book in ("betcris", "betonline"):
+        return value.strip() not in ("0", "false", "no")
+    if book in ("pinnacle", "prophetx"):
+        return value.strip() != "0"
+    return value != "0"
+
+
+def load_dotenv_once() -> None:
+    global _DOTENV_LOADED
+    if not _DOTENV_LOADED:
+        _DOTENV_LOADED = True
+        from utils.env import load_repo_dotenv
+
+        load_repo_dotenv()
 
 
 def transport_mode(book: str) -> str:
@@ -273,7 +298,6 @@ def in_season(sport: str, now: datetime | None = None) -> bool:
     d = now or datetime.now(timezone.utc)
     md = (d.month, d.day)
     return md >= start or md <= end
-
 
 
 def _line_to_dict(line: Any) -> dict:

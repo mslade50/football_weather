@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import valid_lines
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ def parse_market(
             odds=odds, line=line, is_main=True,
             source_id=f"{BOOK}:{event.event_id}", scraped_at=scraped_at, run_id=run_id,
         ))
-    out = [x for x in out if x is not None]
+    out = valid_lines(out)
     return out
 
 

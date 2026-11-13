@@ -6,12 +6,14 @@ Provisional game ids are resolved against the schedule by odds/merge.py.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import dedupe_games as dedupe_games
+from pipeline.odds.parsers.common import finite_number as _public_number
+from pipeline.odds.parsers.common import parse_utc, valid_lines
 
 BOOK = "betcris"
 # How long a public print stays on the board, measured from feed_fetched_at.
@@ -55,41 +57,12 @@ class BetcrisGame:
         return f"{self.page}:{self.number}"
 
 
-
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
     return build_game_id(sport, away, home, start_utc, precision="compact", slug="hyphen")
 
 
-def dedupe_games(games: list[BetcrisGame]) -> list[BetcrisGame]:
-    """Drop repeated provisional game identities, preserving the first record."""
-    seen: set[str] = set()
-    out: list[BetcrisGame] = []
-    for g in games:
-        if g.game_id in seen:
-            continue
-        seen.add(g.game_id)
-        out.append(g)
-    return out
-
-
 def _public_timestamp(value: object) -> datetime | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return dt.astimezone(timezone.utc) if dt.tzinfo is not None else None
-
-
-def _public_number(value: object) -> float | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+    return parse_utc(value, naive_utc=False)
 
 
 def parse_public(payload: dict, sport: str, *, now: datetime,
@@ -178,7 +151,7 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                                     source_updated_at=observed,
                                     expires_at=display_until,
                                     actionable_until=actionable_until))
-    out = [x for x in out if x is not None]
+    out = valid_lines(out)
     return out
 
 

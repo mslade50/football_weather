@@ -38,6 +38,8 @@ from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import dedupe_games as dedupe_games
+from pipeline.odds.parsers.common import finite_number, positive_zero, valid_lines
 
 BOOK = "betonline"
 
@@ -80,7 +82,6 @@ class BetOnlineGame:
         return f"{self.league}:{self.game_id_src}"
 
 
-
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:
     return build_game_id(sport, away, home, start_utc, precision="compact", slug="hyphen")
 
@@ -110,15 +111,7 @@ def _odds(value: Any) -> int | None:
 
 def _point(value: Any) -> float | None:
     """Spread point; None when absent/unparseable (never a fake pick'em 0.0)."""
-    if value is None or value == "":
-        return None
-    try:
-        p = float(value)
-    except (TypeError, ValueError):
-        return None
-    if p != p or p in (float("inf"), float("-inf")):
-        return None
-    return 0.0 if p == 0 else p  # -0.0 -> 0.0
+    return positive_zero(finite_number(value, allow_bool=True))
 
 
 def parse_game(entry: dict, sport: str, league: str = "") -> BetOnlineGame | None:
@@ -208,19 +201,7 @@ def game_lines(
     if want("ml") and g.away_ml is not None and g.home_ml is not None:
         out.append(game_line(market="ml", side="away", odds=g.away_ml, **common))
         out.append(game_line(market="ml", side="home", odds=g.home_ml, **common))
-    out = [x for x in out if x is not None]
-    return out
-
-
-def dedupe_games(games: list[BetOnlineGame]) -> list[BetOnlineGame]:
-    """Drop repeats across leagues (nfl + nfl-preseason) by provisional game_id."""
-    seen: set[str] = set()
-    out: list[BetOnlineGame] = []
-    for g in games:
-        if g.game_id in seen:
-            continue
-        seen.add(g.game_id)
-        out.append(g)
+    out = valid_lines(out)
     return out
 
 

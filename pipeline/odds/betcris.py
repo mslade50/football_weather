@@ -11,14 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, backoff_delay, retryable_status
+from pipeline.odds.base import BaseScraper, Capture, backoff_delay, book_enabled, browser_headers, retryable_status
 from pipeline.odds.parsers import betcris as parser
 from pipeline.odds.parsers.betcris import BetcrisGame
 
@@ -30,16 +29,12 @@ FETCH_ATTEMPTS = 3
 FETCH_BACKOFF_S = 2.0
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/135.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": browser_headers()["User-Agent"],
 }
 
 
 def enabled() -> bool:
-    return os.environ.get("BOOK_BETCRIS_ENABLED", "1").strip() not in ("0", "false", "no")
+    return book_enabled("betcris")
 
 
 class BetcrisScraper(BaseScraper):

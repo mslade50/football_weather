@@ -22,7 +22,6 @@ the same request is retried through curl_cffi with Chrome TLS impersonation
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,6 +33,7 @@ from pipeline.odds.base import (
     TRANSPORT_HTTPX,
     BaseScraper,
     Capture,
+    book_enabled,
     browser_headers,
     fetch_json_with_fallback,
     transport_mode,
@@ -58,11 +58,7 @@ SITE_PAGES: dict[str, str] = {
 # httpx path (works from residential IPs as-is).
 HEADERS = {
     "Accept": "application/json",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/135.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": browser_headers()["User-Agent"],
 }
 
 
@@ -135,7 +131,7 @@ class FanDuelScraper(BaseScraper):
         include_alternates: bool = True, include_live: bool = False,
         **kwargs: Any,
     ) -> list[GameLine]:
-        if os.environ.get("BOOK_FANDUEL_ENABLED", "1") == "0":
+        if not book_enabled("fanduel"):
             logger.info("[fanduel] disabled via BOOK_FANDUEL_ENABLED=0")
             return []
         if sport not in PAGE_IDS:

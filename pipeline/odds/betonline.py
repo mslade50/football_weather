@@ -25,7 +25,7 @@ from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, in_season
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, browser_headers, in_season
 from pipeline.odds.parsers import betonline as parser
 from pipeline.odds.parsers.betonline import LEAGUES, BetOnlineGame
 
@@ -43,11 +43,7 @@ API_HEADERS = {
     "utc-offset": str(parser.UTC_OFFSET_MINUTES),
 }
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/135.0.0.0 Safari/537.36"
-)
+USER_AGENT = browser_headers()["User-Agent"]
 
 _FETCH_JS = """
 async (args) => {
@@ -70,7 +66,7 @@ async (args) => {
 
 
 def enabled() -> bool:
-    return os.environ.get("BOOK_BETONLINE_ENABLED", "1").strip() not in ("0", "false", "no")
+    return book_enabled("betonline")
 
 
 async def _launch(pw: Any, headless: bool) -> Any:

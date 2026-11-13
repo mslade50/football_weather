@@ -14,14 +14,13 @@ top-of-book + taker fee is what the board publishes.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, get_with_retry
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, browser_headers, get_with_retry
 from pipeline.odds.parsers import kalshi as kalshi_parser
 
 logger = logging.getLogger(__name__)
@@ -30,11 +29,7 @@ API_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 HEADERS = {
     "Accept": "application/json",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/135.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": browser_headers()["User-Agent"],
 }
 
 PAGE_LIMIT = 200
@@ -98,7 +93,7 @@ class KalshiScraper(BaseScraper):
     ) -> list[GameLine]:
         capture = self.capture if capture is None else capture
         run_id = self.run_id if run_id is None else run_id
-        if os.environ.get("BOOK_KALSHI_ENABLED", "1") == "0":
+        if not book_enabled("kalshi"):
             logger.info("[kalshi] disabled via BOOK_KALSHI_ENABLED=0")
             return []
         if sport not in kalshi_parser.SERIES_BY_SPORT:

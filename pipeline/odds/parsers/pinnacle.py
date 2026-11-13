@@ -19,11 +19,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import parse_utc
 
 BOOK = "pinnacle"
 
@@ -51,16 +52,8 @@ class RawEvent:
     game_id: str
 
 
-def parse_start(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+def parse_start(value: object) -> datetime | None:
+    return parse_utc(value)
 
 
 def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) -> str:

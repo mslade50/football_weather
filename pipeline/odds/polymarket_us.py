@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -11,7 +10,7 @@ from typing import Any
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, get_with_retry
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, get_with_retry
 from pipeline.odds.parsers import polymarket_us as parser
 
 logger = logging.getLogger(__name__)
@@ -98,7 +97,7 @@ class PolymarketUSScraper(BaseScraper):
         run_id = self.run_id if run_id is None else run_id
         if sport not in ("nfl", "cfb"):
             raise ValueError(f"unknown sport {sport}")
-        if os.getenv("BOOK_POLYMARKET_US_ENABLED", "1") == "0":
+        if not book_enabled("polymarket_us"):
             return []
         self.fetch_errors = {}
         events = {}

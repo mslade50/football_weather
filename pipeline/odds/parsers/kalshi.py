@@ -57,8 +57,10 @@ from datetime import date, datetime
 from typing import Any
 
 from pipeline.contracts import GameLine, game_line
+from pipeline.model.fair import prob_to_american as dollar_to_american
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.kalshi_fees import effective_price as rounded_effective_price
+from pipeline.odds.parsers.common import MAX_QUOTE_WIDTH, finite_number, valid_lines
 
 BOOK = "kalshi"
 
@@ -69,7 +71,7 @@ SERIES_BY_SPORT: dict[str, dict[str, str]] = {
 MARKET_BY_SERIES: dict[str, str] = {s: m for per in SERIES_BY_SPORT.values() for m, s in per.items()}
 
 TAKER_FEE_RATE = 0.07
-MAX_WIDTH = 0.25   # max yes bid/ask width for a market to be priced
+MAX_WIDTH = MAX_QUOTE_WIDTH   # max yes bid/ask width for a market to be priced
 MAIN_TOL = 0.15    # main rung must have its home/over midpoint within 0.5 +/- MAIN_TOL
 
 _MONTHS = {m: i for i, m in enumerate(("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"), 1)}
@@ -79,13 +81,6 @@ _SPREAD_SUFFIX_RE = re.compile(r"^(?P<abbr>[A-Z]+?)(?P<n>\d+)$")
 
 
 # ── price helpers (copied from golf_scraping/scrapers/kalshi.py) ─────────────
-def dollar_to_american(price: float) -> int:
-    """Kalshi dollar price (0-1 probability) -> American odds; 0 when unpriceable."""
-    if price <= 0 or price >= 1:
-        return 0
-    if price >= 0.5:
-        return int(round(-100 * price / (1 - price)))
-    return int(round(100 * (1 - price) / price))
 
 
 def taker_fee(price: float) -> float:
@@ -102,13 +97,7 @@ def effective_price(ask: float, coefficient: float = TAKER_FEE_RATE) -> float:
 
 
 def _dollars(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        number = float(value)
-        return number if math.isfinite(number) else None
-    except (TypeError, ValueError):
-        return None
+    return finite_number(value, allow_bool=True)
 
 
 def quote(market: dict[str, Any]) -> tuple[float, float] | None:
@@ -238,7 +227,7 @@ def _pair(
         rows.append(game_line(sport=sport, game_id=game_id, book=BOOK, market=market, side=no_side, odds=no_odds,
                              line=no_line, prob_raw=1.0 - mid, is_main=is_main, source_id=ticker,
                              scraped_at=scraped_at, run_id=run_id))
-    rows = [x for x in rows if x is not None]
+    rows = valid_lines(rows)
     return rows
 
 
@@ -275,7 +264,7 @@ def parse_winner_event(event: dict[str, Any], sport: str, scraped_at: datetime |
         out.append(game_line(sport=sport, game_id=game_id, book=BOOK, market="ml", side=side, odds=odds,
                             line=None, prob_raw=(bid + ask) / 2.0, is_main=True, source_id=ticker,
                             scraped_at=scraped_at, run_id=run_id))
-    out = [x for x in out if x is not None]
+    out = valid_lines(out)
     return out
 
 

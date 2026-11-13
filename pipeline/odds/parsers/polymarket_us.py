@@ -8,24 +8,16 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.model.fair import prob_to_american
 from pipeline.odds.ids import provisional_game_id as build_game_id
+from pipeline.odds.parsers.common import MAX_QUOTE_WIDTH, parse_utc
+from pipeline.odds.parsers.common import finite_number as number
 
 BOOK = "polymarket_us"
 TYPES = {"football_team_full_game_total": "total", "football_team_full_game_spread": "spread",
          "football_team_full_game_winner": "ml"}
-
-
-def number(value: Any) -> float | None:
-    try:
-        n = float(value)
-        return n if math.isfinite(n) and not isinstance(value, bool) else None
-    except (ValueError, TypeError):
-        return None
-
 
 
 def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None = None) -> list[GameLine]:
@@ -38,10 +30,10 @@ def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None
         if not str(event.get("slug", "")).startswith(sport + "-"):
             continue
         try:
-            kickoff = datetime.fromisoformat(event["startTime"].replace("Z", "+00:00"))
+            kickoff = parse_utc(event["startTime"], naive_utc=False)
         except (KeyError, TypeError, ValueError):
             continue
-        if kickoff.tzinfo is None or kickoff <= scraped_at:
+        if kickoff is None or kickoff <= scraped_at:
             continue
         # Full-game winner sides carry explicit home/away identity; never infer
         # home from display order or a total market's generic over/under sides.
@@ -64,7 +56,7 @@ def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None
             bid = number((market.get("bestBidQuote") or {}).get("value"))
             ask = number((market.get("bestAskQuote") or {}).get("value"))
             fee = number(market.get("feeCoefficient"))
-            if bid is None or ask is None or not 0 < bid <= ask < 1 or ask - bid > .25:
+            if bid is None or ask is None or not 0 < bid <= ask < 1 or ask - bid > MAX_QUOTE_WIDTH:
                 continue
             if fee is None or not 0 <= fee <= 1:
                 continue  # unknown fees must not look like a free execution
