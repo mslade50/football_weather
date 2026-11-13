@@ -63,8 +63,7 @@ env:
   SEND_DIGEST: ${{ github.event_name == 'schedule' || inputs.digest == true }}
   FOOTBALL_TELEGRAM_ENABLED: ${{ vars.FOOTBALL_TELEGRAM_ENABLED || '0' }}
   DIGEST_SPORT: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 13 * * 0' && 'cfb') || (github.event_name == 'schedule' && 'nfl') || inputs.digest_sport || 'all' }}
-  # Read-only inputs for pipeline.backtest (ARCH §5 state files; pipeline.backtest.D1_TABLES).
-  STATE_FILES: alerts closings history wx_history openers
+  # State uses --group backtest; D1 exports follow pipeline.backtest.D1_TABLES.
   D1_TABLES: games odds_history closings alerts stadiums teams weather_history runs
   # newest snapshot objects mirrored per run (parallel wrangler r2 object get)
   SNAPSHOT_MAX: "120"
@@ -98,22 +97,7 @@ jobs:
       - name: Fetch board state from R2 (read-only)
         # NoSuchKey -> absent (fresh bucket). ANY other failure -> exit 1: a backtest
         # on blank state would publish an empty grid over the last good one.
-        run: |
-          mkdir -p data/state
-          for f in $STATE_FILES meta; do
-            DEST="data/state/$f.json"
-            [ "$f" = "meta" ] && DEST="data/state/prev_meta.json"
-            if OUT="$(npx --yes wrangler@4 r2 object get "$R2_BUCKET/board/$f.json" --file="$DEST" --remote 2>&1)"; then
-              echo "$f.json fetched"
-            elif echo "$OUT" | grep -qiE 'NoSuchKey|does not exist|not found|404'; then
-              echo "::notice::$f.json absent - backtest input starts empty"
-              rm -f "$DEST"
-            else
-              echo "$OUT"
-              echo "::error::R2 state fetch failed for $f.json (not NoSuchKey) - refusing to backtest on blank state"
-              exit 1
-            fi
-          done
+        run: python scripts/fetch_r2.py state --group backtest --dest data/state
       - name: Export D1 tables
         # {table}.json per table in the `d1 execute --json` shape ([{results: [...]}]),
         # which pipeline.backtest.load_export_dir reads. A missing table on a fresh
@@ -174,21 +158,7 @@ jobs:
         # board/backtest.json (served as /data/backtest.json) + parquet under backtest/.
         # 3 retries each; a failure still fails the job. board/meta.json is NOT touched.
         if: env.DRY_RUN == ''
-        run: |
-          put() {  # put <r2 key> <local file> <content-type>
-            for i in 1 2 3; do
-              npx --yes wrangler@4 r2 object put "$R2_BUCKET/$1" --file="$2" \
-                --content-type="$3" --remote && return 0
-              echo "::warning::R2 put $1 failed (attempt $i/3)"; sleep 5
-            done
-            echo "::error::R2 put $1 failed after 3 attempts"
-            return 1
-          }
-          for p in data/backtest/*.parquet; do
-            [ -f "$p" ] || continue
-            put "backtest/$(basename "$p")" "$p" "application/octet-stream"
-          done
-          put "board/backtest.json" "data/board/backtest.json" "application/json"
+        run: python scripts/publish_r2.py backtest
       - name: Archive backtest rows to D1 (closings / stadium_results)
         if: env.DRY_RUN == '' && hashFiles('data/d1_backtest.sql') != ''
         run: |
@@ -233,8 +203,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          MSG=$(printf '🚨 SYSTEM · Backtest failed\nTrigger: %s\nOpen run: %s' \
-            '${{ github.event_name }}' '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}')
-          [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && curl -s --max-time 15 \
-            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" >/dev/null || true
+          python scripts/notify_failure.py --title "🚨 SYSTEM · Backtest failed" \
+            --body "Trigger: ${{ github.event_name }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

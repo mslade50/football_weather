@@ -423,9 +423,8 @@ jobs:
          outputs: run (skip|scrape), need_playwright (true when scope==full and any book playwright-enabled). fail-open.
   light: needs gate; if run==scrape; timeout 30. checkout; setup-python 3.11 (pip cache); setup-node 20;
          pip install -r requirements.txt (no playwright);
-         R2 state get loop (wrangler r2 object get football-board/board/$f.json --remote) for
-           openers history wx_history archive_last wx_last alerts scrape_baseline telegram_state cf_heartbeat closings
-           -> on non-NoSuchKey error: exit 1;
+         python scripts/fetch_r2.py state --group pipeline (ordered membership in pipeline/outputs/r2.py);
+           missing keys start empty; any other error exits 1 without replacing local state;
          recover recent sent-alert receipts from failed main-branch Actions artifacts before build;
          python -m pipeline.build --sport $sport --scope light --run-id $RUN_ID --no-alerts;
          bounded R2 uploads (8 workers): raw/, snapshots/, content-floor preflight,
@@ -442,6 +441,11 @@ jobs:
   notify_failure: needs [gate, light, playwright_scrape, playwright]; if: always() so a skipped Playwright job cannot hide it. One Telegram page when a gate or light failure starts, including a rejected publish, and one page when a later run's main build succeeds. Repeats while the incident is open do not page. The marker is R2 `board/pipeline_health.json`, written only after the send. `FOOTBALL_FAILURE_ALERTS=0` silences it; the pick-alert switch does not. A Playwright/BetOnline failure alone pages only when `TELEGRAM_SYSTEM_ALERTS=1`. Cancelled runs and safe_refresh stay quiet. Other workflows still require `TELEGRAM_SYSTEM_ALERTS=1` and stay on unless `FOOTBALL_FAILURE_ALERTS=0`.
 ```
 The 30-minute per-build backstop accommodates cold weather retrievals. Upload concurrency avoids serial CLI startup overhead. Publication integrity checks and generation readback protect the final marker; quote freshness is decided at pricing rather than by an upload deadline.
+
+All six workflow failure/recovery steps use the stdlib transport in
+`scripts/notify_failure.py`; pipeline uses its strict result before storing the
+incident marker. State groups, historical membership differences and the shared
+backtest/calibration R2 modes are documented in [WORKFLOW_IO.md](WORKFLOW_IO.md).
 
 ### 9.3 Other workflows
 - `deploy.yml`: on push paths `site/**` → `wrangler d1 migrations apply football-odds --remote` then `cloudflare/wrangler-action@v3` deploy from `site/worker`.

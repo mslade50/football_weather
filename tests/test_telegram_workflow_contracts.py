@@ -18,9 +18,11 @@ WORKFLOWS = (
 def test_failure_pings_are_clear_encoded_guarded_and_do_not_log_telegram_payloads():
     for name in WORKFLOWS:
         text = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
-        assert '--data-urlencode text="$MSG"' in text, name
-        assert 'TELEGRAM_BOT_TOKEN" ]' in text and 'TELEGRAM_CHAT_ID" ]' in text, name
-        assert ">/dev/null" in text, name
+        assert text.count("python scripts/notify_failure.py") == 1, name
+        assert "api.telegram.org" not in text, name
+        assert "STATE_FILES:" not in text, name
+        assert "TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}" in text, name
+        assert "TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}" in text, name
         if name == "pipeline.yml":
             # A rejected publish pages even when the system-alert switch is off.
             # The job itself must be unconditional so a skipped sibling cannot hide it.
@@ -38,12 +40,12 @@ def test_failure_pings_are_clear_encoded_guarded_and_do_not_log_telegram_payload
             assert "vars.TELEGRAM_SYSTEM_ALERTS == '1'" in text, name
             assert "(vars.FOOTBALL_FAILURE_ALERTS || '1') != '0'" in text, name
             assert "FOOTBALL_TELEGRAM_ENABLED" not in text.split("Telegram on failure", 1)[-1], name
-            assert ">/dev/null || true" in text, name
+            assert "--strict" not in text.split("Telegram on failure", 1)[-1], name
 
 
 def test_pipeline_has_only_one_failure_page_for_the_whole_run():
     text = (ROOT / ".github" / "workflows" / "pipeline.yml").read_text(encoding="utf-8")
-    assert text.count("api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage") == 1
+    assert text.count("python scripts/notify_failure.py") == 1
     assert "needs: [gate, light, playwright_scrape, playwright]" in text
     job = text[text.index("\n  notify_failure:\n"):]
     assert "PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}" in job
@@ -51,3 +53,10 @@ def test_pipeline_has_only_one_failure_page_for_the_whole_run():
     assert "GATE_RESULT: ${{ needs.gate.result }}" in job
     assert "needs.light.result == 'failure' && vars.TELEGRAM_SYSTEM_ALERTS" not in job
     assert "FOOTBALL_TELEGRAM_ENABLED" not in job
+
+
+def test_workflows_have_no_inline_telegram_sender_or_state_list():
+    for path in (ROOT / ".github" / "workflows").glob("*.yml"):
+        text = path.read_text(encoding="utf-8")
+        assert "api.telegram.org" not in text, path.name
+        assert "STATE_FILES:" not in text, path.name
