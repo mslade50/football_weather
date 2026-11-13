@@ -21,6 +21,9 @@ run-name: pipeline sport=${{ inputs.sport || 'all' }} scope=${{ inputs.scope || 
 #   * R2 put order: raw/ captures, snapshots/, board payloads, state files, and
 #     board/meta.json LAST as the commit marker (a mid-loop failure leaves the old
 #     meta over old-or-new data, never new meta over mixed vintages).
+#   * D1 failure cannot block publication: exact pending SQL is carried in
+#     the existing archive_last.json state object, replayed before fresh SQL,
+#     and cleared only on success. The job fails AFTER board publication.
 #   * D1 (football-odds) gets data/d1_inserts.sql (change-only) via
 #     `wrangler d1 execute --file`, gated by hashFiles so an empty run is a no-op.
 #   * Self-check re-fetches board/meta.json and asserts run_id + a 50 % content
@@ -269,8 +272,20 @@ jobs:
           key: ecmwf-samples-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ecmwf-samples-${{ runner.os }}-
+      - name: Restore observation log
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/obslog/observations.sqlite
+          key: obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
+          restore-keys: |
+            obslog-v2-${{ runner.os }}-
+      - name: Prepare observation log
+        continue-on-error: true
+        run: python -m pipeline.obslog.maintain --path data/cache/obslog/observations.sqlite --prepare
       - name: Build board
         env:
+          OBSLOG_SHADOW_PATH: data/cache/obslog/observations.sqlite
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -293,6 +308,17 @@ jobs:
           path: data/weather-points/
           retention-days: 1
           if-no-files-found: warn
+      - name: Retain unacknowledged D1 SQL
+        run: python -m pipeline.obslog.archive prepare
+      - name: Archive to D1 (change-only)
+        id: d1-archive
+        continue-on-error: true
+        if: hashFiles('data/d1_inserts.sql') != ''
+        run: |
+          npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql
+      - name: Acknowledge D1 SQL
+        if: steps.d1-archive.outcome == 'success'
+        run: python -m pipeline.obslog.archive acknowledge
       - name: Push to R2
         # Bound upload concurrency to eight Wrangler processes. Keep meta.json as
         # the final commit marker and validate publication integrity after raw uploads.
@@ -306,16 +332,17 @@ jobs:
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state --group pipeline
           python scripts/publish_r2.py meta
-      - name: Archive to D1 (change-only)
-        if: hashFiles('data/d1_inserts.sql') != ''
-        run: |
-          npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql
       - name: Self-check published board
         run: |
           mkdir -p data/check
           python scripts/fetch_r2.py object board/meta.json data/check/meta.json
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+      - name: Report deferred D1 archive
+        if: steps.d1-archive.outcome == 'failure'
+        run: |
+          echo "::warning::D1 archive failed; board published and exact SQL retained in archive_last.json for retry"
+          exit 1
       - name: Notify published board
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
@@ -328,6 +355,21 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: python scripts/paper_run.py capture
+      - name: Observation log parity
+        if: always()
+        continue-on-error: true
+        run: python -m pipeline.obslog.parity --log data/cache/obslog/observations.sqlite --state-dir data/state --out data/raw_runs/obslog-parity-light.json
+      - name: Compact observation log
+        if: always()
+        continue-on-error: true
+        run: python -m pipeline.obslog.maintain --path data/cache/obslog/observations.sqlite --keep-days 2 --max-mib 192
+      - name: Save observation log
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/obslog/observations.sqlite
+          key: obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -462,8 +504,21 @@ jobs:
           restore-keys: |
             ecmwf-samples-${{ runner.os }}-
             ecmwf-samples-pw-${{ runner.os }}-
+      - name: Restore observation log (playwright)
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/obslog/observations.sqlite
+          key: obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
+          restore-keys: |
+            obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
+            obslog-v2-${{ runner.os }}-
+      - name: Prepare observation log (playwright)
+        continue-on-error: true
+        run: python -m pipeline.obslog.maintain --path data/cache/obslog/observations.sqlite --prepare
       - name: Build board (BetOnline)
         env:
+          OBSLOG_SHADOW_PATH: data/cache/obslog/observations.sqlite
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -475,6 +530,17 @@ jobs:
           # BetCRIS live here: the light upload can outlast the short college feed
           # TTL. Do not carry that earlier capture as current odds.
           python -m pipeline.build --sport "$SPORT" --scope odds --books betonline,betcris --print --no-alerts --run-id "$RUN_ID" --merge-into-r2 --ingest-lines data/pw-lines --reuse-weather-dir data/weather-reuse ${FORCE:+--force}
+      - name: Retain unacknowledged D1 SQL (playwright)
+        run: python -m pipeline.obslog.archive prepare
+      - name: Archive to D1 (change-only, playwright)
+        id: d1-archive
+        continue-on-error: true
+        if: hashFiles('data/d1_inserts.sql') != ''
+        run: |
+          npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql
+      - name: Acknowledge D1 SQL (playwright)
+        if: steps.d1-archive.outcome == 'success'
+        run: python -m pipeline.obslog.archive acknowledge
       - name: Push to R2 (playwright)
         run: |
           python scripts/publish_r2.py raw
@@ -485,16 +551,17 @@ jobs:
           python scripts/publish_r2.py board
           python scripts/publish_r2.py state --group pipeline
           python scripts/publish_r2.py meta
-      - name: Archive to D1 (change-only, playwright)
-        if: hashFiles('data/d1_inserts.sql') != ''
-        run: |
-          npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --yes --file=data/d1_inserts.sql
       - name: Self-check published board (playwright)
         run: |
           mkdir -p data/check
           python scripts/fetch_r2.py object board/meta.json data/check/meta.json
           python -m pipeline.outputs.r2 --self-check --run-id "$RUN_ID" \
             --meta-file data/check/meta.json --verify-generation --prev-meta data/state/prev_meta.json ${FORCE:+--force}
+      - name: Report deferred D1 archive (playwright)
+        if: steps.d1-archive.outcome == 'failure'
+        run: |
+          echo "::warning::D1 archive failed; board published and exact SQL retained in archive_last.json for retry"
+          exit 1
       - name: Notify published board (playwright)
         if: ${{ inputs.safe_refresh != true && (inputs.scope || 'full') != 'weather' && env.FOOTBALL_TELEGRAM_ENABLED == '1' }}
         env:
@@ -507,6 +574,21 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: python scripts/paper_run.py capture
+      - name: Observation log parity (playwright)
+        if: always()
+        continue-on-error: true
+        run: python -m pipeline.obslog.parity --log data/cache/obslog/observations.sqlite --state-dir data/state --out data/raw_runs/obslog-parity-playwright.json
+      - name: Compact observation log (playwright)
+        if: always()
+        continue-on-error: true
+        run: python -m pipeline.obslog.maintain --path data/cache/obslog/observations.sqlite --keep-days 2 --max-mib 192
+      - name: Save observation log (playwright)
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/obslog/observations.sqlite
+          key: obslog-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
       - name: Upload build logs (playwright)
         if: always()
         uses: actions/upload-artifact@v4
