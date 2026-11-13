@@ -279,7 +279,11 @@ def test_nbx_book_overrides_last_trade() -> None:
     assert home.line == -3.5 and away.line == 3.5
 
 
-def test_nbx_uses_last_trade_when_the_book_is_empty() -> None:
+@pytest.mark.parametrize("book,expected", [
+    (None, []),
+    ({"outcomeLadders": [{"outcomeId": "a", "bids": [{"price": 0.25}]}]}, [("home", 0.75, -300)]),
+])
+def test_nbx_requires_executable_taker_price(book, expected) -> None:
     payload = {
         "source": "nbx",
         "open_markets": {"MONEY": [{
@@ -294,10 +298,12 @@ def test_nbx_uses_last_trade_when_the_book_is_empty() -> None:
                 "awayTeam": {"id": "gb", "name": "Green Bay Packers"},
             }},
         }]},
-        "event_books": {},
+        "event_books": {} if book is None else {"e1": [{"id": "m1", "book": book}]},
     }
     rows = parse(payload, "nfl")
-    assert {(r.side, r.prob_raw) for r in rows} == {("home", 0.6), ("away", 0.4)}
+    # This used to price both last-trade prints. Neither is executable: only
+    # an opposing bid may supply a taker price, including in a one-sided book.
+    assert [(r.side, r.prob_raw, r.odds) for r in rows] == expected
 
 
 def test_current_response_does_not_guess_side_or_fill_absent_quotes() -> None:

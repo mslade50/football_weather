@@ -409,8 +409,6 @@ def _nbx_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for outcome in outcomes:
             price = prices.get(str(outcome["id"]))
             if price is None:
-                price = _prob(outcome.get("last"))
-            if price is None:
                 continue
             built.append({**outcome, "available": price})
         if not built:
