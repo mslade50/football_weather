@@ -26,12 +26,13 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, book_enabled, get_with_retry, request_with_retry
+from pipeline.odds.base import BaseScraper, Capture, FatalScrapeError, book_enabled, get_with_retry, request_with_retry
 from pipeline.odds.base import load_dotenv_once as _load_dotenv
 from pipeline.odds.parsers import novig as novig_parser
 
@@ -62,7 +63,7 @@ BALANCED_BOOK = 0.12
 MARKET_TYPES = ("MONEY", "SPREAD", "TOTAL")
 
 
-class NovigCatalogRejected(RuntimeError):
+class NovigCatalogRejected(FatalScrapeError):
     """The official catalog refused the request and no NBX credentials could take over."""
 
 
@@ -105,6 +106,7 @@ def quote_balance(market: dict[str, Any], book: dict[str, Any] | None) -> float 
 
 class NovigScraper(BaseScraper):
     BOOK_NAME = "novig"
+    CLEAR_ERROR_ON_SUCCESS = True
 
     def _initialize(self) -> None:
         self.min_interval = BOOK_MIN_INTERVAL_S
@@ -162,33 +164,21 @@ class NovigScraper(BaseScraper):
     async def _book_json(self, client: httpx.AsyncClient, market_id: str) -> dict[str, Any]:
         """One order book. 429 waits for ``Retry-After``; a missing book is empty."""
         url = f"{CATALOG_ROOT}/markets/{market_id}/book"
-        last_status = 0
-        for attempt in range(1, BOOK_429_ATTEMPTS + 1):
-            await self._pace_book()
-            response = await client.get(
-                url, headers=PUBLIC_HEADERS, params={"depth": "1"}, timeout=self.timeout,
-            )
-            last_status = response.status_code
-            if response.status_code == 429 and attempt < BOOK_429_ATTEMPTS:
-                try:
-                    delay = float(response.headers.get("Retry-After") or "1")
-                except ValueError:
-                    delay = 1.0
-                delay = min(max(delay, 0.0), 8.0)
-                logger.warning("[novig] book HTTP 429; waiting %ss (attempt %s)", delay, attempt)
-                await asyncio.sleep(delay)
-                continue
-            if response.status_code == 404:
-                return {"marketId": market_id, "orders": {}}
+        response = await get_with_retry(
+            client, url, label="novig", attempts=BOOK_429_ATTEMPTS, raise_status=False,
+            send=partial(client.get, url, headers=PUBLIC_HEADERS, params={"depth": "1"}, timeout=self.timeout),
+            before_attempt=self._pace_book, retry_status=lambda status: status == 429,
+            retry_error=lambda exc: False, retry_after_cap=8.0,
+        )
+        if response.status_code in (404, 429):
             if response.status_code == 429:
                 logger.warning("[novig] book %s still HTTP 429; leaving it empty", market_id)
-                return {"marketId": market_id, "orders": {}}
-            response.raise_for_status()
-            payload = response.json()
-            if not isinstance(payload, dict):
-                raise RuntimeError(f"Novig {url} returned a non-object response")
-            return payload
-        return {"marketId": market_id, "orders": {}, "status": last_status}
+            return {"marketId": market_id, "orders": {}}
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Novig {url} returned a non-object response")
+        return payload
 
     def _past_book_deadline(self) -> bool:
         if self._book_deadline is None:
@@ -411,31 +401,6 @@ class NovigScraper(BaseScraper):
                 payload = await self._fetch_nbx(client, sport)
                 self.last_transport = "nbx"
                 return payload
-
-    async def scrape_with_retry(
-        self, sport: str, market: str | None = None, **kwargs: Any
-    ) -> list[GameLine]:
-        """Retry transient failures. A rejected catalog is reported once."""
-        last_exc: BaseException | None = None
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            try:
-                logger.info(f"[{self.BOOK_NAME}] {sport} attempt {attempt}/{self.MAX_RETRIES}")
-                lines = await self.scrape(sport, market=market, **kwargs)
-                self.fetch_errors.pop(sport, None)
-                logger.info(f"[{self.BOOK_NAME}] {sport}: got {len(lines)} lines")
-                return lines
-            except NovigCatalogRejected as exc:
-                self.fetch_errors[sport] = str(exc)
-                logger.error(f"[{self.BOOK_NAME}] {sport}: {exc}")
-                return []
-            except Exception as exc:
-                last_exc = exc
-                logger.error(f"[{self.BOOK_NAME}] {sport} attempt {attempt} failed: {exc}")
-                if attempt < self.MAX_RETRIES:
-                    await asyncio.sleep(self.RETRY_DELAY * attempt)
-        if last_exc is not None:
-            self.fetch_errors[sport] = f"{type(last_exc).__name__}: {last_exc}"[:200]
-        return []
 
     async def scrape(
         self, sport: str, market: str | None = None, *,

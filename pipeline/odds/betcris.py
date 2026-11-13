@@ -8,16 +8,17 @@ The current public feed includes actual spread/total prices and feed health.
 
 from __future__ import annotations
 
-import asyncio
+import asyncio as asyncio  # retained transport-test patch point; sleep lives in base
 import json
 import logging
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any
 
 import httpx
 
 from pipeline.contracts import GameLine
-from pipeline.odds.base import BaseScraper, Capture, backoff_delay, book_enabled, browser_headers, retryable_status
+from pipeline.odds.base import BaseScraper, Capture, book_enabled, browser_headers, get_with_retry, retryable_status
 from pipeline.odds.parsers import betcris as parser
 from pipeline.odds.parsers.betcris import BetcrisGame
 
@@ -46,22 +47,19 @@ class BetcrisScraper(BaseScraper):
 
     async def _get_with_retry(self, client: httpx.AsyncClient, slug: str, path: str) -> str | None:
         """Retry transient transport failures for the public league JSON."""
-        for attempt in range(1, FETCH_ATTEMPTS + 1):
-            try:
-                resp = await client.get(path)
-                resp.raise_for_status()
-                self.fetch_errors.pop(slug, None)
-                return resp.text
-            except Exception as e:  # noqa: BLE001
-                # str(httpx.ReadTimeout) is empty — always name the exception type.
-                logger.warning(f"[{self.BOOK_NAME}] {slug}: fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: "
-                               f"{type(e).__name__}: {e}")
-                self.fetch_errors[slug] = f"{type(e).__name__}: {e}".rstrip(": ")
-                if isinstance(e, httpx.HTTPStatusError) and not retryable_status(e.response.status_code):
-                    break  # 401/403 (access denial) and other 4xx are not transient (only 408/429/5xx retry).
-                if attempt < FETCH_ATTEMPTS:
-                    await asyncio.sleep(backoff_delay(attempt, FETCH_BACKOFF_S))
-        return None
+        try:
+            resp = await get_with_retry(
+                client, path, label=self.BOOK_NAME, attempts=FETCH_ATTEMPTS, backoff=FETCH_BACKOFF_S,
+                send=partial(client.get, path),
+                retry_error=lambda exc: not isinstance(exc, httpx.HTTPStatusError)
+                or retryable_status(exc.response.status_code),
+            )
+        except Exception as exc:  # noqa: BLE001 - a failed league remains a book health error
+            self.fetch_errors[slug] = f"{type(exc).__name__}: {exc}".rstrip(": ")
+            logger.warning("[betcris] %s: %s", slug, self.fetch_errors[slug])
+            return None
+        self.fetch_errors.pop(slug, None)
+        return resp.text
 
     async def _revalidate_public(self, client: httpx.AsyncClient, slug: str, url: str) -> str | None:
         """One same-URL revalidation; never substitute catalog/download clocks."""

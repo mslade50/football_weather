@@ -10,7 +10,7 @@ import os
 import random
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -244,6 +244,10 @@ def is_retryable_error(exc: BaseException) -> bool:
     return isinstance(exc, httpx.TransportError)  # timeouts, connect/read/protocol errors
 
 
+class FatalScrapeError(RuntimeError):
+    """A rejected/configuration request that retrying the whole scrape cannot fix."""
+
+
 def backoff_delay(attempt: int, base: float = REQUEST_BACKOFF_S) -> float:
     """Linear backoff with +-50% jitter so concurrent books do not retry in lockstep."""
     return base * attempt * (0.5 + random.random())
@@ -258,6 +262,11 @@ async def request_with_retry(
     attempts: int = REQUEST_ATTEMPTS,
     backoff: float = REQUEST_BACKOFF_S,
     raise_status: bool = True,
+    send: Callable[[], Awaitable[httpx.Response]] | None = None,
+    before_attempt: Callable[[], Awaitable[None]] | None = None,
+    retry_status: Callable[[int], bool] = retryable_status,
+    retry_error: Callable[[BaseException], bool] = is_retryable_error,
+    retry_after_cap: float | None = None,
     **kwargs: Any,
 ) -> httpx.Response:
     """``client.request`` with retry on 5xx/408/429/timeouts/connection errors.
@@ -266,19 +275,36 @@ async def request_with_retry(
     ``kwargs``; raw capture stays with the caller (the response is returned verbatim).
     With ``raise_status=False`` a final non-2xx response is returned instead of raised
     (for callers that map 401 to their own error).
+
+    ``send`` adapts a client's get-only interface; ``before_attempt`` preserves
+    per-book pacing. Retry-After uses a one-second default and a 0..cap clamp
+    when enabled. Status and exception predicates keep narrower policies (such
+    as retrying only 429 responses, with no transport retries) explicit.
     """
     for attempt in range(1, attempts + 1):
         try:
-            resp = await client.request(method, url, **kwargs)
-            if attempt < attempts and retryable_status(resp.status_code):
-                _MODULE_LOGGER.warning(f"[{label}] {method} {_short(url)} -> HTTP {resp.status_code}; retry {attempt}/{attempts}")
-                await asyncio.sleep(backoff_delay(attempt, backoff))
+            if before_attempt is not None:
+                await before_attempt()
+            resp = await send() if send is not None else await client.request(method, url, **kwargs)
+            # Some get-only transports expose only raise_for_status and text.
+            status = getattr(resp, "status_code", 200)
+            if attempt < attempts and retry_status(status):
+                _MODULE_LOGGER.warning(f"[{label}] {method} {_short(url)} -> HTTP {status}; retry {attempt}/{attempts}")
+                if retry_after_cap is None:
+                    delay = backoff_delay(attempt, backoff)
+                else:
+                    try:
+                        delay = float(resp.headers.get("Retry-After") or "1")
+                    except ValueError:
+                        delay = 1.0
+                    delay = min(max(delay, 0.0), retry_after_cap)
+                await asyncio.sleep(delay)
                 continue
             if raise_status:
                 resp.raise_for_status()
             return resp
         except Exception as e:  # noqa: BLE001
-            if attempt >= attempts or not is_retryable_error(e):
+            if attempt >= attempts or isinstance(e, FatalScrapeError) or not retry_error(e):
                 raise
             _MODULE_LOGGER.warning(f"[{label}] {method} {_short(url)} {type(e).__name__}; retry {attempt}/{attempts}")
             await asyncio.sleep(backoff_delay(attempt, backoff))
@@ -326,6 +352,7 @@ class BaseScraper(ABC):
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 5.0  # seconds
     DEFAULT_TIMEOUT: float = 30.0
+    CLEAR_ERROR_ON_SUCCESS: bool = False
 
     def __init__(
         self, *, headless: bool = True, raw_store: Any = None,
@@ -369,9 +396,17 @@ class BaseScraper(ABC):
             try:
                 logger.info(f"[{self.BOOK_NAME}] {sport} attempt {attempt}/{self.MAX_RETRIES}")
                 lines = await self.scrape(sport, market=market, **kwargs)
+                if self.CLEAR_ERROR_ON_SUCCESS:
+                    self.fetch_errors.pop(sport, None)
                 logger.info(f"[{self.BOOK_NAME}] {sport}: got {len(lines)} lines")
                 return lines
             except Exception as e:
+                if isinstance(e, FatalScrapeError):
+                    if not isinstance(getattr(self, "fetch_errors", None), dict):
+                        self.fetch_errors = {}
+                    self.fetch_errors[sport] = str(e)
+                    logger.error(f"[{self.BOOK_NAME}] {sport}: {e}")
+                    return []
                 last_exc = e
                 logger.error(f"[{self.BOOK_NAME}] {sport} attempt {attempt} failed: {e}")
                 if attempt < self.MAX_RETRIES:
