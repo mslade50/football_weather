@@ -48,10 +48,10 @@ jobs:
           pip install httpx pytest pyyaml
 
       - name: Cache archive responses
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .cache/stadium_climate
-          key: stadium-climate-${{ github.run_id }}
+          key: stadium-climate-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: stadium-climate-
 
       - name: Export game-window climate
@@ -85,6 +85,15 @@ jobs:
             does not change the frozen stadium signal history. Check the venue
             count, the season span, the unmatched list, and the byte size
             before merging. Reverting this pull request deploys the previous file.
+
+      # Saved even when the job fails so a rerun resumes from the payloads already fetched.
+      - name: Save remote payload cache
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/stadium_climate
+          key: stadium-climate-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Telegram on failure
         if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && (vars.FOOTBALL_FAILURE_ALERTS || '1') != '0' }}

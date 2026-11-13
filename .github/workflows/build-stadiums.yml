@@ -26,8 +26,9 @@ permissions:
   contents: write
   pull-requests: write
 
+# Own group: this job writes no R2 or D1, so it must not hold the board refresh queue.
 concurrency:
-  group: football-refresh
+  group: stadium-build
   cancel-in-progress: false
 
 jobs:
@@ -54,10 +55,10 @@ jobs:
           pip install httpx pandas numpy timezonefinder shapely rapidfuzz pytest pyyaml
 
       - name: Cache remote payloads
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .cache/stadium_build
-          key: stadium-build-${{ github.run_id }}
+          key: stadium-build-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: stadium-build-
 
       # ERA5 first: data/climatology.csv is its own output. The builder does not fill climate
@@ -110,6 +111,15 @@ jobs:
             Review `needs_review` rows and the coverage numbers in the job summary before merging;
             corrections go in `data/stadiums.csv`, which always wins on the next build.
           labels: data
+
+      # Saved even when the job fails so a rerun resumes from the payloads already fetched.
+      - name: Save remote payload cache
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/stadium_build
+          key: stadium-build-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Telegram on failure
         if: ${{ failure() && vars.TELEGRAM_SYSTEM_ALERTS == '1' && (vars.FOOTBALL_FAILURE_ALERTS || '1') != '0' }}

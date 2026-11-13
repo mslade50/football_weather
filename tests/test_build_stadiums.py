@@ -343,7 +343,7 @@ def test_build_stadiums_workflow_contract() -> None:
     wf = yaml.safe_load(text)
     on = wf[True]
     assert "workflow_dispatch" in on and "push" not in on
-    assert wf["concurrency"]["group"] == "football-refresh"
+    assert wf["concurrency"]["group"] == "stadium-build"  # no R2/D1 writes: must not hold the board queue
     steps = wf["jobs"]["build"]["steps"]
     uses = [s.get("uses", "") for s in steps]
     assert any(u.startswith("peter-evans/create-pull-request@") for u in uses)
