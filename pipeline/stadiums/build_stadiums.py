@@ -1,36 +1,9 @@
-"""Preseason stadium reference builder (PLAN Phase 5) -> data/stadiums.csv.
+"""Build machine-owned data/stadiums_enriched.csv from cached or remote sources.
 
-Sources, in the order they are merged (later never overwrites an earlier
-non-blank value unless stated):
-
-1. `data/stadiums.csv` (existing rows; ids and columns preserved) + `data/teams.csv`
-   (which stadiums are in scope: every NFL + FBS home stadium plus every row that
-   carries an nflverse stadium id, i.e. the international venues).
-2. CFBD `/venues` + `/teams?classification=fbs` when `CFBD_API_KEY` is set, else
-   ESPN team lists + per-team core venue (espn_venue_id, surface, roof fill).
-3. nflverse `games.csv` stadium ids (validation that every scheduled venue maps).
-4. Wikidata SPARQL (one query for every American-football venue with P625, then a
-   per-stadium `wikibase:around` fallback): wikidata_qid, P1083 capacity,
-   P571 year_built, P2044 elevation (fallback only).
-5. OSM Overpass: one batched union query per ~40 stadiums (`leisure=pitch`
-   `sport=american_football` + `leisure=stadium`, around:400 m) with a 2-5 s
-   throttle. The pitch inside the stadium polygon wins -> orientation from the
-   minimum rotated rectangle of the pitch (`orientation_src=osm_pitch`); else the
-   stadium polygon MRR (`osm_stadium_mrr`); else the curated value stays.
-6. Elevation: USGS EPQS for US points, Open-Meteo elevation (batched 100) elsewhere.
-7. timezonefinder for `timezone`.
-8. `data/climatology.csv` (see climatology.py) fills blank avg_wind_sep..jan / avg_temp_f.
-9. `data/stadiums_overrides.csv` always wins.
-
-Validation: every NFL/FBS home team maps to a row; csv lat/lon must lie within
-300 m of the OSM centroid (else `needs_review` + `review_note`); rows without any
-orientation are flagged. Provenance columns: orientation_src, elev_src, latlon_src.
-
-Every remote payload is cached under `--cache-dir` (json) so re-runs are offline
-and deterministic; `--offline` refuses network entirely.
-
-CLI: python -m pipeline.stadiums.build_stadiums [--all] [--cache-dir DIR] [--offline]
-       [--no-climatology] [--report PATH] [--dry-run]
+Curated stadiums.csv is read-only. Candidate values are joined at load time,
+where nonblank curated facts always win. Climatology has its own builder/file.
+Unavailable sources retain previous enrichment; validation is emitted in the report.
+Use --offline to refuse network, --dry-run to inspect without writing.
 """
 
 from __future__ import annotations
@@ -48,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from pipeline.stadiums.loader import DATA_DIR, apply_overrides, load_stadium_book, slug
+from pipeline.stadiums.loader import DATA_DIR, load_stadium_book, load_stadium_rows, slug
 
 USER_AGENT = "football-weather-board/1.0"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -67,8 +40,12 @@ CFBD_BASE = "https://api.collegefootballdata.com"
 NFLVERSE_GAMES_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 LATLON_TOLERANCE_M = 300.0
 PITCH_MAX_M = 250.0  # a pitch with no enclosing stadium polygon must be this close to the csv point
-NEW_COLUMNS = ("elev_src", "latlon_src", "review_note")
-MONTHS = ("sep", "oct", "nov", "dec", "jan")
+ENRICHED_COLUMNS = (
+    "stadium_id", "city", "state", "lat", "lon", "elevation_m", "timezone",
+    "orientation_deg", "orientation_bucket", "orientation_src", "roof_type", "surface",
+    "capacity", "year_built", "wikidata_qid", "osm_way_id", "cfbd_venue_id", "espn_venue_id",
+    "needs_review", "elev_src", "latlon_src", "review_note",
+)
 
 
 # ---- geometry (pure python; shapely optional) --------------------------------------
@@ -677,16 +654,6 @@ def scope_ids(rows: list[dict[str, str]], book: Any, all_rows: bool = False) -> 
     return ids, wanted
 
 
-def load_climatology(path: Path) -> dict[str, dict[str, str]]:
-    if not path.exists():
-        return {}
-    rows, _ = _read_rows(path)
-    return {r["stadium_id"]: r for r in rows}
-
-
-# ---- merge --------------------------------------------------------------------------------
-
-
 @dataclass
 class BuildReport:
     total: int = 0
@@ -779,39 +746,27 @@ def merge_cfbd(row: dict[str, str], venue: dict[str, Any]) -> None:
             row[k_dst] = str(venue[k_src])
 
 
-def merge_climatology(row: dict[str, str], clim: dict[str, str], overwrite: bool = False) -> None:
-    # domes: legacy avg_wind = 0 and the loader zeroes wind_avg only when the month columns are blank
-    if (row.get("roof_type") or "") != "dome":
-        for m in MONTHS:
-            k = f"avg_wind_{m}"
-            if (overwrite or _blank(row.get(k))) and not _blank(clim.get(k)):
-                row[k] = clim[k]
-    if (overwrite or _blank(row.get("avg_temp_f"))) and not _blank(clim.get("avg_temp_f")):
-        row["avg_temp_f"] = clim["avg_temp_f"]
-
-
 def build(
     data_dir: Path = DATA_DIR,
     cache_dir: Optional[Path] = None,
     offline: bool = False,
     all_rows: bool = False,
-    use_climatology: bool = True,
     espn_ids: bool = False,
-    overwrite_climatology: bool = False,
     out_path: Optional[Path] = None,
     log: Callable[[str], None] = print,
     sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[list[dict[str, str]], list[str], BuildReport]:
-    src_path = data_dir / "stadiums.csv"
-    rows, columns = _read_rows(src_path)
-    for c in NEW_COLUMNS:
-        if c not in columns:
-            columns.append(c)
-    for r in rows:
-        for c in columns:
-            r.setdefault(c, "")
-        r["review_note"] = ""  # regenerated every build
-        r["needs_review"] = "0" if r.get("needs_review") in ("", "0", "false", "False") else "1"
+    curated, _ = _read_rows(data_dir / "stadiums.csv")
+    curated_by_id = {r["stadium_id"]: r for r in curated}
+    previous_path = data_dir / "stadiums_enriched.csv"
+    previous = {r["stadium_id"]: r for r in _read_rows(previous_path)[0]} if previous_path.exists() else {}
+    context = {r["stadium_id"]: r for r in load_stadium_rows(data_dir)}
+    # Only lookup context enters the source stages. Curated facts are never copied
+    # into machine output or used to prevent new source candidates from being built.
+    rows = [{k: context[r["stadium_id"]].get(k, "") for k in
+             ("stadium_id", "name", "country", "lat", "lon", "nflverse_stadium_id", "cfbd_venue_id")}
+            for r in curated]
+    columns = list(ENRICHED_COLUMNS)
     book = load_stadium_book(data_dir)
     ids, wanted = scope_ids(rows, book, all_rows=all_rows)
     by_id = {r["stadium_id"]: r for r in rows}
@@ -913,14 +868,16 @@ def build(
         report.notes.append(f"osm failed: {exc}")
         log(f"osm failed: {exc}")
 
-    # -- elevation (after lat/lon may have moved to the pitch centroid)
+    # -- elevation at the effective (curated-preferred) point
     us_pts: dict[str, tuple[float, float]] = {}
     intl_pts: dict[str, tuple[float, float]] = {}
     for sid in ids:
         row = by_id.get(sid)
         if row is None:
             continue
-        la, lo = _f(row.get("lat")), _f(row.get("lon"))
+        effective = dict(row)
+        effective.update({k: v for k, v in curated_by_id[sid].items() if not _blank(v)})
+        la, lo = _f(effective.get("lat")), _f(effective.get("lon"))
         if la is None or lo is None:
             continue
         (us_pts if (row.get("country") or "US") == "US" else intl_pts)[sid] = (la, lo)
@@ -940,61 +897,54 @@ def build(
                 by_id[sid]["elevation_m"], by_id[sid]["elev_src"] = _fmt(e), "openmeteo"
         except Exception as exc:  # noqa: BLE001
             log(f"openmeteo elevation failed: {exc}")
-    for sid in ids:
-        row = by_id.get(sid)
-        if row is not None and not _blank(row.get("elevation_m")) and _blank(row.get("elev_src")):
-            row["elev_src"] = "curated"
-
     # -- timezone
     for sid in ids:
         row = by_id.get(sid)
         if row is None:
             continue
-        la, lo = _f(row.get("lat")), _f(row.get("lon"))
+        effective = dict(row)
+        effective.update({k: v for k, v in curated_by_id[sid].items() if not _blank(v)})
+        la, lo = _f(effective.get("lat")), _f(effective.get("lon"))
         if la is None or lo is None:
             continue
         tz = _tz_for(la, lo)
         if tz:
             row["timezone"] = tz
 
-    # -- climatology
-    if use_climatology:
-        clim = load_climatology(data_dir / "climatology.csv")
-        for sid in ids:
-            if sid in by_id and sid in clim:
-                merge_climatology(by_id[sid], clim[sid], overwrite=overwrite_climatology)
-
-    # -- provenance defaults + validation flags
-    for sid in ids:
-        row = by_id.get(sid)
-        if row is None:
-            continue
-        if _blank(row.get("latlon_src")) and not _blank(row.get("lat")):
-            row["latlon_src"] = "curated"
-        if not _blank(row.get("orientation_deg")):
-            row["orientation_bucket"] = orientation_bucket(_f(row["orientation_deg"])) or row.get("orientation_bucket", "")
-            if _blank(row.get("orientation_src")):
-                row["orientation_src"] = "curated"
-        else:
-            row["needs_review"] = "1"
-            row["review_note"] = "; ".join(filter(None, [row.get("review_note", ""), "no orientation (no OSM pitch/stadium polygon)"]))
-
-    # -- overrides win (and can clear needs_review after a manual check)
-    apply_overrides(rows, _read_rows(data_dir / "stadiums_overrides.csv")[0] if (data_dir / "stadiums_overrides.csv").exists() else [])
-    for r in rows:
-        r["needs_review"] = "1" if str(r.get("needs_review")).strip().lower() in ("1", "true", "yes") else "0"
-
-    for sid in sorted(ids):
-        row = by_id.get(sid)
-        if row is None:
-            continue
-        report.orientation_src[row.get("orientation_src") or "none"] = report.orientation_src.get(row.get("orientation_src") or "none", 0) + 1
-        report.latlon_src[row.get("latlon_src") or "none"] = report.latlon_src.get(row.get("latlon_src") or "none", 0) + 1
-        report.elev_src[row.get("elev_src") or "none"] = report.elev_src.get(row.get("elev_src") or "none", 0) + 1
-        if row["needs_review"] == "1":
-            report.needs_review.append(f"{sid}: {row.get('review_note') or '(flagged)'}")
-
+    # Retain cached enrichment on unavailable sources and untouched out-of-scope
+    # rows. No curated-value protection or override replay occurs in this builder.
+    output = []
+    for row in rows:
+        sid = row["stadium_id"]
+        old = previous.get(sid, {})
+        candidate = {k: v for k, v in row.items() if k in columns}
+        for k in ("lat", "lon"):
+            if _blank(row.get("latlon_src")):
+                candidate.pop(k, None)
+        # CFBD id in the initial context is curated lookup identity, not a fetch.
+        if candidate.get("cfbd_venue_id") == context[sid].get("cfbd_venue_id"):
+            candidate.pop("cfbd_venue_id", None)
+        result = {k: old.get(k, "") for k in columns}
+        result["stadium_id"] = sid
+        if sid in ids:
+            result.update({k: v for k, v in candidate.items() if not _blank(v)})
+            result["review_note"] = row.get("review_note", "")
+            effective = dict(result)
+            effective.update({k: v for k, v in curated_by_id[sid].items() if not _blank(v)})
+            if _blank(effective.get("orientation_deg")):
+                result["review_note"] = "; ".join(filter(None, [result["review_note"], "no orientation (no OSM pitch/stadium polygon)"]))
+            result["needs_review"] = "1" if result["review_note"] else "0"
+            for key in ("orientation_src", "latlon_src", "elev_src"):
+                counts = getattr(report, key)
+                value = result.get(key) or "none"
+                counts[value] = counts.get(value, 0) + 1
+            if result["review_note"]:
+                report.needs_review.append(f"{sid}: {result['review_note']}")
+        output.append(result)
+    rows = output
     if out_path is not None:
+        if out_path.resolve() in {(data_dir / "stadiums.csv").resolve(), (data_dir / "climatology.csv").resolve(), (data_dir / "teams.csv").resolve()}:
+            raise ValueError("builder output must not overwrite curated or climatology inputs")
         write_rows(out_path, rows, columns)
     return rows, columns, report
 
@@ -1005,16 +955,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--cache-dir", type=Path, default=None, help="json cache for every remote payload (re-runs are offline)")
     ap.add_argument("--offline", action="store_true", help="never touch the network; fail on cache miss")
     ap.add_argument("--all", action="store_true", help="rebuild every row, not just NFL/FBS + nflverse venues")
-    ap.add_argument("--no-climatology", action="store_true")
     ap.add_argument("--espn-ids", action="store_true", help="also write espn_venue_id (off: numeric ids collide with CFBD ids in loader.find_stadium)")
-    ap.add_argument("--overwrite-climatology", action="store_true", help="ERA5 means replace curated avg_wind_*/avg_temp_f")
     ap.add_argument("--report", type=Path, default=None, help="write the build report json here")
-    ap.add_argument("--dry-run", action="store_true", help="do not write stadiums.csv")
-    ap.add_argument("--out", type=Path, default=None, help="write to this path instead of data/stadiums.csv")
+    ap.add_argument("--dry-run", action="store_true", help="do not write stadiums_enriched.csv")
+    ap.add_argument("--out", type=Path, default=None, help="write to this path instead of data/stadiums_enriched.csv")
     a = ap.parse_args(argv)
-    out = None if a.dry_run else (a.out or a.data_dir / "stadiums.csv")
+    out = None if a.dry_run else (a.out or a.data_dir / "stadiums_enriched.csv")
     _rows, _cols, rep = build(a.data_dir, cache_dir=a.cache_dir, offline=a.offline, all_rows=a.all,
-                              use_climatology=not a.no_climatology, espn_ids=a.espn_ids, overwrite_climatology=a.overwrite_climatology, out_path=out)
+                              espn_ids=a.espn_ids, out_path=out)
     d = rep.as_dict()
     print(json.dumps(d, indent=2))
     if a.report is not None:

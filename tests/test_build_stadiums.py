@@ -1,5 +1,5 @@
 """build_stadiums: MRR bearing on real OSM polygons, pitch-inside-stadium selection,
-Wikidata matching, csv merge/provenance, overrides winning, workflow contract."""
+Wikidata matching, enrichment ownership, curated precedence, workflow contract."""
 
 from __future__ import annotations
 
@@ -177,20 +177,17 @@ def _mini_data_dir(tmp_path: Path) -> Path:
     (d / "aliases").mkdir(parents=True)
     for name in ("aliases/nfl.json", "aliases/cfb.json"):
         shutil.copy(ROOT / "data" / name, d / name)
-    src_rows = list(csv.DictReader((ROOT / "data" / "stadiums.csv").open(encoding="utf-8")))
-    keep = [r for r in src_rows if r["stadium_id"] in ("gillette-stadium", "att-stadium", "ohio-stadium")]
-    assert len(keep) == 3
-    for r in keep:  # start from the legacy curated state regardless of what the real csv currently holds
-        r.update(orientation_deg="0", orientation_bucket="N-S", orientation_src="curated", osm_way_id="", wikidata_qid="", espn_venue_id="",
-                 lat="42.0909" if r["stadium_id"] == "gillette-stadium" else r["lat"], elevation_m="89", timezone="America/New_York",
-                 avg_wind_static="6.23", weakest_wind_effect="x S", avg_wind_sep="", avg_temp_f="")
-        for c in ("elev_src", "latlon_src", "review_note"):
-            r.pop(c, None)
-    cols = list(src_rows[0].keys())
-    with (d / "stadiums.csv").open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=cols)
-        w.writeheader()
-        w.writerows(keep)
+    rows = [
+        {"stadium_id": sid, "name": name, "lat": str(lat), "lon": str(lon), "country": "US",
+         "orientation_deg": "71" if sid == "att-stadium" else "0",
+         "orientation_bucket": "N-S", "orientation_src": "manual" if sid == "att-stadium" else "curated",
+         "elevation_m": "89", "timezone": "America/New_York", "roof_type": "open",
+         "avg_wind_static": "6.23", "weakest_wind_effect": "x S", "cfbd_venue_id": "",
+         "avg_wind_sep": "", "avg_temp_f": ""}
+        for sid, name, (lat, lon) in [("gillette-stadium", "Gillette Stadium", GILLETTE),
+                                     ("att-stadium", "AT&T Stadium", ATT), ("ohio-stadium", "Ohio Stadium", OHIO)]
+    ]
+    B.write_rows(d / "stadiums.csv", rows, list(rows[0]))
     (d / "teams.csv").write_text(
         "team_id,sport,name,short,home_stadium_id,avg_temp_f,conference,classification,aliases\n"
         "ne,nfl,New England Patriots,NE,gillette-stadium,50.5,,nfl,NE|Patriots\n"
@@ -198,7 +195,6 @@ def _mini_data_dir(tmp_path: Path) -> Path:
         "ohio-state,cfb,Ohio State,OSU,ohio-stadium,52.0,Big Ten,fbs,Ohio State|Buckeyes\n",
         encoding="utf-8",
     )
-    (d / "stadiums_overrides.csv").write_text("stadium_id,field,value,note\natt-stadium,orientation_deg,71,manual survey\natt-stadium,orientation_src,manual,\n", encoding="utf-8")
     (d / "climatology.csv").write_text(
         "stadium_id,lat,lon,start_date,end_date,avg_wind_sep,avg_wind_oct,avg_wind_nov,avg_wind_dec,avg_wind_jan,avg_temp_f,n_days,fetched_at\n"
         "att-stadium,32.7,-97.1,2015-01-01,2024-12-31,7.1,7.4,7.9,8.0,8.3,66.2,3653,2026-01-01T00:00:00Z\n",
@@ -207,7 +203,7 @@ def _mini_data_dir(tmp_path: Path) -> Path:
     return d
 
 
-def test_build_offline_merges_osm_overrides_and_climatology(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_offline_writes_only_enrichment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     d = _mini_data_dir(tmp_path)
     osm_payload = json.loads((FIX / "osm" / "overpass_three_stadiums.json").read_text(encoding="utf-8"))
     wd_payload = json.loads((FIX / "wikidata" / "sparql_three_stadiums.json").read_text(encoding="utf-8"))
@@ -228,12 +224,13 @@ def test_build_offline_merges_osm_overrides_and_climatology(tmp_path: Path, monk
     monkeypatch.setattr(B.Fetcher, "json", fake_json)
     monkeypatch.delenv("CFBD_API_KEY", raising=False)
     monkeypatch.setattr(B, "_tz_for", lambda lat, lon: "America/Test")
-    out = tmp_path / "out.csv"
+    before = {p.name: p.read_bytes() for p in d.glob("*.csv")}
+    out = d / "stadiums_enriched.csv"
     rows, cols, rep = B.build(d, cache_dir=None, offline=True, out_path=out, log=lambda s: None, sleep=lambda s: None)
     by = {r["stadium_id"]: r for r in rows}
 
     assert rep.in_scope == 3 and not rep.unmapped_teams
-    assert rep.osm_share() == pytest.approx(2 / 3)  # AT&T overridden to manual
+    assert rep.osm_share() == 1.0  # source candidates remain independent of curated pins
     g = by["gillette-stadium"]
     assert g["orientation_src"] == "osm_pitch" and float(g["orientation_deg"]) == pytest.approx(160, abs=3)
     assert g["latlon_src"] == "osm_pitch" and g["elev_src"] == "epqs" and g["elevation_m"] == "88.4"
@@ -241,16 +238,21 @@ def test_build_offline_merges_osm_overrides_and_climatology(tmp_path: Path, monk
     assert g["osm_way_id"].startswith("way/")
     o = by["ohio-stadium"]
     assert float(o["orientation_deg"]) == pytest.approx(7, abs=2.5) and o["orientation_bucket"] == "N-S"
-    # overrides win over OSM; climatology fills blanks only
-    a = by["att-stadium"]
-    assert a["orientation_deg"] == "71" and a["orientation_src"] == "manual"
-    assert a["avg_wind_sep"] == "7.1" and a["avg_temp_f"] == "66.2"
-    assert g["avg_wind_sep"] == ""  # no climatology row -> untouched
-    # legacy static columns preserved, new provenance columns appended
-    for c in ("avg_wind_static", "wind_vol_static", "weakest_wind_effect", "nflverse_stadium_id", "cfbd_venue_id"):
-        assert c in cols
-    assert cols[-3:] == ["elev_src", "latlon_src", "review_note"]
-    assert g["avg_wind_static"] == "6.23" and g["weakest_wind_effect"] == "x S"
+    from pipeline.stadiums.loader import load_stadium_book
+
+    assert all((d / name).read_bytes() == value for name, value in before.items())
+    assert "avg_wind_sep" not in cols and "avg_temp_f" not in cols
+    assert "avg_wind_static" not in cols and "weakest_wind_effect" not in cols
+    book = load_stadium_book(d)
+    a = book.stadiums["att-stadium"]
+    assert a.orientation_deg == 71.0 and a.orientation_src == "manual"
+    assert a.avg_wind_by_month["sep"] == 7.1 and a.avg_temp_f == 66.2
+    assert a.elevation_m == 89.0 and a.timezone == "America/New_York"
+    assert a.avg_wind_static == 6.23 and a.weakest_wind_effect == "x S"
+    assert by["att-stadium"]["orientation_src"] == "osm_pitch"
+    assert by["att-stadium"]["orientation_deg"] != "71"
+    with pytest.raises(ValueError, match="must not overwrite"):
+        B.build(d, offline=True, out_path=d / "stadiums.csv", log=lambda s: None, sleep=lambda s: None)
     # csv round trip
     written = list(csv.DictReader(out.open(encoding="utf-8")))
     assert [r["stadium_id"] for r in written] == [r["stadium_id"] for r in rows]
@@ -259,6 +261,11 @@ def test_build_offline_merges_osm_overrides_and_climatology(tmp_path: Path, monk
 
 def test_build_flags_missing_orientation_and_unmapped_team(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     d = _mini_data_dir(tmp_path)
+    rows, cols = B._read_rows(d / "stadiums.csv")
+    for row in rows:
+        if row["stadium_id"] == "ohio-stadium":
+            row["orientation_deg"] = ""
+    B.write_rows(d / "stadiums.csv", rows, cols)
     with (d / "teams.csv").open("a", encoding="utf-8") as fh:
         fh.write("ghost,cfb,Ghost U,GU,ghost-stadium,50,,fbs,Ghost\n")
     def fake_json(self, name, method, url, **kw):  # noqa: ANN001
@@ -280,12 +287,46 @@ def test_build_flags_missing_orientation_and_unmapped_team(tmp_path: Path, monke
     rows, _cols, rep = B.build(d, offline=True, log=lambda s: None, sleep=lambda s: None)
     by = {r["stadium_id"]: r for r in rows}
     assert "cfb:ghost->ghost-stadium" in rep.unmapped_teams
-    # no OSM -> curated orientation kept with its provenance, curated elevation/latlon marked
+    # Missing machine orientation is fine when a curated orientation exists.
     g = by["gillette-stadium"]
-    assert g["orientation_src"] == "curated" and g["orientation_deg"] == "0"
-    assert g["elev_src"] == "curated" and g["latlon_src"] == "curated" and g["needs_review"] == "0"
-    assert g["timezone"] == "America/New_York"  # untouched when timezonefinder unavailable
-    assert rep.orientation_src == {"curated": 2, "manual": 1}
+    assert not g["orientation_deg"] and not g["elevation_m"] and not g["lat"]
+    assert g["needs_review"] == "0"
+    assert by["ohio-stadium"]["needs_review"] == "1"
+    assert rep.needs_review == ["ohio-stadium: no orientation (no OSM pitch/stadium polygon)"]
+    assert not g["timezone"]  # curated timezone is never copied to enrichment
+    assert rep.orientation_src == {"none": 3}
+
+
+def test_cli_default_output_and_missing_source_retention(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = _mini_data_dir(tmp_path)
+    monkeypatch.delenv("CFBD_API_KEY", raising=False)
+    monkeypatch.setattr(B, "_tz_for", lambda lat, lon: None)
+    monkeypatch.setattr(B.Fetcher, "client", lambda self: pytest.fail("offline attempted network"))
+    old = {"stadium_id": "gillette-stadium", "orientation_deg": "158.2", "orientation_src": "osm_pitch",
+           "orientation_bucket": "N-S", "lat": "42.0909", "lon": "-71.2643", "latlon_src": "osm_pitch",
+           "elevation_m": "88.4", "elev_src": "epqs", "wikidata_qid": "Q373355"}
+    untouched = {"stadium_id": "outside-scope", "elevation_m": "10", "review_note": "existing note"}
+    with (d / "stadiums.csv").open("a", encoding="utf-8") as fh:
+        fh.write("outside-scope,Extra Field,1,2,US,0,N-S,curated,89,America/New_York,open,6.23,x S,,,\n")
+    B.write_rows(d / "stadiums_enriched.csv", [old, untouched], B.ENRICHED_COLUMNS)
+    curated = (d / "stadiums.csv").read_bytes()
+    report = tmp_path / "report.json"
+    assert B.main(["--data-dir", str(d), "--offline", "--report", str(report)]) == 0
+    assert (d / "stadiums.csv").read_bytes() == curated
+    rows, _ = B._read_rows(d / "stadiums_enriched.csv")
+    by = {r["stadium_id"]: r for r in rows}
+    assert all(by["gillette-stadium"][k] == v for k, v in old.items())
+    assert all(by["outside-scope"][k] == v for k, v in untouched.items())
+    assert json.loads(report.read_text(encoding="utf-8"))["in_scope"] == 3
+
+
+def test_fetcher_offline_cache_never_constructs_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    f = B.Fetcher(tmp_path, offline=True)
+    monkeypatch.setattr(f, "client", lambda: pytest.fail("offline attempted network"))
+    f.store("cached", {"value": 3})
+    assert f.json("cached", "GET", "unused") == {"value": 3}
+    with pytest.raises(RuntimeError, match="offline: no cache"):
+        f.json("missing", "GET", "unused")
 
 
 def test_write_rows_formats_numbers(tmp_path: Path) -> None:

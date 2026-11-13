@@ -1,4 +1,4 @@
-"""Stadium/team reference loader: seeded csvs, overrides, neutral games, domes, missing stadiums."""
+"""Stadium/team reference loader: curated and enriched csvs, neutral games, domes, missing stadiums."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from pipeline.run_context import RunContext
 from pipeline.stadiums.loader import (
     ResolvedGame,
     StadiumBook,
-    apply_overrides,
     load_stadium_book,
     normalize_alias,
     slug,
@@ -46,7 +45,7 @@ def _game(sport: str, home: str, away: str, stadium_id, neutral: bool = False, s
 
 
 def test_seed_files_exist() -> None:
-    for name in ("stadiums.csv", "stadiums_overrides.csv", "teams.csv", "aliases/nfl.json", "aliases/cfb.json"):
+    for name in ("stadiums.csv", "stadiums_enriched.csv", "climatology.csv", "teams.csv", "aliases/nfl.json", "aliases/cfb.json"):
         assert (DATA / name).exists(), name
 
 
@@ -207,7 +206,7 @@ def test_espn_neutral_venue_aviva_stadium(book: StadiumBook) -> None:
     assert book.find_stadium("Aviva Stadium") is st and book.find_stadium("Lansdowne Road") is st
     assert st.timezone == "Europe/Dublin" and st.country == "IE" and st.roof_type == "open"
     assert st.orientation_bucket == "N-S" and st.orientation_src == "manual"
-    assert st.orientation_deg == pytest.approx(164.5)  # overrides pin the pitch axis against a rebuild
+    assert st.orientation_deg == pytest.approx(164.5)  # curated values pin the pitch axis against a rebuild
     assert not st.needs_review
     ctx = RunContext(sport="cfb", git_sha="test")
     rg = book.resolve(_game("cfb", "tcu", "north-carolina", "3504", neutral=True, week=0), ctx)
@@ -286,12 +285,10 @@ def test_home_unknown_venue_still_resolves_home(book: StadiumBook, sport, home, 
     assert rg.stadium is book.stadium_for_team(sport, home) and rg.stadium_source == "home_team"
 
 
-def test_overrides_applied(book: StadiumBook) -> None:
-    mcg = book.stadiums["melbourne-cricket-ground"]
-    assert mcg.roof_type == "open"
-    rows = [{"stadium_id": "x", "lat": "1", "lon": "2", "roof_type": "open", "name": "X"}]
-    out = apply_overrides(rows, [{"stadium_id": "x", "field": "roof_type", "value": "dome"}, {"stadium_id": "x", "field": "bogus", "value": "1"}])
-    assert out[0]["roof_type"] == "dome" and "bogus" not in out[0]
+def test_folded_curated_values(book: StadiumBook) -> None:
+    assert book.stadiums["melbourne-cricket-ground"].roof_type == "open"
+    assert book.stadiums["highmark-stadium"].lat == 42.773045
+    assert not book.stadiums["highmark-stadium"].needs_review
 
 
 def test_rows_without_coordinates_are_skipped(tmp_path: Path) -> None:

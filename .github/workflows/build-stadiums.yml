@@ -65,7 +65,7 @@ jobs:
           python -m pipeline.stadiums.climatology --cache-dir .cache/stadium_build \
             ${{ inputs.all_rows && '--all' || '' }} ${{ inputs.refresh_climatology && '--refresh' || '' }}
 
-      - name: Build stadiums.csv
+      - name: Build stadiums_enriched.csv
         run: |
           python -m pipeline.stadiums.build_stadiums --cache-dir .cache/stadium_build \
             --report .cache/stadium_build/report.json ${{ inputs.all_rows && '--all' || '' }}
@@ -96,17 +96,17 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           add-paths: |
-            data/stadiums.csv
+            data/stadiums_enriched.csv
             data/climatology.csv
           branch: chore/build-stadiums
           delete-branch: true
-          commit-message: "data: rebuild stadiums.csv + climatology.csv (build-stadiums)"
+          commit-message: "data: rebuild stadiums_enriched.csv + climatology.csv (build-stadiums)"
           title: "data: preseason stadium rebuild"
           body: |
             Automated `build-stadiums` run (${{ github.run_id }}).
 
             Review `needs_review` rows and the coverage numbers in the job summary before merging;
-            corrections go in `data/stadiums_overrides.csv`, which always wins on the next build.
+            corrections go in `data/stadiums.csv`, which always wins on the next build.
           labels: data
 
       - name: Telegram on failure

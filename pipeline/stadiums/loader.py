@@ -1,4 +1,4 @@
-"""Load data/stadiums.csv + data/stadiums_overrides.csv + data/teams.csv + data/aliases/*.json.
+"""Join curated stadiums, machine enrichment and climatology; load teams and aliases.
 
 `load_stadium_book()` returns a StadiumBook with Stadium/Team maps and
 `resolve(game)` which maps a schedule Game onto a stadium plus the legacy
@@ -296,18 +296,41 @@ def _stadium_from_row(row: dict[str, str]) -> Stadium | None:
     return Stadium(**kwargs)
 
 
-def apply_overrides(rows: list[dict[str, str]], overrides: Iterable[dict[str, str]]) -> list[dict[str, str]]:
-    by_id = {r["stadium_id"]: r for r in rows}
-    for o in overrides:
-        sid, fld = o.get("stadium_id", "").strip(), o.get("field", "").strip()
-        if sid in by_id and fld and (fld in _STADIUM_FIELDS or fld.startswith("avg_wind_")):
-            by_id[sid][fld] = o.get("value", "")
+CLIMATE_FIELDS = tuple(f"avg_wind_{m}" for m in MONTH_KEYS.values()) + ("avg_temp_f",)
+
+
+def read_climatology_summary(path: Path) -> dict[str, dict[str, str]]:
+    """Select summary rows explicitly, independent of cell/summary ordering."""
+    return {r["stadium_id"]: r for r in _read_csv(path) if _blank(r.get("iso_week"))}
+
+
+def load_stadium_rows(data_dir: Path = DATA_DIR) -> list[dict[str, str]]:
+    """Curated rows own identity; each nonblank curated value wins over enrichment.
+
+    Climatology owns summary values except explicit curated exceptions. Fixed domes
+    retain their existing absent monthly wind values (static indoor wind is zero).
+    Enriched-only ids are proposals, not new identities.
+    """
+    enriched = {r["stadium_id"]: r for r in _read_csv(data_dir / "stadiums_enriched.csv")}
+    climate = read_climatology_summary(data_dir / "climatology.csv")
+    rows = []
+    for curated in _read_csv(data_dir / "stadiums.csv"):
+        sid = curated["stadium_id"]
+        row = dict(enriched.get(sid, {}))
+        row.update({k: v for k, v in curated.items() if not _blank(v)})
+        summary = climate.get(sid, {})
+        for name in CLIMATE_FIELDS:
+            if _blank(curated.get(name)):
+                row.pop(name, None)
+                if name == "avg_temp_f" or row.get("roof_type") != "dome":
+                    row[name] = summary.get(name, "")
+        rows.append(row)
     return rows
 
 
 def load_stadium_book(data_dir: Path = DATA_DIR, sports: Iterable[str] = ("nfl", "cfb")) -> StadiumBook:
     book = StadiumBook()
-    rows = apply_overrides(_read_csv(data_dir / "stadiums.csv"), _read_csv(data_dir / "stadiums_overrides.csv"))
+    rows = load_stadium_rows(data_dir)
     for row in rows:
         st = _stadium_from_row(row)
         if st is None:
@@ -358,7 +381,8 @@ __all__ = [
     "MONTH_KEYS",
     "ResolvedGame",
     "StadiumBook",
-    "apply_overrides",
+    "load_stadium_rows",
+    "read_climatology_summary",
     "load_aliases",
     "load_stadium_book",
     "normalize_alias",
