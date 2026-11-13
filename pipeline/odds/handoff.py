@@ -14,7 +14,7 @@ publish job resolves provisional ids exactly as an in-process scrape would.
 
 The publish job (``pipeline.build --ingest-lines DIR``) loads these instead of
 scraping. Every line keeps its original ``scraped_at``: it is what ``archive_last``
-``ts``, ``ODDS_CARRY_MAX_AGE`` and ``pipeline.current_quotes`` judge, so a line is
+``ts``, ``ODDS_CARRY_MAX_AGE`` and the pricing-time freshness rule judge, so a line is
 never presented fresher than when it was seen. Lines older than ``max_age`` (or
 expired, undated, or implausibly in the future) are rejected at ingest.
 """
