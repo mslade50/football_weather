@@ -461,3 +461,13 @@ def test_withdrawals_only_touch_successful_book_and_sport(tmp_path):
                     attempted={("betonline", "nfl")}, successful={("betonline", "nfl")})
         found = q.latest(conn, as_of=T + 2 * HOUR)
     assert key(a) not in found and key(b) in found and key(c) in found
+
+
+def test_parity_ignores_the_state_files_whole_second_clock():
+    from pipeline.obslog import parity
+
+    store = [50.5, -110, "2026-11-13T17:53:42.000000Z"]
+    assert parity.classify(store, [50.5, -110, "2026-11-13T17:53:42.428264Z"]) == "match"
+    assert parity.classify(store, [50.5, -110, "2026-11-13T17:53:43.000001Z"]) == "mismatch"
+    assert parity.classify(store, [51.5, -110, "2026-11-13T17:53:42.428264Z"]) == "mismatch"
+    assert parity.classify(["2026-11-13T17:53:42.428264Z"], ["2026-11-13T17:53:42.000000Z"]) == "mismatch"

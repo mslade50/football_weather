@@ -21,11 +21,21 @@ CLASSIFICATIONS = ("match", "mismatch", "log_started_late", "known_i1_failed_scr
 AREAS = ("baseline", "latest", "history", "closings", "wx_history", "wx_last", "weekly_totals")
 
 
+def _same_to_the_second(store, logged):
+    """State files keep quote clocks to the whole second; the log keeps microseconds."""
+    if not (isinstance(store, list) and isinstance(logged, list) and len(store) == len(logged) == 3):
+        return False
+    a, b = store[2], logged[2]
+    if store[:2] != logged[:2] or not (isinstance(a, str) and isinstance(b, str)):
+        return False
+    return a.endswith(".000000Z") and a[:19] == b[:19]
+
+
 def classify(store, logged, *, late=False, known=None):
     """Known differences require positive evidence supplied by the area adapter."""
     if late:
         return "log_started_late"
-    if store == logged:
+    if store == logged or _same_to_the_second(store, logged):
         return "match"
     if known in CLASSIFICATIONS and known.startswith("known_"):
         return known
