@@ -2,7 +2,6 @@
 playwright
 playwright-stealth
 httpx
-beautifulsoup4
 pandas
 numpy
 openpyxl

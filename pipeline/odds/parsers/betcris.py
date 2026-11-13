@@ -1,27 +1,7 @@
-"""Pure parser for the bookmaker.eu (Betcris) public lines viewer, football pages.
+"""Pure parser for Betcris public football odds JSON.
 
-Input is the server-rendered HTML of
-``https://lines.bookmaker.eu/en/sports/football/{nfl,nfl-preseason,college-football}/``
-(no login, no JS needed). One ``<table class="oddsTable">`` per page:
-
-* ``<tr><th class="oddsSubTitle">LEAGUE<br>extra</th></tr>`` section rows. The
-  ``extra`` line is either ``Preseason`` or a neutral/international venue
-  (``Aviva Stadium - Dublin, Ireland``). A subtitle applies to the games that
-  follow it until the next subtitle.
-* Row pairs ``<tr id="vTeam_N">`` (away) / ``<tr id="hTeam_N">`` (home) with cells
-  ``vN_/hN_`` team, ``vS_/hS_`` spread, ``vT_/hT_`` total, ``vM_/hM_`` moneyline.
-  ``½`` is used for half points; ``-`` means off the board.
-* ``<td id="GameN_Time" title="START 8/29 9:00am PT">`` kickoff in Pacific time
-  (no year). The page footer script carries the same kickoff with a year:
-  ``var gameN_start= new Date('2026-08-29 09:00:00.00')`` — preferred when present.
-
-The viewer publishes spread/total *lines only* (no juice). Those rows get
-``DEFAULT_JUICE`` (-110, bookmaker's standard football price) so ``GameLine.odds``
-is populated; ``prob_raw`` stays None so downstream can tell it was assumed.
-
-Scrapers do not know the schedule, so ``game_id`` is provisional
-(``{sport}:raw:{YYYYMMDD}:{away-slug}@{home-slug}``, same shape as the other
-parsers); ``odds/merge.py`` resolves it against the schedule ``Game``.
+Preserves provider prices, observation times, expiry, and UTC kickoffs.
+Provisional game ids are resolved against the schedule by odds/merge.py.
 """
 
 from __future__ import annotations
@@ -30,9 +10,6 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
-
-from bs4 import BeautifulSoup
 
 from pipeline.contracts import GameLine, game_line
 
@@ -45,22 +22,11 @@ BOOK = "betcris"
 # NFL_CARRY_MAX_AGE_S matches pipeline.build.ODDS_CARRY_MAX_AGE.
 DISPLAY_MAX_AGE_S = 1800
 NFL_CARRY_MAX_AGE_S = 3600
-DEFAULT_JUICE = -110
-PT = ZoneInfo("America/Los_Angeles")
-
-# sport -> page slugs under /en/sports/football/
-PAGES: dict[str, tuple[str, ...]] = {
-    "nfl": ("nfl", "nfl-preseason"),
-    "cfb": ("college-football",),
-}
 PUBLIC_LEAGUES = {"nfl": 1, "cfb": 2}
 
 
 class StaleObservationError(ValueError):
     """A valid league observation exceeded its existing freshness deadline."""
-
-_START_RE = re.compile(r"START\s+(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([ap]m)\s*PT", re.IGNORECASE)
-_SCRIPT_START_RE = re.compile(r"var\s+game(\d+)_start\s*=\s*new\s+Date\('(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
 
 @dataclass(frozen=True)
@@ -98,192 +64,8 @@ def raw_game_id(sport: str, away: str, home: str, start_utc: datetime | None) ->
     return f"{sport}:raw:{day}:{_slug(away)}@{_slug(home)}"
 
 
-def parse_number(text: str | None) -> float | None:
-    """'+9½' -> 9.5, '-3' -> -3.0, 'PK'/'EV' -> 0.0, '-'/'' -> None."""
-    if text is None:
-        return None
-    t = text.strip().replace("½", ".5")
-    if not t or t in ("-", "–", "—"):
-        return None
-    if t.lower() in ("pk", "pick", "ev", "even"):
-        return 0.0
-    try:
-        return float(t)
-    except ValueError:
-        return None
-
-
-def parse_odds(text: str | None) -> int | None:
-    """American price: '+245' -> 245, '-300' -> -300, 'EVEN' -> 100, '-' -> None."""
-    if text is None:
-        return None
-    t = text.strip()
-    if not t or t in ("-", "–", "—"):
-        return None
-    if t.lower() in ("even", "ev", "pk", "pick"):
-        return 100
-    try:
-        return int(t.replace("+", ""))
-    except ValueError:
-        return None
-
-
-def parse_start_title(title: str | None, season: int) -> datetime | None:
-    """'START 8/29 9:00am PT' -> aware UTC datetime; Jan/Feb dates roll into season+1."""
-    if not title:
-        return None
-    m = _START_RE.search(title)
-    if not m:
-        return None
-    month, day, hour, minute, ampm = int(m[1]), int(m[2]), int(m[3]), int(m[4]), m[5].lower()
-    hour = hour % 12 + (12 if ampm == "pm" else 0)
-    year = season + 1 if month <= 2 else season
-    try:
-        local = datetime(year, month, day, hour, minute, tzinfo=PT)
-    except ValueError:
-        return None
-    return local.astimezone(timezone.utc)
-
-
-def parse_script_starts(html: str) -> dict[int, datetime]:
-    """{game_number: kickoff UTC} from the footer ``var gameN_start`` lines (PT wall clock)."""
-    out: dict[int, datetime] = {}
-    for num, stamp in _SCRIPT_START_RE.findall(html):
-        try:
-            local = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=PT)
-        except ValueError:
-            continue
-        out[int(num)] = local.astimezone(timezone.utc)
-    return out
-
-
-def parse_subtitle(th) -> tuple[str | None, bool]:
-    """(venue, preseason) from an ``oddsSubTitle`` cell; venue is None for plain league rows."""
-    lines = [s.strip() for s in th.get_text("\n", strip=True).split("\n") if s.strip()]
-    venue: str | None = None
-    preseason = False
-    for extra in lines[1:]:
-        if extra.lower() == "preseason":
-            preseason = True
-        else:
-            venue = extra
-    if len(lines) == 1 and "preseason" in lines[0].lower():
-        preseason = True
-    return venue, preseason
-
-
-def _cell_text(scope, cell_id: str) -> str | None:
-    el = scope.find(id=cell_id)
-    return el.get_text(" ", strip=True) if el else None
-
-
-def parse_games(html: str, sport: str, *, page: str = "", season: int | None = None) -> list[BetcrisGame]:
-    """Every vTeam/hTeam pair on the page, priced or not."""
-    if sport not in PAGES:
-        raise ValueError(f"unknown sport {sport!r}")
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", class_="oddsTable")
-    if table is None:
-        return []
-    starts = parse_script_starts(html)
-    if season is None:
-        season = _infer_season(starts)
-
-    games: list[BetcrisGame] = []
-    venue: str | None = None
-    preseason = False
-    for row in table.find_all("tr"):
-        sub = row.find("th", class_="oddsSubTitle")
-        if sub is not None:
-            venue, preseason = parse_subtitle(sub)
-            continue
-        rid = row.get("id") or ""
-        if not rid.startswith("vTeam_"):
-            continue
-        n = int(rid[len("vTeam_"):])
-        home_row = table.find("tr", id=f"hTeam_{n}")
-        away = _cell_text(row, f"vN_{n}")
-        home = _cell_text(home_row, f"hN_{n}") if home_row is not None else None
-        if not away or not home:
-            continue
-        time_el = row.find(id=f"Game{n}_Time")
-        kickoff = starts.get(n) or parse_start_title(time_el.get("title") if time_el else None, season)
-        games.append(BetcrisGame(
-            number=n,
-            sport=sport,
-            page=page,
-            away=away,
-            home=home,
-            kickoff_utc=kickoff,
-            venue=venue,
-            neutral=venue is not None,
-            preseason=preseason,
-            away_spread=parse_number(_cell_text(row, f"vS_{n}")),
-            home_spread=parse_number(_cell_text(home_row, f"hS_{n}")),
-            total=parse_number(_cell_text(row, f"vT_{n}")),
-            away_ml=parse_odds(_cell_text(row, f"vM_{n}")),
-            home_ml=parse_odds(_cell_text(home_row, f"hM_{n}")),
-        ))
-    return games
-
-
-def _infer_season(starts: dict[int, datetime]) -> int:
-    if starts:
-        first = min(starts.values()).astimezone(PT)
-        return first.year - 1 if first.month <= 2 else first.year
-    now = datetime.now(timezone.utc)
-    return now.year - 1 if now.month <= 2 else now.year
-
-
-def game_lines(
-    g: BetcrisGame,
-    *,
-    market: str | None = None,
-    scraped_at: datetime | None = None,
-    run_id: str | None = None,
-) -> list[GameLine]:
-    common = dict(sport=g.sport, game_id=g.game_id, book=BOOK, source_id=g.source_id,
-                  scraped_at=scraped_at, run_id=run_id)
-    out: list[GameLine] = []
-    want = lambda m: market is None or market == m  # noqa: E731
-
-    if want("spread"):
-        away_sp = g.away_spread
-        home_sp = g.home_spread if g.home_spread is not None else (-away_sp if away_sp is not None else None)
-        if away_sp is None and home_sp is not None:
-            away_sp = -home_sp
-        if away_sp is not None and home_sp is not None:
-            out.append(game_line(market="spread", side="away", line=away_sp, odds=DEFAULT_JUICE, **common))
-            out.append(game_line(market="spread", side="home", line=home_sp, odds=DEFAULT_JUICE, **common))
-    if want("total") and g.total is not None:
-        out.append(game_line(market="total", side="over", line=g.total, odds=DEFAULT_JUICE, **common))
-        out.append(game_line(market="total", side="under", line=g.total, odds=DEFAULT_JUICE, **common))
-    if want("ml") and g.away_ml is not None and g.home_ml is not None:
-        out.append(game_line(market="ml", side="away", odds=g.away_ml, **common))
-        out.append(game_line(market="ml", side="home", odds=g.home_ml, **common))
-    out = [x for x in out if x is not None]
-    return out
-
-
-def parse(
-    html: str,
-    sport: str,
-    *,
-    page: str = "",
-    season: int | None = None,
-    market: str | None = None,
-    scraped_at: datetime | None = None,
-    run_id: str | None = None,
-) -> list[GameLine]:
-    """HTML of one lines-viewer page -> GameLine rows (unpriced games contribute nothing)."""
-    lines: list[GameLine] = []
-    for g in parse_games(html, sport, page=page, season=season):
-        lines.extend(game_lines(g, market=market, scraped_at=scraped_at, run_id=run_id))
-    return lines
-
-
 def dedupe_games(games: list[BetcrisGame]) -> list[BetcrisGame]:
-    """Drop repeats across pages (the nfl page also lists upcoming preseason games)."""
+    """Drop repeated provisional game identities, preserving the first record."""
     seen: set[str] = set()
     out: list[BetcrisGame] = []
     for g in games:
@@ -315,15 +97,12 @@ def _public_number(value: object) -> float | None:
 
 
 def parse_public(payload: dict, sport: str, *, now: datetime,
-                 market: str | None = None, run_id: str | None = None,
-                 legacy_pacific_starts: bool = False) -> list[GameLine]:
+                 market: str | None = None, run_id: str | None = None) -> list[GameLine]:
     """Betcris's public /assets/odds/v1 league JSON -> open pregame prices.
 
     Keep the upstream observation time, not our download time. The publisher
     retains closed games and partial-game markets, so neither is current odds.
-    Current JSON kickoff strings carry their actual UTC/offset time. September
-    JSON captures used Pacific wall time mislabeled Z; replay those explicitly
-    with legacy_pacific_starts=True. Legacy HTML parsing retains Pacific time.
+    JSON kickoff strings carry their actual UTC/offset time.
     """
     if sport not in PUBLIC_LEAGUES:
         raise ValueError(f"unknown sport {sport!r}")
@@ -369,8 +148,7 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
             continue
         # October captures match the canonical schedule in UTC, including the
         # London 13:30 kickoff. Do not add a Pacific offset to current feeds.
-        kickoff = (start.replace(tzinfo=PT).astimezone(timezone.utc)
-                   if legacy_pacific_starts else start)
+        kickoff = start
         if kickoff <= now:
             continue
         home, away = game.get("home"), game.get("visitor")
@@ -406,3 +184,11 @@ def parse_public(payload: dict, sport: str, *, now: datetime,
                                     actionable_until=actionable_until))
     out = [x for x in out if x is not None]
     return out
+
+
+def parse(payload: dict, sport: str, *, now: datetime,
+          market: str | None = None, run_id: str | None = None) -> list[GameLine]:
+    """Parse a decoded public JSON object; HTML and other inputs are unsupported."""
+    if not isinstance(payload, dict):
+        raise ValueError("Betcris parser requires a decoded public JSON object; HTML is unsupported")
+    return parse_public(payload, sport, now=now, market=market, run_id=run_id)

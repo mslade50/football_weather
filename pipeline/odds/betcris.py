@@ -4,7 +4,6 @@ Source: https://sportsbook.betcris.com/assets/odds/v1/league/{1,2}.json
 
 The former lines.bookmaker.eu host became unreachable in September 2026.
 The current public feed includes actual spread/total prices and feed health.
-Legacy HTML fetching remains available for diagnostics; live scraping uses JSON.
 """
 
 from __future__ import annotations
@@ -21,13 +20,11 @@ import httpx
 from pipeline.contracts import GameLine
 from pipeline.odds.base import BaseScraper, backoff_delay, retryable_status
 from pipeline.odds.parsers import betcris as parser
-from pipeline.odds.parsers.betcris import PAGES, BetcrisGame
+from pipeline.odds.parsers.betcris import BetcrisGame
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://lines.bookmaker.eu"
 PUBLIC_URL = "https://sportsbook.betcris.com/assets/odds/v1/league/{league}.json"
-FOOTBALL_PATH = "/en/sports/football/{slug}/"
 FETCH_TIMEOUT_S = 60.0
 FETCH_ATTEMPTS = 3
 FETCH_BACKOFF_S = 2.0
@@ -57,32 +54,8 @@ class BetcrisScraper(BaseScraper):
         self.last_games: list[BetcrisGame] = []
         self.fetch_errors: dict[str, str] = {}
 
-    async def fetch_pages(self, sport: str) -> dict[str, str]:
-        """{page_slug: html} for every viewer page that feeds ``sport``."""
-        pages: dict[str, str] = {}
-        self.fetch_errors.clear()
-        async with httpx.AsyncClient(
-            base_url=BASE_URL,
-            headers=HEADERS,
-            follow_redirects=True,
-            # The college-football page is large; GitHub runners saw read timeouts at 20 s.
-            timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0),
-        ) as client:
-            for slug in PAGES[sport]:
-                path = FOOTBALL_PATH.format(slug=slug)
-                html = await self._get_with_retry(client, slug, path)
-                if html is None:
-                    continue
-                if self.raw_store is not None:
-                    self.raw_store.put(f"{self.BOOK_NAME}_{slug}", html, url=f"{BASE_URL}{path}", ext="html")
-                if "oddsTable" not in html:
-                    logger.info(f"[{self.BOOK_NAME}] {slug}: no oddsTable on page, skipping")
-                    continue
-                pages[slug] = html
-        return pages
-
     async def _get_with_retry(self, client: httpx.AsyncClient, slug: str, path: str) -> str | None:
-        """Per-page retry: a single timed-out page must not blank the whole sport."""
+        """Retry transient transport failures for the public league JSON."""
         for attempt in range(1, FETCH_ATTEMPTS + 1):
             try:
                 resp = await client.get(path)
@@ -141,14 +114,14 @@ class BetcrisScraper(BaseScraper):
         return f"upstream stale, age {info[1]:.0f}s: {exc}"
 
     async def scrape(self, sport: str, market: str | None = None, **kwargs: Any) -> list[GameLine]:
-        if sport not in PAGES:
+        if sport not in parser.PUBLIC_LEAGUES:
             raise ValueError(f"unknown sport {sport!r}")
         if not enabled():
             logger.info(f"[{self.BOOK_NAME}] disabled via BOOK_BETCRIS_ENABLED")
             return []
         self.fetch_errors.clear()
         self.last_games = []
-        slug = PAGES[sport][0]
+        slug = "nfl" if sport == "nfl" else "college-football"
         url = PUBLIC_URL.format(league=parser.PUBLIC_LEAGUES[sport])
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True,
                                      timeout=httpx.Timeout(FETCH_TIMEOUT_S, connect=15.0)) as client:

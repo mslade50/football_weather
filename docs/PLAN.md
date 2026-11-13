@@ -23,7 +23,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - `pipeline/odds/base.py` ← copy `golf_scraping/scrapers/base.py`; add `GameLine` dataclass; keep BaseScraper.
 - `main.py` ← copy `golf_scraping/main.py`, args `--book --sport --market --output --headed`.
 - `scripts/recon_book.py` ← copy `golf_scraping/recon_betcris.py`, add `--url --keyword --out` args.
-- `requirements.txt` (playwright, playwright-stealth, httpx, beautifulsoup4, pandas, openpyxl, pyarrow, python-dotenv, curl_cffi, boto3, pydantic>=2, rapidfuzz, timezonefinder), `requirements-dev.txt` (pytest, ruff, shapely), `pyproject.toml` (ruff + pytest config), `.gitignore` (site/web/data/, data/backtest/, .env, .browser_profile/).
+- `requirements.txt` (playwright, playwright-stealth, httpx, pandas, openpyxl, pyarrow, python-dotenv, curl_cffi, boto3, pydantic>=2, rapidfuzz, timezonefinder), `requirements-dev.txt` (pytest, ruff, shapely), `pyproject.toml` (ruff + pytest config), `.gitignore` (site/web/data/, data/backtest/, .env, .browser_profile/).
 - `CLAUDE.md` (project rules: sport threaded everywhere, raw-first, no data in git, test conventions from golf), `README.md`.
 - `.github/workflows/ci.yml`: ruff + pytest on PR/push (stub heavy deps via `sys.modules.setdefault` as in `golf_scraping/tests/test_betcris.py`).
 - Tests: `tests/test_impact_v1.py` (golden; log mismatches by boundary bucket; assert ≥0.97 exact within 1e-6 on percent scale), `tests/test_signals.py` (NFL order incl. purple-first, canonical CFB Wind boundaries, combined flags — hand fixtures), `tests/test_state_migrate.py`, `tests/test_contracts.py`.
@@ -64,11 +64,11 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 ## Phase 2 — Odds scrapers (ship: legacy files carry Spread/Total open/now; openers persisted; fair/edge columns filled)
 
 ### Recon prerequisite (once, user-run locally with Playwright; outputs committed as scrubbed fixtures)
-`python scripts/recon_book.py --url https://www.betonline.ag/sportsbook/football/nfl --keyword offering --out tests/fixtures/raw/betonline/` (also college-football, nfl-preseason) → lock `League` slugs and `AwayLine/HomeLine` spread/total key names. `python scripts/recon_book.py` for FanDuel ncaaf/nfl, Novig, Kalshi, ProphetX, bookmaker.eu HTML saved via httpx. `scripts/fixtures_scrub.py` trims to ≤20 games per fixture.
+`python scripts/recon_book.py --url https://www.betonline.ag/sportsbook/football/nfl --keyword offering --out tests/fixtures/raw/betonline/` (also college-football, nfl-preseason) → lock `League` slugs and `AwayLine/HomeLine` spread/total key names. `python scripts/recon_book.py` for FanDuel ncaaf/nfl, Novig, Kalshi, ProphetX, Betcris public league JSON saved via httpx (the HTML viewer is retired). `scripts/fixtures_scrub.py` trims to ≤20 games per fixture.
 
 ### Files to create (order of ease) [P after recon]
 - `pipeline/odds/teams.py` (normalize_team with aliases + rapidfuzz ≥92 + unresolved log), `pipeline/odds/merge.py` (game_key match ±36 h, neutral flip, pivot, main-line selection, openers via `pipeline/state.py`).
-- `pipeline/odds/betcris.py` + `parsers/betcris.py` ← adapt `golf_scraping/scrapers/betcris.py` (pages nfl/nfl-preseason/college-football; cells vS_/hS_/vT_/hT_/vM_/hM_; ½; oddsSubTitle venue; START time PT).
+- `pipeline/odds/betcris.py` + `parsers/betcris.py`: public league JSON only (`/assets/odds/v1/league/{1,2}.json`); the original bookmaker.eu HTML adapter is retired.
 - `pipeline/odds/fanduel.py` + parser ← adapt `golf_scraping/scrapers/fanduel.py` (customPageId nfl|ncaaf; MONEY_LINE / MATCH_HANDICAP_(2-WAY) / TOTAL_POINTS_(OVER/UNDER); result.type).
 - `pipeline/odds/kalshi.py` + parser ← adapt `golf_scraping/scrapers/kalshi.py` (+ `kalshi_fill.py` optional): `/events?series_ticker=...&with_nested_markets=true`; ladder → main; `*_dollars`.
 - `pipeline/odds/novig.py` + parser ← adapt `golf_scraping/scrapers/novig.py`.

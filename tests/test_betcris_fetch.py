@@ -1,5 +1,4 @@
-"""Betcris page fetch: per-page retry so one timed-out page (college-football on a
-GitHub runner) does not blank the whole sport. Parser tests live in test_betcris_parse.py."""
+"""Betcris public JSON transport retries, freshness, and revalidation."""
 from __future__ import annotations
 
 import asyncio
@@ -52,9 +51,9 @@ def _no_sleep(monkeypatch):
 
 def test_retries_then_succeeds():
     s = B.BetcrisScraper()
-    c = _Client([httpx.ReadTimeout(""), httpx.ReadTimeout(""), "<div class='oddsTable'>ok</div>"])
-    html = asyncio.run(s._get_with_retry(c, "college-football", "/x/"))
-    assert html is not None and "oddsTable" in html and c.calls == 3
+    c = _Client([httpx.ReadTimeout(""), httpx.ReadTimeout(""), '{"feed_ok": true}'])
+    raw = asyncio.run(s._get_with_retry(c, "college-football", "/x/"))
+    assert json.loads(raw) == {"feed_ok": True} and c.calls == 3
 
 
 def test_gives_up_after_attempts_and_returns_none():
@@ -70,7 +69,7 @@ def test_recovers_without_leaving_a_stale_failure():
     bad = _Client([httpx.ConnectTimeout("")] * B.FETCH_ATTEMPTS)
     assert asyncio.run(s._get_with_retry(bad, "nfl", "/x/")) is None
     assert s.fetch_errors == {"nfl": "ConnectTimeout"}
-    good = _Client(["<div class='oddsTable'>ok</div>"])
+    good = _Client(['{"feed_ok": true}'])
     assert asyncio.run(s._get_with_retry(good, "nfl", "/x/")) is not None
     assert s.fetch_errors == {}
 
@@ -201,7 +200,7 @@ def test_book_failure_reaches_board_diagnostics(monkeypatch):
                for component, reason, severity in issues)
 
 
-def test_timeout_is_generous_for_large_pages():
+def test_public_fetch_timeout_and_retry_budget():
     assert B.FETCH_TIMEOUT_S >= 45.0 and B.FETCH_ATTEMPTS >= 2
 
 
