@@ -287,7 +287,7 @@ def main(argv=None):
         utc(as_of)
         with closing(sqlite3.connect(Path(args.log).resolve().as_uri() + "?mode=ro", uri=True)) as conn:
             conn.row_factory = sqlite3.Row
-            if [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([3],):
+            if [r[0] for r in conn.execute("SELECT version FROM schema_version")] not in ([4],):
                 raise ValueError("unsupported observation-log schema")
             data = compare(conn, args.state_dir, cards, as_of, sample_limit=max(0, args.samples))
     except (Exception, SystemExit) as exc:

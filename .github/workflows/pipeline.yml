@@ -287,9 +287,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data/cache/obslog/observations.sqlite
-          key: obslog-v3-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
+          key: obslog-v4-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
           restore-keys: |
-            obslog-v3-${{ runner.os }}-
+            obslog-v4-${{ runner.os }}-
       - name: Prepare observation log
         continue-on-error: true
         timeout-minutes: 3
@@ -384,7 +384,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data/cache/obslog/observations.sqlite
-          key: obslog-v3-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
+          key: obslog-v4-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-light
       - name: Hand off observation log
         if: ${{ always() && needs.gate.outputs.need_playwright == 'true' }}
         continue-on-error: true
@@ -547,9 +547,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data/cache/obslog/observations.sqlite
-          key: obslog-v3-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
+          key: obslog-v4-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
           restore-keys: |
-            obslog-v3-${{ runner.os }}-
+            obslog-v4-${{ runner.os }}-
       - name: Download observation log handoff (playwright)
         # Light's log (restored cache + this run's rows) supersedes the cache copy.
         continue-on-error: true
@@ -632,7 +632,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data/cache/obslog/observations.sqlite
-          key: obslog-v3-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
+          key: obslog-v4-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-playwright
       - name: Upload build logs (playwright)
         if: always()
         uses: actions/upload-artifact@v4

@@ -395,17 +395,17 @@ def test_observation_log_cache_is_disposable_and_never_uploaded_to_cloud_state(t
     restore = _step(section, "Restore observation log" + suffix)
     save = _step(section, "Save observation log" + suffix)
     assert "actions/cache/restore@v4" in restore and "actions/cache/save@v4" in save
-    key = "obslog-v3-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-" + job
+    key = "obslog-v4-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}-" + job
     assert "key: " + key in restore and "key: " + key in save
     assert "restore-keys: |\n" in restore
-    assert "obslog-v3-${{ runner.os }}-" in restore
+    assert "obslog-v4-${{ runner.os }}-" in restore
     assert "path: data/cache/obslog/observations.sqlite" in restore
     assert "path: data/cache/obslog/observations.sqlite" in save
     if job == "playwright":
         # Light's rows arrive by same-run artifact (no attempt in the name), so a
         # re-run of only this job still finds them; the cache is the older fallback.
         fallback = restore.split("restore-keys: |\n", 1)[1].splitlines()
-        assert fallback[0].strip() == "obslog-v3-${{ runner.os }}-"
+        assert fallback[0].strip() == "obslog-v4-${{ runner.os }}-"
         handoff = _step(section, "Download observation log handoff (playwright)")
         assert "name: obslog-handoff-${{ github.run_id }}\n" in handoff
         assert "actions/download-artifact@v4" in handoff and "continue-on-error: true" in handoff

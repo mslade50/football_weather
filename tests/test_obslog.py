@@ -172,23 +172,27 @@ def test_transaction_idempotency_clocks_alternates_and_schema(tmp_path):
         assert conn.execute("SELECT count(*) FROM quote_observations").fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 1
-        append_odds(conn, [replace(ln, scraped_at=T + HOUR)], run_id="2", observed_at=T + HOUR)
-        assert len(q.series(conn, key(ln), as_of=T + HOUR)) == 2
+        append_odds(conn, [replace(ln, scraped_at=T + HOUR, expires_at=T + 2 * HOUR)], run_id="2", observed_at=T + HOUR)
+        # Unchanged value: change-only storage logs no second row; the confirmation is derived.
+        assert len(q.series(conn, key(ln), as_of=T + HOUR)) == 1
+        assert [x.observed_at for x in q.series(conn, key(ln), as_of=T + HOUR, expand=False)] == [T]
+        assert q.latest(conn, as_of=T + HOUR, max_age=HOUR)[key(ln)].observed_at == T + HOUR
         # A malformed second line rolls back games, run, and first line too.
         bad = replace(ln, scraped_at=T.replace(tzinfo=None))
         with pytest.raises(ValueError, match="aware"):
             append_odds(conn, [replace(ln, odds=-115), bad], games=[g], run_id="bad", observed_at=T)
         assert conn.execute("SELECT count(*) FROM runs").fetchone()[0] == 2
         assert len(q.series(conn, key(ln), as_of=T)) == 1
+        # Alternate lines are not logged (raw captures keep them).
         append_odds(conn, [replace(ln, is_main=False, line=50)], run_id="alt", observed_at=T)
         assert q.latest(conn, as_of=T)[key(ln)].line == 45
-        assert len(q.series(conn, key(ln), as_of=T, main_only=False)) == 2
+        assert len(q.series(conn, key(ln), as_of=T, main_only=False)) == 1
         # Knowledge clock: a later receipt with an old quote is invisible earlier.
         append_odds(conn, [replace(ln, odds=-120)], run_id="late", observed_at=T + 2 * HOUR)
         assert q.latest(conn, as_of=T)[key(ln)].odds == -110
         row = q.series(conn, key(ln), as_of=T)[0]
-        assert json.loads(row.data["payload"])["outcome_ids"] == {"under": "123"}
-        assert row.data["source_updated_at"].startswith("2026-09-27T22:")
+        assert row.data["prob_raw"] == .52 and row.data["expires_at"].startswith("2026-09-28T00:")
+        assert row.data["run_id"] == "1"  # capture reference to the raw run; no provider payload is duplicated
     with closing(sqlite3.connect(path)) as conn:
         conn.execute("UPDATE schema_version SET version=99")
         conn.commit()

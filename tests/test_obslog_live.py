@@ -283,7 +283,7 @@ def test_cache_cold_corrupt_recovery_and_old_format_quarantine(tmp_path):
     path = tmp_path / "nested" / "cache.sqlite"
     warnings = []
     with closing(maintain.recover_connect(path, warnings.append, check=True)) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 3
+        assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 4
         append_games(conn, [game()], run_id="kept", observed_at=T)
     with closing(connect(path)) as conn:
         assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 1
@@ -296,7 +296,7 @@ def test_cache_cold_corrupt_recovery_and_old_format_quarantine(tmp_path):
         with pytest.raises(ValueError, match="schema"):
             connect(path)
         with closing(maintain.recover_connect(path, warnings.append, check=True)) as conn:
-            assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 3
+            assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 4
             assert conn.execute("SELECT count(*) FROM game_observations").fetchone()[0] == 0
             append_games(conn, [game()], run_id="again", observed_at=T)
         assert "old-format cache" in warnings[-1]
@@ -330,7 +330,7 @@ def test_retention_both_age_and_latest_kickoff_and_orphan_runs(tmp_path):
             append_odds(conn, [line(g, now=T - timedelta(days=9))], games=[g], run_id=g.game_id, observed_at=T - timedelta(days=9))
         append_games(conn, [replace(postponed, kickoff_utc=T + HOUR)], run_id="new-schedule", observed_at=T)
         # Recently received correction to an old game is still retained.
-        append_odds(conn, [line(old)], games=[old], run_id="recent", observed_at=T)
+        append_odds(conn, [line(old, value=46)], games=[old], run_id="recent", observed_at=T)
         append_forecasts(conn, [WeatherForecast(old.game_id, "merged")], run_id="old-weather", fetched_at=T - timedelta(days=9))
     result = maintain.maintain(path, keep_days=2, as_of=T)
     assert result["quote_observations"] == 1 and result["forecast_observations"] == 1
@@ -402,4 +402,4 @@ def test_unknown_schema_version_is_quarantined_like_corruption(tmp_path):
     assert maintain.main(["--path", str(path), "--prepare"]) == 0
     assert len(list(path.parent.glob("*.corrupt-*.sqlite"))) == 1
     with closing(connect(path)) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchall()[0][0] == 3
+        assert conn.execute("SELECT version FROM schema_version").fetchall()[0][0] == 4

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+import zlib
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -63,47 +65,58 @@ class Baseline:
 
 
 def _observation(row):
+    data = dict(row)
+    data["quote_at"] = row["quote_at"] or row["observed_at"]  # stored only for a withdrawal
     return Observation(row["id"], key_of(row), row["sport"], row["line"], row["odds"],
-                       instant(row["observed_at"]), instant(row["recorded_at"]), row["capture_id"], row["kind"], dict(row))
+                       instant(row["observed_at"]), instant(row["recorded_at"]), row["capture_id"], row["kind"], data)
 
 
 def _rows(conn, as_of, main_only=True, game_id=None, key=None):
+    """Logged rows (main lines only are logged; main_only is kept for API compatibility)."""
     stamp = utc(as_of)
     return [_observation(r) for r in conn.execute(
-        "SELECT * FROM quote_observations WHERE observed_at<=? AND recorded_at<=? "
-        + ("AND is_main=1 " if main_only else "")
-        + ("AND game_id=? " if game_id else "")
-        + ("AND book=? AND market=? AND side=? " if key else "")
-        + "ORDER BY observed_at, recorded_at, id",
+        "SELECT q.rowid AS id, q.*, c.capture_id AS capture_id, c.run_id AS run_id FROM quote_observations q "
+        "JOIN captures c ON c.cap=q.cap WHERE q.observed_at<=? AND q.recorded_at<=? "
+        + ("AND q.game_id=? " if game_id else "")
+        + ("AND q.book=? AND q.market=? AND q.side=? " if key else "")
+        + "ORDER BY q.observed_at, q.recorded_at, q.rowid",
         (stamp, stamp, *((game_id,) if game_id else ()), *((key.book, key.market, key.side) if key else ())))]
 
 
 @dataclass(frozen=True)
 class Cover:
-    id: str
+    id: int | str
     capture_id: str
     run_id: str
     observed_at: datetime
     recorded_at: datetime
+    keys: frozenset | None = None  # None: full coverage; else the (game_id, side) pairs a partial scrape listed
+
+    def confirms(self, key: QuoteKey) -> bool:
+        return self.keys is None or (key.game_id, key.side) in self.keys
 
 
 class Coverage:
-    """Successful full-coverage scrapes, per (book, sport, market).
+    """Scrape coverage per (book, sport, market): full (successful) or listed keys (partial).
 
     Storage is change-only, so an unchanged quote has no row for later runs.
     A quote is still live at a coverage event when it is the latest logged row
-    for its key (not withdrawn) and the event was recorded after that row and
-    before the key's next logged row. Failed/partial scrapes write no coverage.
+    for its key (not withdrawn), the event confirms its key, and it was recorded
+    after that row and before the key's next logged row. A failed scrape writes
+    nothing; a partial one confirms only what it listed.
     """
 
     def __init__(self, conn, as_of: datetime):
         stamp = utc(as_of)
         self.by_scope: dict[tuple, list[Cover]] = {}
-        self.clock: dict[tuple, datetime] = {}
-        for r in conn.execute("SELECT * FROM coverage WHERE observed_at<=? AND recorded_at<=? ORDER BY recorded_at, id", (stamp, stamp)):
-            c = Cover(r["id"], r["capture_id"], r["run_id"], instant(r["observed_at"]), instant(r["recorded_at"]))
+        self.cover: dict[tuple, Cover] = {}
+        for r in conn.execute("SELECT v.rowid AS id, v.*, c.capture_id AS capture_id, c.run_id AS run_id FROM coverage v "
+                              "JOIN captures c ON c.cap=v.cap WHERE v.observed_at<=? AND v.recorded_at<=? "
+                              "ORDER BY v.recorded_at, v.rowid", (stamp, stamp)):
+            keys = frozenset(map(tuple, json.loads(zlib.decompress(r["keys"])))) if r["keys"] is not None else None
+            c = Cover(r["id"], r["capture_id"], r["run_id"], instant(r["observed_at"]), instant(r["recorded_at"]), keys)
             self.by_scope.setdefault((r["book"], r["sport"], r["market"]), []).append(c)
-            self.clock[(c.capture_id, r["book"], r["sport"], r["market"])] = c.observed_at
+            self.cover[(c.capture_id, r["book"], r["sport"], r["market"])] = c
         self._recorded = {k: [c.recorded_at for c in v] for k, v in self.by_scope.items()}
 
     def between(self, scope, after: datetime, before: datetime | None) -> list[Cover]:
@@ -133,7 +146,7 @@ class Coverage:
             return obs
         best = None
         for c in self.between((obs.key.book, obs.sport, obs.key.market), obs.recorded_at, next_recorded):
-            if limit is not None and (c.observed_at >= limit if strict else c.observed_at > limit):
+            if not c.confirms(obs.key) or (limit is not None and (c.observed_at >= limit if strict else c.observed_at > limit)):
                 continue
             if best is None or (c.observed_at, c.recorded_at, c.id) > (best.observed_at, best.recorded_at, best.id):
                 best = c
@@ -145,7 +158,7 @@ class Coverage:
         if obs.kind != "quote":
             return []
         return [self.lifted(obs, c) for c in self.between((obs.key.book, obs.sport, obs.key.market), obs.recorded_at, next_recorded)
-                if c.observed_at > obs.observed_at]
+                if c.confirms(obs.key) and c.observed_at > obs.observed_at]
 
 
 def _next_recorded(rows):
@@ -173,7 +186,7 @@ def series(conn, key: QuoteKey, *, as_of: datetime, main_only: bool = True,
     rows = _rows(conn, as_of, main_only, key.game_id, key)
     if expand:
         cov, recs = Coverage(conn, as_of), _next_recorded(rows)
-        extra = [v for q in rows if q.key == key and q.data["is_main"] for v in cov.virtuals(q, _following(recs[q.key], q))]
+        extra = [v for q in rows if q.key == key for v in cov.virtuals(q, _following(recs[q.key], q))]
         rows = sorted([*rows, *extra], key=lambda q: (q.observed_at, q.recorded_at, q.id))
     return [q for q in rows if include_withdrawals or q.kind == "quote"]
 
@@ -255,41 +268,41 @@ def first_seen(conn, *, as_of: datetime, policy: str = "first_complete") -> dict
     that number. Such a pair is marked same_capture=False when assembled over
     time.
 
-    Storage is change-only: within a successful-coverage capture, live unchanged
-    main sides are carried into the batch with the capture's confirmation clock,
-    which reproduces the pre-v3 repeat rows.
+    Storage is change-only: within a capture, live unchanged sides that the
+    capture's coverage confirms are carried into the batch with its confirmation
+    clock, which reproduces the one-row-per-run view.
     """
     if policy not in ("first_complete", "anchored_first_seen"):
         raise ValueError(policy)
     anchored = policy == "anchored_first_seen"
-    stamp = utc(as_of)
     cov = Coverage(conn, as_of)
-    rows = []
-    for r in conn.execute("SELECT rowid AS _rid, * FROM quote_observations WHERE observed_at<=? AND recorded_at<=? "
-                          + "AND is_main=1 ORDER BY recorded_at, rowid", (stamp, stamp)):
-        data = dict(r)
-        data.pop("_rid")
-        data.pop("rowid", None)
-        rows.append(_observation(data))
+    rows = sorted(_rows(conn, as_of), key=lambda q: (q.recorded_at, q.id))
     grouped = {}
     for q in rows:
         grouped.setdefault((q.recorded_at, q.capture_id), []).append(q)
+    # A partial scrape's composition is itself an event even when nothing changed
+    # (the listed sides decide anchoring); a full scrape's composition only moves with logged rows.
+    listed = {}
+    for (capture, book, sport, market), c in cov.cover.items():
+        if c.keys is not None:
+            grouped.setdefault((c.recorded_at, capture), [])
+            listed.setdefault(capture, []).extend((MarketKey(g, book, market), sport) for g, _ in c.keys)
     head, batches = {}, {}
-    for (recorded, capture), batch in grouped.items():
+    for (recorded, capture), batch in sorted(grouped.items(), key=lambda kv: kv[0][0]):
         quotes = [q for q in batch if q.kind == "quote" and (q.odds is not None or q.key.book == "consensus")]
-        present = {q.key for q in batch if q.data["is_main"]}
-        for pair, sport in {(q.key.pair, q.sport) for q in batch}:
-            clock = cov.clock.get((capture, pair.book, sport, pair.market))
-            if clock is None:
+        present = {q.key for q in batch}
+        for pair, sport in {(q.key.pair, q.sport) for q in batch} | set(listed.get(capture, ())):
+            cover = cov.cover.get((capture, pair.book, sport, pair.market))
+            if cover is None:
                 continue
             for side in _sides(pair.market):
                 k = QuoteKey(pair.game_id, pair.book, pair.market, side)
                 h = head.get(k)
-                if h and k not in present and h.kind == "quote" and (h.odds is not None or k.book == "consensus"):
-                    quotes.append(Coverage.lifted(h, Cover("", capture, h.data["run_id"], max(h.observed_at, clock), recorded)))
+                if (h and k not in present and h.kind == "quote" and cover.confirms(k)
+                        and (h.odds is not None or k.book == "consensus")):
+                    quotes.append(Coverage.lifted(h, cover, max(h.observed_at, cover.observed_at)))
         for q in batch:
-            if q.data["is_main"]:
-                head[q.key] = q
+            head[q.key] = q
         batches[(recorded, capture)] = quotes
     selected = {}
     for batch in batches.values():
@@ -405,15 +418,15 @@ def pair_at(conn, key: MarketKey, *, at: datetime, as_of: datetime) -> Pair | No
 
     for _observed, recorded, capture in sorted(events, reverse=True):
         in_capture = [q for q in rows if q.capture_id == capture and q.observed_at <= at]
-        covered = cov.clock.get((capture, key.book, sport, key.market))
-        if covered is None:
+        cover = cov.cover.get((capture, key.book, sport, key.market))
+        if cover is None:
             if in_capture:
                 return Pair(key, tuple(q for q in in_capture if q.kind == "quote"))
             continue
-        live = {s: q for s, q in heads(recorded).items() if q.kind == "quote"}
+        live = {s: q for s, q in heads(recorded).items() if q.kind == "quote" and (q.capture_id == capture or cover.confirms(q.key))}
         if not in_capture and not live:
             continue
-        quotes = [q if q.capture_id == capture else Coverage.lifted(q, Cover("", capture, q.data["run_id"], max(q.observed_at, covered), recorded))
+        quotes = [q if q.capture_id == capture else Coverage.lifted(q, cover, max(q.observed_at, cover.observed_at))
                   for q in live.values()]
         return Pair(key, tuple(quotes))
     return None
@@ -469,8 +482,8 @@ def game_facts(conn, *, as_of: datetime) -> dict[str, dict]:
 
 
 def forecasts(conn, *, as_of: datetime, latest_only: bool = True) -> list[dict]:
-    rows = [dict(r) for r in conn.execute(
-        "SELECT * FROM forecast_observations WHERE fetched_at<=? ORDER BY fetched_at, id", (utc(as_of),))]
+    rows = [{**r, "payload": zlib.decompress(r["payload"]).decode("utf-8")} for r in (dict(r) for r in conn.execute(
+        "SELECT * FROM forecast_observations WHERE fetched_at<=? ORDER BY fetched_at, id", (utc(as_of),)))]
     return list({(r["game_id"], r["source"], r["model"]): r for r in rows}.values()) if latest_only else rows
 
 

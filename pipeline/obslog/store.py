@@ -1,17 +1,17 @@
 """Append-only, standard-library storage. All public instants must be aware.
 
-IDs are SHA256 of canonical, complete row content (excluding the ID itself).
-An identical append is a no-op; a corrected payload at the same clock is a new
-fact. Provider timestamps never replace our observation or knowledge clocks.
+Schema v4 is change-only and slim. A quote, forecast or game row is appended
+only when its *semantic value* differs from the latest logged one for that key;
+scrape clocks and provider metadata never force a row. Every successful
+(book, sport) scrape writes small per-market ``coverage`` rows (keys NULL); a
+failed or partial scrape writes coverage that lists only the (game, side) pairs
+it actually listed. "This quote was still live and unchanged at T" is the last
+change row plus a later coverage row that confirms it with no logged row for the
+key in between (withdrawals are rows). Only a successful (book, sport) withdraws.
 
-Schema v3 is change-only. A quote, forecast or game row is appended only when
-its value differs from the latest logged one for that key. A (book, sport)
-scrape that succeeded in full also writes small per-market ``coverage`` rows;
-"this quote was still live and unchanged at T" is the last change row plus a
-later coverage row with no logged row for the key in between (withdrawals are
-rows). Unsuccessful or partial scrapes write no coverage and append every
-present line, exactly as before, so they neither confirm nor withdraw anything
-they did not literally observe.
+Only main lines are logged: every production store compared here (openers,
+latest, history, closings) is main-lines-only, and raw captures keep alternates
+and provider payloads verbatim, so rows carry a capture reference instead.
 """
 
 from __future__ import annotations
@@ -19,22 +19,23 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import zlib
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pipeline.contracts import Game, GameLine, WeatherForecast
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MARKETS = ("ml", "spread", "total")
-# Clocks, not values: they change on every scrape without the quote changing.
-QUOTE_CLOCKS = ("scraped_at", "run_id", "source_updated_at")
-# lead_hours is time-to-kickoff; the other two are provider fetch clocks.
-FORECAST_CLOCKS = ("lead_hours", "point_source_updated_at", "ensemble_fetched_at")
+# Clocks and provider metadata, not values: they move without the forecast moving.
+# lead_hours is time-to-kickoff; run_time is the fetch's model-run stamp (it moved
+# on 140 of 152 consecutive-run pairs in production while values did not).
+FORECAST_CLOCKS = ("lead_hours", "run_time", "point_source_updated_at", "ensemble_fetched_at")
 
 
 class UnsupportedSchema(ValueError):
-    """The cached log was written by an unknown (e.g. newer) schema version."""
+    """The cached log was written by an unknown (e.g. older or newer) schema version."""
 
 
 @dataclass(frozen=True, order=True)
@@ -69,6 +70,8 @@ def instant(value: str) -> datetime:
 def _json_default(value):
     if isinstance(value, datetime):
         return utc(value)
+    if isinstance(value, bytes):
+        return value.hex()
     raise TypeError(type(value).__name__)
 
 
@@ -105,7 +108,7 @@ open = connect
 
 
 def insert(conn, table, row):
-    # Table/columns are exclusively internal constants, never caller input.
+    """Idempotent by content hash (small tables: runs, games, forecasts)."""
     row = {"id": identity(row), **row}
     conn.execute(f"INSERT OR IGNORE INTO {table} ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
 
@@ -137,39 +140,31 @@ def key_of(row) -> QuoteKey:
     return QuoteKey(row["game_id"], row["book"], row["market"], row["side"])
 
 
-def _quote_row(line, run_id, now, capture_id):
-    payload = asdict(line)
-    row = {name: payload[name] for name in (
-        "game_id", "sport", "book", "market", "side", "line", "odds", "prob_raw", "is_main",
-        "source_id", "opening_line", "opening_odds", "opening_source",
-    )}
-    row.update({name: utc(payload[name]) if payload[name] is not None else None for name in (
-        "source_updated_at", "expires_at", "actionable_until", "opened_at",
-    )})
-    row.update(capture_id=capture_id, run_id=run_id, observed_at=utc(line.scraped_at or now), quote_at=utc(line.scraped_at or now),
-               recorded_at=utc(now), kind="quote", payload=encode(payload))
-    return row
+def _capture(conn, capture_id, run_id) -> int:
+    conn.execute("INSERT OR IGNORE INTO captures (capture_id, run_id) VALUES (?, ?)", (capture_id, run_id))
+    return conn.execute("SELECT cap FROM captures WHERE capture_id=?", (capture_id,)).fetchone()[0]
 
 
-def _content(payload: str, clocks) -> dict:
-    return {k: v for k, v in json.loads(payload).items() if k not in clocks}
+def _quote_row(line, now, cap):
+    expires, actionable, opened = (utc(x) if x is not None else None
+                                   for x in (line.expires_at, line.actionable_until, line.opened_at))
+    clock = utc(line.scraped_at or now)
+    return dict(game_id=line.game_id, sport=line.sport, book=line.book, market=line.market, side=line.side,
+                line=line.line, odds=line.odds, prob_raw=line.prob_raw, observed_at=clock, recorded_at=utc(now),
+                quote_at=None, kind="quote", cap=cap, expires_at=expires, actionable_until=actionable,
+                opening_line=line.opening_line, opening_odds=line.opening_odds, opened_at=opened,
+                opening_source=line.opening_source)
 
 
-def _heads(conn, book, sport, stamp):
-    """Newest logged main row per (game, market, side) of one book/sport, via the quote_head index."""
-    rows = conn.execute(
-        "SELECT * FROM quote_observations WHERE rowid IN (SELECT rid FROM (SELECT rowid AS rid, "
-        "row_number() OVER (PARTITION BY game_id, market, side ORDER BY recorded_at DESC, rowid DESC) AS n "
-        "FROM quote_observations WHERE book=? AND sport=? AND is_main=1 AND recorded_at<=?) WHERE n=1)",
-        (book, sport, stamp)).fetchall()
-    return {(r["game_id"], r["market"], r["side"]): r for r in rows}
-
-
-def _alt_head(conn, row, stamp):
-    return conn.execute(
-        "SELECT * FROM quote_observations WHERE game_id=? AND book=? AND market=? AND side=? AND is_main=0 "
-        "AND line IS ? AND recorded_at<=? ORDER BY recorded_at DESC, rowid DESC LIMIT 1",
-        (row["game_id"], row["book"], row["market"], row["side"], row["line"], stamp)).fetchone()
+def _insert_quote(conn, row):
+    # Natural-key idempotence (no hash column): re-appending a receipt is a no-op.
+    cols = ",".join(row)
+    conn.execute(
+        f"INSERT INTO quote_observations ({cols}) SELECT {','.join('?' for _ in row)} WHERE NOT EXISTS ("
+        "SELECT 1 FROM quote_observations WHERE game_id=? AND book=? AND market=? AND side=? "
+        "AND observed_at=? AND recorded_at=? AND kind=?)",
+        (*row.values(), row["game_id"], row["book"], row["market"], row["side"],
+         row["observed_at"], row["recorded_at"], row["kind"]))
 
 
 def _ttl(row):
@@ -178,91 +173,106 @@ def _ttl(row):
     return tuple((instant(row[f]) - at) if row[f] else None for f in ("expires_at", "actionable_until"))
 
 
+def semantic(row):
+    """What a consumer can act on. Scrape clocks, run ids and provider metadata are excluded.
+
+    prob_raw is a provider value (exchange fair price), so it counts. Expiry counts
+    as an offset; queries shift it with the confirmation clock.
+    """
+    return (row["line"], row["odds"], row["prob_raw"], row["opening_line"], row["opening_odds"],
+            row["opened_at"], row["opening_source"], _ttl(row))
+
+
 def _changed(head, row):
-    """A quote changed when its value or expiry offset did; scrape clocks alone are not a change.
-
-    Queries shift a confirmed quote's expires_at/actionable_until by the same
-    amount as its confirmation clock, so equal offsets mean equal meaning.
-    """
-    if head is None or head["kind"] != "quote":
-        return True
-    clocks = QUOTE_CLOCKS + ("expires_at", "actionable_until")
-    return _content(head["payload"], clocks) != _content(row["payload"], clocks) or _ttl(head) != _ttl(row)
+    return head is None or head["kind"] != "quote" or semantic(head) != semantic(row)
 
 
-def _withdrawals(conn, seen, heads, run_id, now, capture_id):
-    """Withdraw main quotes missing from a successful (book, sport) scrape.
+def _heads(conn, book, sport, stamp):
+    """Newest logged row per (game, market, side) of one book/sport, via the quote_head index."""
+    rows = conn.execute(
+        "SELECT * FROM quote_observations WHERE rowid IN (SELECT rid FROM (SELECT rowid AS rid, "
+        "row_number() OVER (PARTITION BY game_id, market, side ORDER BY recorded_at DESC, rowid DESC) AS n "
+        "FROM quote_observations WHERE book=? AND sport=? AND recorded_at<=?) WHERE n=1)",
+        (book, sport, stamp)).fetchall()
+    return {(r["game_id"], r["market"], r["side"]): dict(r) for r in rows}
 
-    ``heads`` are the newest main rows per key for the books/sports that
-    actually succeeded, read in SQL through an index, not the whole log.
-    """
+
+def _append_lines(conn, lines, successful, now, cap):
+    """Change-only rows for main lines; returns heads and per-scope partial confirmations."""
     stamp = utc(now)
-    for _group, group in sorted(heads.items()):
-        for previous in group.values():
-            if previous["kind"] != "quote" or key_of(previous) in seen:
-                continue
-            row = dict(previous)
-            row.pop("id")
-            row.update(capture_id=capture_id, run_id=run_id, observed_at=stamp, recorded_at=stamp, kind="withdrawn")
-            insert(conn, "quote_observations", row)
+    main = [ln for ln in lines if ln.is_main]
+    heads = {group: _heads(conn, *group, stamp) for group in {(ln.book, ln.sport) for ln in main} | set(successful)}
+    unchanged = {}
+    for line in main:
+        row = _quote_row(line, now, cap)
+        group = (line.book, line.sport)
+        slot, k = heads[group], (line.game_id, line.market, line.side)
+        if _changed(slot.get(k), row):
+            _insert_quote(conn, row)
+            slot[k] = row
+        elif group not in successful:
+            unchanged.setdefault((*group, line.market), []).append((line.game_id, line.side, line.scraped_at or now))
+    return heads, unchanged
 
 
-def _coverage(conn, lines, successful, run_id, now, capture_id):
-    """One small row per (book, sport, market): when this full scrape observed it."""
+def _coverage(conn, lines, successful, unchanged, cap, now):
+    stamp = utc(now)
     for book, sport in sorted(successful):
-        group = [ln for ln in lines if ln.book == book and ln.sport == sport]
+        group = [ln for ln in lines if ln.book == book and ln.sport == sport and ln.is_main]
         every = min((ln.scraped_at or now for ln in group), default=now)
         for market in MARKETS:
             clock = min((ln.scraped_at or now for ln in group if ln.market == market), default=every)
-            insert(conn, "coverage", dict(capture_id=capture_id, run_id=run_id, book=book, sport=sport,
-                                          market=market, observed_at=utc(clock), recorded_at=utc(now)))
+            _insert_cover(conn, cap, book, sport, market, utc(clock), stamp, None)
+    for (book, sport, market), seen in sorted(unchanged.items()):
+        keys = zlib.compress(encode(sorted((g, s) for g, s, _ in seen)).encode("utf-8"), 6)
+        _insert_cover(conn, cap, book, sport, market, utc(min(c for _, _, c in seen)), stamp, keys)
 
 
-def _append_lines(conn, lines, successful, run_id, now, capture):
+def _insert_cover(conn, cap, book, sport, market, observed, recorded, keys):
+    conn.execute(
+        "INSERT INTO coverage (cap, book, sport, market, observed_at, recorded_at, keys) SELECT ?,?,?,?,?,?,? "
+        "WHERE NOT EXISTS (SELECT 1 FROM coverage WHERE cap=? AND book=? AND sport=? AND market=?)",
+        (cap, book, sport, market, observed, recorded, keys, cap, book, sport, market))
+
+
+def _withdrawals(conn, seen, heads, successful, now, cap):
+    """Withdraw main quotes missing from a successful (book, sport) scrape.
+
+    ``heads`` are the newest rows per key, read in SQL through an index, not
+    the whole log. Partial scrapes never reach here.
+    """
     stamp = utc(now)
-    heads = {group: _heads(conn, *group, stamp) for group in successful}
-    alts = {}
-    for line in lines:
-        row = _quote_row(line, run_id, now, capture)
-        group = (line.book, line.sport)
-        if group not in successful:
-            insert(conn, "quote_observations", row)  # unsuccessful scrape: log what was seen, as always
-            continue
-        if line.is_main:
-            slot = heads[group]
-            k = (line.game_id, line.market, line.side)
-            if _changed(slot.get(k), row):
-                insert(conn, "quote_observations", row)
-                slot[k] = dict(row)
-        else:
-            k = (line.game_id, line.book, line.market, line.side, line.line)
-            if k not in alts:
-                alts[k] = _alt_head(conn, row, stamp)
-            if _changed(alts[k], row):
-                insert(conn, "quote_observations", row)
-                alts[k] = dict(row)
-    return heads
+    for group in sorted(successful):
+        for previous in heads.get(group, {}).values():
+            if previous["kind"] != "quote" or key_of(previous) in seen:
+                continue
+            row = dict(previous)
+            row.update(cap=cap, observed_at=stamp, recorded_at=stamp, kind="withdrawn",
+                       quote_at=previous["quote_at"] or previous["observed_at"])
+            _insert_quote(conn, row)
 
 
 def append_odds(conn: sqlite3.Connection, lines: list[GameLine], *, run_id: str, observed_at: datetime,
                 games: list[Game] = (), successful: set[tuple[str, str]] = frozenset(),
                 attempted: set[tuple[str, str]] = frozenset(), started_at: datetime | None = None):
-    """One atomic receipt: facts, quotes, successful empty coverage, withdrawals.
+    """One atomic receipt: facts, changed main quotes, coverage, withdrawals.
 
-    capture_id groups the batch, including alternate lines; pairs require a
-    common capture AND canonical number. successful is explicit, never inferred
-    from absence of lines. Unsuccessful/unscraped pairs cannot withdraw anything.
-    Lines of a successful (book, sport) are appended only when they differ from
-    the latest logged value; the run's coverage rows confirm the rest.
+    capture_id groups the batch; pairs require a common capture AND canonical
+    number. successful is explicit, never inferred from absence of lines.
+    Unsuccessful/unscraped pairs cannot withdraw anything and, though the lines
+    they did list are logged when changed and confirmed individually, they write
+    no full coverage. Alternate lines are not logged (see module docstring).
     """
     capture = identity((run_id, utc(observed_at), "odds"))
     successful = set(successful)
     with conn:
         _run(conn, run_id, "odds", observed_at, started_at, attempted | successful, successful, {g.sport for g in games} | {ln.sport for ln in lines})
         _games(conn, games, run_id, observed_at)
-        heads = _append_lines(conn, lines, successful, run_id, observed_at, capture)
-        _coverage(conn, lines, successful, run_id, observed_at, capture)
-        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}, heads, run_id, observed_at, capture)
+        cap = _capture(conn, capture, run_id)
+        heads, unchanged = _append_lines(conn, lines, successful, observed_at, cap)
+        _coverage(conn, lines, successful, unchanged, cap, observed_at)
+        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main},
+                     heads, successful, observed_at, cap)
 
 
 def record_withdrawals(conn, lines, successful, *, run_id: str, observed_at: datetime):
@@ -271,17 +281,24 @@ def record_withdrawals(conn, lines, successful, *, run_id: str, observed_at: dat
     successful = set(successful)
     with conn:
         _run(conn, run_id, "coverage", observed_at, None, successful, successful)
+        cap = _capture(conn, capture, run_id)
         heads = {group: _heads(conn, *group, utc(observed_at)) for group in successful}
-        _coverage(conn, lines, successful, run_id, observed_at, capture)
-        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main}, heads, run_id, observed_at, capture)
+        _coverage(conn, lines, successful, {}, cap, observed_at)
+        _withdrawals(conn, {QuoteKey(x.game_id, x.book, x.market, x.side) for x in lines if x.is_main},
+                     heads, successful, observed_at, cap)
+
+
+def forecast_content(payload, clocks=FORECAST_CLOCKS) -> dict:
+    text = zlib.decompress(payload).decode("utf-8") if isinstance(payload, bytes) else payload
+    return {k: v for k, v in json.loads(text).items() if k not in clocks}
 
 
 def append_forecasts(conn: sqlite3.Connection, forecasts: list[WeatherForecast], *, run_id: str,
                      fetched_at: datetime, games: list[Game] = (), started_at: datetime | None = None):
-    """Preserve the entire forecast contract, including hourly/model windows.
+    """Preserve the entire forecast contract (zlib JSON), change-only on its values.
 
-    model='merged' identifies this contract. Component model data retains its
-    own clocks in payload; lead and hourly valid window are indexed explicitly.
+    model='merged' identifies this contract. Lead hours and fetch clocks do not
+    make a new row; lead and hourly valid window are indexed on the rows written.
     """
     with conn:
         _run(conn, run_id, "weather", fetched_at, started_at, set(), set(), {g.sport for g in games})
@@ -290,14 +307,15 @@ def append_forecasts(conn: sqlite3.Connection, forecasts: list[WeatherForecast],
             if fc.retained:
                 continue  # An old observation must not acquire a new receipt/run.
             hours = [p.t for p in fc.hourly]
+            text = encode(asdict(fc))
             row = dict(
                 game_id=fc.game_id, source=fc.source, model="merged", run_id=run_id,
                 fetched_at=utc(fetched_at), run_time=utc(fc.run_time) if fc.run_time else None,
                 lead_hours=fc.lead_hours, valid_start=utc(min(hours)) if hours else None,
-                valid_end=utc(max(hours)) if hours else None, payload=encode(asdict(fc)),
+                valid_end=utc(max(hours)) if hours else None, payload=zlib.compress(text.encode("utf-8"), 6),
             )
             head = conn.execute("SELECT payload FROM forecast_observations WHERE game_id=? AND source=? AND model=? "
                                 "AND fetched_at<=? ORDER BY fetched_at DESC, id DESC LIMIT 1",
                                 (fc.game_id, fc.source, "merged", row["fetched_at"])).fetchone()
-            if head is None or _content(head["payload"], FORECAST_CLOCKS) != _content(row["payload"], FORECAST_CLOCKS):
+            if head is None or forecast_content(head["payload"]) != forecast_content(text):
                 insert(conn, "forecast_observations", row)

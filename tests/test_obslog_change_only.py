@@ -113,8 +113,9 @@ def test_failed_or_partial_scrape_neither_confirms_nor_withdraws():
         before = count(conn, "coverage")
         # Failed scrape, partial scrape (one side, not marked successful): nothing withdrawn.
         run(conn, [], 1, ok=set(), attempted=BETONLINE, g=g)
+        assert count(conn, "coverage") == before  # a failed scrape records nothing
         run(conn, rows[:1], 2, ok=set(), attempted=BETONLINE, g=g)
-        assert count(conn, "coverage") == before
+        assert count(conn, "coverage") == before + 1 and count(conn) == 2  # lists one side; no quote row
         assert not [r for r in q.series(conn, key(rows[1]), as_of=T + 5 * HOUR) if r.kind == "withdrawn"]
         # No confirmation from the failed runs: the over side is as old as run 0.
         found = q.latest(conn, as_of=T + 80 * MIN)
@@ -199,12 +200,20 @@ def json_wind(row):
 
 
 def test_size_budget_120_runs_3500_keys_with_churn(tmp_path, capsys):
-    """~15 runs a day for 8 days over 8 books x 73 games x 3 markets x 2 sides (3,504 keys)."""
+    """An 8-day week (~15 runs/day = 120 runs) shaped like the real production log.
+
+    Measured on the real file (two runs 15 minutes apart, a Friday): about 3,460
+    main keys, 5.1% of main quotes changed semantically between runs, 17% of
+    forecasts changed (23 of 155 plus 3 new), thousands of alternate lines per
+    run (never logged), and CFB groups for 4 of 6 books that are never
+    "successful" (raw rows the schedule drops) yet repeat unchanged every run.
+    """
     rng = random.Random(7)
-    books = ["betonline", "pinnacle", "fanduel", "novig", "betcris", "kalshi", "bookmaker", "circa"]
+    books = ["betonline", "pinnacle", "fanduel", "novig", "betcris", "kalshi", "polymarket_us", "circa"]
+    partial = {"fanduel", "novig", "kalshi", "polymarket_us"}  # coverage_ok never true: partial every run
     kick = T + 6 * timedelta(days=1)
     games = [Game(f"nfl:2026:4:a{i}@h{i}", "nfl", 2026, 4, kick, kick, "America/New_York", f"h{i}", f"a{i}", "stadium")
-             for i in range(73)]
+             for i in range(72)]
     state = {}
     for g in games:
         for b in books:
@@ -212,39 +221,46 @@ def test_size_budget_120_runs_3500_keys_with_churn(tmp_path, capsys):
                 base = rng.choice([-3.5, -7, 44.5, 47]) if market != "ml" else None
                 for s in sides:
                     state[(g.game_id, b, market, s)] = [base, rng.choice([-110, -105, -115, 120, -140])]
-    assert len(state) == 3504
+    keys = list(state)
+    assert len(state) == 3456
     path = tmp_path / "big.sqlite"
-    successful = {(b, "nfl") for b in books}
-    forecasts = {g.game_id: WeatherForecast(g.game_id, "merged", lead_hours=170, wind_fg=10, temp_fg=60,
+    successful = {(b, "nfl") for b in books if b not in partial}
+    attempted = {(b, "nfl") for b in books}
+    forecasts = {g.game_id: WeatherForecast(g.game_id, "merged", lead_hours=170, wind_fg=10, temp_fg=60, rain_fg_mm=0.0,
                                            hourly=[WeatherPoint(kick + i * HOUR, wind=10, temp=60, precip=0) for i in range(4)])
                  for g in games}
     with closing(connect(path)) as conn:
         for n in range(120):
             now = T + n * timedelta(minutes=96)
-            for v in state.values():
-                if rng.random() < 0.05:  # 5% of quotes move per run
-                    v[1] = rng.choice([-110, -105, -115, 120, -140, -125, -102]) if v[1] != -102 else -110
+            for k in rng.sample(keys, round(len(keys) * 0.06)):  # 6% (measured 5.1%) of main quotes move per run
+                state[k][1] = rng.choice([x for x in (-110, -105, -115, 120, -140, -125, -102) if x != state[k][1]])
             lines = []
             for (gid, b, market, s), (ln, odds) in state.items():
-                # betcris-style rolling expiry: its expires_at moves every run (worst case, one whole book)
+                # betcris-style rolling expiry moves with every scrape
                 extra = dict(expires_at=now + timedelta(minutes=30), actionable_until=now + HOUR) if b == "betcris" else {}
                 lines.append(GameLine("nfl", gid, b, market, s, odds, ln, scraped_at=now, **extra))
-            append_odds(conn, lines, games=games, run_id=f"r{n}", observed_at=now, attempted=successful, successful=successful)
+            # alternates are most of production's volume (kalshi/polymarket ladders); they are not logged
+            lines += [GameLine("nfl", games[i % 72].game_id, "kalshi", "total", "over", -110, 30.5 + i, is_main=False, scraped_at=now)
+                      for i in range(600)]
+            append_odds(conn, lines, games=games, run_id=f"r{n}", observed_at=now, attempted=attempted, successful=successful)
+            moved = [replace(f, lead_hours=170 - n / 4, run_time=now,
+                             wind_fg=f.wind_fg + (rng.random() < .17), hourly=f.hourly) for f in forecasts.values()]
+            forecasts = {f.game_id: f for f in moved}
+            append_forecasts(conn, moved, games=games, run_id=f"w{n}", fetched_at=now)
             if n == 0:
                 conn.commit()
                 first = Path(path).stat().st_size
-            if n % 4 == 0:  # weather every few runs; lead_hours moves every time, values only sometimes
-                moved = [replace(f, lead_hours=170 - n, wind_fg=f.wind_fg + (rng.random() < .1)) for f in forecasts.values()]
-                forecasts = {f.game_id: f for f in moved}
-                append_forecasts(conn, moved, games=games, run_id=f"w{n}", fetched_at=now)
         rows = count(conn)
+        assert count(conn, "quote_observations") == rows
+        assert conn.execute("SELECT count(*) FROM quote_observations WHERE line NOT IN (-3.5, -7, 44.5, 47)").fetchone()[0] == 0  # no alternate
     size = Path(path).stat().st_size
     mib = size / 2**20
     with capsys.disabled():
-        print(f"\nobslog {120} runs x {len(state)} keys: first run {first / 2**20:.1f} MiB, total {mib:.1f} MiB, "
-              f"{rows} quote rows; 8 days at 15 runs/day = 120 runs, so the week is this figure")
-    assert size < 48 * 2**20, f"{mib:.1f} MiB exceeds the 48 MiB budget (cache bound is 192 MiB)"
-    assert rows < 3504 * 120 * 0.1  # far below one row per quote per run
+        print(f"\nobslog 120 runs x {len(state)} main keys (+600 alternates/run): first run {first / 2**20:.2f} MiB, "
+              f"total {mib:.1f} MiB, {rows} quote rows, {size / rows:.0f} bytes/row all-in; "
+              f"8 days at 15 runs/day = 120 runs, so the week is this figure")
+    assert size < 48 * 2**20, f"{mib:.1f} MiB exceeds the 48 MiB budget (week target 96 MiB, cache bound 192 MiB)"
+    assert rows < len(state) * 120 * 0.15  # far below one row per quote per run
 
 
 def test_rolling_expiry_is_not_a_change_and_shifts_with_the_confirmation():
@@ -260,3 +276,16 @@ def test_rolling_expiry_is_not_a_change_and_shifts_with_the_confirmation():
         assert k in q.latest(conn, as_of=at + 30 * MIN, honor_expiry=True)
         assert k not in q.latest(conn, as_of=at + 31 * MIN, honor_expiry=True)
         assert q.latest(conn, as_of=at)[k].data["actionable_until"] == text(at + HOUR).replace("Z", ".000000Z")
+
+
+def test_unsuccessful_group_with_unchanged_lines_adds_no_quote_rows():
+    """Production: CFB groups whose raw/mapped counts differ are never 'successful' but repeat every run."""
+    g = game("cfb")
+    rows = [line(g, "fanduel", market="ml", side=s) for s in ("home", "away")]
+    with closing(connect()) as conn:
+        for n in range(30):
+            run(conn, rows, n, ok=set(), attempted={("fanduel", "cfb")}, g=g)
+        assert count(conn) == 2
+        assert not [r for r in q.series(conn, key(rows[0]), as_of=T + 20 * HOUR) if r.kind == "withdrawn"]
+        found = q.latest(conn, as_of=T + 29 * 20 * MIN, max_age=HOUR)
+        assert found[key(rows[0])].observed_at == T + 29 * 20 * MIN

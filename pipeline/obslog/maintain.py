@@ -93,9 +93,11 @@ def maintain(path, *, keep_days=KEEP_DAYS, as_of=None, max_mib=MAX_MIB, prepare=
                     (cutoff, cutoff) if table == "quote_observations" else (cutoff,)).rowcount
             counts["coverage"] = conn.execute("DELETE FROM coverage WHERE recorded_at<?",
                                               (utc(now - timedelta(days=max(keep_days, COVERAGE_KEEP_DAYS))),)).rowcount
+            conn.execute("DELETE FROM captures WHERE cap NOT IN (SELECT cap FROM quote_observations "
+                         "UNION SELECT cap FROM coverage)")
             counts["runs"] = conn.execute(
                 "DELETE FROM runs WHERE finished_at<? AND run_id NOT IN ("
-                "SELECT run_id FROM quote_observations UNION SELECT run_id FROM forecast_observations "
+                "SELECT run_id FROM captures UNION SELECT run_id FROM forecast_observations "
                 "UNION SELECT run_id FROM game_observations)", (cutoff,)).rowcount
         conn.execute("VACUUM")
     size = Path(path).stat().st_size

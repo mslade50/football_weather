@@ -9,8 +9,8 @@ are atomic; queries are read-only. SQLite files and sidecars are ignored by git.
 
 The exact cached file is `data/cache/obslog/observations.sqlite`. Split
 `actions/cache/restore@v4` and `actions/cache/save@v4` use immutable keys
-`obslog-v3-<runner.os>-<run_id>-<run_attempt>-<job>` and restore the
-`obslog-v3-<runner.os>-` prefix (newest entry). **One cache entry per run:** when a
+`obslog-v4-<runner.os>-<run_id>-<run_attempt>-<job>` and restore the
+`obslog-v4-<runner.os>-` prefix (newest entry). **One cache entry per run:** when a
 Playwright job follows (`need_playwright`), light does not save; it uploads the log
 as the one-day artifact `obslog-handoff-<run_id>` (no attempt in the name, uploaded
 with `overwrite`, so a re-run of only the Playwright job still finds it). Playwright
@@ -31,7 +31,7 @@ files and sidecars are renamed beside the database to `*.corrupt-<UTC>.sqlite`,
 excluded from the cache. Hook recovery and workflow prepare emit run-log
 Actions warnings only. An unknown, newer **or older** schema version (including the one-row-per-run v1/v2
 files) is quarantined the same way (bytes kept beside the file, empty log started);
-the cache key prefix moved to `obslog-v3-` so such files are not even restored. All evidence/report/cache steps are best effort. Database contents
+the cache key prefix moved to `obslog-v4-` so such files are not even restored. All evidence/report/cache steps are best effort. Database contents
 persist **only in Actions cache**, never a state group, upload manifest, R2 object,
 D1 table or migration. JSON parity evidence is in the existing build-log artifact.
 
@@ -49,53 +49,74 @@ storage design must change before cutover.
 
 ## Schema and identity
 
-`quote_observations` stores every main/alternate `GameLine`: prices, probability,
-provider clocks, source ID, opener evidence and full JSON. `withdrawn` events
-retain price/`quote_at`, changing availability at `observed_at`. `capture_id`
+`quote_observations` stores changed **main** `GameLine` values only: line, odds,
+probability, observation/receipt clocks, expiry, opener evidence and an integer
+`cap` that references `captures` (capture id and run id, the pointer to the raw
+capture archived in R2). No provider payload, source id or alternate line is
+copied. `withdrawn` events retain price/`quote_at`, changing availability at
+`observed_at`. `capture_id`
 groups receipts; `pair_at` returns one book snapshot. `Pair.complete` requires
 both sides at one canonical number (away spread flipped); `same_capture` exposes
 cross-receipt mates. Missing/mismatched sides remain explicit.
 
 Frozen `QuoteKey(game_id, book, market, side)` and `MarketKey(game_id, book,
-market)` replace delimited keys; line is a value, retaining alternates separately.
-`forecast_observations` retains full forecasts, source/model (`merged`),
+market)` replace delimited keys; line is a value.
+`forecast_observations` retains full forecasts (zlib JSON), source/model (`merged`),
 fetched/run clocks, lead and hourly valid window. `game_observations` retains
 kickoff/sport/season/week and full games. `runs` records stage start/finish,
-books/sports and attempted/successful book/sport coverage. `schema_version` is 3.
+books/sports and attempted/successful book/sport coverage. `schema_version` is 4.
 Older files are never upgraded in place (see above). Per-key series
 use the existing composite quote index instead of scanning the whole log;
 CFB T-6 lookup restricts its scan to the individual game.
 
-### Change-only storage (v3)
+### Change-only storage (v4)
 
-Version 2 appended a row for every quote on every run (measured in production:
-4 MB after one run, 17 MB five runs later). Version 3 appends a quote, forecast
-or game row **only when its value differs from the latest logged one** for that
-key, and records which scrapes succeeded in full in a small `coverage` table
-(one row per successful book, sport and market per run: capture, run, the
-scrape's observation clock, receipt clock). The log stays append-only; no row
-is ever updated.
+Version 2 appended a row for every quote on every run; version 3 (change-only)
+still held 60.7 MB after two production runs (38,171 rows, 1.6 KB each on disk).
+The real file showed why, and version 4 fixes it:
 
-- *Unchanged* means equal payload apart from the scrape clocks (`scraped_at`,
-  `run_id`, `source_updated_at`) and equal expiry **offsets**: a rolling
-  `expires_at`/`actionable_until` (BetCris: observed + ttl) is not a change, and
-  queries shift it by the same amount as the confirmation clock. A head that is
-  a withdrawal always differs, so a reappearance, or a revert to an earlier
-  price, is written. Forecasts ignore `lead_hours` (time to kickoff, so parity
-  no longer compares it) and provider fetch clocks. Game facts are written when
-  the schedule fact changes.
-- *Live and unchanged at T* is derived: the quote is the latest logged row for
-  its key (not a withdrawal) and a coverage row for its (book, sport, market) was
-  recorded after that row and before the key's next logged row. Only a
-  (book, sport) in `successful` writes coverage and withdraws. A failed or
-  partial scrape writes no coverage, so it neither confirms nor withdraws, and
-  it still appends every line it actually listed, exactly as before.
-- The coverage clock is the minimum `scraped_at` of that market's lines (never
-  overstates freshness). Alternate lines are written on first appearance or
-  value change but are not confirmed or withdrawn.
-- Per-run write cost: one indexed window query per successful (book, sport) over
-  the covering `quote_head` index, plus point lookups for alternates, games and
-  forecasts; no full-table load. Coverage rows older than 21 days are pruned.
+- **Partial groups were never deduplicated.** Only a (book, sport) with full
+  coverage was change-only. In production the CFB groups of FanDuel, Kalshi,
+  Novig and Polymarket are never "successful" (their raw rows include games the
+  schedule drops, so the hook vetoes coverage), so every run re-wrote them. The
+  payloads of those repeated rows differed only in `scraped_at` and `run_id`
+  (plus `prob_raw` on exchanges, a real value). Now every group is change-only.
+- **Alternates were 85% of the rows** (about 19,000 per run: Kalshi and
+  Polymarket ladders). Openers, latest, history, closings and weekly totals are
+  all main-lines-only, and no query or parity area reads alternates, so they are
+  no longer logged; the raw captures keep them. Lost: alternate-line history.
+- **Rows were fat.** A row was ~816 bytes of columns (470-byte JSON payload,
+  64-char ids, capture/run/source ids repeated) under five indexes. Now a row is
+  the semantic columns plus an integer capture pointer, an implicit rowid in place
+  of a hash id, and two indexes (`quote_asof`, `quote_head`; each checked with
+  EXPLAIN QUERY PLAN; `quote_capture`, `quote_clock` and `forecast_clock` were
+  dropped). Re-appending a receipt is idempotent on (key, clocks, kind).
+
+The log stays append-only; no row is ever updated.
+
+- *Unchanged* means equal `line`, `odds`, `prob_raw`, opener attestation fields
+  and expiry **offsets**; scrape clocks, run ids and provider metadata
+  (`source_id`, `source_updated_at`, `outcome_ids`) never force a row. A rolling
+  `expires_at`/`actionable_until` (BetCris: observed + ttl) keeps a fixed offset,
+  and queries shift it with the confirmation clock. A head that is a withdrawal
+  always differs, so a reappearance, or a revert to an earlier price, is written.
+  Forecasts ignore `lead_hours`, `run_time` (it moved on 140 of 152 consecutive
+  pairs while values did not) and provider fetch clocks; parity no longer
+  compares lead. Game facts are written when the schedule fact changes.
+- *Live and unchanged at T* is derived from `coverage`. A successful (book, sport)
+  writes one row per market with `keys` NULL: it confirms every live quote of the
+  scope and is the only thing that withdraws. A failed or partial scrape writes
+  nothing for a failure, and for a partial scrape one row per market listing only
+  the (game, side) pairs it saw unchanged (zlib JSON): it confirms those and
+  nothing else, and never withdraws. A quote is confirmed at an event when it is
+  the key's latest logged row (not a withdrawal), the event confirms it, and it
+  was recorded after that row and before the key's next logged row.
+- The coverage clock is the minimum `scraped_at` of the market's (unchanged)
+  lines, so it never overstates freshness.
+- Per-run write cost: one indexed window query per (book, sport) in the run over
+  the covering `quote_head` index (4 ms on the real file), plus point lookups for
+  games and forecasts; no full-table load. Coverage rows older than 21 days are
+  pruned.
 
 Query meaning: `latest` lifts the head to its newest confirmation, so `max_age`
 judges when the quote was last confirmed live, and withdrawn/unscraped quotes age
@@ -103,14 +124,15 @@ out. `series(expand=True)` re-derives the one-row-per-run view. `in_force`
 (without `change_points`), natural `closing` and `weekly_total` use confirmations
 (bounded by `at`, strictly before kickoff, or the weekly window); `change_points`
 modes already want the first row of a price spell, which is the logged row.
-`first_seen` carries live unchanged sides of a successfully covered capture into
-the batch (with the capture's clock), so a mismatched pair completed by one side
-changing is still found at that run; `pair_at` does the same for one snapshot.
+`first_seen` carries live unchanged sides a capture's coverage confirms into the
+batch (with the capture's clock), and treats each partial scrape's listed
+composition as an event, so a mismatched pair completed by one side changing, or
+a lone side listed after a mismatched pair, is judged at that run; `pair_at` does the same for one snapshot.
 Known edge: a provider attestation whose `opened_at` is later than the scrape
 clock that first logged it is not re-validated by a later unchanged confirmation.
 Fact/receipt primary keys are SHA256 of complete canonical row content:
 identical appends are no-ops; corrections at identical clocks remain evidence.
-Later unchanged observations are derived from coverage (v3), not stored. Same-clock conflicts use a hash tie-break.
+Later unchanged observations are derived from coverage, not stored. Re-appending a receipt is idempotent on key, clocks and kind; a differing same-clock correction is not retained (v4 dropped the content hash).
 
 Python timestamps must be aware; SQL uses microsecond UTC ISO text. `as_of`
 gates observation AND receipt clocks: later ingestion cannot alter earlier
@@ -175,16 +197,24 @@ backfill: change-only history misses the in-window receipt, log finds it.
 
 ## Volume and cutover questions
 
-**Measured (v3):** 8 books × 73 games × 3 markets × 2 sides = 3,504 keys, 120 runs
-(about 15/day for 8 days), 5% of quotes moving per run, one whole book with a
-rolling expiry, weather every fourth run: first run **4.4 MiB**, after 120 runs
-**28.9 MiB** (21,556 quote rows), about 15% of the 192 MiB bound, so a full week
-fits with roughly 6x headroom (`tests/test_obslog_change_only.py` asserts < 48
-MiB). v2 would have stored every run in full: 4.4 MiB x 120 = ~530 MiB. Real
-churn and forecast payloads may differ; growth is now proportional to price
-moves, not to runs, plus about 4 KiB of coverage and run rows per run.
+**Measured (v4), replaying the real production file** (3 captures, two runs 15
+minutes apart on a Friday): 38,171 v3 rows / 60.7 MB become 5,045 rows /
+2.09 MB, **415 bytes per row all-in** (rows, indexes, coverage, captures) against
+1.6 KB. Real churn: about 3,460 main keys; run 2 wrote 177 main quotes (5.1%) of
+which Kalshi 67, Polymarket 40, Novig 27, BetCris 36, Pinnacle 7, FanDuel 0
+(408 of 408 FanDuel rows had been rewritten unchanged by v3); forecasts changed
+23 of 155 (+3 new, 17%) at ~1 KB zlib each; about 11 KB of partial-coverage key
+lists per two runs. Projection per run: ~190 quotes x 415 B = 80 KB, forecasts
+~30 KB, coverage and run rows ~10 KB, about **120 KB per run**; a 120-run
+(8-day) week is **about 17 MiB** including a ~2 MiB first run, roughly 6x under the
+96 MiB week target and 11x under the 192 MiB bound, and still ~30 MiB if churn
+tripled around Sunday kickoffs. `tests/test_obslog_change_only.py` simulates 120
+runs with the measured shape (6% churn, partial groups, 600 alternates a run,
+forecasts) and asserts < 48 MiB; it measures 11.8 MiB (28,089 rows, 441 B/row all-in), below the 17 MiB real-payload projection because its forecasts are smaller.
+Uncertain: Sunday-morning churn and forecast payload size are extrapolated from
+one Friday-afternoon pair.
 
-The paragraphs below are the pre-v3 estimate (one row per quote per run) and
+The paragraphs below are the pre-change-only estimate (one row per quote per run) and
 describe the upper bound if every quote changed on every run.
 
 Eight books (`build.BOOK_ORDER`) × 75–119 games (location proxy in
