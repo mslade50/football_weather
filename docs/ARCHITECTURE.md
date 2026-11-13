@@ -31,7 +31,7 @@ Two jobs: **A `light`** (httpx books + weather + model + edges + alerts + publis
 ### 2.4 Data stores
 - **R2 bucket `football-board`**: `board/` served JSON + state; `raw/` captures; `snapshots/{sport}/{season}/{week}/{run_id}.json`.
 - **D1 `football-odds`**: dimensions + change-only history + alerts + runs (§4).
-- **Git**: code, `data/stadiums.csv`, `data/stadiums_overrides.csv`, `data/teams.csv`, `data/aliases/*.json`, `data/calibration.json`, `data/raw/` cached API JSON per season, `tests/fixtures/`.
+- **Git**: code, `data/stadiums.csv`, `data/stadiums_enriched.csv`, `data/teams.csv`, `data/aliases/*.json`, `data/calibration.json`, `data/raw/` cached API JSON per season, `tests/fixtures/`.
 
 ## 3. Repo layout
 
@@ -50,8 +50,8 @@ football_weather/
       espn.py                # scoreboard client (venue id, neutralSite) shared fallback
     stadiums/
       __init__.py
-      loader.py              # stadiums.csv + teams.csv + overrides -> Stadium/Team maps; resolve game->stadium; neutral handling
-      build_stadiums.py      # preseason: CFBD /venues + nflverse + Wikidata + OSM MRR + elevation + timezonefinder -> stadiums.csv (PR)
+      loader.py              # curated + enriched + climatology + teams.csv -> Stadium/Team maps; resolve game->stadium; neutral handling
+      build_stadiums.py      # preseason: CFBD /venues + nflverse + Wikidata + OSM MRR + elevation + timezonefinder -> stadiums_enriched.csv (PR)
       climatology.py         # month-specific avg_wind (sep..jan) + avg_temp from Open-Meteo archive (ERA5) per stadium
     weather/
       __init__.py
@@ -91,7 +91,7 @@ football_weather/
     state.py                 # copied; matchup_key -> game_id|market|book
     timeutil.py              # ET/UTC helpers, date_label 'SUN 11/09', time_label '01:00 PM'
   data/
-    stadiums.csv  stadiums_overrides.csv  teams.csv  calibration.json
+    stadiums.csv  stadiums_enriched.csv  climatology.csv  teams.csv  calibration.json
     aliases/nfl.json  aliases/cfb.json
     raw/cfbd_venues_2026.json  raw/wikidata_2026.csv  raw/osm_pitches_2026.json
     raw/cfb_locations_updated.csv         # git show 3aa1fa2
@@ -137,7 +137,49 @@ Removed in Phase 4: app.py, pages/, streamlit requirements.
 - `game_id = f"{sport}:{season}:{week}:{away_id}@{home_id}"`; neutral games keep schedule home/away, `neutral=1`. CFB bowl/playoff week = 16..20 as CFBD reports; `week` for postseason NFL = 19..22.
 - Odds key: `f"{game_id}|{market}|{side}|{book}"`; markets `ml|spread|total`; sides `home|away|over|under`.
 
-### 4.2 pydantic contracts (`pipeline/contracts.py`, `frozen=True`)
+### 4.2 Stadium ownership and dataclass contracts (`pipeline/contracts.py`, `frozen=True`)
+
+Stadium ownership: `data/stadiums.csv` is human/review-owned (697 identities); `data/stadiums_enriched.csv` is builder-owned (697 rows). The loader joins by stadium_id; each nonblank curated value wins. ERA5 summaries come directly from `data/climatology.csv`, with only differing or summary-missing values retained as curated exceptions. Dome monthly-wind absence is preserved. Full migration evidence and exception lists: [STADIUM_DATA_OWNERSHIP.md](STADIUM_DATA_OWNERSHIP.md). Source markers split mixed columns per cell; existing manual capacity/year values stay curated. No runtime column is dead.
+
+| Column | Owner after split | Original writer(s) | Actual reader(s), beyond generic loader/tests | Regenerate same from builder sources? |
+|---|---|---|---|---|
+| stadium_id | curated; enrichment join key | seed slug, reviewed additions | schedule, loader indexes, build, outputs, backtests, climate | No: stable identity |
+| name | curated | seed, reviewed additions | loader name index, build source matching, outputs/UI | No: reviewed names |
+| aliases | curated | seed, hand fixes, overrides | loader name index; schedule venue lookup | No |
+| city | curated | seed; CFBD/ESPN blank fill | build/model input, JSON/D1, UI | Only source candidates; no exact guarantee |
+| state | curated | seed; CFBD/ESPN blank fill | JSON/D1, UI | Only source candidates |
+| country | curated | seed, hand additions | build/weather routing, JSON/D1 | No builder writer |
+| lat | curated or enriched by latlon_src; override stays curated | seed, hand fixes; CFBD/OSM | weather/build, backtests, climate, JSON/D1/map | OSM centroid only; reviewed coordinates not reproducible |
+| lon | curated or enriched by latlon_src; override stays curated | seed, hand fixes; CFBD/OSM | weather/build, backtests, climate, JSON/D1/map | OSM centroid only |
+| elevation_m | curated or enriched by elev_src; override stays curated | seed/manual; CFBD/Wikidata/EPQS/Open-Meteo | loader travel altitude, build/model, backtest, JSON/D1 | Machine candidates yes with identical payload; manual no |
+| timezone | curated; future machine candidates enriched | seed/manual; CFBD/timezonefinder | schedule/game local time, climate exporter, D1 | Depends on timezonefinder version; manual no |
+| orientation_deg | curated/manual or enriched OSM | seed bucket midpoint, manual override; OSM MRR | build/v2, JSON/D1/compass | OSM geometry yes; manual no |
+| orientation_bucket | same owner as orientation_deg | seed bucket; OSM axis reduction | JSON/D1/UI | Derived from OSM axis; legacy bucket not necessarily |
+| orientation_src | same owner as orientation_deg | seed/manual/OSM stage | builder coverage, D1, loader tests | Only for the corresponding candidate |
+| roof_type | curated; future candidates enriched | seed manual/CFBD, overrides; CFBD/ESPN blank fill | shared roofs, build/models/alerts, JSON/D1/UI, climate | Manual classifications not guaranteed |
+| surface | curated; future candidates enriched | seed nflverse/CFBD; CFBD/ESPN blank fill | JSON/D1 | Source candidate only |
+| capacity | enriched; 21 explicit manual cells curated | seed manual/CFBD, reviewed additions; CFBD/Wikidata blank fill | JSON/D1/UI | Machine candidates yes; manual no |
+| year_built | enriched; 171 legacy/manual cells curated | seed legacy/manual/CFBD, reviewed additions; CFBD/Wikidata blank fill | JSON/D1/UI | Machine candidates yes; manual no |
+| avg_wind_static | curated | seed legacy table/manual dome zero | loader wind fallback, build/JSON/D1 | No |
+| wind_vol_static | curated | seed legacy/CFBD custom field | build, signals, fair confidence, JSON/D1/UI | No |
+| wind_impact_static | curated | seed legacy table | JSON/D1 and drawer Wind Impact display | No; display reader means not dead |
+| weakest_wind_effect | curated | seed legacy table | frozen v1 dir_multiplier, v2/build, calibration, JSON/D1/compass | No |
+| avg_wind_sep | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches; legacy differences not reproducible |
+| avg_wind_oct | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_nov | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_dec | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_jan | climatology-derived; differing/summary-missing cells curated | reviewed additions; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_temp_f | climatology-derived; differing/summary-missing cells curated | seed legacy/manual; ERA5 blank fill | Stadium/JSON/D1; resolve uses separate Team.avg_temp_f | Only summary matches; teams.csv unchanged |
+| wikidata_qid | enriched | Wikidata match, reviewed additions | D1 export | With identical payload/matching only |
+| osm_way_id | enriched | OSM selection, reviewed additions | D1 export | With identical geometry only |
+| cfbd_venue_id | curated identity; new proposals enriched | seed CFBD; CFBD builder | loader numeric index, schedule, backtests, D1 | Source candidate yes; identity retained |
+| espn_venue_id | curated identity; opt-in proposals enriched | seed/manual; opt-in ESPN builder | loader numeric index, ESPN schedule, D1 | Opt-in only; collisions still guarded by existing flag |
+| nflverse_stadium_id | curated | seed/manual | loader index, scope, schedule/backtest, D1 | Validation only; builder does not assign |
+| needs_review | enriched diagnostic; Highmark waiver curated | seed missing coordinates; OSM/orientation validation; override | loader contract/tests; builder report | New diagnostics yes; reviewed waiver no |
+| elev_src | enriched metadata | elevation stage; curated fallback label | builder coverage report only; not a Stadium field | Candidate source label only |
+| latlon_src | enriched metadata | OSM/CFBD stage; curated fallback label | builder coverage report only; not a Stadium field | Candidate source label only |
+| review_note | enriched diagnostic/context | OSM/orientation validation, manual additions | builder report; not a Stadium field | Validation yes; historical human notes no |
+
 ```
 Game(game_id, sport, season, week, kickoff_utc, kickoff_local, tz, home_id, away_id, stadium_id, neutral, roof_state, status, source)
 Stadium(stadium_id, name, aliases[], city, state, country, lat, lon, elevation_m, timezone, orientation_deg, orientation_bucket, orientation_src, roof_type, surface, capacity, year_built, avg_wind_static, wind_vol_static, wind_impact_static, weakest_wind_effect, avg_wind_by_month{sep..jan}, avg_temp_f, wikidata_qid, osm_way_id, cfbd_venue_id, espn_venue_id, nflverse_stadium_id, needs_review)
@@ -609,7 +651,7 @@ Worker secrets (`wrangler secret put`): `BOARD_PASSWORD`, `BOARD_ADMIN_USERNAME`
 Local dev: `.env` (python-dotenv), never committed.
 
 ## 15. Risks (carried from design + judges)
-Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cutoff 62–67, alt 900/1000, alt-vs-heat override); anti-bot from Actions IPs (BetOnline CF, FanDuel Akamai) → Playwright fallback, low cadence, dark-book alerts, Odds API gap-fill; ToS (Kalshi/FanDuel/Novig deprecation) → private site, no republishing; team-name canonicalization across 6+ books for ~135 FBS + FCS → alias tables + rapidfuzz + unresolved alerts; CF free cron budget/10 ms CPU → Workers Paid; weather semantic shifts (mm vs in, curated vs computed vol/orientation) → keep `*_static` columns and validate via backtest before promoting v2; Open-Meteo non-commercial tier, NBM no gusts, HRRR 18 h, NWS 7 d → stitching with source/lead stamps + confidence gate; Edge semantics now market-relative → documented in UI; state integrity → R2 fetch fails job on transient error, D1 second source; stadium build deps (shapely, timezonefinder, Overpass limits) → preseason PR workflow with overrides; pip installs need user approval per CLAUDE.md.
+Model reverse-engineering boundary ambiguities (rain 5.1–6.6 mm, heat-away cutoff 62–67, alt 900/1000, alt-vs-heat override); anti-bot from Actions IPs (BetOnline CF, FanDuel Akamai) → Playwright fallback, low cadence, dark-book alerts, Odds API gap-fill; ToS (Kalshi/FanDuel/Novig deprecation) → private site, no republishing; team-name canonicalization across 6+ books for ~135 FBS + FCS → alias tables + rapidfuzz + unresolved alerts; CF free cron budget/10 ms CPU → Workers Paid; weather semantic shifts (mm vs in, curated vs computed vol/orientation) → keep `*_static` columns and validate via backtest before promoting v2; Open-Meteo non-commercial tier, NBM no gusts, HRRR 18 h, NWS 7 d → stitching with source/lead stamps + confidence gate; Edge semantics now market-relative → documented in UI; state integrity → R2 fetch fails job on transient error, D1 second source; stadium build deps (shapely, timezonefinder, Overpass limits) → preseason enrichment PR workflow with curated precedence; pip installs need user approval per CLAUDE.md.
 
 ### Total price comparison
 

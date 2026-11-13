@@ -1,0 +1,800 @@
+Stadium data ownership (offline migration from 525d86769564e350173e6c33d536d1d33bdf9fcb).
+
+Curated stadiums.csv owns the venue set and reviewed facts. stadiums_enriched.csv owns machine candidates and their source/validation metadata. load_stadium_rows joins by stadium_id and nonblank curated values win (including zero). Enriched-only identities are ignored. Climatology summaries are explicitly selected by blank iso_week; summary columns in enrichment are ignored. Fixed domes keep absent monthly winds; explicit curated month values still win. Team and alias files are unchanged.
+
+Inventory was checked with per-column git grep across pipeline/, site/, scripts/, tests/, seed/build source inspection and one focused git log --follow -S aviva-stadium. Generic contract loading/serialization/tests read all Stadium fields, so they are omitted from the reader column. No original column is dead: even wind_impact_static has a display reader, and the three extra metadata fields have operational report readers. “Yes” below means reconstructible from an identical source payload, not proof a future live API response will equal today's value. The old builder generally retained earlier nonblank cells, so exact full regeneration was never guaranteed.
+
+| Column | Owner after split | Original writer(s) | Actual reader(s), beyond generic loader/tests | Regenerate same from builder sources? |
+|---|---|---|---|---|
+| stadium_id | curated; enrichment join key | seed slug, reviewed additions | schedule, loader indexes, build, outputs, backtests, climate | No: stable identity |
+| name | curated | seed, reviewed additions | loader name index, build source matching, outputs/UI | No: reviewed names |
+| aliases | curated | seed, hand fixes, overrides | loader name index; schedule venue lookup | No |
+| city | curated | seed; CFBD/ESPN blank fill | build/model input, JSON/D1, UI | Only source candidates; no exact guarantee |
+| state | curated | seed; CFBD/ESPN blank fill | JSON/D1, UI | Only source candidates |
+| country | curated | seed, hand additions | build/weather routing, JSON/D1 | No builder writer |
+| lat | curated or enriched by latlon_src; override stays curated | seed, hand fixes; CFBD/OSM | weather/build, backtests, climate, JSON/D1/map | OSM centroid only; reviewed coordinates not reproducible |
+| lon | curated or enriched by latlon_src; override stays curated | seed, hand fixes; CFBD/OSM | weather/build, backtests, climate, JSON/D1/map | OSM centroid only |
+| elevation_m | curated or enriched by elev_src; override stays curated | seed/manual; CFBD/Wikidata/EPQS/Open-Meteo | loader travel altitude, build/model, backtest, JSON/D1 | Machine candidates yes with identical payload; manual no |
+| timezone | curated; future machine candidates enriched | seed/manual; CFBD/timezonefinder | schedule/game local time, climate exporter, D1 | Depends on timezonefinder version; manual no |
+| orientation_deg | curated/manual or enriched OSM | seed bucket midpoint, manual override; OSM MRR | build/v2, JSON/D1/compass | OSM geometry yes; manual no |
+| orientation_bucket | same owner as orientation_deg | seed bucket; OSM axis reduction | JSON/D1/UI | Derived from OSM axis; legacy bucket not necessarily |
+| orientation_src | same owner as orientation_deg | seed/manual/OSM stage | builder coverage, D1, loader tests | Only for the corresponding candidate |
+| roof_type | curated; future candidates enriched | seed manual/CFBD, overrides; CFBD/ESPN blank fill | shared roofs, build/models/alerts, JSON/D1/UI, climate | Manual classifications not guaranteed |
+| surface | curated; future candidates enriched | seed nflverse/CFBD; CFBD/ESPN blank fill | JSON/D1 | Source candidate only |
+| capacity | enriched; 21 explicit manual cells curated | seed manual/CFBD, reviewed additions; CFBD/Wikidata blank fill | JSON/D1/UI | Machine candidates yes; manual no |
+| year_built | enriched; 171 legacy/manual cells curated | seed legacy/manual/CFBD, reviewed additions; CFBD/Wikidata blank fill | JSON/D1/UI | Machine candidates yes; manual no |
+| avg_wind_static | curated | seed legacy table/manual dome zero | loader wind fallback, build/JSON/D1 | No |
+| wind_vol_static | curated | seed legacy/CFBD custom field | build, signals, fair confidence, JSON/D1/UI | No |
+| wind_impact_static | curated | seed legacy table | JSON/D1 and drawer Wind Impact display | No; display reader means not dead |
+| weakest_wind_effect | curated | seed legacy table | frozen v1 dir_multiplier, v2/build, calibration, JSON/D1/compass | No |
+| avg_wind_sep | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches; legacy differences not reproducible |
+| avg_wind_oct | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_nov | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_dec | climatology-derived; differing/summary-missing cells curated | seed legacy CFB/manual; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_wind_jan | climatology-derived; differing/summary-missing cells curated | reviewed additions; ERA5 blank fill | loader monthly wind -> build/model/weather wind_diff | Only summary matches |
+| avg_temp_f | climatology-derived; differing/summary-missing cells curated | seed legacy/manual; ERA5 blank fill | Stadium/JSON/D1; resolve uses separate Team.avg_temp_f | Only summary matches; teams.csv unchanged |
+| wikidata_qid | enriched | Wikidata match, reviewed additions | D1 export | With identical payload/matching only |
+| osm_way_id | enriched | OSM selection, reviewed additions | D1 export | With identical geometry only |
+| cfbd_venue_id | curated identity; new proposals enriched | seed CFBD; CFBD builder | loader numeric index, schedule, backtests, D1 | Source candidate yes; identity retained |
+| espn_venue_id | curated identity; opt-in proposals enriched | seed/manual; opt-in ESPN builder | loader numeric index, ESPN schedule, D1 | Opt-in only; collisions still guarded by existing flag |
+| nflverse_stadium_id | curated | seed/manual | loader index, scope, schedule/backtest, D1 | Validation only; builder does not assign |
+| needs_review | enriched diagnostic; Highmark waiver curated | seed missing coordinates; OSM/orientation validation; override | loader contract/tests; builder report | New diagnostics yes; reviewed waiver no |
+| elev_src | enriched metadata | elevation stage; curated fallback label | builder coverage report only; not a Stadium field | Candidate source label only |
+| latlon_src | enriched metadata | OSM/CFBD stage; curated fallback label | builder coverage report only; not a Stadium field | Candidate source label only |
+| review_note | enriched diagnostic/context | OSM/orientation validation, manual additions | builder report; not a Stadium field | Validation yes; historical human notes no |
+
+Split: stadiums.csv: 697 rows, 31 columns; stadiums_enriched.csv: 697 rows, 22 columns. The curated schema intentionally permits reviewed exceptions in candidate columns. Source markers move OSM coordinates/orientation and CFBD/Wikidata/EPQS/Open-Meteo elevation into enrichment; manual/legacy values stay curated. Capacity/year cells explicitly supplied by the seed manual table, legacy stadium raw files, or the four reviewed venue additions stay curated (21 capacities, 171 years); other capacity/year values are enriched metadata. Source metadata describes enrichment, not a claim about the winning curated value.
+
+Conversion: uncommitted, deleted throwaway Python scripts used csv.DictReader/DictWriter; preserved original stadium order and string values; applied the 12 original override rows; routed cells using existing source markers; compared climate numbers exactly after float parsing; removed only equal summary copies; recovered explicit manual capacity/year values from the original seed AST and tracked raw legacy tables. No remote fetch, recomputation, rounding, timezone lookup or data refresh was used. The fixture was recorded and passed before any production code/data change, in commit 572c46c.
+
+Overrides (all folded; no special mechanism remains):
+- superior-dome: roof_type=dome. NMU indoor football venue https://nmuwildcats.com/sports/2021/8/16/information-superior-dome.aspx
+- everbank-stadium: aliases=TIAA Bank Field|TIAA Bank Stadium. Tottenham is a separate London venue; never resolve its name to Jacksonville
+- carrier-dome: aliases=JMA Wireless Dome|JMA Dome. Current Syracuse venue names; retain the stable stadium ID
+- holt-arena: aliases=ICCU Dome. Current Idaho State venue name; retain the stable stadium ID
+- melbourne-cricket-ground: roof_type=open. nflverse lists dome; MCG is open-air
+- sofi-stadium: roof_type=dome. fixed translucent roof, open sides; legacy avg_wind=0
+- estadio-banorte: elevation_m=2200. Mexico City altitude drives alt component
+- highmark-stadium: lat=42.773045. new Highmark Stadium (opens 2026, OSM way/1339149058) is 448 m west of the legacy point; centroid adopted
+- highmark-stadium: lon=-78.792195. new Highmark Stadium (opens 2026, OSM way/1339149058) is 448 m west of the legacy point; centroid adopted
+- highmark-stadium: needs_review=0. lat/lon distance to OSM polygon checked manually (new stadium across the street)
+- aviva-stadium: orientation_deg=164.5. pitch runs N-S (OSM rugby pitch way/228122478); stadium footprint MRR wrongly gives E-W
+- aviva-stadium: orientation_src=manual. pin against build_stadiums rebuild (no american_football pitch tagged in OSM)
+
+Climatology: the unchanged file has 173 summary rows and weekly/time-of-day cells. 215 identical stadium-table summary copies were removed; 170 stadiums retain 788 differing summary cells as curated facts. 523 stadiums have summary values but no climatology summary: those values all stay curated (full list below). One additional summary-missing stadium has no climate values. Loader.resolve reads monthly winds (then avg_wind_static); build/model uses that wind_avg and JSON/weather wind_diff. Stadium.avg_temp_f is exported; per-game home/away temperatures remain Team.avg_temp_f from teams.csv. weather/climatology_blend.py still reads cells directly from the same file. The obsolete fetch_archive/monthly_means/parse_archive daily API had no production callers and its four tests were removed; the hourly reducer, archive cache and resume tests remain.
+
+Builder: no writes to curated inputs, no override replay, no copying climate summaries, no --overwrite-climatology/--no-climatology switches, no default curated provenance labels or preservation-driven merge of curated cells into candidates. Source fallback selection still combines CFBD/ESPN/Wikidata. Existing enriched values survive unavailable source data, and out-of-scope enriched rows are unchanged. OSM geometry, source caching, offline behavior, home-team/nflverse validation and distance/missing-orientation diagnostics remain. needs_review/review_note now describe machine validation; a reviewed curated waiver cannot suppress the report. Default CLI writes stadiums_enriched.csv; --out cannot point to curated stadiums, teams or climatology. The workflow PR add-path and commit paths were adjusted; triggers, structure and Telegram failure steps are untouched. stadium-climate workflow needs no change. Its exporter and historical backtest now consume joined rows; climatology point lookup also uses joined coordinates.
+
+Deleted: scripts/seed_stadiums_phase1.py (only a historical PLAN reference; no imports, workflow calls or tests); data/stadiums_overrides.csv; obsolete daily climatology functions and four daily-only tests. No seed-specific test module existed. Preserved scripts/_git_history.py and recover_alert_receipts.py. No raw data deleted.
+
+Raw files now without executable readers: data/raw/nfl_stadium_curated.csv, nfl_team_temp_curated.csv, cfb_stadium_curated.csv, cfb_locations_updated.csv. Documentation references remain. data/raw/nws_points.json remains the NWS cache; signal-history and stadium-game-climate files still have runtime readers. tests/fixtures/raw/era5/archive_daily_two_locations.json is now unreferenced and retained for owner decision.
+
+Other scripts inventory (exact filename/module references searched, then inspected):
+- alert_liquidity.mjs: docs/ARCHITECTURE.md, pipeline/alert_liquidity.py
+- check_dashboard_ui.py: docs/STADIUM_EXCHANGE_UI.md
+- export_stadium_climate.py: .github/workflows/stadium-climate.yml, tests/test_stadium_climate.py
+- export_wind_history.py: docs/ARCHITECTURE.md, tests/test_alert_context.py
+- fetch_r2.py: .github/workflows/pipeline.yml, scripts/publish_r2.py, tests/test_fetch_r2.py, tests/test_pipeline_workflow.py
+- fit_forecast_blend.py: data/calibration.json, docs/ARCHITECTURE.md, docs/STATUS.md, pipeline/weather/climatology_blend.py
+- install_resident.ps1: docs/resident-lifecycle-publication.md
+- mirror_r2_snapshots.sh: .github/workflows/backtest.yml, tests/test_backtest_workflow.py, tests/test_mirror_r2_snapshots.py
+- paper_run.py: .github/workflows/backtest.yml, .github/workflows/pipeline.yml, docs/PAPER_POLICY.md, tests/test_backtest_workflow.py, tests/test_paper.py
+- publish_r2.py: .github/workflows/pipeline.yml, pipeline/outputs/r2.py, pipeline/published_alerts.py, scripts/fetch_r2.py, tests/test_pipeline_workflow.py
+- recon_book.py: CLAUDE.md, README.md, docs/ARCHITECTURE.md, docs/AUDIT.md, docs/PLAN.md, docs/STATUS.md
+- recover_alert_receipts.py: .github/workflows/pipeline.yml, tests/test_recover_alert_receipts.py
+- resident_quotes.mjs: pipeline/resident.py, site/worker/test/resident-capture.test.mjs
+- _git_history.py: CLAUDE.md, README.md, docs/HISTORICAL_BACKTEST_SPEC.md, docs/STATUS.md
+
+All remaining script files have references; no other unreferenced script was found. `_git_history.py` is also loaded dynamically by `pipeline/backtest_git.py` (searched by its `_git_history` stem).
+
+Parity: 697 stadiums x 29 dataclass fields = 20,213 top-level fields, including the full nested aliases/month maps; exact JSON encoding compares numeric and boolean types as well as values. Differences: 0. Snapshot: tests/fixtures/stadiums_before_split.json.
+
+Network-only confirmation: real CFBD/ESPN/Wikidata/OSM/elevation payload coverage, current geometry matching and the new workflow PR contents require a future authorized build-stadiums run. No workflow, deploy, push or remote R2/D1 action ran here.
+
+Verification commands and last lines (P = C:/Users/mckin/Documents/football_weather/.venv/Scripts/python.exe):
+- P -m pytest tests/test_stadium_parity.py -q -p no:cacheprovider -o addopts=: 1 passed in 0.14s against original loader/files; repeated after split: 1 passed in 0.21s. An initial fixture-generation quoting error caused a missing-fixture failure (1 failed in 0.22s); it was corrected before the baseline fixture commit or production changes.
+- P -m pytest tests/test_stadium_parity.py tests/test_stadium_loader.py tests/test_build_stadiums.py tests/test_climatology.py tests/test_stadium_climate.py -q -p no:cacheprovider -o addopts=: 81 passed in 2.43s.
+- P -m pytest tests/test_stadium_parity.py tests/test_stadium_loader.py tests/test_build_stadiums.py tests/test_climatology.py tests/test_stadium_climate.py tests/test_backtest_grid.py -q -p no:cacheprovider -o addopts=: 109 passed in 7.02s (after adding CLI/cache/validation and join tests).
+- P -m pytest tests -q -p no:cacheprovider -o addopts=: first restricted-shell run: 16 failed, 1618 passed in 34.61s (C:/tmp writes denied plus bash unavailable); elevated Git Bash run: 5 failed, 1629 passed in 33.46s (child process PATH still lacked bash).
+- With PowerShell $env:PATH = 'C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin;' + $env:PATH, P -m pytest tests/test_mirror_r2_snapshots.py -q -p no:cacheprovider -o addopts=: 2 failed, 3 passed in 2.42s. These are the known path-separator assertion and unavailable Python alias in the redaction subprocess; all commands use test doubles, not real wrangler/cloud access.
+- With that same PATH and filesystem permission, P -m pytest tests -q -p no:cacheprovider -o addopts=: 2 failed, 1633 passed in 29.18s. Only test_parallel_fetch_writes_exact_bytes_at_the_listed_paths and test_failed_fetch_removes_the_file_and_redacts_the_token failed, both in test_mirror_r2_snapshots.py, matching the stated baseline. No new failures.
+- P -m ruff check .: All checks passed! (repeated after cleanup).
+- P _stadium_final_checks_tmp.py (uncommitted helper, deleted): Python 3.10 ast.parse passed for changed production modules; full parity 697/20,213/0; git diff --exit-code against starting commit confirmed data/climatology.csv, data/teams.csv, data/aliases/, pipeline/model/impact.py and tests/test_impact_v1.py unchanged. Row/column counts: 697/31 curated; 697/22 enriched. Cotton Bowl is the summary-missing stadium with no climate values and remains empty.
+- git diff --check: exit 0, no whitespace errors. Final git status --short: empty.
+
+Differing climatology cells (stadium_id: fields retained):
+- acrisure-stadium: avg_wind_nov=7.24, avg_temp_f=54.03
+- aggie-memorial-stadium: avg_wind_sep=7.2, avg_wind_oct=7.7, avg_wind_nov=7.9, avg_wind_dec=7.8, avg_wind_jan=5.96, avg_temp_f=65.57
+- alamodome: avg_temp_f=71.15
+- albertsons-stadium: avg_wind_sep=6.3, avg_wind_oct=6.5, avg_wind_nov=6.8, avg_wind_dec=6.8, avg_wind_jan=6.74, avg_temp_f=53.65
+- allegiant-stadium: avg_temp_f=70.02
+- allianz-arena: avg_temp_f=50.04
+- alumni-stadium: avg_wind_sep=4.9, avg_wind_oct=5.7, avg_wind_nov=6.4, avg_wind_dec=6.9, avg_temp_f=51.83
+- amon-g-carter-stadium: avg_wind_sep=8.6, avg_wind_oct=9.6, avg_wind_nov=10.3, avg_wind_dec=10.2, avg_temp_f=68.25
+- apogee-stadium: avg_wind_sep=8.8, avg_wind_oct=9.8, avg_wind_nov=10.5, avg_wind_dec=10.3, avg_temp_f=66.45
+- arizona-stadium: avg_wind_sep=6.6, avg_wind_oct=7.5, avg_wind_nov=8.2, avg_wind_dec=8.3, avg_temp_f=70.84
+- att-stadium: avg_wind_jan=9.26, avg_temp_f=67.49
+- autzen-stadium: avg_wind_sep=3.6, avg_wind_oct=3.9, avg_wind_nov=4.5, avg_wind_dec=4.7, avg_temp_f=52.98
+- bank-of-america-stadium: avg_wind_oct=6.32, avg_temp_f=61.66
+- bbt-field: avg_wind_sep=6.1, avg_wind_oct=6.7, avg_wind_nov=7, avg_wind_dec=7.2, avg_wind_jan=6.28, avg_temp_f=59.26
+- beaver-stadium: avg_wind_sep=3.7, avg_wind_oct=4.3, avg_wind_nov=4.9, avg_wind_dec=5.7, avg_wind_jan=7.44, avg_temp_f=51.35
+- ben-hill-griffin-stadium: avg_wind_sep=5, avg_wind_oct=5.5, avg_wind_nov=5.8, avg_wind_dec=5.7, avg_wind_jan=6.5, avg_temp_f=69.87
+- benson-field-at-yulman-stadium: avg_wind_sep=8.6, avg_wind_oct=9.4, avg_wind_nov=10.1, avg_wind_dec=10.6, avg_temp_f=70.11
+- bill-snyder-family-football-stadium: avg_wind_sep=10.5, avg_wind_oct=11, avg_wind_nov=11.2, avg_wind_dec=10.8, avg_temp_f=57.76
+- blaik-field-at-michie-stadium: avg_wind_sep=4.3, avg_wind_oct=4.8, avg_wind_nov=5.4, avg_wind_dec=5.8, avg_wind_jan=7.49, avg_temp_f=52.74
+- bobby-bowden-field-at-doak-campbell-stadium: avg_wind_sep=4.1, avg_wind_oct=4.5, avg_wind_nov=4.8, avg_wind_dec=4.8, avg_wind_jan=6.98, avg_temp_f=68.4
+- bobby-dodd-stadium-at-historic-grant-field: avg_wind_sep=5.1, avg_wind_oct=5.7, avg_wind_nov=6.2, avg_wind_dec=6.5, avg_temp_f=62.01
+- boone-pickens-stadium: avg_wind_sep=9.9, avg_wind_oct=10.7, avg_wind_nov=11, avg_wind_dec=10.5, avg_temp_f=62.09
+- bowers-stadium: avg_wind_sep=5.1, avg_wind_oct=5.8, avg_wind_nov=6.3, avg_wind_dec=6.5, avg_wind_jan=7.61, avg_temp_f=68.63
+- bridgeforth-stadium: avg_wind_sep=4.7, avg_wind_oct=5.3, avg_wind_nov=5.9, avg_wind_dec=6.2, avg_wind_jan=5.6, avg_temp_f=54.52
+- brigham-field-at-huskie-stadium: avg_wind_sep=9, avg_wind_oct=10.5, avg_wind_nov=11.4, avg_wind_dec=11.6, avg_wind_jan=9.5, avg_temp_f=50.71
+- bright-house-networks-stadium: avg_wind_sep=7, avg_wind_oct=8, avg_wind_nov=8.4, avg_wind_dec=8.3, avg_temp_f=72.19
+- brooks-stadium: avg_wind_sep=8.3, avg_wind_oct=8.9, avg_wind_nov=9.3, avg_wind_dec=9.7, avg_wind_jan=7.64, avg_temp_f=64.85
+- bryant-denny-stadium: avg_wind_sep=3.5, avg_wind_oct=3.9, avg_wind_nov=4.1, avg_wind_dec=4.3, avg_wind_jan=6.66, avg_temp_f=64.71
+- bulldog-stadium: avg_wind_sep=4.8, avg_wind_oct=4.5, avg_wind_nov=4.3, avg_wind_dec=4.4, avg_wind_jan=4.47, avg_temp_f=65.69
+- cajun-field: avg_wind_sep=7.2, avg_wind_oct=8.3, avg_wind_nov=9.2, avg_wind_dec=9.9, avg_temp_f=69.21
+- california-memorial-stadium: avg_wind_sep=7.6, avg_wind_oct=7, avg_wind_nov=7.2, avg_wind_dec=7.7, avg_wind_jan=5.85, avg_temp_f=55.4
+- camp-randall-stadium: avg_wind_sep=9.6, avg_wind_oct=10.8, avg_wind_nov=11.4, avg_wind_dec=11.5, avg_temp_f=49.29
+- canvas-stadium: avg_wind_sep=7.2, avg_wind_oct=8.1, avg_wind_nov=9.3, avg_wind_dec=10.4, avg_wind_jan=4.37, avg_temp_f=48.81
+- carrier-dome: avg_temp_f=49.96
+- carter-finley-stadium: avg_wind_sep=5.4, avg_wind_oct=5.8, avg_wind_nov=6.2, avg_wind_dec=6.4, avg_wind_jan=7.17, avg_temp_f=61.48
+- centennial-bank-stadium: avg_wind_sep=6.9, avg_wind_oct=7.8, avg_wind_nov=8.8, avg_wind_dec=9, avg_wind_jan=7.93, avg_temp_f=61.67
+- clarence-tc-ching-athletics-complex: avg_wind_sep=14, avg_wind_oct=13.5, avg_wind_nov=14.4, avg_wind_dec=13.6, avg_temp_f=75.33
+- commonwealth-stadium: avg_wind_sep=6.4, avg_wind_oct=7.4, avg_wind_nov=8.1, avg_wind_dec=8.6, avg_temp_f=56.25
+- croke-park: avg_wind_oct=10.53, avg_wind_nov=11.36, avg_temp_f=51.43
+- darrell-k-royal-texas-memorial-stadium: avg_wind_sep=8.1, avg_wind_oct=9, avg_wind_nov=9.7, avg_wind_dec=9.8, avg_wind_jan=8.11, avg_temp_f=69.96
+- davis-wade-stadium: avg_wind_sep=5.3, avg_wind_oct=5.9, avg_wind_nov=6.3, avg_wind_dec=6.6, avg_temp_f=64.12
+- delaware-stadium: avg_wind_jan=7.58, avg_temp_f=56.49
+- deutsche-bank-park: avg_wind_oct=6.43, avg_wind_jan=8.08, avg_temp_f=52.72
+- dix-stadium: avg_wind_sep=5.9, avg_wind_oct=7, avg_wind_nov=7.9, avg_wind_dec=8.6, avg_wind_jan=8.57, avg_temp_f=51.98
+- donald-w-reynolds-razorback-stadium-frank-broyles-field: avg_wind_sep=7.3, avg_wind_oct=7.6, avg_wind_nov=7.9, avg_wind_dec=8.1, avg_temp_f=59.28
+- dowdy-ficklen-stadium: avg_wind_sep=7.3, avg_wind_oct=7.7, avg_wind_nov=8.1, avg_wind_dec=8.3, avg_wind_jan=7.4, avg_temp_f=62.47
+- doyt-perry-stadium: avg_wind_sep=8.8, avg_wind_oct=10.4, avg_wind_nov=11.6, avg_wind_dec=12, avg_temp_f=52.81
+- empower-field-at-mile-high: avg_wind_oct=5.37, avg_temp_f=50.26
+- estadio-banorte: avg_wind_oct=4.57, avg_wind_jan=4.51
+- everbank-stadium: avg_wind_oct=7.53, avg_temp_f=69.97
+- falcon-stadium: avg_wind_sep=7.6, avg_wind_oct=8.1, avg_wind_nov=8.7, avg_wind_dec=9.1, avg_temp_f=46.59
+- fau-stadium: avg_wind_sep=7.6, avg_wind_oct=8.5, avg_wind_nov=10.4, avg_wind_dec=11.5, avg_temp_f=75.77
+- faurot-field: avg_wind_sep=6.3, avg_wind_oct=6.6, avg_wind_nov=6.8, avg_wind_dec=6.9, avg_temp_f=56.44
+- fifth-third-bank-stadium: avg_wind_sep=4.5, avg_wind_oct=5, avg_wind_nov=5.5, avg_wind_dec=5.7, avg_temp_f=61.32
+- fiu-stadium: avg_wind_sep=9.4, avg_wind_oct=11.5, avg_wind_nov=12.7, avg_wind_dec=12.2, avg_temp_f=75.61
+- folsom-field: avg_wind_sep=6.2, avg_wind_oct=7, avg_wind_nov=8.2, avg_wind_dec=9.2, avg_temp_f=48.46
+- ford-field: avg_temp_f=50.96
+- foreman-field: avg_wind_sep=9.5, avg_wind_oct=10.3, avg_wind_nov=11, avg_wind_dec=11.3, avg_temp_f=61.38
+- gaylord-family-oklahoma-memorial-stadium: avg_wind_sep=9.8, avg_wind_oct=10.8, avg_wind_nov=11.3, avg_wind_dec=10.9, avg_wind_jan=8.6, avg_temp_f=62.58
+- geha-field-at-arrowhead-stadium: avg_wind_oct=8.24, avg_temp_f=56.33
+- georgia-state-stadium: avg_wind_sep=5.1, avg_wind_oct=5.7, avg_wind_nov=6.2, avg_wind_dec=6.5, avg_temp_f=62.14
+- gerald-j-ford-stadium: avg_wind_sep=8.6, avg_wind_oct=9.6, avg_wind_nov=10.4, avg_wind_dec=10.3, avg_temp_f=67.27
+- gillette-stadium: avg_temp_f=51.74
+- glass-bowl: avg_wind_sep=9.1, avg_wind_oct=10.7, avg_wind_nov=11.9, avg_wind_dec=12.3, avg_temp_f=52.34
+- hancock-whitney-stadium: avg_wind_sep=6, avg_wind_oct=6.8, avg_wind_nov=7.3, avg_wind_dec=7.6, avg_temp_f=68.63
+- hard-rock-stadium: avg_wind_oct=7.48, avg_wind_nov=7.45, avg_wind_dec=7.48, avg_wind_jan=8.04, avg_temp_f=75.59
+- heinz-field: avg_wind_sep=3.8, avg_wind_oct=4.4, avg_wind_nov=5, avg_wind_dec=5.6, avg_temp_f=54
+- highmark-stadium: avg_wind_nov=10.64, avg_wind_dec=10.68, avg_temp_f=50.37
+- houchens-industries-l-t-smith-stadium: avg_wind_sep=6, avg_wind_oct=6.8, avg_wind_nov=7.6, avg_wind_dec=8.1, avg_temp_f=59.04
+- huntington-bank-field: avg_wind_sep=8.56, avg_temp_f=52.55
+- husky-stadium: avg_wind_sep=3.3, avg_wind_oct=4.1, avg_wind_nov=5.1, avg_wind_dec=5.1, avg_temp_f=51.96
+- jack-trice-stadium: avg_wind_sep=9.8, avg_wind_oct=10.9, avg_wind_nov=11.5, avg_wind_dec=11.5, avg_temp_f=51.44
+- jerry-richardson-stadium: avg_wind_sep=5.4, avg_wind_oct=5.8, avg_wind_nov=6.1, avg_wind_dec=6.2, avg_temp_f=62.01
+- jim-wacker-field-at-bobcat-stadium: avg_wind_sep=8.1, avg_wind_oct=8.9, avg_wind_nov=9.6, avg_wind_dec=9.7, avg_temp_f=70.15
+- joan-c-edwards-stadium: avg_wind_sep=3.4, avg_wind_oct=3.9, avg_wind_nov=4.3, avg_wind_dec=4.7, avg_wind_jan=6.74, avg_temp_f=57.18
+- joe-aillet-stadium: avg_wind_sep=3.8, avg_wind_oct=4.2, avg_wind_nov=4.5, avg_wind_dec=4.6, avg_wind_jan=7.07, avg_temp_f=66.51
+- john-oquinn-field-at-tdecu-stadium: avg_wind_sep=6.8, avg_wind_oct=7.8, avg_wind_nov=8.5, avg_wind_dec=8.8, avg_wind_jan=8.73, avg_temp_f=70.3
+- johnny-red-floyd-stadium: avg_wind_sep=5.8, avg_wind_oct=6.6, avg_wind_nov=7.4, avg_wind_dec=7.8, avg_temp_f=60.53
+- jones-att-stadium: avg_wind_sep=9.5, avg_wind_oct=10.2, avg_wind_nov=10.6, avg_wind_dec=10.7, avg_wind_jan=9.89, avg_temp_f=62.91
+- jordan-hare-stadium: avg_wind_sep=4, avg_wind_oct=4.3, avg_wind_nov=4.6, avg_wind_dec=4.7, avg_temp_f=64.57
+- jsu-stadium: avg_wind_sep=3.8, avg_wind_oct=4.3, avg_wind_nov=4.7, avg_wind_dec=4.8, avg_temp_f=63.15
+- kelly-shorts-stadium: avg_wind_sep=8.7, avg_wind_oct=9.3, avg_wind_nov=9.8, avg_wind_dec=10.2, avg_temp_f=49.01
+- kenan-memorial-stadium: avg_wind_sep=4.7, avg_wind_oct=5.1, avg_wind_nov=5.5, avg_wind_dec=5.7, avg_temp_f=61.26
+- kidd-brewer-stadium: avg_wind_sep=3.9, avg_wind_oct=4.6, avg_wind_nov=5.2, avg_wind_dec=5.6, avg_wind_jan=8.45, avg_temp_f=52.4
+- kinnick-stadium: avg_wind_sep=9.2, avg_wind_oct=10.5, avg_wind_nov=11.1, avg_wind_dec=11.1, avg_wind_jan=9.47, avg_temp_f=51.51
+- kyle-field: avg_wind_sep=7.2, avg_wind_oct=8.2, avg_wind_nov=8.9, avg_wind_dec=9.1, avg_temp_f=69.7
+- lambeau-field: avg_wind_nov=8.79, avg_wind_dec=8.36, avg_temp_f=47.43
+- lane-stadium: avg_wind_sep=3.4, avg_wind_oct=4, avg_wind_nov=4.6, avg_wind_dec=5.1, avg_temp_f=54.07
+- lavell-edwards-stadium: avg_wind_sep=5.7, avg_wind_oct=5.5, avg_wind_nov=5.5, avg_wind_dec=5.2, avg_wind_jan=2.8, avg_temp_f=50.27
+- levis-stadium: avg_wind_sep=5.42, avg_wind_oct=4.85, avg_wind_dec=4.47, avg_wind_jan=4.87, avg_temp_f=59.94
+- liberty-bowl-memorial-stadium: avg_wind_sep=7.6, avg_wind_oct=8.5, avg_wind_nov=9.5, avg_wind_dec=9.9, avg_wind_jan=8.36, avg_temp_f=62.8
+- lincoln-financial-field: avg_wind_sep=6.4, avg_wind_nov=7.44, avg_temp_f=56.61
+- los-angeles-memorial-coliseum: avg_wind_sep=5.4, avg_wind_oct=6.2, avg_wind_nov=7.4, avg_wind_dec=8.4, avg_temp_f=62.56
+- lucas-oil-stadium: avg_wind_sep=6.31, avg_temp_f=54.31
+- lumen-field: avg_wind_sep=6.34, avg_temp_f=52.12
+- m-m-roberts-stadium: avg_wind_sep=3.4, avg_wind_oct=3.8, avg_wind_nov=4.1, avg_wind_dec=4.2, avg_temp_f=67.03
+- mackay-stadium: avg_wind_sep=5.6, avg_wind_oct=5.6, avg_wind_nov=6.1, avg_wind_dec=6.1, avg_wind_jan=3.03, avg_temp_f=53.63
+- malone-stadium: avg_wind_sep=5.7, avg_wind_oct=6.1, avg_wind_nov=6.6, avg_wind_dec=6.8, avg_temp_f=67.11
+- maracana-stadium: avg_wind_sep=5.82
+- martin-stadium: avg_wind_sep=6.3, avg_wind_oct=6.7, avg_wind_nov=7.4, avg_wind_dec=7.2, avg_wind_jan=9.03, avg_temp_f=49.9
+- maryland-stadium: avg_wind_sep=7.6, avg_wind_oct=8.6, avg_wind_nov=9.3, avg_wind_dec=9.5, avg_temp_f=57.58
+- mclane-stadium: avg_wind_sep=8.2, avg_wind_oct=9.2, avg_wind_nov=10, avg_wind_dec=10, avg_temp_f=69.9
+- melbourne-cricket-ground: avg_wind_jan=8.69
+- memorial-stadium: avg_wind_sep=3.9, avg_wind_oct=4.3, avg_wind_nov=4.5, avg_wind_dec=4.6, avg_temp_f=62.07
+- memorial-stadium-bloomington: avg_wind_sep=6.2, avg_wind_oct=7.2, avg_wind_nov=8.1, avg_wind_dec=8.4, avg_wind_jan=7.6, avg_temp_f=54.97
+- memorial-stadium-champaign: avg_wind_sep=8.7, avg_wind_oct=10.4, avg_wind_nov=11.6, avg_wind_dec=11.7, avg_temp_f=53.84
+- memorial-stadium-lawrence: avg_wind_sep=9.8, avg_wind_oct=10.6, avg_wind_nov=11.1, avg_wind_dec=10.9, avg_temp_f=57.03
+- memorial-stadium-lincoln: avg_wind_sep=10.5, avg_wind_oct=11.1, avg_wind_nov=11.3, avg_wind_dec=11.3, avg_temp_f=54.39
+- mercedes-benz-stadium: avg_wind_sep=6.09
+- metlife-stadium: avg_wind_sep=7.1, avg_temp_f=54.96
+- michigan-stadium: avg_wind_sep=9.2, avg_wind_oct=10.7, avg_wind_nov=11.7, avg_wind_dec=12.1, avg_temp_f=50.45
+- mountaineer-field-at-milan-puskar-stadium: avg_wind_sep=3.7, avg_wind_oct=4.3, avg_wind_nov=5, avg_wind_dec=5.7, avg_temp_f=53.65
+- mt-bank-stadium: avg_wind_sep=6.74, avg_wind_oct=7.4, avg_wind_dec=7.3, avg_wind_jan=8.43, avg_temp_f=57.04
+- navy-marine-corps-memorial-stadium: avg_wind_sep=8.1, avg_wind_oct=9.2, avg_wind_nov=10, avg_wind_dec=10.2, avg_wind_jan=8.22, avg_temp_f=57.33
+- neyland-stadium: avg_wind_sep=4, avg_wind_oct=4.5, avg_wind_nov=5, avg_wind_dec=5.3, avg_wind_jan=6.01, avg_temp_f=59.89
+- nippert-stadium: avg_wind_sep=5.4, avg_wind_oct=6.2, avg_wind_nov=7, avg_wind_dec=7.4, avg_temp_f=55.56
+- nissan-stadium: avg_wind_sep=4.8, avg_wind_nov=6.32, avg_wind_jan=7.07, avg_temp_f=60.22
+- northwest-stadium: avg_wind_sep=6.0, avg_wind_nov=7.2, avg_wind_dec=6.88, avg_temp_f=57.08
+- notre-dame-stadium: avg_wind_sep=9.4, avg_wind_oct=11, avg_wind_nov=12.2, avg_wind_dec=12.6, avg_wind_jan=8.94, avg_temp_f=51.41
+- nrg-stadium: avg_wind_dec=8.16
+- ohio-stadium: avg_wind_sep=7.3, avg_wind_oct=8.6, avg_wind_nov=9.7, avg_wind_dec=10.1, avg_temp_f=54.32
+- papa-johns-cardinal-stadium: avg_wind_sep=6, avg_wind_oct=6.9, avg_wind_nov=7.6, avg_wind_dec=8, avg_temp_f=57.6
+- paulson-stadium: avg_wind_sep=6.5, avg_wind_oct=7.1, avg_wind_nov=7.3, avg_wind_dec=7.5, avg_wind_jan=8.17, avg_temp_f=66.7
+- paycor-stadium: avg_wind_nov=7.25, avg_temp_f=56.3
+- peden-stadium: avg_wind_sep=3.8, avg_wind_oct=4.4, avg_wind_nov=5, avg_wind_dec=5.4, avg_temp_f=55.44
+- plaster-sports-complex: avg_wind_sep=6.24, avg_wind_jan=7.85, avg_temp_f=57.25
+- protective-stadium: avg_wind_sep=3.8, avg_wind_oct=4.2, avg_wind_nov=4.5, avg_wind_dec=4.6, avg_temp_f=63.72
+- raymond-james-stadium: avg_wind_oct=8.34, avg_wind_nov=8.14, avg_temp_f=72.89
+- rentschler-field: avg_wind_sep=4.2, avg_wind_oct=4.8, avg_wind_nov=5.4, avg_wind_dec=5.8, avg_wind_jan=6.97, avg_temp_f=52.92
+- reser-stadium: avg_wind_sep=5, avg_wind_oct=5.2, avg_wind_nov=6, avg_wind_dec=6.1, avg_temp_f=53.44
+- rice-eccles-stadium: avg_wind_sep=5.9, avg_wind_oct=5.6, avg_wind_nov=5.6, avg_wind_dec=5.4, avg_temp_f=50.78
+- rice-stadium: avg_wind_sep=6.8, avg_wind_oct=7.8, avg_wind_nov=8.5, avg_wind_dec=8.8, avg_temp_f=70.37
+- romney-stadium: avg_wind_sep=5.5, avg_wind_oct=5.5, avg_wind_nov=5.6, avg_wind_dec=5.5, avg_temp_f=45.96
+- rose-bowl: avg_wind_sep=5.4, avg_wind_oct=6.1, avg_wind_nov=7.3, avg_wind_dec=8.3, avg_temp_f=62.98
+- ross-ade-stadium: avg_wind_sep=8.6, avg_wind_oct=10.3, avg_wind_nov=11.5, avg_wind_dec=11.7, avg_wind_jan=9.47, avg_temp_f=53.61
+- ryan-field: avg_wind_sep=10.9, avg_wind_oct=12.8, avg_wind_nov=14.2, avg_wind_dec=14.5, avg_wind_jan=9.78, avg_temp_f=51.13
+- rynearson-stadium: avg_wind_sep=9.3, avg_wind_oct=10.8, avg_wind_nov=11.9, avg_wind_dec=12.3, avg_wind_jan=8.58, avg_temp_f=50.72
+- sanford-stadium: avg_wind_sep=3.7, avg_wind_oct=4.1, avg_wind_nov=4.4, avg_wind_dec=4.5, avg_temp_f=62.9
+- santiago-bernabeu-stadium: avg_wind_nov=6.04, avg_wind_dec=5.38, avg_wind_jan=5.96, avg_temp_f=58.86
+- scheumann-stadium: avg_wind_sep=8.5, avg_wind_oct=10.2, avg_wind_nov=11.4, avg_wind_dec=11.8, avg_wind_jan=9.97, avg_temp_f=53.09
+- scott-stadium: avg_wind_sep=3.7, avg_wind_oct=4.2, avg_wind_nov=4.5, avg_wind_dec=4.6, avg_temp_f=58.23
+- shi-stadium: avg_wind_sep=5.9, avg_wind_oct=6.8, avg_wind_nov=7.5, avg_wind_dec=7.9, avg_temp_f=55.38
+- skelly-field-at-h-a-chapman-stadium: avg_wind_sep=9, avg_wind_oct=10, avg_wind_nov=10.6, avg_wind_dec=10.2, avg_wind_jan=8.19, avg_temp_f=61.37
+- snapdragon-stadium: avg_wind_sep=5.9, avg_wind_oct=6.2, avg_wind_nov=7, avg_wind_dec=7.9, avg_temp_f=62.36
+- sofi-stadium: avg_temp_f=61.89
+- soldier-field: avg_wind_jan=11.28, avg_temp_f=51.08
+- spartan-stadium: avg_wind_sep=9.2, avg_wind_oct=10.7, avg_wind_nov=11.7, avg_wind_dec=12.1, avg_temp_f=50.34
+- spartan-stadium-san-jose: avg_wind_sep=6.4, avg_wind_oct=6, avg_wind_nov=6.3, avg_wind_dec=6.6, avg_temp_f=59.64
+- stanford-stadium: avg_wind_sep=7.4, avg_wind_oct=7.1, avg_wind_nov=7.8, avg_wind_dec=8.4, avg_wind_jan=4.33, avg_temp_f=58.95
+- state-farm-stadium: avg_wind_sep=5.18, avg_wind_nov=4.37, avg_wind_jan=4.3, avg_temp_f=75.01
+- summa-field-at-infocision-stadium: avg_wind_sep=6.7, avg_wind_oct=7.8, avg_wind_nov=8.8, avg_wind_dec=9.4, avg_wind_jan=8.63, avg_temp_f=52.03
+- sun-bowl-stadium: avg_wind_sep=7.6, avg_wind_oct=8, avg_wind_nov=8.2, avg_wind_dec=8.1, avg_wind_jan=7.04, avg_temp_f=66.27
+- sun-devil-stadium: avg_wind_sep=6.3, avg_wind_oct=6.7, avg_wind_nov=6.8, avg_wind_dec=6.8, avg_temp_f=74.52
+- tcf-bank-stadium: avg_wind_sep=8.8, avg_wind_oct=9.6, avg_wind_nov=9.9, avg_wind_dec=10.1, avg_wind_jan=6.92, avg_temp_f=46.69
+- tiger-stadium: avg_wind_sep=5.5, avg_wind_oct=6.3, avg_wind_nov=6.9, avg_wind_dec=7.3, avg_temp_f=69.12
+- tottenham-hotspur-stadium: avg_wind_sep=8.26, avg_wind_dec=10.15, avg_temp_f=52.26
+- ub-stadium: avg_wind_sep=6.9, avg_wind_oct=8.1, avg_wind_nov=9.3, avg_wind_dec=10.5, avg_temp_f=50.07
+- university-stadium: avg_wind_sep=6.9, avg_wind_oct=7.3, avg_wind_nov=7.4, avg_wind_dec=7.3, avg_wind_jan=5.94, avg_temp_f=59.25
+- us-bank-stadium: avg_temp_f=46.12
+- vanderbilt-stadium: avg_wind_sep=6, avg_wind_oct=6.9, avg_wind_nov=7.6, avg_wind_dec=8, avg_temp_f=60.15
+- vaught-hemingway-stadium: avg_wind_sep=5.3, avg_wind_oct=5.9, avg_wind_nov=6.5, avg_wind_dec=6.9, avg_temp_f=62.8
+- veterans-memorial-stadium: avg_wind_sep=3.7, avg_wind_oct=4.1, avg_wind_nov=4.3, avg_wind_dec=4.4, avg_temp_f=65.96
+- waldo-stadium: avg_wind_sep=9.2, avg_wind_oct=10.7, avg_wind_nov=11.7, avg_wind_dec=12, avg_temp_f=50.43
+- wallace-wade-stadium: avg_wind_sep=4.4, avg_wind_oct=4.8, avg_wind_nov=5.2, avg_wind_dec=5.4, avg_wind_jan=6.9, avg_temp_f=61.08
+- war-memorial-stadium: avg_wind_sep=9.3, avg_wind_oct=11.3, avg_wind_nov=13.7, avg_wind_dec=15.2, avg_wind_jan=8.64, avg_temp_f=42.16
+- warren-mcguirk-alumni-stadium: avg_wind_sep=4, avg_wind_oct=4.5, avg_wind_nov=5.1, avg_wind_dec=5.5, avg_wind_jan=6.57, avg_temp_f=51.34
+- wembley-stadium: avg_temp_f=52.06
+- williams-brice-stadium: avg_wind_sep=6.3, avg_wind_oct=6.6, avg_wind_nov=6.8, avg_wind_dec=6.9, avg_wind_jan=7.08, avg_temp_f=64.53
+- williams-stadium: avg_wind_sep=3.4, avg_wind_oct=3.8, avg_wind_nov=4.2, avg_wind_dec=4.3, avg_wind_jan=6.81, avg_temp_f=57.89
+- yager-stadium: avg_wind_sep=7.6, avg_wind_oct=8.8, avg_wind_nov=9.9, avg_wind_dec=10.3, avg_temp_f=54.38
+
+Stadiums with retained summary values but no climatology summary:
+- abbott-memorial-alumni-stadium
+- ace-w-mumford-stadium
+- adamson-stadium
+- aggie-stadium
+- aggie-stadium-davis
+- al-whitehead-field-at-greyhound-stadium
+- albany-state-university-coliseum
+- albert-j-h-sloan-alumni-stadium
+- alerus-center
+- alex-g-spanos-stadium
+- alfond-stadium
+- allgood-bailey-stadium
+- altra-federal-credit-union-stadium
+- alumni-field-oh
+- alumni-field-westfield-ma
+- alumni-memorial-field
+- alumni-memorial-stadium-nc
+- alumni-stadium-dover
+- alumni-stadium-in
+- alumni-stadium-ky
+- alumni-stadium-pa
+- alumni-stadium-vt
+- alumni-stadium-worcester-ma
+- amos-alonzo-stagg-field
+- amos-alonzo-stagg-field-pa
+- andre-reed-stadium
+- andy-kerr-stadium
+- angell-field
+- apprentice-field
+- april-zorn-memorial-stadium
+- armfield-athletic-center
+- armstrong-stadium
+- arnold-field-pa
+- art-keller-field
+- arthur-j-rooney-athletic-field
+- arute-field
+- athletic-field-complex
+- audrey-j-walton-stadium-at-vernon-kennedy-field
+- austin-e-knowlton-athletics-complex
+- aviva-stadium
+- bahlke-field
+- bailey-memorial-stadium
+- baker-stadium
+- barker-lane-stadium
+- barron-stadium
+- bazemore-hyder-stadium
+- bbva-compass-stadium
+- bearcat-stadium
+- belhaven-bowl-stadium
+- ben-altamirano-field
+- benedetti-wehrli-stadium
+- bentley-university-football-stadium
+- bernlohr-stadium
+- bethpage-federal-credit-union-stadium
+- biddle-field
+- big-cat-stadium
+- bill-buxton-stadium
+- birkelbach-field
+- bishop-schmitt-field
+- bishop-stadium
+- bison-stadium
+- blackstock-stadium
+- blakeslee-stadium
+- blue-jay-stadium
+- blue-storm-stadium
+- bob-boozer-field
+- bob-ford-field
+- bob-young-field
+- bobcat-stadium
+- bobcat-stadium-md
+- boswell-field-at-david-j-urick-stadium
+- bowditch-field
+- bowman-gray-stadium
+- bragg-memorial-stadium
+- braly-municipal-stadium
+- brevard-memorial-stadium
+- brooks-stadium-ny
+- brown-field
+- brown-stadium
+- bt-harvey-stadium
+- buccaneer-field
+- buffalo-stadium
+- bulldog-stadium-smithfield
+- bulldog-stadium-tx
+- bulldogs-stadium
+- burke-tarr-stadium
+- butler-bowl
+- butterfield-stadium
+- cadet-memorial-field
+- callaghan-stadium
+- callaway-stadium
+- cameron-stadium
+- campus-field
+- caparso-field
+- cardinal-stadium-dc
+- carl-smith-stadium
+- carl-w-burt-memorial-stadium
+- carnie-smith-stadium
+- carson-park
+- case-field
+- cau-panther-stadium
+- cebe-ross-field
+- chalmers-field
+- charles-a-gaetano-stadium
+- charles-a-henry-field
+- charles-d-lindberg-stadium
+- charles-l-currier-memorial-field
+- charles-lee-field-at-samford-stadium
+- charlie-w-johnson-stadium
+- chet-anderson-stadium
+- christy-mathewson-memorial-stadium
+- chryst-field-at-biemesderfer-stadium
+- chuck-noll-field
+- clark-field
+- clean-harbors-stadium
+- clemens-stadium
+- cliff-harris-stadium
+- community-stadium-at-goerke-park
+- concordia-stadium
+- convoy-leslie-cotton-boll-stadium
+- cook-stadium
+- cooper-field
+- corwin-stadium
+- cowboy-stadium
+- coyer-field
+- craig-field-at-spratt-memorial-stadium
+- crain-family-stadium
+- crain-field
+- cressy-field
+- crusader-stadium
+- cutler-field
+- dakotadome
+- dale-lippert-field
+- daly-field-at-frank-r-campbell-stadium
+- dana-j-dykhouse-stadium
+- dave-wolk-stadium
+- david-person-field
+- david-smith-stadium-at-ramer-field
+- day-field
+- deeds-field-piper-stadium
+- degol-field
+- dial-roberson-stadium
+- dickerson-stadium
+- docking-stadium
+- don-and-nona-williams-stadium
+- don-drumm-stadium
+- don-shula-stadium-at-wasmer-field
+- donald-j-schneider-stadium
+- donnell-stadium
+- dr-john-w-winkin-sports-complex
+- drake-field-ny
+- drake-stadium
+- duane-stadium
+- duvall-rosier-field
+- dwight-t-reed-stadium
+- e-claiborne-robins-stadium
+- e-j-whitmire-stadium
+- earl-kitchings-stadium
+- ecav-stadium
+- eccles-coliseum
+- eddie-robinson-stadium
+- edor-nelson-field
+- edward-c-swenson-athletic-complex
+- edwards-maurer-field
+- edwin-fauver-stadium
+- eiler-martin-stadium
+- electric-supply-company-field
+- elliot-field-athletic-complex
+- elliott-field-at-don-beebe-stadium
+- ellis-oval-at-zimman-field
+- england-stadium
+- ernest-w-spangler-stadium
+- ernie-chapman-stadium
+- estes-stadium
+- fargodome
+- farley-lamb-field
+- farmers-insurance-athletic-complex
+- farris-stadium
+- farwell-field
+- finley-stadium
+- first-security-stadium
+- fisher-field
+- fitton-field
+- five-star-stadium-at-the-moye-complex
+- francis-field-il
+- francis-field-mo
+- francis-g-welch-stadium
+- frank-b-fuhrer-field
+- frank-bailey-field
+- frank-m-lindsay-field
+- frank-muddy-waters-stadium
+- franklin-field
+- fred-g-hughes-stadium
+- fred-selfe-stadium-at-nicewonder-field
+- fred-zollner-athletic-stadium
+- fritz-b-burns-stadium
+- frost-kalnow-stadium
+- gable-field-at-doc-wadley-stadium
+- garcelon-field
+- garrison-stadium
+- gayle-and-tom-benson-stadium
+- gene-l-shirk-stadium
+- general-charles-c-krulak-stadium
+- george-finnie-stadium
+- george-p-miller-stadium
+- george-williams-athletic-complex
+- gesling-stadium
+- gibbs-stadium
+- golden-bear-stadium
+- golden-lion-stadium
+- goodman-stadium
+- gordon-wood-stadium
+- governors-stadium
+- grace-p-johnson-stadium
+- graham-stadium
+- grappone-stadium
+- greater-zion-stadium
+- greene-stadium
+- griswold-stadium
+- growney-stadium
+- hancock-stadium
+- hanson-field
+- hanson-stadium
+- hantz-stadium
+- hardee-mcgee-field
+- harley-knosher-bowl
+- harms-eischeid-stadium
+- harper-davis-field
+- harry-turpin-stadium
+- harvard-stadium
+- harvey-randall-wickes-memorial-stadium
+- helen-and-leonard-moretz-stadium
+- hempstead-stadium
+- henry-g-steinbrenner-27-stadium
+- herb-parker-stadium
+- hillsboro-stadium
+- hoernemann-stadium
+- hollingsworth-field
+- holmgren-athletic-complex
+- holt-arena
+- homer-bryce-stadium
+- homewood-field
+- hornet-stadium
+- hornet-stadium-sacramento
+- hotchkiss-field
+- houck-field
+- hovey-field
+- hubert-jack-stadium
+- hughes-stadium
+- hunter-stadium
+- husky-stadium-houston
+- il-sue-morris-stadium
+- ingalls-field
+- irwin-belk-complex
+- irwin-belk-stadium
+- j-leslie-rollins-stadium
+- jack-britt-memorial-stadium
+- jack-coffey-field
+- jack-miller-stadium
+- jack-spinks-stadium
+- jackson-field
+- jake-christiansen-stadium
+- james-s-malosky-stadium
+- jamieson-stadium
+- javelina-stadium
+- jayne-stadium
+- jerry-e-apple-stadium
+- jess-dow-field
+- jessee-miller-field
+- jj-keller-field-at-titan-stadium
+- joe-walton-stadium
+- john-a-farrell-stadium
+- john-coughlin-memorial-field
+- john-f-wiley-stadium
+- john-p-papp-stadium
+- johnny-unitas-stadium
+- johnson-hagood-stadium
+- jopson-athletic-complex
+- justin-f-coressel-stadium
+- jw-babb-stadium
+- kean-alumni-stadium
+- kenneth-p-lavalle-stadium
+- kenneth-r-gill-stadium
+- kessler-stadium
+- key-stadium
+- kibbie-dome
+- kirkeby-over-stadium
+- klas-field
+- klein-field-at-manitou
+- knight-stadium
+- knox-stadium
+- koi-ishto-stadium
+- laird-stadium
+- lane-field
+- langhorst-field
+- lawrence-a-wien-stadium
+- leckonby-stadium
+- leemon-field
+- legacy-field-in-carlson-stadium
+- legrand-stadium-at-1st-community-credit-union-field
+- leonidoff-field
+- leslie-c-quick-jr-stadium
+- lewis-c-everett-stadium
+- lewis-field-stadium
+- lincoln-university-stadium
+- lions-stadium
+- little-giant-stadium
+- lloyd-l-thornton-stadium
+- louis-crews-stadium
+- lubbers-stadium
+- luther-nick-jeralds-stadium
+- lyle-hare-stadium
+- macalester-stadium
+- macholtz-stadium
+- mangelsdorf-field
+- manning-field-at-john-l-guidry-stadium
+- marv-kay-stadium-at-campbell-field
+- maxwell-field
+- mcarthur-field
+- mcbride-field
+- mccarthy-stadium-wilkes-barre
+- mcconnell-family-stadium
+- mcculloch-stadium
+- mccully-stadium
+- mcpherson-memorial-stadium
+- mdu-resources-community-bowl
+- meade-stadium
+- meares-stadium
+- memorial-field
+- memorial-field-pa
+- memorial-stadium-clarion-pa
+- memorial-stadium-commerce-tx
+- memorial-stadium-stephenville-tx
+- memorial-stadium-terre-haute
+- memorial-stadium-wayne-ne
+- memorial-stadium-westerville-oh
+- memorial-stadium-whittier-ca
+- memorial-stadium-wichita-falls-tx
+- merrill-field-at-yunevich-stadium
+- merritt-field
+- mihalik-thompson-stadium
+- milam-stadium
+- mississippi-veterans-memorial-stadium
+- mitchell-stadium
+- mlc-bowl
+- monarch-stadium
+- mount-union-stadium
+- mountaineer-bowl
+- mueller-field
+- multi-sport-performance-stadium
+- multi-sport-stadium
+- municipal-stadium
+- mustang-stadium
+- neta-and-eddie-derose-thunderbowl
+- nottingham-field
+- obrien-stadium
+- offutt-field
+- oharra-stadium
+- okelly-riddick-stadium
+- oliver-c-dawson-stadium
+- ornelas-stadium
+- ortmayer-stadium
+- oshaughnessy-stadium
+- pace-stadium
+- paladin-stadium
+- panther-stadium
+- panther-stadium-oh
+- parker-field-at-mccool-stadium
+- patterson-field
+- paul-laird-field
+- pen-air-field
+- perkins-stadium
+- pete-fiorito-stadium-at-mckinzie-field
+- pioneer-field-tn
+- pioneer-stadium
+- pratt-field-at-lehrman-stadium
+- princeton-university-stadium
+- provost-umphrey-stadium
+- public-schools-stadium
+- qu-stadium
+- ralph-e-davis-pioneer-stadium
+- ralph-f-dellacamera-stadium
+- ralph-stocker-stadium
+- ram-stadium-wv
+- ranger-field
+- ratliff-stadium
+- ray-and-sue-smith-stadium
+- ray-dennison-memorial-field
+- reeves-field-pa
+- reinhart-field
+- rex-stadium
+- reynolds-field
+- rhodes-stadium
+- rice-totten-field
+- richard-wackar-stadium
+- richardson-stadium
+- robert-a-lipinski-field-at-james-work-memorial-stadium
+- robert-and-janet-vackar-stadium
+- robert-b-redman-stadium
+- robert-e-thorn-field
+- robert-t-shields-field
+- robinson-hale-stadium
+- rocco-calvo-field
+- rock-bowl
+- roebuck-stadium
+- rogers-stadium-va
+- ron-and-joyce-schipper-stadium
+- ron-carol-cope-stadium-at-foster-field
+- ron-roberts-field-at-the-banta-bowl
+- ronald-j-abdow-field
+- roos-field
+- rosenbloom-field
+- roy-kidd-stadium
+- roy-stewart-stadium
+- royal-stadium
+- ruggles-field-at-carpenter-haygood-stadium
+- sabine-field-at-haynes-family-stadium
+- saluki-stadium
+- sam-greeley-field
+- sanchez-family-stadium
+- saxon-stadium
+- scheels-field-at-nemzek-stadium
+- schmidt-stadium
+- schneider-stadium
+- schoellkopf-field
+- schueler-field
+- schwan-regional-event-center
+- scotty-wood-stadium
+- sea-foam-stadium
+- sea-gull-stadium
+- seaverns-field-at-harold-alfond-stadium
+- seibert-stadium
+- selby-stadium
+- seth-grove-stadium
+- setzler-field
+- shadek-stadium
+- shelton-stadium
+- shentel-stadium
+- sherman-field
+- sherman-field-at-mcconagha-stadium
+- shirk-field-at-musselman-stadium
+- shuford-stadium
+- southern-nazarene-university-football-stadium
+- sox-harrison-stadium
+- sparks-stadium
+- spec-martin-municipal-stadium
+- sprague-field
+- sprankle-sprandel-stadium
+- stadium-red-field
+- stagg-field
+- stambaugh-stadium
+- steele-stadium
+- steuben-field
+- stewart-red-faught-stadium
+- stewart-stadium
+- stoffer-family-stadium
+- stokes-stadium
+- strawberry-stadium
+- strong-stadium
+- superior-dome
+- swisher-field
+- taylor-field
+- ted-runner-stadium
+- ted-wright-stadium
+- terry-fox-field
+- the-pine-bowl
+- the-reservation
+- thone-stadium-at-buerkle-field
+- tiger-stadium-al
+- tom-adams-field
+- tom-benson-hall-of-fame-stadium
+- tomasini-stadium
+- tomlinson-stadium
+- top-taggart-field
+- toppa-field
+- torero-stadium
+- townebank-stadium
+- trinity-university-stadium
+- tucci-stadium
+- tucker-stadium
+- turf-field
+- uni-dome
+- university-of-charleston-stadium
+- university-stadium-ga
+- vago-field
+- valhalla-stadium
+- van-metre-field-at-ash-park
+- vendetti-field
+- veterans-memorial-stadium-wi
+- village-of-lisle-benedictine-university-sports-complex
+- villanova-stadium
+- wagner-college-stadium
+- walkup-skydome
+- walston-hoover-stadium
+- walter-m-katz-field
+- wantland-stadium
+- warrior-field-at-raabe-stadium
+- washington-grizzly-stadium
+- wb-adams-stadium
+- wb-mason-stadium
+- wc-hawkins-stadium
+- welcome-stadium
+- west-family-stadium
+- westside-athletic-complex
+- whittier-field
+- wightman-stadium
+- wildcat-stadium
+- wildcat-stadium-ga
+- wildcat-stadium-tx
+- wilford-moore-stadium
+- wiliams-stadium-oh
+- wilkins-stadium
+- william-b-greene-jr-stadium
+- william-dick-price-stadium
+- william-h-greene-stadium
+- william-rolland-stadium
+- wilson-field
+- wright-stadium
+- yager-stadium-at-moore-bowl
+- yale-bowl
+- young-wise-memorial-stadium
+- younts-stadium
+- zable-stadium

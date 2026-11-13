@@ -13,8 +13,10 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
   (no `except*`, `StrEnum`, `tomllib`).
 - Contracts use stdlib dataclasses; fuzzy matching uses `difflib` behind a
   try-import of `rapidfuzz`.
-- Never commit generated data. Only `data/stadiums*.csv`, `data/teams.csv`,
-  `data/aliases/`, `data/raw/` and `tests/fixtures/` are tracked. Board JSON,
+- Tracked reference data: human-owned `data/stadiums.csv`, builder-owned
+  `data/stadiums_enriched.csv`, `data/climatology.csv`, `data/teams.csv`,
+  `data/aliases/`, `data/raw/` and `tests/fixtures/`. Other generated data is not
+  committed. Board JSON,
   raw captures and snapshots are published to R2; SQL is archived to D1.
   `pipeline.yml` has no `git commit` step (pinned by test).
 - Secrets only via env / `.env` (python-dotenv) / GitHub + Worker secrets.

@@ -43,10 +43,10 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 ## Phase 1 — Historical schedule, stadium, weather and Streamlit compatibility work
 
 ### Files to create
-- `data/stadiums.csv`, `data/stadiums_overrides.csv`, `data/teams.csv`: seeded by `scripts/seed_stadiums_phase1.py` from `data/raw/nfl_stadium_curated.csv` + `data/raw/cfb_locations_updated.csv` + `data/raw/cfb_stadium_curated.csv` + nflverse `games.csv` distinct `stadium_id` (season ≥2025, incl. international) with columns per ARCH §4.2 Stadium; `orientation_deg` from curated bucket midpoints (N-S→0, NE-SW→45, E-W→90, NW-SE→135), `orientation_src='curated'`; `roof_type` manual list (ARCH audit); `needs_review=1` where lat/lon missing.
+- `data/stadiums.csv`, `data/teams.csv`: originally seeded by the now-retired Phase 1 seed script from `data/raw/nfl_stadium_curated.csv` + `data/raw/cfb_locations_updated.csv` + `data/raw/cfb_stadium_curated.csv` + nflverse `games.csv` distinct `stadium_id` (season ≥2025, incl. international) with columns per ARCH §4.2 Stadium; `orientation_deg` from curated bucket midpoints (N-S→0, NE-SW→45, E-W→90, NW-SE→135), `orientation_src='curated'`; `roof_type` manual list (ARCH audit); `needs_review=1` where lat/lon missing.
 - `data/aliases/nfl.json`, `data/aliases/cfb.json`: canonical team_id → aliases (nflverse abbr, full name, city lowercase 'n.y. giants', mascot); CFB from CFBD School/Alt Name1-3/Abbreviation + 'UConn'/'FIU' etc.
 - `pipeline/schedule/nfl.py` (nflverse games.csv: season, week, gameday, gametime ET, away/home abbr, stadium_id, roof, surface, location=Neutral → `Game`), `pipeline/schedule/cfb.py` (CFBD `/games?year&week&division=fbs` Bearer; venueId, neutralSite, startDate; `/calendar` for week; ESPN fallback in `schedule/espn.py`), raw capture of both.
-- `pipeline/stadiums/loader.py`: load csv + overrides; `resolve(game) -> Stadium`; neutral: compute `travel_alt`/`away_temp` vs both teams, apply larger penalty side (ARCH §7 judge note), legacy columns use schedule home/away.
+- `pipeline/stadiums/loader.py`: join curated + enriched stadiums + climatology summaries; `resolve(game) -> Stadium`; neutral: compute `travel_alt`/`away_temp` vs both teams, apply larger penalty side (ARCH §7 judge note), legacy columns use schedule home/away.
 - `pipeline/weather/openmeteo.py`, `weather/parsers/openmeteo.py`, `weather/nws.py`, `weather/parsers/nws.py`, `weather/merge.py` (ARCH §6; forecast + NWS only in this phase; ensemble fields None).
 - The original column-exact Streamlit file writers were retired after the board migrated to JSON.
 - `pipeline/outputs/raw_out.py` (local `data/raw_runs/` in this phase; R2 in Phase 3).
@@ -131,14 +131,14 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 ### Acceptance
 - Disabled/dry runs list candidate keys without sending. Enabled delivery follows the routine policy and marks only successful sends; unchanged deliveries dedupe.
 - Alerts tab shows the same keys as Telegram; `/api/alerts` returns D1 rows with status.
-- Repo has no generated data files tracked (`git ls-files data/*.csv data/*.xlsx` empty except `data/stadiums*.csv`, `teams.csv`, `raw/`).
+- Repo has no generated data files tracked (`git ls-files data/*.csv data/*.xlsx` empty except `data/stadiums*.csv`, `climatology.csv`, `teams.csv`, `raw/`).
 
 ---
 
 ## Phase 5 — Better weather + stadium data; v2 model side by side (ship: OSM orientation, ensemble wind_vol, HRRR/NBM stitching, wind arrows/field axis, Signals view)
 
 ### Files to create
-- `pipeline/stadiums/build_stadiums.py` (CFBD /venues + /teams fbs, nflverse stadium ids, Wikidata SPARQL P118/P115 with User-Agent, OSM Overpass `leisure=pitch sport=american_football around:400` one batched union query with 2–5 s throttle, shapely `minimum_rotated_rectangle` → orientation_deg 0–180 + bucket, elevation EPQS (US) / Open-Meteo elevation (intl, batched 100), timezonefinder, overrides, validation: every home team mapped, lat/lon within 300 m of OSM centroid, needs_review flags; provenance columns) and `pipeline/stadiums/climatology.py` (ERA5 archive → avg_wind_sep..jan, avg_temp_f per stadium).
+- `pipeline/stadiums/build_stadiums.py` (CFBD /venues + /teams fbs, nflverse stadium ids, Wikidata SPARQL P118/P115 with User-Agent, OSM Overpass `leisure=pitch sport=american_football around:400` one batched union query with 2–5 s throttle, shapely `minimum_rotated_rectangle` → orientation_deg 0–180 + bucket, elevation EPQS (US) / Open-Meteo elevation (intl, batched 100), timezonefinder -> stadiums_enriched.csv (curated stadiums.csv always wins at load time), validation: every home team mapped, lat/lon within 300 m of OSM centroid, needs_review flags; provenance columns) and `pipeline/stadiums/climatology.py` (ERA5 archive → avg_wind_sep..jan, avg_temp_f per stadium).
 - `.github/workflows/build-stadiums.yml` (dispatch → PR via peter-evans/create-pull-request).
 - `pipeline/weather/openmeteo.py`: ensemble client; stitching per ARCH §6 with `source`/`lead_hours`/`model_disagreement`; roof_state from nflverse then heuristic; cross/head components; hourly strip.
 - `pipeline/model/impact.py` v2 (ARCH §7.5), `data/calibration.json` defaults; `fair.py` v2 fair lines + confidence from `wind_vol_fc`; GameCard `impact.v2`; D1 `gs_fg_v2/away_fg_v2`.
@@ -146,7 +146,7 @@ Golf root: `C:/Users/McKinley Slade/dev/golf_scraping`. Target root: `C:/Users/M
 - Tests: `tests/test_impact_v2.py` (continuous curve calibrated to v1 tier midpoints ±0.5; dir_mult parse of 'x N','E/W','all'; roof closed zeroes), `tests/test_weather_stitch.py` (lead bands pick correct source; NWS fill; disagreement), `tests/test_build_stadiums.py` (MRR bearing on fixture polygons: Gillette≈158, AT&T≈69, Ohio≈7; pitch selection inside stadium polygon), `tests/test_climatology.py`.
 
 ### Acceptance
-- `build-stadiums.yml` PR: ≥95% of FBS+NFL stadiums have `orientation_src in {osm_pitch, osm_stadium_mrr}`, remainder `curated`/`manual` with needs_review; international NFL venues present.
+- `build-stadiums.yml` PR: ≥95% of FBS+NFL stadiums have `orientation_src in {osm_pitch, osm_stadium_mrr}`, remainder `curated`/`manual` with diagnostics in the enriched table/report; international NFL venues present.
 - GameCard has `wind_vol_fc`, `wind_p10/p90`, `cross_mph`, `source`, `lead_hours`, `impact.v2`; map shows arrows/axes; alerts still keyed to v1.
 - Degradation emitted when ensemble missing (falls back to static vol).
 - pip approvals needed: shapely (dev-only for build_stadiums), timezonefinder (already installed locally).
