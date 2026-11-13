@@ -83,7 +83,7 @@ def main() -> None:
             page.on("pageerror", lambda error, captured=errors: captured.append(str(error)))
             page.set_content(source)
             page.add_style_tag(content=WEB.joinpath("styles.css").read_text(encoding="utf-8"))
-            for filename in ["discovery.js", "app.js", "table.js", "signals.js", "drawer.js", "backtest.js"]:
+            for filename in ["game-status.js", "discovery.js", "app.js", "table.js", "signals.js", "drawer.js", "backtest.js"]:
                 code = WEB.joinpath(filename).read_text(encoding="utf-8")
                 code = re.sub(r"\nboot\(\);\s*$", "", code)
                 page.add_script_tag(content=code)
