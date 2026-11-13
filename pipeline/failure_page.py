@@ -264,7 +264,9 @@ def plan_from_env() -> dict[str, Any]:
     # Save observations separately from receipts. Never acknowledge a proposed
     # page here, or overwrite an unreadable marker with observational state.
     observed = {**previous, "heartbeat": {**health, "open": old_heartbeat.get("open") is True}}
-    if not unreadable and observed != previous:
+    # Only the unknown-observation window needs to survive between runs; a
+    # normal fresh tick writes nothing.
+    if not unreadable and health.get("unknown_since") != old_heartbeat.get("unknown_since"):
         try:
             write_health(observed)
         except Exception:  # noqa: BLE001 - a first stale page can still be delivered
