@@ -152,6 +152,6 @@ def test_betcris_stale_feed_reports_age_and_logs_it(monkeypatch, caplog):
     rejected = BC.BetcrisScraper()
     with caplog.at_level(logging.INFO):
         assert _run(rejected.scrape("nfl")) == []
-    err = rejected.fetch_errors[BC.PAGES["nfl"][0]]
+    err = rejected.fetch_errors["nfl"]
     assert "age 3601s" in err and "age_seconds=3601" in err and "effective_ttl_seconds=3600" in err
     assert any("age 3601s vs wall clock" in r.getMessage() for r in caplog.records)
