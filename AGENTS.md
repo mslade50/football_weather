@@ -10,3 +10,11 @@ Global rules come from `mslade50/agent-rules`, installed on this machine as `~/.
 ## Review
 Delivery is direct push to main per the owner's global rules.
 Checks are `python -m pytest tests -q` and `node --test site/worker/test/*.test.mjs`, chosen to fit the change.
+
+## Notification engine
+
+`pipeline/alert_policy.py` is the single policy for first notices, routine reminders
+and explicitly confirmed-bet CLEAR notices. `pipeline/alerts.py` retains formatting,
+delivery receipts/feed, book-health paging and the postmortem CLI/email fallback.
+Telegram delivery defaults off behind `FOOTBALL_TELEGRAM_ENABLED`. Legacy stored
+queue keys remain loadable but are never replayed. See `docs/ARCHITECTURE.md` §10.

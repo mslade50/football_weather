@@ -75,7 +75,7 @@ football_weather/
       betonline.py  betcris.py  fanduel.py  kalshi.py  novig.py  prophetx.py  pinnacle.py  draftkings.py
       parsers/               # pure parse functions per book (input: raw payload, output: list[GameLine])
         betonline.py betcris.py fanduel.py kalshi.py novig.py prophetx.py pinnacle.py draftkings.py
-    alerts.py                # edge / move / opener / ops rules, dedup, quiet hours, digest, format_* HTML
+    alerts.py                # notification formatting, policy orchestration, receipts, postmortem
     state.py                 # copied golf board/state.py + schema_version/migrate + D1 rehydrate
     outputs/
       __init__.py
@@ -370,7 +370,7 @@ Legacy NFL outputs divide by 100 (`gs_fg=-0.035`); CFB stays percent. Golden tes
 - **Per (game, book, market, side)**: `edge_pts = signed(fair_line − book_line)` (positive means the side is favorable: under when book total > fair, over when book total < fair, home when book gives home more points than fair, etc.); `edge_prob = fair_prob(side at book line) − vigfree_prob(side)`; `best_book` per market/side.
 - **Confidence** `conf = clamp(0,1, 1 − 0.5·min(1, wind_vol_fc/15) − 0.3·min(1, model_disagreement/8) − 0.2·min(1, max(0, lead_hours−36)/(168−36)))`; v1 uses `wind_vol_static` mapped {low:.2, mid:.5, high:.75, very high:1.0}·15 when ensemble missing.
 - **Tier**: `strong` if edge_pts ≥ STRONG[sport][market] and conf ≥ 0.5; `edge` if ≥ EDGE[sport][market] and (conf ≥ 0.5 or lead ≤ 36 h) and edge_prob ≥ 0.03; `watch` if ≥ 0.6·EDGE (map only, never alerted); else none. `EDGE = {nfl:{total:1.5, spread:1.0}, cfb:{total:2.5, spread:1.5}}`, `STRONG = {nfl:{total:2.5, spread:1.5}, cfb:{total:4.0, spread:2.5}}`. Weather-driven requirement: `gs_fg ≤ −3.5` or `rain_c > 0` or `away_fg ≤ −2.0` (v1 percent).
-- **CLV** (`model/clv.py`): at first run after kickoff, freeze `closings` = last `odds_history` row before `kickoff_utc` per key; `clv_pts = signed(closing_line − alert.first_line)` in the alerted side's favor; written to `alerts.clv_pts`. Tuesday's post-mortem combines CLV with results and weather verification; the CLV-only digest remains available manually.
+- **CLV** (`model/clv.py`): at first run after kickoff, freeze `closings` = last `odds_history` row before `kickoff_utc` per key; `clv_pts = signed(closing_line − alert.first_line)` in the alerted side's favor; written to `alerts.clv_pts`. Tuesday's post-mortem combines CLV with results and weather verification.
 
 ### 7.4 Signals (`model/signals.py`, ported from pages/*)
 - The under screen (discovery, Telegram, wind flags) is `docs/PROCESS_SPEC.md`: both sports, sustained wind `≥ 15` mph is the flag, `12` mph up to `15` is a display watch and not a flag, heavy rain only at `≥ 23` mm with ECMWF plus another model agreeing. Temperature is informational unless the optional gate is on (`PROCESS_TEMP_GATE`, default off; 65°F is the default threshold). v1 impact tiers are not this gate. `wind_vol` is still forced 'Low' when wind_fg<11.99. `wind_diff = wind_fg − avg_wind`.
@@ -455,34 +455,59 @@ The 30-minute per-build backstop accommodates cold weather retrievals. Upload co
 - `backtest.yml`: schedules `'17 13 * * 0'` (Sun 09:17 EDT / 08:17 EST, CFB after Saturday) and `'17 13 * * 2'` (Tue 09:17 EDT / 08:17 EST, NFL after Monday night) + dispatch → `python -m pipeline.backtest` → R2 `board/backtest.json` + `data/backtest/*.parquet`; each scheduled run sends the matching league's post-mortem via `pipeline.alerts --digest postmortem --sport …`.
 - `calibrate.yml`: schedule weekly Tue after backtest → `python -m pipeline.calibrate` → PR updating `data/calibration.json`.
 - Season gating: `gate_check.py` skips when no kickoff within `HORIZON_DAYS` = 45 days for the requested sport (CFB dark Jan–Jul after bowls; NFL skip Mar–Jul); `--force` bypasses.
-- Two horizons in `pipeline/build.py`: the **weather window** `[now−6h, now+10d]` (`WINDOW_AFTER_D`) bounds forecasts, impact, cards, legacy files and alerts; the **odds horizon** `[now−6h, now+45d]` (`ODDS_WINDOW_AFTER_D` == `gate_check.HORIZON_DAYS`, pinned by test) bounds which schedule games scraped lines are matched against, so openers, `history.json` series, `archive_last` and D1 `odds_history` / `openers` / `games` rows (impact columns NULL until the game has a card) start when a book first posts the line. The optional OPENERS digest (`TELEGRAM_INCLUDE_OPENERS=1`) keys on openers new *to the board* rather than new to state.
+- Two horizons in `pipeline/build.py`: the **weather window** `[now−6h, now+10d]` (`WINDOW_AFTER_D`) bounds forecasts, impact, cards, legacy files and alerts; the **odds horizon** `[now−6h, now+45d]` (`ODDS_WINDOW_AFTER_D` == `gate_check.HORIZON_DAYS`, pinned by test) bounds which schedule games scraped lines are matched against, so openers, `history.json` series, `archive_last` and D1 `odds_history` / `openers` / `games` rows (impact columns NULL until the game has a card) start when a book first posts the line.
 
-## 10. Telegram alert spec (`pipeline/alerts.py`)
+## 10. Notification policy and receipts
 
-Transport: `utils/telegram.py` `send_message` (HTML). Dedup: `alerts.json` `{sent:{key:ts}}` copied from golf `board/state.py`, ALERTS_CAP 500, mark ONLY after successful send, R2 round-trip, mirrored to D1 `alerts`; rehydrate from D1 if R2 missing. Every sent alert also appended to `alerts_feed.json`.
+Telegram delivery is retired by default behind `FOOTBALL_TELEGRAM_ENABLED`;
+only `1` restores it. `pipeline/alerts.py` orchestrates the single policy in
+`pipeline/alert_policy.py`, called by the build and post-publication sender.
+The owner-review outbox also reuses policy collection/planning without transport
+or delivery receipts. See `TELEGRAM_RETIREMENT.md` and `owner-review-outbox.md`.
 
-Families and keys:
-1. **SIGNAL / EDGE record** `edge|{season}|{week}|{game_id}|total|under|best|{model_version}` — one game-level notification identity independent of the current best book or a v1→v2 model promotion. The default gate is signal tier **Low or higher**, including CFB Low Wind; no game alert is eligible without a valid future kickoff within `TELEGRAM_MAX_LEAD_DAYS` (default 7), and none are sent at or after kickoff. Missing prices, missing fair totals, and zero/negative edges never veto weather notifications. `TELEGRAM_MIN_TIER` can raise the weather minimum; `TELEGRAM_MIN_EDGE_PTS` is no longer used. Current total prices use fresh ROI rankings (vig, estimated push probabilities and fair total); without a valid comparison a fresh posted price may be shown with comparison unavailable. Stale or missing quotes are labeled unavailable. Message:
-```
-🎯 <b>SIGNAL · MID · NFL W3</b>
-<b>SEA @ NE</b> · Sun 1:00p ET
-<b>Under 38 (−110) · BetOnline</b>
-Weather: Wind: 18 mph
-Best price: BetOnline · Under 38 (−110) · est. EV +4.0%
-Best exchange: unavailable (no fresh comparison)
-Stadium wind unders: history unavailable
-Week open: Under 39 (−110) · BetOnline
-Kalshi now: unavailable
-NoVig now: unavailable
-<a href="...">Details & all prices</a>
-```
-   Full forecast/model detail and the price ladder remain on the linked board. When CFB's altitude-plus-warmth rule contributes to the signal, its weather line shows the elevation climb and kickoff temperature explicitly.
-2. **UPDATE / silent closure** on the one unsettled signal parent only and only before kickoff. A run emits at most one follow-up per game, in this order: silent closure (weather no longer qualifies), signal-tier change/reactivation, quote availability, line move, forecast move. Price changes alone never close a signal. Closed signals can reactivate on the same parent; distinct transitions can notify again without duplicating the original entry. Line buckets are 1.5 total / 1.0 spread with a 4-hour cooldown; forecast buckets are 2.0 points. A simultaneous signal/fair/line change becomes one UPDATE, not three messages. A material change caused by switching books is labeled `Best price`, not presented as a one-book line move. Legacy book/model-keyed parents are collapsed. `first_signal_at`, `first_signal_label`, and `first_signal_{line,odds,book,fair,edge}` in R2 alert state preserve the first observed qualifying snapshot across quiet hours and send retries. The separate frozen `first_sent_at` / `first_line` / `first_odds` remain the actual delivered entry used for bet grading; an unpriced notification is not graded as a bet. Observation metadata is also retained for unsent signals in R2 `first_signals`; D1 recovery preserves delivered entries but cannot reconstruct unsent observations.
-3. **OPENER DIGEST** is off by default (`TELEGRAM_INCLUDE_OPENERS=1` opts in), because a newly posted book and a PLAY for the same game were redundant.
-4. **SYSTEM**: in-run warnings stay off unless `TELEGRAM_SYSTEM_ALERTS=1`. The pipeline sends one run-level page (the betting chat already used for game alerts) when the publish is rejected or the gate or main (light) build fails. A Playwright/BetOnline failure alone uses that same switch and stays quiet when it is off. Other workflows and Worker dispatch failures stay on the dashboard unless the switch is on. In-run warnings collapse by component; the pipeline has one failure owner rather than a page per job.
-5. **WEEKLY POST-MORTEM** (CFB Sunday, NFL Tuesday, from backtest.yml): one scan-friendly Telegram message with first alerted price/edge, same-book close and CLV, W/L/P and units, plus first forecast → final forecast → actual wind for every play. If Telegram fails or every game cannot fit clearly, SMTP sends the complete report. The dashboard carries full weekly detail and season rollups.
+Signal eligibility is weather-based (Low or higher by default), with
+`TELEGRAM_MIN_TIER` and `TELEGRAM_MAX_LEAD_DAYS` (default 7) controlling eligibility.
+Missing prices, missing fair totals and negative edges remain informational.
+Games require a valid future kickoff and stop notifying at kickoff. A first
+notice keeps the stable identity
+`edge|{season}|{week}|{game_id}|total|under|best|{model_version}`;
+existing book/model-keyed markers still dedupe the same play.
 
-Rate/quiet: at most three individual messages, then one bounded SUMMARY per destination chat (default `TELEGRAM_MAX_PER_RUN=4`); a summary that cannot list every item ends with an explicit `+N more — see board` rather than splitting into more messages. Quiet hours 23:00–07:00 ET queue Low/Mid alerts in `telegram_state.json`; the morning run rebuilds queued messages from the current card, drops resolved or started games, and never sends stale prices. High/Very High, kickoff <3 h, and scrape-volume incidents bypass quiet hours. A deliberately tighter cap defers excess fresh plays to the next run. Optional routing `TELEGRAM_CHAT_ID_NFL` / `TELEGRAM_CHAT_ID_CFB` falls back to `TELEGRAM_CHAT_ID`. `--flush` is an explicitly labeled stored-snapshot escape hatch and discards started games; normal morning runs should be preferred. `--no-alerts` and `--dry-run` print instead of sending. Every enabled board rerun additionally sends an **OPEN SIGNALS** snapshot for each rebuilt sport, including unchanged runs, quiet hours, and an explicit empty-state message. Snapshots use current qualifying pre-kickoff cards, not stored alert records, and paginate to include every game; these pages are outside the individual-alert cap. They never change entry/CLV or delivery records. Closures reconcile internal state without sending Telegram or adding a sent-feed entry. Every signal/update and summary entry includes wind (mph), temperature (°F), and rain (mm), with unavailable values labeled explicitly.
+Routine messages target 08:00 and 17:00 America/New_York with a five-minute
+recovery window. At most two successful routine messages per default chat and
+local day combine NFL/CFB first notices and reminders. High/Very High first
+notices and first notices whose kickoff precedes the next routine slot may send
+immediately, using sport-specific chats with the default chat as fallback.
+Routine summaries prioritize unsent first notices and fit one bounded message.
+Every pass rebuilds waiting candidates from current cards. Legacy stored queue
+keys still load, but are ignored and cleared during enabled planning; snapshots
+have no delivery or replay path. There is no legacy quiet-hour budget engine.
+
+Only explicit user bet confirmations suppress weather reminders and permit a
+one-time CLEAR notice. CLEAR requires fresh, positive invalidation evidence;
+missing/degraded inputs do not establish invalidation. Confirmation state is
+checked again before delivery. Line/price/forecast follow-up alerts, opener
+digests and automatic open-signal snapshots have been removed.
+
+Transport remains `utils/telegram.py` (HTML). Mark only after successful send:
+`alerts.json` sent markers (cap 500), records and feed are preserved, mirrored
+to D1 and `alerts_feed.json`, and recoverable from D1. Unsent `first_signals`
+retain the first observed qualifying quote across retries and routine waits.
+Frozen `first_sent_at` / `first_line` / `first_odds` remain the delivered entry
+used for grading; an unpriced first notice does not gain a retrospective bet.
+CLV settlement and historical records remain compatible.
+
+Book-health down/recovery paging remains independent of system-alert opt-in.
+Run-level failure/recovery paging remains in `pipeline/failure_page.py` behind
+`FOOTBALL_FAILURE_ALERTS`, with Playwright-only failures additionally requiring
+`TELEGRAM_SYSTEM_ALERTS=1`. The removed in-run OPS candidate router is separate
+from these retained failure pages.
+
+The sole alert CLI digest is `--digest postmortem --email-fallback`, invoked by
+`backtest.yml` (CFB Sunday, NFL Tuesday), with sport/state/backtest file arguments.
+It renders results, same-book close/CLV and forecast-versus-actual weather; SMTP
+can send the complete report if Telegram fails or truncates. `--dry-run` renders
+without transport or persistence. Retirement exits before SMTP fallback.
 
 ## 11. Frontend spec (`site/web/`)
 

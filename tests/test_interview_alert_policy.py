@@ -9,7 +9,7 @@ from pipeline import state
 
 NOW = datetime(2026, 10, 9, 12, tzinfo=timezone.utc)  # 08:00 EDT
 GID = "nfl:2026:6:a@b"
-CFG = A.Config(interview_policy=True, chat_default="fixture-chat", board_url="https://fixture.invalid")
+CFG = A.Config(chat_default="fixture-chat", board_url="https://fixture.invalid")
 CTX = SimpleNamespace(run_id="fixture")
 
 

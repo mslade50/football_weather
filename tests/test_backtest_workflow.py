@@ -168,7 +168,7 @@ def test_backtest_sends_postmortem_via_alerts_module(bt: str):
         assert f"{secret}: ${{{{ secrets.{secret} }}}}" in step
     # the digest mode exists in pipeline/alerts.py with that exact spelling
     src = ALERTS_PY.read_text(encoding="utf-8")
-    assert 'DIGEST_KINDS = ("clv", "postmortem")' in src and 'args.digest == "postmortem"' in src
+    assert 'DIGEST_KINDS = ("postmortem",)' in src and 'args.digest == "postmortem"' in src
     assert '"--email-fallback"' in src and "send_postmortem_email" in src
 
 

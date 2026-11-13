@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -10,7 +10,7 @@ from pipeline import alerts as A
 from pipeline import state as pstate
 from pipeline.model import config as C
 from pipeline.model import signals
-from tests.test_alerts_rules import CFG, GID, KICK, NOW, _edge, _with_open_edge, card
+from tests.test_alerts_rules import CFG, GID, NOW, _edge, card
 
 BOARD = "https://football-board.test.workers.dev"
 
@@ -73,45 +73,6 @@ def test_edge_message_omits_fair_estimates_and_handles_missing_lines():
     assert "fair" not in A.format_edge(c, A.consensus_entry(c), BOARD)
 
 
-def test_books_ladder_best_first_kalshi_cents_and_tie_by_odds():
-    c = card()
-    c["odds"] = {
-        "betonline": {"total": {"line": 38.5, "over": -110, "under": -110, "open_line": 38.0}},
-        "fanduel": {"total": {"line": 38.5, "over": -112, "under": -108}},
-        "betcris": {"total": {"line": 38.0, "over": -108, "under": -112}},
-        "kalshi": {"total": {"line": 38.0, "over": 105, "under": -113}},
-        "pinnacle": {"total": {"line": 37.5, "over": -115, "under": -105}},
-        "novig": {"spread": {"home_line": -3.0, "home_odds": -105, "away_odds": -105}},   # no total -> skipped
-    }
-    ladder = A.book_ladder(c, _edge())
-    assert ladder == ["Books: <b>FD u38.5 −108</b> · BetOnline u38.5 −110 · Betcris u38.0 −112 · Kalshi u38.0 (53¢) · "
-                      "Pinnacle u37.5 −105 · ref u37.5"]
-    # OVER bettor: lower line first, then better odds (Kalshi +105 beats Betcris −108 at the same line)
-    over = A.book_ladder(c, _edge(side="over"))
-    assert over[0].startswith("Books: <b>Pinnacle o37.5 −115</b> · Kalshi o38.0 (49¢) · Betcris o38.0 −108 · BetOnline o38.5 −110")
-    assert over[0].endswith("· ref o37.5")
-    # spread side: the more favourable line for that side, then odds; away = −home_line
-    c["odds"]["betonline"]["spread"] = {"home_line": -2.5, "home_odds": -115, "away_odds": -105}
-    home = A.book_ladder(c, _edge(market="spread", side="home", line=-3.0))
-    assert home == ["Books: <b>BetOnline −2.5 −115</b> · Novig −3 −105 · ref −3"]
-    away = A.book_ladder(c, _edge(market="spread", side="away", line=3.0))
-    assert away == ["Books: <b>Novig +3 −105</b> · BetOnline +2.5 −105 · ref +3"]
-    # nothing priced
-    c["odds"] = {}
-    c["consensus"]["total_now"] = None
-    assert A.book_ladder(c, _edge()) == ["Books: no lines posted"]
-    assert A._cents(-108) == 52 and A._cents(120) == 45 and A._cents(None) is None and A._cents(0) is None
-
-
-def test_books_ladder_wraps_past_limit():
-    c = card()
-    c["odds"] = {f"book{i:02d}": {"total": {"line": 38.0 + (i % 4) * 0.5, "under": -100 - i}} for i in range(14)}
-    lines = A.book_ladder(c, _edge())
-    assert len(lines) >= 2 and all(ln.startswith("Books: ") for ln in lines)
-    assert all(len(ln) <= A.LADDER_WRAP_CHARS for ln in lines)
-    assert lines[0].startswith("Books: <b>Book03 u39.5 −103</b>") and lines[-1].endswith("· ref u37.5")
-
-
 def test_edge_message_spread_side_sign():
     c = card([_edge(market="spread", side="home", line=-3.0, fair_line=-4.5, edge_pts=1.5, tier="strong")])
     c["odds"]["betonline"]["spread"] = {"home_line": -3.0, "home_odds": -110, "open_line": -2.5}
@@ -160,13 +121,6 @@ def test_edge_message_names_cfb_altitude_warmth_mid_trigger():
     assert "fair" not in text
     assert altitude in text and "Weather: wind 6.7 mph" not in text
 
-    rec = {"last_signal": "Low Impact", "last_line": 52.5, "last_edge": 0.0, "last_fair": 52.5,
-           "last_wind": 6.7, "last_rain": 0.0}
-    assert altitude in A.format_signal_change(c, rec, edge, BOARD)
-    assert altitude in A.format_move(c, rec, edge, "away from fair", BOARD)
-    assert altitude in A.format_wx_move(c, rec, edge, BOARD)
-
-
 def test_edge_message_uses_active_alert_model_block(monkeypatch):
     """The one-line reason follows the selected model and falls back to v1."""
     c = _sample_card()
@@ -177,9 +131,6 @@ def test_edge_message_uses_active_alert_model_block(monkeypatch):
     assert text.splitlines()[3] == "Weather: Wind: 18 mph"
     c["impact"]["v2"]["components"] = {"rain": 4.0, "wind": 1.0}
     assert A.format_edge(c, _edge(), BOARD).splitlines()[3] == "Weather: Rain: 0.8 mm"
-    # openers digest reads the same block
-    op = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|total|over|betcris"])], BOARD)
-    assert "−8.2%" in op and "−6.5%" not in op
     # A card without v2 falls back to the v1 driver.
     c1 = _sample_card()
     assert A.format_edge(c1, _edge(), BOARD).splitlines()[3] == "Weather: Wind: 18 mph"
@@ -191,115 +142,19 @@ def test_edge_message_uses_active_alert_model_block(monkeypatch):
     assert A.format_edge(c1, _edge(), BOARD).splitlines()[3] == "Weather: Signal: NFL Wind"
 
 
-def test_update_closed_and_forecast_messages_are_concise():
-    c = card([_edge(line=39.0, edge_pts=4.4)])
-    e = c["fair"]["edges"][0]
-    rec = {"first_line": 38.0, "first_edge": 3.4, "last_line": 38.0, "last_edge": 3.4, "last_fair": 34.6,
-           "last_wind": 18.0, "last_rain": 0.8, "last_signal": "High Impact"}
-    move = A.format_move(c, rec, e, "away from fair", BOARD)
-    assert move.splitlines() == [
-        "🌬️ <b>UPDATE · MID · NFL W3</b>",
-        "<b>SEA @ NE</b> · Sun 1:00p ET",
-        "Line: Under 38 → 39 · BetOnline −110",
-        "Forecast: wind 18 mph · temp 41.2 °F · rain 0.8 mm",
-        "Best price: unavailable (no fresh comparison)",
-        "Best exchange: unavailable (no fresh comparison)",
-        "Stadium wind unders: history unavailable",
-        "Week open: Under 38 (?) · BetOnline",
-        "Kalshi now: unavailable",
-        "NoVig now: unavailable",
-        f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
-    ]
-
-    gone_card = card([_edge(line=35.0, edge_pts=0.4)], signal="No Impact", wind=6.0, rain=0.0)
-    gone = A.format_gone(gone_card, rec, gone_card["fair"]["edges"][0], BOARD)
-    assert gone.splitlines() == [
-        "⛔ <b>CLOSED · NFL W3</b>",
-        "<b>SEA @ NE</b> · Sun 1:00p ET",
-        "Reason: Signal High Impact → No Impact",
-        "Was: Under 38 · Now: 35",
-        f'<a href="{BOARD}/#sport=nfl&amp;week=3&amp;game={GID}">Details &amp; all prices</a>',
-    ]
-    neg = A.format_gone(gone_card, rec, dict(gone_card["fair"]["edges"][0], edge_pts=-0.2, edge_prob=None), BOARD)
-    assert "Was: Under 38 · Now: 35" in neg
-
-    c2 = card([_edge(fair_line=36.1, edge_pts=1.9)], wind=16.0, rain=0.0)
-    wx = A.format_wx_move(c2, rec, c2["fair"]["edges"][0], BOARD)
-    wx_lines = wx.splitlines()
-    assert wx_lines[0] == "🌬️ <b>UPDATE · MID · NFL W3</b>"
-    assert wx_lines[2] == "Weather: wind 18 → 16 mph · rain 0.8 → 0 mm"
-    assert wx_lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
-    assert len(wx_lines) == 12
-
-    c3 = card(signal="Mid Impact", wind=17.0)
-    chg = A.format_signal_change(c3, dict(rec, last_signal="Low Impact"), c3["fair"]["edges"][0], BOARD)
-    lines = chg.splitlines()
-    assert lines[0] == "🌬️ <b>UPDATE · MID · NFL W3</b>"
-    assert lines[2] == "Signal: <b>Low Impact → Mid Impact</b>"
-    assert lines[3] == "<b>Current price: Under 38 (−110) · BetOnline</b>"
-    assert lines[4] == "Weather: Wind: 17 mph"
-    assert len(lines) == 13
-    for message in (move, gone, neg, wx, chg):
-        assert "fair" not in message.lower()
-        assert "Value:" not in message
-
-
-def test_openers_and_ops_and_digest_format():
-    c = card()
-    text = A.format_openers("cfb", 2026, 3, [(c, [f"{GID}|total|over|betcris", f"{GID}|spread|home|fanduel"])], BOARD)
-    lines = text.split("\n")
-    assert lines[0] == "<b>📋 CFB Wk 3 openers · 1 weather game(s)</b>"
-    assert lines[1] == "SEA @ NE Sun 1:00p ET · wind 18 mph · temp 41.2 °F · rain 0.8 mm · −6.5% · tot 37.5 sp −3 · Betcris, FD"
-    assert lines[2] == f'<a href="{BOARD}/#sport=cfb&amp;week=3">board</a>'
-
+def test_book_health_ops_format():
     ops = A.format_ops("Degradation [warn] weather", "open-meteo <503> & retry")
     assert ops == "⚠️ <b>Degradation [warn] weather</b>\nopen-meteo &lt;503&gt; &amp; retry"
     assert A.format_ops("x") == "⚠️ <b>x</b>"
-    system = A.format_digest("SYSTEM", [ops])
-    assert system == ["<b>SYSTEM (1)</b>\n\n1. ⚠️ <b>Degradation [warn] weather</b>\nopen-meteo &lt;503&gt; &amp; retry"]
-    assert system[0].count("SYSTEM") == 1
-
-    msgs = A.format_digest("SUMMARY", ["a", "b"])
-    assert msgs == ["<b>SUMMARY (2)</b>\n\n1. a\n\n2. b"]
-    big = A.format_digest("SUMMARY", ["x" * 1500] * 5)
-    assert len(big) == 1 and len(big[0]) <= A.TELEGRAM_MAX_CHARS
-    assert big[0].count("…") == 5 and "(cont.)" not in big[0]
-
-
-def test_context_spread_is_the_consensus_spread_not_a_book_line():
-    """Openers digest + Books-ladder ``ref`` quote ``consensus.spread_now`` (3-book average),
-    never a single book's spread; the bet line itself stays the book's number."""
-    c = card()
-    c["odds"]["betonline"]["spread"] = {"home_line": -3.5, "home_odds": -110, "away_odds": -110, "open_line": -3.0}
-    c["consensus"]["spread_now"] = -2.67
-    c["consensus"]["spread_src"] = "cris+bol+pin"
-    text = A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|spread|home|betonline"])], BOARD)
-    assert text.split("\n")[1] == "SEA @ NE Sun 1:00p ET · wind 18 mph · temp 41.2 °F · rain 0.8 mm · −6.5% · tot 37.5 sp −2.7 · BetOnline"
-    assert "−3.5" not in text
-    e = dict(_edge(), market="spread", side="home", line=-3.5, fair_line=-2.9, edge_pts=0.6)
-    ladder = A.book_ladder(c, e)
-    assert ladder == ["Books: <b>BetOnline −3.5 −110</b> · ref −2.7"]
-    assert A._bet_line(c, e).startswith("<b>NE −3.5 −110 @ BetOnline</b>")
 
 
 def test_telegram_says_when_the_opener_line_is_unknown():
     c = card()
     edge = c["fair"]["edges"][0]
-    rec = {"last_line": 38.0, "last_edge": 3.4, "last_signal": "Mid Impact",
-           "last_wind": 18.0, "last_rain": 0.8, "last_book": "betonline"}
     assert "Opener line unknown" not in A.format_edge(c, edge, BOARD)
     assert "Opener line unknown" not in A._play_summary(c, edge)
-    assert "Opener line unknown" not in A.format_openers(
-        "nfl", 2026, 3, [(c, [f"{GID}|total|under|betonline"])], BOARD)
     c["process"] = {"line_open_missing": True}
-    for text in (
-        A.format_edge(c, edge, BOARD),
-        A.format_move(c, rec, edge, "away from fair", BOARD),
-        A.format_signal_change(c, rec, edge, BOARD),
-        A.format_wx_move(c, rec, edge, BOARD),
-        A._play_summary(c, edge),
-        A.format_openers("nfl", 2026, 3, [(c, [f"{GID}|total|under|betonline"])], BOARD),
-    ):
+    for text in (A.format_edge(c, edge, BOARD), A._play_summary(c, edge)):
         assert "Opener line unknown" in text
     bare = card()
     del bare["odds"]["betonline"]["total"]["open_line"]
@@ -321,14 +176,11 @@ def test_candidate_summary_includes_weather_without_link():
     (["heat"], "🔥"), (["cold"], "🥶"), (["altitude_warmth"], "⛰️ 🔥"),
     (["rain", "wind", "rain"], "🌧️ 🌬️"),
 ])
-def test_signal_trigger_icons_are_consistent_in_alerts_and_open_summaries(drivers, expected):
+def test_signal_trigger_icons_are_consistent_in_alerts_and_summaries(drivers, expected):
     c = card()  # Wind model impact stays largest even for a rain-triggered signal.
     c["signal"]["drivers"] = drivers
     assert A.format_edge(c, _edge()).startswith(expected + " <b>SIGNAL")
     assert A._play_summary(c, _edge()).startswith(expected + " MID")
-    assert A.format_signal_change(c, {"last_signal": "Low Impact"}, _edge()).startswith(expected + " <b>UPDATE")
-    pages = A.open_signal_summaries({"nfl": [c]}, A.Config(), NOW)
-    assert f"1. {expected} MID" in pages[0].text
 
 
 def test_unknown_signal_icon_has_a_neutral_fallback():
@@ -342,30 +194,8 @@ def test_kickoff_label_and_helpers():
     assert A._kick_label(c) == "Sun 8:15p ET"
     assert A._fmt_odds(105) == "+105" and A._fmt_odds(-105) == "−105" and A._fmt_odds(None) == "?"
     assert A._fmt_line(38.5) == "38.5" and A._fmt_line(-3.0, signed=True) == "−3" and A._fmt_line(2.5, signed=True) == "+2.5"
-    assert A._fmt_pct(4.06) == "+4.1%" and A._fmt_pct(-6.5) == "−6.5%" and A._fmt_pct(0) == "0.0%"
     assert A.parse_edge_key(f"edge|2026|3|{GID}|total|under|betonline|v1")["book"] == "betonline"
     assert A.parse_edge_key("move|x|1") is None
-    assert A.et_day(NOW) == "2026-09-18" and A.et_day(KICK + timedelta(hours=8)) == "2026-09-20"
-
-
-def test_clv_scorecard_prioritizes_overall_signal_and_best_worst():
-    alerts = pstate.migrate(None, "alerts")
-    assert A.clv_digest(alerts) == "<b>📊 CLV SCORECARD</b>\nNo settled plays with a closing line yet."
-    for i, (book, clv) in enumerate([("betonline", 1.5), ("betcris", -0.5), ("fanduel", 2.0), ("betonline", 0.0)]):
-        pstate.upsert_alert_record(alerts, f"edge|2026|3|nfl:2026:3:t{i}@ne|total|under|{book}|v1",
-                                   {"family": "edge", "sport": "nfl", "book": book, "tier": "edge" if i else "strong",
-                                    "side": "under", "first_line": 40.0 + i, "closing_line": 40.0 + i + clv, "clv_pts": clv,
-                                    "game_id": f"nfl:2026:3:t{i}@ne"}, "t")
-    text = A.clv_digest(alerts, top_n=2)
-    assert text.startswith("<b>📊 CLV SCORECARD · 4 settled plays</b>\nOverall: avg +0.75 pts · positive 2/4")
-    assert "<b>By signal</b>\n  Strong: 1 plays · avg +1.50 · positive 1/1" in text
-    assert "  Edge: 3 plays · avg +0.50 · positive 1/3" in text
-    assert "By league" not in text and "By book" not in text
-    best = text.split("<b>Best 2</b>")[1].split("<b>Worst 2</b>")[0]
-    assert "T2 @ NE" in best.splitlines()[1] and "T0 @ NE" in best.splitlines()[2]
-    worst = text.split("<b>Worst 2</b>")[1]
-    assert "T1 @ NE" in worst.splitlines()[1]
-    assert A.clv_digest(alerts, sport="cfb") == "<b>📊 CLV SCORECARD</b>\nNo settled plays with a closing line yet."
 
 
 def test_postmortem_digest_is_clear_bounded_and_game_level():
@@ -466,27 +296,12 @@ def test_postmortem_dry_run_previews_but_never_sends_email(tmp_path, capsys, mon
     assert "EMAIL FALLBACK PREVIEW" in out and "email fallback: dry-run (telegram was truncated)" in out
 
 
-def test_cli_digest_and_flush_dry_run(tmp_path, capsys):
-    assert A.main(["--digest", "--state-dir", str(tmp_path), "--dry-run"]) == 0
-    out = capsys.readouterr().out
-    assert "CLV SCORECARD" in out and "clv digest: sent" in out
+def test_cli_postmortem_dry_run(tmp_path, capsys):
     backtest = tmp_path / "backtest.json"
     backtest.write_text('{"postmortem":{"latest":{"bets":[]}}}', encoding="utf-8")
     assert A.main(["--digest", "postmortem", "--backtest", str(backtest), "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "WEEKLY POST-MORTEM" in out and "postmortem digest: sent" in out
-    tg = pstate.migrate(None, "telegram_state")
-    pstate.queue_alert(tg, {"key": "edge|k", "family": "edge", "sport": "nfl", "text": "<b>hi</b>",
-                            "kickoff_utc": (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat(),
-                            "record": {"family": "edge"}})
-    pstate.queue_alert(tg, {"key": "edge|missing-kickoff", "family": "edge", "sport": "nfl",
-                            "text": "<b>stale legacy item</b>", "record": {"family": "edge"}})
-    pstate.save_telegram_state(tmp_path, tg)
-    assert A.main(["--flush", "--state-dir", str(tmp_path), "--dry-run"]) == 0
-    out = capsys.readouterr().out
-    assert "MANUAL QUEUE · SNAPSHOT (1)" in out and "flush: 1 alert(s) in 1 message(s)" in out
-    assert "stale legacy item" not in out
-    assert pstate.load_telegram_state(tmp_path)["queue"] != []   # dry-run keeps the queue
     assert A.main(["--state-dir", str(tmp_path)]) == 2
 
 
@@ -498,8 +313,7 @@ def test_alert_price_context_uses_weekly_opener_and_each_exchange_line():
     c["odds"]["novig"] = {"total": {"line": 40.0, "under": -115, "over": 105}}
     expected = ["Week open: Under 41.5 (−105) · BetOnline",
                 "Kalshi now: Under 39.5 (52¢)", "NoVig now: Under 40 (−115)"]
-    for text in (A.format_edge(c, _edge()), A.format_move(c, {}, _edge(), "toward fair"),
-                 A.format_signal_change(c, {}, _edge()), A.format_wx_move(c, {}, _edge())):
+    for text in (A.format_edge(c, _edge()),):
         assert text.splitlines()[-4:-1] == expected
     over = A._price_context(c, _edge(side="over"))
     assert over[1:] == ["Kalshi now: Over 39.5 (45¢)", "NoVig now: Over 40 (+105)"]
@@ -522,35 +336,14 @@ def test_alert_prices_do_not_invent_missing_side_or_opening_juice():
 
 
 @pytest.mark.parametrize("sport", ["nfl", "cfb"])
-def test_weekly_opener_survives_snapshots_and_signal_overflow(sport):
+def test_weekly_opener_survives_signal_summary(sport):
     c = card(sport=sport)
     c["odds"]["betonline"]["total"].update(line=41.5, open_line=41.5, open_under=-105)
     c["weekly_total_open"].update(line=41.5, under=-105)
     expected = "Week open: Under 41.5 (−105) · BetOnline"
     signal = A.edge_candidates(c, {}, CFG, now=NOW)[0]
-    snapshot = A.open_signal_summaries({sport: [c]}, CFG, NOW)[0]
-    for text in (signal.text, signal.summary, snapshot.text,
-                 *A.format_digest("SUMMARY", [signal.summary])):
+    for text in (signal.text, signal.summary):
         assert text.count(expected) == 1
-
-
-@pytest.mark.parametrize("change", ["tier", "line", "weather", "outage"])
-def test_weekly_opener_survives_update_overflow(change):
-    c = card()
-    c["odds"]["betonline"]["total"].update(line=41.5, open_line=41.5, open_under=-105)
-    c["weekly_total_open"].update(line=41.5, under=-105)
-    if change == "tier":
-        c["signal"]["label"] = "High Impact"
-    elif change == "line":
-        c["fair"]["edges"] = [_edge(line=40)]
-    elif change == "weather":
-        c["fair"]["edges"] = [_edge(fair_line=37)]
-    else:
-        c["fair"]["edges"] = []
-    update = A.followup_candidates(c, _with_open_edge(), CFG, NOW)[0]
-    expected = "Week open: Under 41.5 (−105) · BetOnline"
-    assert update.text.count(expected) == 1
-    assert update.summary.count(expected) == 1
 
 
 def test_weekly_opener_always_uses_betonline_regardless_of_best_book_or_consensus():
@@ -566,9 +359,9 @@ def test_weekly_opener_always_uses_betonline_regardless_of_best_book_or_consensu
     assert A._price_context(c, edge)[0] == "Week open: Under 41.5 (−105) · BetOnline"
 
 
-def test_snapshot_does_not_invent_missing_opening_price():
+def test_signal_does_not_invent_missing_opening_price():
     c = card()
     c["weekly_total_open"] = None
     c["odds"] = {}
-    text = A.open_signal_summaries({"nfl": [c]}, CFG, NOW)[0].text
+    text = A.edge_candidates(c, {}, CFG, now=NOW)[0].text
     assert "Week open: unavailable" in text

@@ -44,12 +44,11 @@ pushes the manifest to R2 through boto3 when ``CF_ACCOUNT_ID`` /
 ``--merge-into-r2`` (Playwright job) additionally pulls the live R2 state first.
 Without the R2 env the workflow's wrangler loops do the upload.
 
-Phase 4 alerts (``pipeline/alerts.py``, any odds scope): after every sport is built,
-PLAY / UPDATE / CLOSED / SYSTEM candidates are collected from the GameCards,
-deduped against ``alerts.json`` (rehydrated from ``alerts_export.json`` when
-missing), queued in ``telegram_state.json`` during quiet hours, consolidated to
-three individual messages plus one summary by default, and sent; markers are
-written ONLY after a successful send.
+Alerts (``pipeline/alerts.py``, any odds scope): first notices, scheduled
+reminders, and confirmed-bet CLEAR candidates use ``pipeline/alert_policy.py``.
+Delivery is retired by default behind ``FOOTBALL_TELEGRAM_ENABLED``. Successful
+delivery alone records dedup markers and feed entries in ``alerts.json``
+(rehydrated from ``alerts_export.json`` when missing).
 ``--no-alerts`` / ``--dry-run`` print the candidates with their keys instead;
 ``--alerts-stdout`` runs the stage for real (markers written) but prints the messages. Sent
 alerts are mirrored to D1 ``alerts`` (``d1_inserts.sql``), ``board/alerts_feed.json``
@@ -2171,15 +2170,13 @@ def run_sport(
 
 def run_alert_stage(ctx: RunContext, results: Sequence[SportResult], state_dir: Path, *, enabled: bool, dry_run: bool,
                     stdout: bool = False, now: datetime | None = None) -> alerts_mod.AlertsRun | None:
-    """PLAY / UPDATE / OPEN SIGNALS / SYSTEM notifications over this
+    """First notices, scheduled reminders and confirmed-bet CLEAR notices over this
     run's GameCards; stamps ``card["alerts"]`` with the open record keys per game.
     Never fatal: a failure is a warn Degradation and the board still publishes."""
     with ctx.stage("alerts"):
         try:
             run = alerts_mod.run_alerts(
                 ctx, {r.sport: r.cards for r in results}, state_dir, enabled=enabled, dry_run=dry_run,
-                new_keys_by_sport={r.sport: (r.board_new_opener_keys if r.board_new_opener_keys is not None
-                                             else r.odds.new_opener_keys) for r in results},
                 sender=alerts_mod.print_sender() if stdout else None, now=now,
             )
         except Exception as exc:  # noqa: BLE001
@@ -2333,11 +2330,6 @@ def write_outputs(
     status = json_out.build_status(meta, run, previous=json_out.load_previous_status(state_dir), books=books)
     files = json_out.write_board(board_dir, cards_by_sport, meta, history=hist, wx_history=wx_hist, snapshots_dir=snapshot_dir,
                                  alerts_feed=feed, status=status)
-    json_out.dump_json(Path(board_dir).parent / "alert_inputs.json", {
-        "run_id": ctx.run_id,
-        "new_keys_by_sport": {r.sport: list(r.board_new_opener_keys if r.board_new_opener_keys is not None
-                                           else r.odds.new_opener_keys) for r in results},
-    })
     json_out.dump_json(Path(state_dir) / json_out.STATUS_FILE, status)  # rolling runs list for the next build
 
     stmts = d1_statements(ctx, results, finished, alert_records=alert_records, n_alerts=n_alerts,

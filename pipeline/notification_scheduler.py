@@ -55,7 +55,7 @@ def make_outbox(meta, cards, confirmations, previous, now):
     if previous is not None and (previous.get('schema_version') != 1
             or previous.get('kind') != 'owner_review_outbox' or not isinstance(previous.get('observations'), dict)):
         raise RuntimeError('Unsupported review outbox; refusing to overwrite durable observations')
-    cfg = alerts.Config(interview_policy=True, chat_default='owner-review', board_url=alerts.DEFAULT_BOARD_URL)
+    cfg = alerts.Config(chat_default='owner-review', board_url=alerts.DEFAULT_BOARD_URL)
     # Only observations are persisted. No Telegram marker can imply ChatGPT delivery.
     ledger = {'first_signals': json.loads(json.dumps((previous or {}).get('observations', {})))}
     candidates = alert_policy.collect(SimpleNamespace(run_id=meta['run_id']),

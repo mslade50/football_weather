@@ -240,7 +240,7 @@ def plan(candidates, alerts, tg, now, cfg):
     result = A.Plan()
     slot = routine_slot(now)
     seen = set()
-    # Queues are advisory. Every pass rebuilds candidates from current evidence.
+    # Ignore legacy stored snapshots; rebuild waiting candidates from current evidence.
     tg["queue"] = []
     for candidate in sorted(candidates, key=lambda c: A._priority(c, now)):
         if candidate.key in seen or A.pstate.alert_sent(alerts, candidate.key):
@@ -266,7 +266,6 @@ def plan(candidates, alerts, tg, now, cfg):
             candidate.record["routine_slot"] = slot
             result.digest.append(candidate)
         else:
-            A.pstate.queue_alert(tg, A._to_queue_item(candidate, now))
             result.queued.append(candidate)
     return result
 

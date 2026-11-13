@@ -18,8 +18,7 @@ acceptance harness is separate and is not represented as its production runtime.
 
 - Python `utils.telegram.send_message`: transport-level master gate.
 - `pipeline.published_alerts`: stops before remote preflight or delivery-state writes.
-- `pipeline.alerts`: disabled planner skips liquidity/dispatch/persistence; digest and
-  flush CLI delivery exits successfully without initiating SMTP fallback. Explicit
+- `pipeline.alerts`: disabled planner skips liquidity/dispatch/persistence; postmortem CLI delivery exits successfully without initiating SMTP fallback. Explicit
   dry-run rendering remains available.
 - `pipeline.yml`: post-publication pick alerts. The failure/recovery page is not
   behind this switch.
@@ -43,7 +42,8 @@ credentials. Other repositories or apps' notifications are not affected.
 
 No model, provider, market, preview/order logic, security/access rule, refresh cadence,
 cron, grading, odds/weather history, opener, archive or secret is removed or modified.
-Historical Telegram receipts and queues remain stored. They are not successful
+Historical Telegram receipts remain stored. Old state files containing queue keys
+still load, but enabled planning clears these snapshots without delivery. They are not successful
 delivery evidence for the new monitor. Future monitor observations belong to its own
 history; the retired Telegram first-entry cohort stops acquiring new sent entries.
 No message or synthetic live opportunity is sent to Telegram to verify this change.
@@ -63,8 +63,8 @@ dispatch on failures. Workflow contracts enumerate and gate each Telegram sender
 
 ## Rollback (only after an explicit request)
 
-1. Pause retirement reversal until queue items are checked against current data and
-   kickoff. Do not manually flush or replay retained stale snapshots.
+1. Retain historical receipts. Future candidates are rebuilt from current data;
+   stored snapshots have no replay path in the single policy engine.
 2. Set the GitHub repository variable `FOOTBALL_TELEGRAM_ENABLED=1` to restore future
    workflow delivery. For a local CLI, set the same process environment value.
    `safe_refresh` and `TELEGRAM_DISABLED=1` still suppress delivery.
@@ -77,4 +77,4 @@ dispatch on failures. Workflow contracts enumerate and gate each Telegram sender
    to silence failure and recovery pages without turning pick alerts on.
 
 Reverting this notification-only commit is an alternative rollback, but must still
-avoid replaying stale queue entries and must preserve any later unrelated changes.
+avoid restoring stale-snapshot delivery and preserve later unrelated changes.

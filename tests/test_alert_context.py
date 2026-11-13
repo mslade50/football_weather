@@ -20,7 +20,7 @@ def test_signal_entry_matches_fresh_roi_best_price_even_with_negative_edge():
     assert "Best exchange: NoVig · Under 46.5 (+108)" in signal.text
 
 
-def test_priced_signal_without_model_then_price_outage_stays_active():
+def test_priced_signal_without_model_keeps_fresh_price_and_missing_fair():
     from tests.test_alerts_rules import _fresh, _live
 
     c = card(signal="Low (Wind)", sport="cfb")
@@ -31,16 +31,10 @@ def test_priced_signal_without_model_then_price_outage_stays_active():
     initial = A.edge_candidates(c, alerts, CFG, now=NOW)
     assert initial[0].record["last_line"] == 49
     assert initial[0].record["last_fair"] is None
-    _live(initial, alerts, tg)
-    outage = A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=2))
-    assert len(outage) == 1 and outage[0].family == "wx"
-    assert "weather signal remains active" in outage[0].text
-    assert "NoVig now: unavailable (quote stale or timestamp missing)" in outage[0].text
-    _live(outage, alerts, tg, now=NOW + timedelta(hours=2))
-    assert A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=2, minutes=1)) == []
-    c["odds"]["novig"]["total"]["updated_at"] = (NOW + timedelta(hours=3)).isoformat()
-    returned = A.followup_candidates(c, alerts, CFG, NOW + timedelta(hours=3))
-    assert len(returned) == 1 and "Price now available" in returned[0].text
+    outcome, _, _ = _live(initial, alerts, tg)
+    assert outcome.n_sent == 1
+    entry = alerts["records"][initial[0].key]
+    assert entry["first_line"] == 49 and entry["last_fair"] is None and entry["status"] == "open"
 
 
 def test_best_prices_use_roi_same_side_freshness_and_all_four_exchanges(monkeypatch):

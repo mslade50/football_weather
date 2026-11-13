@@ -67,3 +67,11 @@ site/       worker/ (wrangler.toml index.js migrations/ SETUP.md test/)
 tests/      fixtures/ (raw/ legacy/ golden parquet)  test_*.py   (`node --test site/worker/test/*.test.mjs` for the Worker)
 main.py     on-demand scraper CLI: --book --sport --market --output --headed
 ```
+
+## Notification engine
+
+`pipeline/alert_policy.py` is the single policy for first notices, routine reminders
+and explicitly confirmed-bet CLEAR notices. `pipeline/alerts.py` retains formatting,
+delivery receipts/feed, book-health paging and the postmortem CLI/email fallback.
+Telegram delivery defaults off behind `FOOTBALL_TELEGRAM_ENABLED`. Legacy stored
+queue keys remain loadable but are never replayed. See `docs/ARCHITECTURE.md` §10.
