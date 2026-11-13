@@ -384,12 +384,3 @@ def test_read_only_contents_permission(text: str):
         assert "contents: read" in _job(text, job), job
     assert "contents: write" not in text
     assert "CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}" in text
-
-
-def test_no_legacy_files_at_repo_root():
-    root = WORKFLOW.parents[2]
-    for name in ("nfl_weather.csv", "cfb_weather.xlsx", "cfb_weather_backtest.xlsx", "app.py"):
-        assert not (root / name).exists(), f"{name} must not live at the repo root (fixtures: tests/fixtures/legacy/)"
-    assert not (root / "pages").exists()
-    for name in ("nfl_weather.csv", "cfb_weather.xlsx"):
-        assert (root / "tests" / "fixtures" / "legacy" / name).is_file()

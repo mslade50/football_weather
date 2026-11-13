@@ -51,7 +51,7 @@ UNIT_PARAMS = {
     "timezone": "UTC",
 }
 BATCH_SIZE = 50
-USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 RETRIES = 3
 # Point forecasts normally answer in 1-3 s. A 60 s timeout let one stalled
 # request cost ~125 s per run (two silent timeouts + backoff before a fast third

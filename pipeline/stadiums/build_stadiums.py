@@ -50,7 +50,7 @@ from typing import Any, Optional
 
 from pipeline.stadiums.loader import DATA_DIR, apply_overrides, load_stadium_book, slug
 
-USER_AGENT = "football_weather stadium builder (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_RADIUS_M = 400
 OVERPASS_BATCH = 40

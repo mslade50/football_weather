@@ -63,7 +63,7 @@ ATTRIBUTION = (
     "ECMWF Open Data (CC BY 4.0). Source: European Centre for Medium-Range "
     "Weather Forecasts. https://www.ecmwf.int/en/forecasts/datasets/open-data"
 )
-USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 IFS_MODEL = "ecmwf_ifs025"
 AIFS_MODEL = "ecmwf_aifs025_single"
 ENS_MODEL = "ecmwf_ifs025_ensemble"

@@ -8,4 +8,5 @@ Global rules come from `mslade50/agent-rules`, installed on this machine as `~/.
 - To refresh board data and activate a data or model change, dispatch the `pipeline` workflow (`.github/workflows/pipeline.yml`, `gh workflow run pipeline.yml`), then confirm `board/meta.json` `run_id` matches the new run.
 
 ## Review
-Repo gate: `docs/REVIEW_POLICY.md`. Checks: `python -m pytest tests -q` and `ruff check .`.
+Delivery is direct push to main per the owner's global rules.
+Checks are `python -m pytest tests -q` and `node --test site/worker/test/*.test.mjs`, chosen to fit the change.

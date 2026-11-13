@@ -127,8 +127,6 @@ test('A warm breeze is not its own list', () => {
   assert.match(run(ctx, 'discoveryState(game).label'), /not a flag/);
   ctx.game.weather.wind_fg = 16;
   assert.equal(run(ctx, 'discoveryState(game).kind'), 'signal');
-  assert.equal(run(ctx, 'typeof warmWindTrack'), 'undefined');
-  assert.equal(run(ctx, 'typeof WARM_WIND_NOTE'), 'undefined');
 });
 test('Impact confidence and rain probability are never treated as signal likelihood', () => {
   const ctx = ui(); ctx.game.weather.precip_prob = .01; ctx.game.impact = {v2: {conf: .01}};

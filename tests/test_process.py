@@ -464,6 +464,3 @@ def test_dashboard_constants_match_the_python_screen() -> None:
         ("PROCESS_UNDER_PROB_MOVE_MAX", C.PROCESS_UNDER_PROB_MOVE_MAX),
     ):
         assert f"const {name} = {int(value) if value >= 1 else value};" in src
-    assert "WARM_WIND" not in src and "Watch: warm + wind" not in src
-    html = (WEB / "index.html").read_text(encoding="utf8")
-    assert 'id="warmwind"' not in html

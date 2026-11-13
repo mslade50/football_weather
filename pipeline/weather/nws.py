@@ -18,7 +18,7 @@ from pipeline.weather.parsers import HourlyRow
 from pipeline.weather.parsers.nws import grid_meta, parse_gridpoints
 
 BASE_URL = "https://api.weather.gov"
-USER_AGENT = "football_weather (mckinleyslade@gmail.com)"
+USER_AGENT = "football-weather-board/1.0"
 HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/geo+json"}
 RETRIES = 3
 HORIZON_HOURS = 7.5 * 24

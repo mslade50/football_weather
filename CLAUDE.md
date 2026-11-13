@@ -43,7 +43,8 @@ Reference implementation for scrapers/board/workflows: `../golf_scraping`.
 
 ## Review
 
-Repo gate: `docs/REVIEW_POLICY.md`. Checks: `python -m pytest tests -q` and `ruff check .`.
+Delivery is direct push to main per the owner's global rules.
+Checks are `python -m pytest tests -q` and `node --test site/worker/test/*.test.mjs`, chosen to fit the change.
 
 ## Tests
 - `python -m pytest tests -q` from the repo root; `pyproject.toml` sets
