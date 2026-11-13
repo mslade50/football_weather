@@ -392,7 +392,10 @@ def test_odds_stage_opt_in_has_identical_result_and_disabled_has_no_write(tmp_pa
     def stage(label):
         ctx = RunContext("nfl", run_id="hook", started_at=T, git_sha="test")
         res = build.stage_odds(ctx, "nfl", [g], None, NullRawStore("nfl", "hook"), ["betonline"], tmp_path / label, 2026)
-        return ctx, (asdict(res), json.dumps(build.json_out.odds_block(g.game_id, res.lines, res.openers), sort_keys=True, default=str))
+        persisted = {p.name: p.read_bytes() for p in (tmp_path / label).glob("*.json")}
+        sql = d1_out.build_statements(odds=d1_out.odds_rows(res.deltas, text(T), "hook"))
+        return ctx, (asdict(res), json.dumps(build.json_out.odds_block(g.game_id, res.lines, res.openers), sort_keys=True, default=str),
+                     persisted, sql)
 
     _, off = stage("off")
     assert not list(tmp_path.rglob("*.sqlite"))
@@ -433,8 +436,10 @@ def test_shadow_failure_and_success_coverage(tmp_path, monkeypatch):
     assert not degradations
     with closing(connect(path)) as conn:
         assert len(q.latest(conn, as_of=datetime.now(timezone.utc))) == 1
-    shadow.weather(str(tmp_path / "absent" / "bad.sqlite"), ctx, [g], {})
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory")
+    shadow.weather(str(blocked / "bad.sqlite"), ctx, [g], {})
     assert degradations[-1].severity == "warn" and degradations[-1].component == "obslog.weather"
-    monkeypatch.setattr(shadow, "connect", lambda _: (_ for _ in ()).throw(RuntimeError("failure")))
+    monkeypatch.setattr(shadow, "connect", lambda *args: (_ for _ in ()).throw(RuntimeError("failure")))
     shadow.odds(path, ctx, g.sport, [g], [], [], {})
     assert degradations[-1].component == "obslog.odds"

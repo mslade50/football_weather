@@ -1242,7 +1242,12 @@ def stage_odds(
     if os.environ.get("OBSLOG_SHADOW_PATH"):
         try:
             from pipeline.obslog.shadow import odds as shadow_odds
-            shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, outcomes)
+            # A scrape may succeed while schedule resolution drops rows. Treat
+            # that as incomplete coverage without parsing human degradations.
+            shadow_results = {name: dataclasses.replace(result, coverage_ok=result.coverage_ok and
+                              sum(ln.book == name for ln in lines) == per_book_n[name])
+                              for name, result in outcomes.items()}
+            shadow_odds(os.environ["OBSLOG_SHADOW_PATH"], ctx, sport, games, lines, books, shadow_results)
         except Exception as exc:  # noqa: BLE001
             ctx.degrade("obslog.odds", f"shadow unavailable: {type(exc).__name__}", "warn")
     # Books not scraped this run (the Playwright job runs --books betonline only)
