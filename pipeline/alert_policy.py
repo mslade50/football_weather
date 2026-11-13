@@ -77,9 +77,9 @@ def clear_reason(card, cfg, now):
             or any(not isinstance(card.get(team), dict) or not any(card[team].get(key) for key in ('id', 'short', 'name'))
                    for team in ('home', 'away'))):
         return None
+    # Roof and spread invalidation below do not depend on weather. The weather
+    # branch already refuses aged points, which every retained forecast is.
     wx = card.get('weather') or {}
-    if wx.get('retained') or wx.get('point_aged') is True:
-        return None  # No CLEAR, including roof/spread invalidation, from retained evidence.
     stadium = card.get('stadium') or {}
     roof_type = stadium.get('roof_type')
     roof = resolve_roof_state(roof_type, stadium.get('roof_state') or card.get('roof_state'))

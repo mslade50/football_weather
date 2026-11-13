@@ -148,11 +148,12 @@ def test_retained_point_cannot_signal_alert_remind_or_clear_even_cached_signal(a
     assert not P.collect(CTX, {"nfl": [data]}, active, CFG, NOW, {})
     data["weather"].update(wind_fg=3, temp_fg=65)
     assert P.clear_reason(data, CFG, NOW) is None
+    # Roof and spread invalidation do not depend on weather, so they still CLEAR.
     data["stadium"]["roof_type"] = "dome"
-    assert P.clear_reason(data, CFG, NOW) is None
+    assert "roof" in P.clear_reason(data, CFG, NOW)
     data.update(sport="cfb", stadium={"roof_type": "open"})
     data["consensus"]["spread_open"] = -14
-    assert P.clear_reason(data, CFG, NOW) is None
+    assert "spread" in P.clear_reason(data, CFG, NOW)
     # Missing aged marker must not resurrect a stale pre-retention decision.
     data["weather"]["point_aged"] = False
     assert not process.decision_for(data, now=NOW)["alert"]
