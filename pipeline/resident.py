@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from pipeline.model import config
 from pipeline.outputs import r2
 from utils.env import load_repo_dotenv
 
@@ -199,7 +200,7 @@ class ResidentCollector:
                           and (g.get('stadium') or {}).get('roof_type') != 'dome'
                           and (g.get('stadium') or {}).get('roof_state') not in ('dome', 'closed', 'indoor')
                           and not (g.get('sport') == 'cfb' and isinstance((g.get('consensus') or {}).get('spread_open'), (int, float))
-                                   and abs(g['consensus']['spread_open']) > 10)
+                                   and abs(g['consensus']['spread_open']) > config.CFB_OPEN_SPREAD_MAX)
                           and not any(term in str(g.get('status', '')).lower() for term in ('final', 'cancel', 'postpon', 'suspend', 'live', 'progress'))]
             candidates.sort(key=lambda g: (self.last_checked.get(g['game_id'], ''), g['kickoff_utc'], g['game_id']))
             selected = candidates[:self.max_games]
