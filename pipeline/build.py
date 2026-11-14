@@ -1320,7 +1320,8 @@ def stage_odds(
                 value["available"] = False
         for ln in main_lines + pseudo:
             last[ln.key] = {"line": ln.line, "odds": ln.odds, "ts": utc_iso(ln.scraped_at) if ln.scraped_at else now,
-                            "available": True, "source_id": ln.source_id, "outcome_ids": ln.outcome_ids}
+                            "available": True, "source_id": ln.source_id, "outcome_ids": ln.outcome_ids,
+                            "execution_evidence": ln.execution_evidence}
             if ln.source_updated_at is not None:
                 last[ln.key]["source_updated_at"] = utc_iso(ln.source_updated_at)
             if ln.expires_at is not None:
@@ -1431,6 +1432,7 @@ def carry_forward_lines(archive: dict, sport: str, active_ids: set[str], scraped
             out.append(GameLine(sport=sport, game_id=game_id, book=book, market=market, side=side,
                                 odds=int(odds), line=val.get("line"), is_main=True, scraped_at=quoted_at,
                                 source_id=val.get("source_id"), outcome_ids=val.get("outcome_ids") or {},
+                                execution_evidence=val.get("execution_evidence") or {},
                                 source_updated_at=pstate.parse_utc(val.get("source_updated_at")), expires_at=expires_at,
                                 actionable_until=pstate.parse_utc(val.get("actionable_until"))))
         except (TypeError, ValueError):
@@ -2001,6 +2003,7 @@ def write_outputs(
         book_health = {}
     weeks = json_out.current_weeks({r.sport: (r.games or r.odds_games) for r in results}, ctx.now_utc)
     extra = {"book_health": book_health, "weeks": weeks,
+             "execution_fields_schema_version": 1,
              "heartbeat_health": json_out.heartbeat_health(state_dir, finished, prev_meta),
              "books_requested": list(book_list), "n_lines": sum(len(r.odds.scraped) for r in results)}
     ecmwf_status = ctx.weather_state.get("ecmwf_opendata")

@@ -50,7 +50,8 @@ def expected_roi(win: float, push: float, cost: float) -> float:
     return win / cost + push - 1
 
 
-def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: datetime | None = None) -> dict:
+def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: datetime | None = None,
+                   game: Any = None, process: dict | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     lines = list(lines)
     result: dict[str, Any] = {"method": "discrete_logistic_estimate", "quotes": [], "best_under": None,
@@ -96,6 +97,10 @@ def compare_totals(sport: str, lines: Iterable[GameLine], fair: Any, *, now: dat
                                      "expires_at": row.expires_at.isoformat() if row.expires_at else None,
                                      "execution_status": "posted_quote_depth_unverified" if book in EXECUTION_BOOKS else "reference_only",
                                      "fee_status": "requires_current_depth_fee_verification" if book in EXECUTION_BOOKS else "reference_only"})
+            if book in EXECUTION_BOOKS and game is not None:
+                from pipeline.odds.execution_evidence import publish_evidence
+
+                result[target][-1]["execution"] = publish_evidence(row, game, process or {})
     result["quotes"].sort(key=lambda q: (-q["ev_roi"], q["book"], q["side"]))
     for side in ("under", "over"):
         result[f"best_{side}"] = next((q for q in result["quotes"] if q["side"] == side), None)

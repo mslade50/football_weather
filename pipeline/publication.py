@@ -322,6 +322,16 @@ def prepare_generation(files: dict[str, Path], target: Path) -> tuple[dict[str, 
     data['meta.json'] = encoded(meta)
     objects = {name: {"sha256": digest(body), "bytes": len(body)} for name, body in sorted(data.items())}
     manifest = {"schema_version": 1, "run_id": meta["run_id"], "git_sha": meta.get("git_sha"), "objects": objects}
+    # Coverage comes from the actual sealed bytes, including any carried sport.
+    coverage = {}
+    for sport in SPORTS:
+        payload = json.loads(data[f"games_{sport}.json"])
+        games = payload if isinstance(payload, list) else payload["games"]
+        quotes = [q for game in games for q in (game.get("total_prices") or {}).get("quotes", [])]
+        coverage[sport] = {"quotes": len(quotes), "with_execution_v1": sum(
+            isinstance(q.get("execution"), dict) and q["execution"].get("schema_version") == 1 for q in quotes)}
+    manifest["execution_fields"] = {"schema_version": 1, "path": "games[].total_prices.quotes[].execution",
+                                    "coverage": coverage}
     manifest_bytes = encoded(manifest)
     generation = digest(manifest_bytes)
     directory = target / generation

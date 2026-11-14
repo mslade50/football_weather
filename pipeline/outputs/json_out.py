@@ -737,12 +737,12 @@ def build_card(
         },
         "consensus": consensus_block(game.game_id, consensus, openers),
         "fair": {**fair_block(fair, legacy_derived, fair_v2), "priced_at": utc_iso(priced_at)},
-        "total_prices": compare_totals(sport, lines, fair, now=priced_at),
         "execution_markets": execution_markets(lines),
         "alerts": list(alerts),
         "run_id": run_id,
     }
     card["process"] = evaluate_card(card, now=priced_at)
+    card["total_prices"] = compare_totals(sport, lines, fair, now=priced_at, game=game, process=card["process"])
     return sanitize(card)
 
 

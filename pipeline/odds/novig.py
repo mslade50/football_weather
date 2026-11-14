@@ -112,6 +112,7 @@ class NovigScraper(BaseScraper):
         self.min_interval = BOOK_MIN_INTERVAL_S
         self.last_transport: str | None = None
         self.fetch_errors: dict[str, str] = {}
+        self.book_observed_at: dict[str, str] = {}
         self._book_lock = asyncio.Lock()
         self._next_book_at = 0.0
         self._book_deadline: float | None = None
@@ -178,6 +179,7 @@ class NovigScraper(BaseScraper):
         payload = response.json()
         if not isinstance(payload, dict):
             raise RuntimeError(f"Novig {url} returned a non-object response")
+        self.book_observed_at[market_id] = datetime.now(timezone.utc).isoformat()
         return payload
 
     def _past_book_deadline(self) -> bool:
@@ -303,7 +305,8 @@ class NovigScraper(BaseScraper):
             "[novig] %s public catalog: %s event page(s), %s market page(s), %s books",
             sport, len(event_pages), len(market_pages), len(books),
         )
-        return {"source": "public", "events": event_pages, "markets": market_pages, "books": books}
+        return {"source": "public", "events": event_pages, "markets": market_pages, "books": books,
+                "book_observed_at": dict(self.book_observed_at)}
 
     async def _access_token(self, client: httpx.AsyncClient) -> str:
         creds = nbx_credentials()
@@ -368,6 +371,7 @@ class NovigScraper(BaseScraper):
                     seen.add(event_id)
                     event_ids.append(event_id)
         event_books: dict[str, list] = {}
+        event_observed_at: dict[str, str] = {}
         sem = asyncio.Semaphore(8)
 
         async def one(event_id: str) -> None:
@@ -375,11 +379,13 @@ class NovigScraper(BaseScraper):
                 event_books[event_id] = await self._nbx_json(
                     client, f"{EVENT_MARKETS_URL}/{event_id}", headers, {"currency": "CASH"},
                 )
+                event_observed_at[event_id] = datetime.now(timezone.utc).isoformat()
 
         if event_ids:
             await asyncio.gather(*(one(event_id) for event_id in event_ids))
         logger.info("[novig] %s NBX: %s events", sport, len(event_ids))
-        return {"source": "nbx", "open_markets": open_markets, "event_books": event_books}
+        return {"source": "nbx", "open_markets": open_markets, "event_books": event_books,
+                "event_observed_at": event_observed_at}
 
     async def fetch_raw(self, sport: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -411,6 +417,7 @@ class NovigScraper(BaseScraper):
         capture = self.capture if capture is None else capture
         run_id = self.run_id if run_id is None else run_id
         del kwargs
+        self.book_observed_at = {}
         if not book_enabled("novig"):
             logger.info("[novig] disabled via BOOK_NOVIG_ENABLED=0")
             return []

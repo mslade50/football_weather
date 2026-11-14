@@ -46,6 +46,7 @@ class PolymarketUSScraper(BaseScraper):
 
     def _initialize(self) -> None:
         self.fetch_errors: dict[str, str] = {}
+        self.observed_at: dict[str, str] = {}
 
     async def _attach_line_markets(self, client: httpx.AsyncClient, sport: str, events: list[dict], capture) -> None:
         pending = [event for event in events if _needs_event_document(event)]
@@ -80,6 +81,7 @@ class PolymarketUSScraper(BaseScraper):
                 logger.warning("[polymarket_us] %s event %s document did not match the listed game", sport, slug)
                 return
             event["markets"] = markets
+            self.observed_at[str(event["id"])] = datetime.now(timezone.utc).isoformat()
 
         await asyncio.gather(*(load(event) for event in pending))
         logger.info("[polymarket_us] %s: loaded %d event documents (%d failed)", sport, len(pending), failures)
@@ -100,6 +102,7 @@ class PolymarketUSScraper(BaseScraper):
         if not book_enabled("polymarket_us"):
             return []
         self.fetch_errors = {}
+        self.observed_at = {}
         events = {}
         url = f"{BASE_URL}/v2/leagues/{sport}/events"
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -109,6 +112,7 @@ class PolymarketUSScraper(BaseScraper):
                 if capture:
                     capture(f"polymarket_us_{sport}_{page}", response.text, str(response.url))
                 payload = response.json()
+                received_at = datetime.now(timezone.utc).isoformat()
                 batch = payload.get("events")
                 if not isinstance(batch, list):
                     raise ValueError("Polymarket US response missing events")
@@ -119,6 +123,7 @@ class PolymarketUSScraper(BaseScraper):
                 # Live ordering can move games across page boundaries. Keep the
                 # latest copy without rejecting the rest of a valid slate.
                 events.update((e["id"], e) for e in batch)
+                self.observed_at.update((str(e["id"]), received_at) for e in batch)
                 if len(batch) < PAGE_SIZE:
                     break
                 if not new_ids:
@@ -126,5 +131,6 @@ class PolymarketUSScraper(BaseScraper):
             else:
                 raise ValueError("Polymarket US pagination exceeded safety limit")
             await self._attach_line_markets(client, sport, list(events.values()), capture)
-        lines = parser.parse({"events": list(events.values())}, sport, scraped_at=datetime.now(timezone.utc), run_id=run_id)
+        lines = parser.parse({"events": list(events.values()), "observed_at": self.observed_at}, sport,
+                             scraped_at=datetime.now(timezone.utc), run_id=run_id)
         return [ln for ln in lines if market is None or ln.market == market]

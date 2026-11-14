@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.model.fair import prob_to_american
+from pipeline.odds.execution_evidence import polymarket_evidence
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.parsers.common import MAX_QUOTE_WIDTH, parse_utc
 from pipeline.odds.parsers.common import finite_number as number
@@ -88,6 +89,9 @@ def parse(payload: dict, sport: str, *, scraped_at: datetime, run_id: str | None
                                      line=points, odds=prob_to_american(cost), prob_raw=mid if long else 1-mid,
                                      is_main=False, source_id=market.get("slug"), scraped_at=scraped_at, run_id=run_id))
                 if ln_ is not None:
+                    if kind == "total":
+                        ln_ = replace(ln_, execution_evidence=polymarket_evidence(
+                            event, market, side, (payload.get("observed_at") or {}).get(str(event.get("id")))))
                     rows.append(ln_)
         # Main rung = balanced midpoint, with both sides on that same contract.
         for kind in ("total", "spread", "ml"):

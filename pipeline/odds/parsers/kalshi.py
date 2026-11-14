@@ -53,6 +53,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Iterable
+from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 
@@ -354,7 +355,15 @@ def parse(
             coefficient, at = TAKER_FEE_RATE, scraped_at
         fn = _PARSERS[market]
         for ev in events or []:
-            out.extend(fn(ev, sport, at, run_id, coefficient))
+            rows = fn(ev, sport, at, run_id, coefficient)
+            if market == "total":
+                from pipeline.odds.execution_evidence import kalshi_evidence
+
+                catalog = {m.get("ticker"): m for m in ev.get("markets") or []}
+                envelope = payload[series] if isinstance(payload[series], dict) else {}
+                rows = [replace(row, execution_evidence=kalshi_evidence(ev, catalog[row.source_id], envelope, row.side))
+                        for row in rows]
+            out.extend(rows)
     return out
 
 

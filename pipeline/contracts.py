@@ -258,6 +258,8 @@ class GameLine(_AsDict):
     opening_odds: Optional[int] = None
     opened_at: Optional[datetime] = None
     opening_source: Optional[str] = None
+    # Read-only native catalog evidence; carried unchanged through canonicalization.
+    execution_evidence: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _check_in(self.sport, SPORTS, "sport")

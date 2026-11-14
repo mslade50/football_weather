@@ -254,6 +254,7 @@ def _flip_line(ln: GameLine, game_id: str) -> GameLine:
         scraped_at=ln.scraped_at, run_id=ln.run_id, outcome_ids=ln.outcome_ids,
         source_updated_at=ln.source_updated_at, expires_at=ln.expires_at,
         actionable_until=ln.actionable_until,
+        execution_evidence=ln.execution_evidence,
     )
 
 
@@ -264,6 +265,7 @@ def _rekey(ln: GameLine, game_id: str) -> GameLine:
         scraped_at=ln.scraped_at, run_id=ln.run_id, outcome_ids=ln.outcome_ids,
         source_updated_at=ln.source_updated_at, expires_at=ln.expires_at,
         actionable_until=ln.actionable_until,
+        execution_evidence=ln.execution_evidence,
     )
 
 

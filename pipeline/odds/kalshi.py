@@ -41,6 +41,9 @@ class KalshiScraper(BaseScraper):
 
     DEFAULT_TIMEOUT = 15.0
 
+    def _initialize(self) -> None:
+        self.event_observed_at: dict[str, str] = {}
+
     async def _fetch_all_events(self, client: httpx.AsyncClient, series_ticker: str) -> list[dict]:
         """Fetch all open events (with nested markets) for a series, handling pagination."""
         all_events: list[dict] = []
@@ -57,6 +60,9 @@ class KalshiScraper(BaseScraper):
             resp = await get_with_retry(client, f"{API_BASE}/events", label="kalshi", params=params, backoff=1.5)
             data = resp.json()
             events = data.get("events", [])
+            received = datetime.now(timezone.utc).isoformat()
+            self.event_observed_at.update((event["event_ticker"], received)
+                                          for event in events if event.get("event_ticker"))
             all_events.extend(events)
 
             prev = cursor
@@ -71,6 +77,7 @@ class KalshiScraper(BaseScraper):
         series = kalshi_parser.SERIES_BY_SPORT[sport]
         wanted = {m: s for m, s in series.items() if market is None or m == market}
         payload: dict[str, Any] = {}
+        self.event_observed_at = {}
         async with httpx.AsyncClient(headers=HEADERS, timeout=self.timeout) as client:
             for m, tk in wanted.items():
                 try:
@@ -81,6 +88,8 @@ class KalshiScraper(BaseScraper):
                     fee_metadata = {"error": type(exc).__name__}
                 events = await self._fetch_all_events(client, tk)
                 payload[tk] = {"events": events, "fee_metadata": fee_metadata,
+                               "event_observed_at": {event["event_ticker"]: self.event_observed_at.get(event["event_ticker"])
+                                                     for event in events if event.get("event_ticker")},
                                "received_at": datetime.now(timezone.utc).isoformat()}
                 logger.info(f"[kalshi] {sport} {m}: {len(events)} events from {tk}")
         return payload

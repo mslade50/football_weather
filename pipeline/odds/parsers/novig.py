@@ -41,6 +41,7 @@ from typing import Any
 
 from pipeline.contracts import GameLine, game_line
 from pipeline.model.fair import prob_to_american as _prob_to_american
+from pipeline.odds.execution_evidence import novig_evidence
 from pipeline.odds.ids import provisional_game_id as build_game_id
 from pipeline.odds.main_select import select_main_lines
 from pipeline.odds.parsers.common import parse_utc, positive_zero, valid_lines
@@ -147,6 +148,8 @@ def parse_event(
                                  and x.get("id")},
                     scraped_at=scraped_at,
                     run_id=run_id,
+                    execution_evidence=(o.get("execution_evidence") or novig_evidence(
+                        event, m, o, {}, observed_at=None, source="novig.graphql")) if market == "total" else {},
                 )
             )
     out = valid_lines(out)
@@ -332,7 +335,13 @@ def _public_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 price = prices.get(str(outcome.get("outcomeId")))
                 if side is None or price is None:
                     continue
-                built.append(_typed_outcome(str(outcome["outcomeId"]), side, price, str(outcome.get("name") or "")))
+                typed = _typed_outcome(str(outcome["outcomeId"]), side, price, str(outcome.get("name") or ""))
+                if market_type == "TOTAL":
+                    mid = str(market.get("marketId"))
+                    typed["execution_evidence"] = novig_evidence(
+                        event, market, outcome, books.get(mid) or {},
+                        observed_at=(payload.get("book_observed_at") or {}).get(mid), source="novig.public.catalog")
+                built.append(typed)
             if not built:
                 continue
             markets.append({
@@ -399,7 +408,12 @@ def _nbx_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
             price = prices.get(str(outcome["id"]))
             if price is None:
                 continue
-            built.append({**outcome, "available": price})
+            typed = {**outcome, "available": price}
+            if market_type == "TOTAL":
+                typed["execution_evidence"] = novig_evidence(
+                    event, market, outcome, books.get(str(market["id"])) or {},
+                    observed_at=(payload.get("event_observed_at") or {}).get(event_id), source="novig.nbx")
+            built.append(typed)
         if not built:
             continue
         bucket = grouped.setdefault(event_id, {
