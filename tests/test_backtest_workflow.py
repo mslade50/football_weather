@@ -106,8 +106,17 @@ def test_backtest_state_fetch_is_readonly_and_fails_on_non_nosuchkey(bt: str):
 def test_backtest_exports_d1_and_runs_module(bt: str):
     exp = _step(bt, "Export D1 tables")
     assert "D1_TABLES: games odds_history closings alerts stadiums teams weather_history runs" in bt
-    # {table}.json in the `d1 execute --json` shape that pipeline.backtest.load_export_dir reads
-    assert 'npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --json --command "SELECT * FROM $t" > "data/d1_export/$t.json"' in exp
+    # {table}.json in the `d1 execute --json` shape that pipeline.backtest.load_export_dir reads.
+    # The 50 MB D1 result limit is handled in the exporter, not by ignoring a failed SELECT *.
+    assert "python scripts/export_d1_tables.py --out data/d1_export" in exp
+    assert "SELECT * FROM $t" not in exp
+    script = (WF_DIR.parents[1] / "scripts" / "export_d1_tables.py").read_text(encoding="utf-8")
+    assert "npx" in script and "wrangler@4" in script and "d1" in script and "execute" in script
+    assert "--remote" in script and "--json" in script and "SELECT * FROM" in script
+    assert "maximum response size" in script and "50" in script
+    assert "::warning::d1 export" in script
+    assert 'echo "$CLOUDFLARE_API_TOKEN"' not in script and "echo $CLOUDFLARE_API_TOKEN" not in script
+    assert "set -x" not in script
     run = _step(bt, "Run backtest")
     assert ("python -m pipeline.backtest --state-dir data/state --snapshot-dir data/snapshots --export-dir data/d1_export"
             in run)
