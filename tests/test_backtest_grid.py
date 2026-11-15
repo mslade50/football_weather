@@ -378,6 +378,105 @@ def test_mirror_keeps_older_closing_snapshots_even_when_recent_budget_is_full():
                     "snapshots/nfl/2025/2/20250908T170000Z-new.json"]
 
 
+def _span_card(game_id: str, week: int, kickoff: str) -> dict:
+    return {
+        "game_id": game_id, "sport": game_id.split(":", 1)[0], "season": 2026, "week": week,
+        "kickoff_utc": kickoff, "date_label": "SAT 11/14", "time_label": "12:00 PM",
+        "away": {"short": "AWY", "name": "Away"}, "home": {"short": "HOM", "name": "Home"},
+        "neutral": False,
+    }
+
+
+def test_snapshot_window_matches_the_writer():
+    from pipeline.build import WINDOW_AFTER_D, WINDOW_BEFORE_H
+    assert bt.SNAPSHOT_WINDOW_BEFORE_H == WINDOW_BEFORE_H
+    assert bt.SNAPSHOT_WINDOW_AFTER_H == WINDOW_AFTER_D * 24.0
+
+
+def test_snapshot_keys_match_write_board_when_one_run_spans_two_weeks(tmp_path: Path):
+    """The Saturday CFB run filed week 11 and week 12 cards under week 11.
+
+    History is change-only, so the only row for that run can be the later game.
+    Its last-pregame key still has to be the object write_board wrote.
+    """
+    run_id = "20261114T160146Z-gh43613244476-1"
+    early_id, late_id = "cfb:2026:11:iowa@oregon", "cfb:2026:12:ole-miss@oklahoma"
+    early = _span_card(early_id, 11, "2026-11-14T19:30:00Z")
+    late = _span_card(late_id, 12, "2026-11-15T18:00:00Z")
+    files = json_out.write_board(
+        tmp_path / "board", {"cfb": [late, early]}, {"run_id": run_id}, snapshots_dir=tmp_path / "snapshots",
+    )
+    written = [k for k in files if k.startswith("snapshots/")]
+    assert written == [f"snapshots/cfb/2026/11/{run_id}.json"]
+    d1 = bt.D1Data(
+        games=[early, late],
+        weather_history=[{"game_id": late_id, "run_id": run_id, "fetched_at": "2026-11-14T16:02:00Z"}],
+        runs=[{"run_id": run_id, "started_at": "2026-11-14T16:01:46Z", "finished_at": "2026-11-14T16:08:00Z"}],
+    )
+    # After the week-12 kickoff this run is the mandatory closing snapshot, even with limit 1.
+    keys = bt.snapshot_keys(d1, limit=1, now=datetime(2026, 11, 15, 20, 0, tzinfo=timezone.utc))
+    assert keys == written
+    both = bt.D1Data(
+        games=[early, late],
+        weather_history=[
+            {"game_id": early_id, "run_id": run_id},
+            {"game_id": late_id, "run_id": run_id},
+        ],
+        runs=[{"run_id": run_id, "started_at": "2026-11-14T16:01:46Z"}],
+    )
+    assert bt.snapshot_keys(both, limit=5, now=datetime(2026, 11, 15, 20, 0, tzinfo=timezone.utc)) == written
+
+
+def test_snapshot_keys_file_each_sport_under_its_own_earliest_week():
+    run_id = "20261114T160146Z-gh43613244476-1"
+    d1 = bt.D1Data(
+        games=[
+            {"game_id": "nfl:2026:10:dal@phi", "kickoff_utc": "2026-11-14T18:00:00Z"},
+            {"game_id": "nfl:2026:11:kc@buf", "kickoff_utc": "2026-11-16T01:20:00Z"},
+            {"game_id": "cfb:2026:11:iowa@oregon", "kickoff_utc": "2026-11-14T19:30:00Z"},
+            {"game_id": "cfb:2026:12:ole-miss@oklahoma", "kickoff_utc": "2026-11-15T18:00:00Z"},
+        ],
+        weather_history=[
+            {"game_id": "nfl:2026:11:kc@buf", "run_id": run_id},
+            {"game_id": "cfb:2026:12:ole-miss@oklahoma", "run_id": run_id},
+        ],
+        runs=[{"run_id": run_id, "started_at": "2026-11-14T16:01:46Z", "finished_at": "2026-11-14T16:08:00Z"}],
+    )
+    keys = bt.snapshot_keys(d1, limit=1, now=datetime(2026, 11, 17, 13, 17, tzinfo=timezone.utc))
+    assert keys == [
+        f"snapshots/cfb/2026/11/{run_id}.json",
+        f"snapshots/nfl/2026/10/{run_id}.json",
+    ]
+
+
+def test_snapshot_keys_use_the_window_at_run_start_not_every_stored_week():
+    run_id = "20261116T180000Z-later-1"
+    d1 = bt.D1Data(
+        games=[
+            {"game_id": "cfb:2026:11:iowa@oregon", "kickoff_utc": "2026-11-14T19:30:00Z"},
+            {"game_id": "cfb:2026:12:ole-miss@oklahoma", "kickoff_utc": "2026-11-21T18:00:00Z"},
+        ],
+        weather_history=[{"game_id": "cfb:2026:12:ole-miss@oklahoma", "run_id": run_id}],
+        runs=[{"run_id": run_id, "started_at": "2026-11-16T18:00:00Z"}],
+    )
+    keys = bt.snapshot_keys(d1, limit=5, now=datetime(2026, 11, 22, tzinfo=timezone.utc))
+    assert keys == [f"snapshots/cfb/2026/12/{run_id}.json"]
+
+
+def test_snapshot_keys_without_kickoffs_still_request_one_object():
+    """No kickoff to reconstruct the window: ask for the earliest named week, and still ask.
+
+    Week 9 must beat week 10. A text sort of the game_id week would pick 10.
+    """
+    run_id = "20261114T160146Z-no-kick-1"
+    d1 = bt.D1Data(weather_history=[
+        {"game_id": "nfl:2026:10:kc@buf", "run_id": run_id},
+        {"game_id": "nfl:2026:9:dal@phi", "run_id": run_id},
+    ])
+    keys = bt.snapshot_keys(d1, limit=5, now=datetime(2026, 11, 17, tzinfo=timezone.utc))
+    assert keys == [f"snapshots/nfl/2026/9/{run_id}.json"]
+
+
 def test_build_rows_merges_d1_and_snapshots_and_filters_by_kickoff():
     d1 = bt.D1Data(games=[{"game_id": "cfb:2026:5:a@b", "sport": "cfb", "season": 2026, "week": 5, "kickoff_utc": "2026-10-03T19:30:00Z",
                            "home_id": "b", "away_id": "a", "stadium_id": "s1", "gs_fg": -2.5},

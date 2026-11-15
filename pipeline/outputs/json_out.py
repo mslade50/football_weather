@@ -1063,7 +1063,11 @@ def load_previous_status(state_dir: PathLike) -> Optional[dict[str, Any]]:
 
 
 def season_week(cards: Sequence[dict[str, Any]]) -> tuple[Optional[int], Optional[int]]:
-    """(season, week) of the earliest kickoff among ``cards``."""
+    """(season, week) of the earliest kickoff among ``cards``.
+
+    ``write_board`` files that sport's one snapshot under this week.
+    ``pipeline.backtest.snapshot_keys`` resolves existing objects the same way.
+    """
     if not cards:
         return None, None
     first = min(cards, key=lambda c: str(c.get("kickoff_utc") or ""))

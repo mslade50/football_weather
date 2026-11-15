@@ -5,8 +5,10 @@ name: backtest
 #   * Sunday 08:17/09:17 ET for CFB and Tuesday 08:17/09:17 ET for NFL (13:17 UTC): fetch the
 #     state files pipeline.backtest reads from R2 board/ (alerts, closings, history,
 #     wx_history, openers), pull the D1 tables it joins as {table}.json
-#     (`d1 execute --json`), mirror the R2 snapshots/ those exports reference (one wrangler
-#     install, then parallel `r2 object get`, newest SNAPSHOT_MAX), run `python -m pipeline.backtest` -> data/board/backtest.json (weekly
+#     (`d1 execute --json`, paged when a result exceeds D1's 50 MB query limit), mirror the
+#     R2 snapshots/ those exports reference (one wrangler install, then parallel `r2 object get`,
+#     newest SNAPSHOT_MAX; one object per sport per run, filed under the earliest card's week),
+#     run `python -m pipeline.backtest` -> data/board/backtest.json (weekly
 #     post-mortem + season rollups + bucket grid + stadium results + matched games)
 #     and data/backtest/*.parquet, push backtest.json to R2 board/ and the parquet
 #     files to R2 backtest/, and archive the closings / stadium_results rows it
@@ -101,24 +103,18 @@ jobs:
       - name: Export D1 tables
         # {table}.json per table in the `d1 execute --json` shape ([{results: [...]}]),
         # which pipeline.backtest.load_export_dir reads. A missing table on a fresh
-        # database is a warning, not a failure.
+        # database is a warning, not a failure. A result over D1's 50 MB limit
+        # (odds_history) is re-read in primary-key pages; a failed page leaves no file.
         run: |
-          mkdir -p data/d1_export
-          for t in $D1_TABLES; do
-            if npx --yes wrangler@4 d1 execute "$D1_DATABASE" --remote --json --command "SELECT * FROM $t" > "data/d1_export/$t.json"; then
-              echo "$t.json exported"
-            else
-              echo "::warning::d1 export $t failed (fresh database?)"; rm -f "data/d1_export/$t.json"
-            fi
-          done
+          python scripts/export_d1_tables.py --out data/d1_export
           ls -la data/d1_export
       - name: Mirror snapshots from R2 (wrangler, read-only)
         # snapshots/{sport}/{season}/{week}/{run_id}.json are the per-run GameCard lists the
-        # backtest replays for lead-N forecasts. wrangler cannot list a prefix, so the keys
-        # are rebuilt from the D1 export just made: every (game_id, run_id) in
-        # weather_history / odds_history names the snapshot that run wrote (game_id =
-        # sport:season:week:away@home, run_id = the snapshot stem). Newest SNAPSHOT_MAX runs
-        # plus each game's last pregame snapshot, so old weeks retain saved signals.
+        # backtest replays for lead-N forecasts. wrangler cannot list a prefix. write_board
+        # files one object per sport per run under the earliest card's season/week, which is
+        # not each game_id's own week when a run spans two weeks. snapshot_keys resolves that
+        # filing week from the games export. Newest SNAPSHOT_MAX runs plus each game's last
+        # pregame snapshot, so old weeks retain saved signals.
         # One wrangler install, then xargs -P fetches. Any failed get fails the step.
         # The mirrored file count must be non-empty and equal the key list. The API token
         # is not printed (scripts/mirror_r2_snapshots.sh redacts wrangler logs).

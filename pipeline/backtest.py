@@ -622,32 +622,148 @@ class D1Data:
 
 D1_TABLES = ("games", "odds_history", "closings", "alerts", "stadiums", "teams", "weather_history", "runs")
 
+# Cards are pipeline.build.in_window: [now - 6h, now + 10d]. Pinned to those constants.
+SNAPSHOT_WINDOW_BEFORE_H = 6.0
+SNAPSHOT_WINDOW_AFTER_H = 240.0
+_SNAPSHOT_SPORTS = {"nfl", "cfb"}
+
+
+def _safe_path_part(value: str) -> bool:
+    return bool(value) and value not in {".", ".."} and "/" not in value and "\\" not in value
+
+
+def _snapshot_game_parts(game_id: str) -> Optional[tuple[str, str, str]]:
+    parts = game_id.split(":")
+    if len(parts) != 4 or parts[0] not in _SNAPSHOT_SPORTS:
+        return None
+    sport, season, week = parts[0], parts[1], parts[2]
+    if not _safe_path_part(season) or not _safe_path_part(week):
+        return None
+    return sport, season, week
+
+
+def _run_id_stamp(run_id: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime(run_id.split("-", 1)[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _in_snapshot_window(kickoff: datetime, clock: datetime) -> bool:
+    delta_h = (kickoff - clock).total_seconds() / 3600.0
+    return -SNAPSHOT_WINDOW_BEFORE_H <= delta_h <= SNAPSHOT_WINDOW_AFTER_H
+
+
+def _season_week_sort(season: str, week: str) -> tuple[tuple[int, int | str], tuple[int, int | str]]:
+    def num(text: str) -> tuple[int, int | str]:
+        try:
+            return (0, int(text))
+        except ValueError:
+            return (1, text)
+    return (num(season), num(week))
+
+
+def _filing_season_week(
+    sport: str,
+    run_id: str,
+    observed_ids: Sequence[str],
+    games_by_sport: Mapping[str, Sequence[tuple[str, datetime]]],
+    started: Mapping[str, datetime],
+) -> Optional[tuple[str, str]]:
+    """Season/week ``write_board`` used for this sport's one snapshot.
+
+    Cards are every game inside the weather window at run start, and the file
+    is named for the earliest kickoff among them. History is change-only, so
+    that earliest card often has no row on this run. With no kickoff to
+    reconstruct the window, the earliest week named by this run's own rows is
+    the only path worth fetching.
+    """
+    clock = started.get(run_id) or _run_id_stamp(run_id)
+    if clock is not None:
+        candidates = []
+        for gid, kick in games_by_sport.get(sport, ()):
+            parts = _snapshot_game_parts(gid)
+            if parts is None or not _in_snapshot_window(kick, clock):
+                continue
+            candidates.append({
+                "game_id": gid, "kickoff_utc": utc_iso(kick), "season": parts[1], "week": parts[2],
+            })
+        if candidates:
+            cards = sorted(candidates, key=lambda c: (c["kickoff_utc"], c["game_id"]))
+            season, week = json_out.season_week(cards)
+            if (season is not None and week is not None
+                    and _safe_path_part(str(season)) and _safe_path_part(str(week))):
+                return str(season), str(week)
+    weeks = []
+    for gid in observed_ids:
+        parts = _snapshot_game_parts(gid)
+        if parts is not None and parts[0] == sport:
+            weeks.append((parts[1], parts[2]))
+    if not weeks:
+        return None
+    return min(weeks, key=lambda sw: _season_week_sort(*sw))
+
 
 def snapshot_keys(d1: D1Data, limit: int = 120, *, now: Optional[datetime] = None) -> list[str]:
-    """Retain each game's last pregame snapshot before filling with recent runs.
+    """One key per sport per run, under the week ``write_board`` actually filed.
 
-    Closing snapshots are mandatory even if their count exceeds the recent-run
-    budget; otherwise older weeks silently lose their recorded signals.
+    A run whose cards span two weeks writes ``snapshots/{sport}/{earliest week}/``.
+    History rows still carry each game's own week, and the last pregame snapshot
+    of a later-week game is mandatory. Resolving the filing week keeps that
+    object on the list. A resolved key that was never written still fails the
+    mirror. Closing snapshots stay mandatory past the recent-run budget so older
+    weeks keep their recorded signals.
     """
     now = ensure_utc(now or now_utc())
-    kicks = {g.get("game_id"): _dt(g.get("kickoff_utc")) for g in d1.games}
-    finished = {r.get("run_id"): _dt(r.get("finished_at")) for r in d1.runs}
-    keys, closing = set(), {}
+    kicks: dict[str, datetime] = {}
+    games_by_sport: dict[str, list[tuple[str, datetime]]] = defaultdict(list)
+    for g in d1.games:
+        gid = str(g.get("game_id") or "")
+        parts = _snapshot_game_parts(gid)
+        kick = _dt(g.get("kickoff_utc"))
+        if parts is None or kick is None or gid in kicks:
+            continue
+        kicks[gid] = kick
+        games_by_sport[parts[0]].append((gid, kick))
+    started: dict[str, datetime] = {}
+    finished: dict[str, datetime] = {}
+    for row in d1.runs:
+        rid = str(row.get("run_id") or "")
+        if not rid:
+            continue
+        st, fin = _dt(row.get("started_at")), _dt(row.get("finished_at"))
+        if st is not None:
+            started[rid] = st
+        if fin is not None:
+            finished[rid] = fin
+    observed: dict[tuple[str, str], list[str]] = defaultdict(list)
+    seen_at: dict[tuple[str, str], datetime] = {}
     for row in [*d1.weather_history, *d1.odds_history]:
         gid, run_id = str(row.get("game_id") or ""), str(row.get("run_id") or "")
-        parts = gid.split(":")
-        if len(parts) != 4 or parts[0] not in {"nfl", "cfb"} or not run_id or "/" in run_id or "\\" in run_id:
+        parts = _snapshot_game_parts(gid)
+        stamp = _run_id_stamp(run_id)
+        if parts is None or not run_id or "/" in run_id or "\\" in run_id or stamp is None:
             continue
-        try:
-            ts = datetime.strptime(run_id.split("-", 1)[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
+        observed[(parts[0], run_id)].append(gid)
         # Snapshot meta.last_updated is the run finish, not its filename's start.
-        ts = finished.get(run_id) or ts
-        key = f"snapshots/{parts[0]}/{parts[1]}/{parts[2]}/{run_id}.json"
+        ts = finished.get(run_id) or stamp
+        prev = seen_at.get((gid, run_id))
+        if prev is None or ts > prev:
+            seen_at[(gid, run_id)] = ts
+    keys: set[str] = set()
+    closing: dict[str, tuple[datetime, str]] = {}
+    for (sport, run_id), gids in observed.items():
+        filed = _filing_season_week(sport, run_id, gids, games_by_sport, started)
+        if filed is None:
+            continue
+        key = json_out.snapshot_key(sport, filed[0], filed[1], run_id)
         keys.add(key)
-        if kicks.get(gid) and ts < kicks[gid] <= now and (gid not in closing or ts > closing[gid][0]):
-            closing[gid] = (ts, key)
+        for gid in gids:
+            ts, kick = seen_at.get((gid, run_id)), kicks.get(gid)
+            if ts is None or kick is None or not (ts < kick <= now):
+                continue
+            if gid not in closing or ts > closing[gid][0]:
+                closing[gid] = (ts, key)
     selected = {key for _, key in closing.values()}
     newest = sorted(keys - selected, key=lambda k: k.rsplit("/", 1)[1], reverse=True)
     selected.update(newest[:max(0, limit - len(selected))])
