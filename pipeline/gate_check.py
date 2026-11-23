@@ -43,6 +43,8 @@ TIMEOUT_S = 20
 
 NFLVERSE_GAMES_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 CFBD_GAMES_URL = "https://api.collegefootballdata.com/games"
+ESPN_CFB_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard"
+ESPN_CFB_REGULAR_WEEKS = 16  # == pipeline.schedule.cfb.ESPN_REGULAR_WEEKS (pinned by test)
 USER_AGENT = "football-weather-board/1.0"
 
 SPORTS = ("nfl", "cfb")
@@ -123,7 +125,46 @@ def kickoffs_nfl(now: datetime) -> list[datetime]:
     return parse_nflverse_kickoffs(_get(NFLVERSE_GAMES_URL), candidate_seasons(now))
 
 
+def parse_espn_kickoffs(payload: Any) -> list[datetime]:
+    out: list[datetime] = []
+    for ev in (payload or {}).get("events") or []:
+        s = ev.get("date")
+        if not s:
+            continue
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        out.append((dt if dt.tzinfo else dt.replace(tzinfo=UTC)).astimezone(UTC))
+    return out
+
+
+def kickoffs_cfb_espn(now: datetime) -> list[datetime]:
+    """ESPN FBS scoreboard per regular week + postseason (a season-wide query truncates)."""
+    out: list[datetime] = []
+    for season in candidate_seasons(now):
+        reqs: list[dict[str, Any]] = [{"week": w, "seasontype": 2} for w in range(1, ESPN_CFB_REGULAR_WEEKS + 1)]
+        reqs.append({"seasontype": 3})
+        for extra in reqs:
+            text = _get(ESPN_CFB_SCOREBOARD_URL, params={"dates": season, "limit": 400, "groups": 80, **extra})
+            out.extend(parse_espn_kickoffs(json.loads(text)))
+    return out
+
+
 def kickoffs_cfb(now: datetime) -> list[datetime]:
+    """ESPN first (unmetered); CFBD (1,000 calls/month free) only when ESPN fails or is empty."""
+    try:
+        kicks = kickoffs_cfb_espn(now)
+        if kicks:
+            return kicks
+        espn_err = "ESPN returned no games"
+    except Exception as exc:  # noqa: BLE001
+        espn_err = f"ESPN failed ({type(exc).__name__}: {exc})"
+    print(f"gate: cfb {espn_err}; trying CFBD", file=sys.stderr)
+    return kickoffs_cfb_cfbd(now)
+
+
+def kickoffs_cfb_cfbd(now: datetime) -> list[datetime]:
     key = os.environ.get("CFBD_API_KEY", "").strip()
     if not key:
         raise RuntimeError("CFBD_API_KEY not set")

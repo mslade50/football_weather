@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -132,10 +133,42 @@ def test_gate_force_bypasses_fetch(monkeypatch: pytest.MonkeyPatch):
     assert G.gate(["nfl"], now=NOW, force=True)["run"] == "scrape"
 
 
-def test_cfb_fetcher_requires_key(monkeypatch: pytest.MonkeyPatch):
+def test_cfb_fetcher_requires_key_when_espn_fails(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CFBD_API_KEY", raising=False)
+    monkeypatch.setattr(G, "kickoffs_cfb_espn", lambda now: [])
     with pytest.raises(RuntimeError):
         G.kickoffs_cfb(NOW)
+
+
+def test_cfb_gate_uses_espn_without_calling_cfbd(monkeypatch: pytest.MonkeyPatch):
+    seen = []
+
+    def fake_get(url, params=None, headers=None):
+        assert "collegefootballdata" not in url, "CFBD must not be called when ESPN answers"
+        seen.append(params)
+        return json.dumps({"events": [{"date": "2026-11-28T17:00Z"}]})
+
+    monkeypatch.setattr(G, "_get", fake_get)
+    kicks = G.kickoffs_cfb(datetime(2026, 11, 23, tzinfo=UTC))
+    assert kicks and kicks[0] == datetime(2026, 11, 28, 17, tzinfo=UTC)
+    assert len(seen) == G.ESPN_CFB_REGULAR_WEEKS + 1 and seen[-1]["seasontype"] == 3
+
+
+def test_cfb_gate_falls_back_to_cfbd_when_espn_errors(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("CFBD_API_KEY", "k")
+
+    def fake_get(url, params=None, headers=None):
+        if "espn" in url:
+            raise RuntimeError("espn down")
+        return json.dumps(CFBD_JSON)
+
+    monkeypatch.setattr(G, "_get", fake_get)
+    assert G.kickoffs_cfb(NOW) == G.parse_cfbd_kickoffs(CFBD_JSON) * len(G.candidate_seasons(NOW)) * 2
+
+
+def test_gate_and_schedule_week_counts_match():
+    from pipeline.schedule import cfb as cfb_mod
+    assert G.ESPN_CFB_REGULAR_WEEKS == cfb_mod.ESPN_REGULAR_WEEKS
 
 
 def test_need_playwright_false_in_phase1(monkeypatch: pytest.MonkeyPatch):

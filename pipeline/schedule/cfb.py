@@ -196,17 +196,40 @@ def fetch_cfb_schedule(
     ctx: Any = None,
     include_final: bool = False,
 ) -> list[Game]:
-    """CFBD when a key is available, else ESPN scoreboard (Degradation recorded on ctx)."""
+    """ESPN scoreboard first (free, unmetered); CFBD only when ESPN is incomplete.
+
+    CFBD's free tier is 1,000 calls/month and the hourly pipeline alone exceeded it
+    (2026-11). ESPN matched CFBD on every upcoming game's id, stadium, neutral flag,
+    tz and kickoff, so CFBD is the backup, called only when an ESPN request failed
+    or ESPN returned nothing. Degradations are recorded on ctx.
+    """
+    games, failures = _fetch_espn_cfb(season, week, book, raw_dir)
+    if games and not failures:
+        return [g for g in games if include_final or g.status_code != GameStatus.FINAL]
+    why = "; ".join(failures) if failures else "ESPN scoreboard returned no games"
     key = api_key or os.environ.get("CFBD_API_KEY")
     if key:
         try:
             payload = fetch_cfbd_games(season, week=week, api_key=key, raw_dir=raw_dir)
-            return parse_cfbd_games(payload, season, book=book, include_final=include_final)
+            cfbd = parse_cfbd_games(payload, season, book=book, include_final=include_final)
+            _degrade(ctx, f"{why}; using CFBD", "warn")
+            return cfbd
         except Exception as exc:  # noqa: BLE001
-            if ctx is not None and hasattr(ctx, "degrade"):
-                ctx.degrade("schedule.cfb", f"CFBD failed ({exc}); using ESPN", "warn")
-    elif ctx is not None and hasattr(ctx, "degrade"):
-        ctx.degrade("schedule.cfb", "CFBD_API_KEY missing; using ESPN scoreboard", "warn")
+            _degrade(ctx, f"{why}; CFBD failed ({exc}); using partial ESPN", "error")
+    else:
+        _degrade(ctx, f"{why}; CFBD_API_KEY missing", "error")
+    return [g for g in games if include_final or g.status_code != GameStatus.FINAL]
+
+
+def _degrade(ctx: Any, reason: str, severity: str) -> None:
+    if ctx is not None and hasattr(ctx, "degrade"):
+        ctx.degrade("schedule.cfb", reason, severity)
+
+
+def _fetch_espn_cfb(
+    season: int, week: Optional[int], book: Any, raw_dir: Optional[Path]
+) -> tuple[list[Game], list[str]]:
+    """All ESPN games for the season (or one week), de-duplicated, plus failure notes."""
     # A season-wide ESPN query (no week) is unreliable: it truncates at ~800 events
     # or returns a partial set, dropping the upcoming slate. Ask per regular week.
     if week is not None:
@@ -215,19 +238,19 @@ def fetch_cfb_schedule(
         requests = [(w, 2) for w in range(1, ESPN_REGULAR_WEEKS + 1)]
         requests.append((None, 3))
     games: list[Game] = []
+    failures: list[str] = []
     seen: set[str] = set()
     for wk, season_type in requests:
         try:
             payload = fetch_espn_scoreboard("cfb", season, week=wk, season_type=season_type, raw_dir=raw_dir)
         except Exception as exc:  # noqa: BLE001
-            if ctx is not None and hasattr(ctx, "degrade"):
-                ctx.degrade("schedule.cfb", f"ESPN scoreboard failed (type {season_type}, week {wk}): {exc}", "error")
+            failures.append(f"ESPN scoreboard failed (type {season_type}, week {wk}): {exc}")
             continue
         for g in parse_espn_scoreboard(payload, "cfb", season=season, book=book):
             if g.game_id not in seen:
                 seen.add(g.game_id)
                 games.append(g)
-    return [g for g in games if include_final or g.status_code != GameStatus.FINAL]
+    return games, failures
 
 
 __all__ = [

@@ -107,7 +107,7 @@ def test_fetch_falls_back_to_espn_without_key(monkeypatch, espn_payload: dict, b
     games = fetch_cfb_schedule(2025, week=1, book=book, ctx=ctx)
     assert len(games) == 2
     assert calls == [("cfb", 2025, 1, 2), ("cfb", 2025, 1, 3)]
-    assert any("CFBD_API_KEY" in d.reason for d in ctx.degradations)
+    assert not ctx.degradations  # ESPN is the primary source: a clean answer is not degraded
 
 
 def test_espn_fallback_without_week_queries_each_regular_week(monkeypatch, espn_payload: dict, book) -> None:
@@ -125,12 +125,31 @@ def test_espn_fallback_without_week_queries_each_regular_week(monkeypatch, espn_
     assert len(games) == 2  # same payload twice is de-duplicated by game_id
 
 
-def test_fetch_uses_cfbd_when_key_present(monkeypatch, cfbd_payload: list, book) -> None:
+def test_espn_answer_does_not_spend_cfbd_quota(monkeypatch, espn_payload: dict, book) -> None:
+    monkeypatch.setattr(cfb_mod, "fetch_espn_scoreboard", lambda *a, **k: espn_payload)
+    monkeypatch.setattr(cfb_mod, "fetch_cfbd_games", lambda *a, **k: pytest.fail("CFBD must not be called"))
+    games = fetch_cfb_schedule(2025, book=book, api_key="k", ctx=RunContext(sport="cfb", git_sha="test"))
+    assert len(games) == 2
+
+
+def test_fetch_uses_cfbd_when_espn_fails(monkeypatch, cfbd_payload: list, book) -> None:
+    def boom(*a, **k):
+        raise RuntimeError("espn down")
+
+    monkeypatch.setattr(cfb_mod, "fetch_espn_scoreboard", boom)
     monkeypatch.setattr(cfb_mod, "fetch_cfbd_games", lambda *a, **k: cfbd_payload)
-    monkeypatch.setattr(cfb_mod, "fetch_espn_scoreboard", lambda *a, **k: pytest.fail("ESPN must not be called"))
     ctx = RunContext(sport="cfb", git_sha="test")
     games = fetch_cfb_schedule(2025, book=book, api_key="k", ctx=ctx)
-    assert len(games) == 4 and not ctx.degradations
+    assert len(games) == 4
+    assert [d.severity for d in ctx.degradations] == ["warn"] and "using CFBD" in ctx.degradations[0].reason
+
+
+def test_espn_skips_tbd_placeholder_games(espn_payload: dict, book) -> None:
+    import copy
+    payload = copy.deepcopy(espn_payload)
+    team = payload["events"][0]["competitions"][0]["competitors"][0]["team"]
+    team.update(location="TBD", displayName="TBD", abbreviation="TBD", shortDisplayName="TBD")
+    assert len(parse_espn_scoreboard(payload, "cfb", season=2025, book=book)) == len(espn_payload["events"]) - 1
 
 
 @pytest.mark.parametrize("venue_id,venue_name", [(499, "Cotton Bowl"), (499, ""), (None, "Cotton Bowl Stadium")])

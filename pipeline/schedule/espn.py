@@ -20,6 +20,7 @@ from utils.timeutil import ET, parse_iso
 
 ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/football/{league}/scoreboard"
 LEAGUE = {"cfb": "college-football", "nfl": "nfl"}
+TBD_TEAM = "tbd"  # slug ESPN placeholder competitors ("TBD") resolve to
 
 
 def _team_id(sport: str, team: dict[str, Any], book: Any) -> str:
@@ -76,6 +77,8 @@ def parse_espn_scoreboard(payload: dict[str, Any], sport: str, season: Optional[
             continue
         home_id = _team_id(sport, home.get("team") or {}, book)
         away_id = _team_id(sport, away.get("team") or {}, book)
+        if TBD_TEAM in (home_id, away_id):
+            continue  # unfilled championship/bowl slot: no matchup to price yet
         venue = comp.get("venue") or {}
         vid = str(venue.get("id")) if venue.get("id") is not None else None
         stadium_id, tz_name = vid, None
