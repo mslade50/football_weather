@@ -23,6 +23,7 @@ from utils.timeutil import ET, ensure_utc, now_utc, parse_iso
 
 CFBD_BASE = "https://api.collegefootballdata.com"
 POSTSEASON_WEEK_OFFSET = 15
+ESPN_REGULAR_WEEKS = 16
 
 
 def _headers(api_key: Optional[str]) -> dict[str, str]:
@@ -206,15 +207,26 @@ def fetch_cfb_schedule(
                 ctx.degrade("schedule.cfb", f"CFBD failed ({exc}); using ESPN", "warn")
     elif ctx is not None and hasattr(ctx, "degrade"):
         ctx.degrade("schedule.cfb", "CFBD_API_KEY missing; using ESPN scoreboard", "warn")
+    # A season-wide ESPN query (no week) is unreliable: it truncates at ~800 events
+    # or returns a partial set, dropping the upcoming slate. Ask per regular week.
+    if week is not None:
+        requests: list[tuple[Optional[int], int]] = [(week, 2), (week, 3)]
+    else:
+        requests = [(w, 2) for w in range(1, ESPN_REGULAR_WEEKS + 1)]
+        requests.append((None, 3))
     games: list[Game] = []
-    for season_type in (2, 3):
+    seen: set[str] = set()
+    for wk, season_type in requests:
         try:
-            payload = fetch_espn_scoreboard("cfb", season, week=week, season_type=season_type, raw_dir=raw_dir)
+            payload = fetch_espn_scoreboard("cfb", season, week=wk, season_type=season_type, raw_dir=raw_dir)
         except Exception as exc:  # noqa: BLE001
             if ctx is not None and hasattr(ctx, "degrade"):
-                ctx.degrade("schedule.cfb", f"ESPN scoreboard failed (type {season_type}): {exc}", "error")
+                ctx.degrade("schedule.cfb", f"ESPN scoreboard failed (type {season_type}, week {wk}): {exc}", "error")
             continue
-        games.extend(parse_espn_scoreboard(payload, "cfb", season=season, book=book))
+        for g in parse_espn_scoreboard(payload, "cfb", season=season, book=book):
+            if g.game_id not in seen:
+                seen.add(g.game_id)
+                games.append(g)
     return [g for g in games if include_final or g.status_code != GameStatus.FINAL]
 
 

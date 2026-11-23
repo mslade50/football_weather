@@ -110,6 +110,21 @@ def test_fetch_falls_back_to_espn_without_key(monkeypatch, espn_payload: dict, b
     assert any("CFBD_API_KEY" in d.reason for d in ctx.degradations)
 
 
+def test_espn_fallback_without_week_queries_each_regular_week(monkeypatch, espn_payload: dict, book) -> None:
+    """A season-wide ESPN query truncates; the fallback must ask per week (2026-11 outage)."""
+    monkeypatch.delenv("CFBD_API_KEY", raising=False)
+    calls = []
+
+    def fake_espn(sport, season, week=None, season_type=2, raw_dir=None, timeout=30.0):
+        calls.append((week, season_type))
+        return espn_payload if (week, season_type) in {(1, 2), (2, 2)} else {"events": []}
+
+    monkeypatch.setattr(cfb_mod, "fetch_espn_scoreboard", fake_espn)
+    games = fetch_cfb_schedule(2025, book=book, ctx=RunContext(sport="cfb", git_sha="test"))
+    assert calls == [(w, 2) for w in range(1, cfb_mod.ESPN_REGULAR_WEEKS + 1)] + [(None, 3)]
+    assert len(games) == 2  # same payload twice is de-duplicated by game_id
+
+
 def test_fetch_uses_cfbd_when_key_present(monkeypatch, cfbd_payload: list, book) -> None:
     monkeypatch.setattr(cfb_mod, "fetch_cfbd_games", lambda *a, **k: cfbd_payload)
     monkeypatch.setattr(cfb_mod, "fetch_espn_scoreboard", lambda *a, **k: pytest.fail("ESPN must not be called"))
